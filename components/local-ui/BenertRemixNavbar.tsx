@@ -13,7 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { useSession, signIn, signOut } from "next-auth/react";
 
-export default function BenertRemixNavbar() {
+type BenertRemixNavbarProps = {
+  /** Post-login / post-logout redirect (include path only, e.g. `/benert-remix` or `/benert-remix/test`) */
+  authCallbackPath?: string;
+};
+
+export default function BenertRemixNavbar({ authCallbackPath = "/benert-remix" }: BenertRemixNavbarProps) {
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
@@ -56,7 +61,7 @@ export default function BenertRemixNavbar() {
               </div>
               <DropdownMenuSeparator className="bg-white/10" />
               <DropdownMenuItem
-                onClick={() => signOut({ callbackUrl: "/benert-remix" })}
+                onClick={() => signOut({ callbackUrl: authCallbackPath })}
                 className="cursor-pointer text-rose-400 focus:text-rose-300 focus:bg-rose-500/10"
               >
                 <LogOut className="mr-2 h-4 w-4" />
@@ -69,7 +74,7 @@ export default function BenertRemixNavbar() {
             variant="default"
             size="sm"
             className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 py-2 text-sm font-medium"
-            onClick={() => signIn("google", { callbackUrl: "/benert-remix" })}
+            onClick={() => signIn("google", { callbackUrl: authCallbackPath })}
           >
             Login
           </Button>

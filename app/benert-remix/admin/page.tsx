@@ -155,9 +155,22 @@ export default function BenertRemixAdminPage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white px-4 py-12 md:px-8 font-[family-name:var(--font-inter)]">
-      <h1 className="text-2xl md:text-3xl font-light tracking-tighter text-center mb-10">
+      <h1 className="text-2xl md:text-3xl font-light tracking-tighter text-center mb-4">
         Benert Remix — Admin
       </h1>
+      <p className="text-center text-sm text-white/50 max-w-2xl mx-auto mb-10">
+        To review the <strong className="text-white/80">public thank-you page</strong> (same as after the competition ends) without
+        closing the competition or interrupting uploads/downloads, open it directly:{" "}
+        <a
+          href="/benert-remix/test"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-rose-400 underline decoration-rose-400/50 hover:decoration-rose-400"
+        >
+          /benert-remix/test
+        </a>{" "}
+        (new tab)
+      </p>
 
       {/* Start Competition section */}
       <div className="max-w-4xl mx-auto mb-12 p-6 rounded-xl bg-white/5 border border-white/10">
