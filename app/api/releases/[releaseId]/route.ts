@@ -3,6 +3,7 @@ import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  normalizeFeatureArtistNamesInput,
   prismaKindToApi,
   serializeTrack,
   serializeTrackForPublic,
@@ -63,6 +64,7 @@ export async function GET(
       type: prismaKindToApi(release.kind),
       primaryArtistIds: release.primaryArtistIds,
       featureArtistIds: release.featureArtistIds,
+      featureArtistNames: release.featureArtistNames ?? [],
       description: release.description,
       releaseDate: release.releaseDate,
       primaryGenre: release.primaryGenre,
@@ -120,6 +122,7 @@ function parseTrackInput(
   soundcloudLink: string | null;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames: string[];
   sortOrder: number;
 } {
   const id = t.id ? String(t.id) : undefined;
@@ -168,6 +171,7 @@ function parseTrackInput(
     featureArtistIds: Array.isArray(t.featureArtistIds)
       ? (t.featureArtistIds as string[])
       : [],
+    featureArtistNames: normalizeFeatureArtistNamesInput(t.featureArtistNames),
     sortOrder: typeof t.sortOrder === "number" ? t.sortOrder : index,
   };
 }
@@ -208,8 +212,14 @@ export async function PATCH(
       showOnHome,
       primaryArtistIds,
       featureArtistIds,
+      featureArtistNames: releaseFeatureNamesRaw,
       tracks: tracksRaw,
     } = body;
+
+    const releaseFeatureNamesPatch =
+      releaseFeatureNamesRaw !== undefined
+        ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)
+        : undefined;
 
     if (primaryArtistIds !== undefined) {
       if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
@@ -333,6 +343,10 @@ export async function PATCH(
           }),
           ...(primaryArtistIds !== undefined && { primaryArtistIds }),
           ...(featIds !== undefined && { featureArtistIds: featIds }),
+          ...(releaseFeatureNamesPatch !== undefined && {
+            featureArtistNames: releaseFeatureNamesPatch,
+            featureArtistIds: [],
+          }),
         },
       });
 
@@ -379,6 +393,7 @@ export async function PATCH(
                 soundcloudLink: t.soundcloudLink,
                 primaryArtistIds: t.primaryArtistIds,
                 featureArtistIds: t.featureArtistIds,
+                featureArtistNames: t.featureArtistNames,
                 sortOrder: t.sortOrder,
               },
             });
@@ -407,6 +422,7 @@ export async function PATCH(
                 soundcloudLink: t.soundcloudLink,
                 primaryArtistIds: t.primaryArtistIds,
                 featureArtistIds: t.featureArtistIds,
+                featureArtistNames: t.featureArtistNames,
                 sortOrder: t.sortOrder,
               },
             });

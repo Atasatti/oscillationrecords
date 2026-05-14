@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { prismaKindToApi, serializeTrack } from "@/lib/release-format";
+import { prismaKindToApi, normalizeFeatureArtistNamesInput, serializeTrack } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,6 +42,7 @@ export async function POST(
       soundcloudLink,
       primaryArtistIds,
       featureArtistIds,
+      featureArtistNames: featureArtistNamesRaw,
     } = body;
 
     if (!name || !audioFile || duration === undefined || duration === null) {
@@ -84,6 +85,7 @@ export async function POST(
     }
 
     const featIds = featureArtistIds || [];
+    const featManual = normalizeFeatureArtistNamesInput(featureArtistNamesRaw);
     if (featIds.length > 0) {
       const featureArtists = await prisma.artist.findMany({
         where: { id: { in: featIds } },
@@ -130,6 +132,7 @@ export async function POST(
         soundcloudLink: soundcloudLink || null,
         primaryArtistIds,
         featureArtistIds: featIds,
+        featureArtistNames: featManual,
       },
     });
 

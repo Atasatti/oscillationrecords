@@ -8,6 +8,10 @@ import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube }
 import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { LuX } from "react-icons/lu";
 import { RiTiktokFill } from "react-icons/ri";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+} from "@/lib/release-format";
 
 interface Artist {
   id: string;
@@ -35,6 +39,7 @@ interface ArtistRelease {
   coverImage: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   tracks: { id: string }[];
   spotifyLink?: string | null;
   appleMusicLink?: string | null;
@@ -117,17 +122,16 @@ export default function ArtistDetail() {
   };
 
   const getFeatureArtistNames = (
+    featureArtistNames: string[] | undefined,
     featureArtistIds: string[] = [],
     primaryArtistIds: string[] = []
   ) => {
-    const primarySet = new Set(primaryArtistIds);
-    return Array.from(
-      new Set(
-        featureArtistIds
-          .filter((id) => !primarySet.has(id))
-          .map((id) => allArtists.find((item) => item.id === id)?.name)
-          .filter((name): name is string => Boolean(name))
-      )
+    const map = buildArtistMap(allArtists);
+    return combinedFeatureDisplayNames(
+      featureArtistIds,
+      primaryArtistIds,
+      map,
+      featureArtistNames
     );
   };
 
@@ -298,6 +302,7 @@ export default function ArtistDetail() {
                         audio: null,
                         primaryArtistName: getPrimaryArtistName(rel.primaryArtistIds),
                         featureArtistNames: getFeatureArtistNames(
+                          rel.featureArtistNames,
                           rel.featureArtistIds,
                           rel.primaryArtistIds
                         ),

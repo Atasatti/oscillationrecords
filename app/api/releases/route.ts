@@ -5,9 +5,11 @@ import { prisma } from "@/lib/prisma";
 import {
   apiKindToPrisma,
   buildArtistMap,
+  combinedFeatureDisplayNames,
   featureIdsExcludingPrimary,
   formatArtistLine,
   getOptionalDate,
+  normalizeFeatureArtistNamesInput,
   primaryNamesFromIds,
   prismaKindToApi,
 } from "@/lib/release-format";
@@ -99,16 +101,13 @@ export async function GET(request: NextRequest) {
     const out = releases.map((r) => {
       const primaryIds = r.primaryArtistIds || [];
       const primaryArtistId = primaryIds[0];
-      const featureArtistIds = featureIdsExcludingPrimary(
-        r.featureArtistIds || [],
-        primaryIds
-      );
-      const featureArtistNames = Array.from(
-        new Set(
-          featureArtistIds
-            .map((id: string) => artistMap.get(String(id))?.name)
-            .filter((name): name is string => Boolean(name))
-        )
+      const rawFeatureIds = r.featureArtistIds || [];
+      const featureArtistIds = featureIdsExcludingPrimary(rawFeatureIds, primaryIds);
+      const featureArtistNames = combinedFeatureDisplayNames(
+        rawFeatureIds,
+        primaryIds,
+        artistMap,
+        r.featureArtistNames
       );
       const primaryName = primaryNamesFromIds(primaryIds, artistMap);
       const rd = getOptionalDate(r.releaseDate);
@@ -185,6 +184,7 @@ export async function POST(request: NextRequest) {
       upcCode,
       primaryArtistIds,
       featureArtistIds,
+      featureArtistNames: featureArtistNamesRaw,
     } = body;
 
     if (!name || !coverImage) {
@@ -216,6 +216,7 @@ export async function POST(request: NextRequest) {
     }
 
     const featIds = featureArtistIds || [];
+    const featManual = normalizeFeatureArtistNamesInput(featureArtistNamesRaw);
     if (featIds.length > 0) {
       const featureArtists = await prisma.artist.findMany({
         where: { id: { in: featIds } },
@@ -240,6 +241,7 @@ export async function POST(request: NextRequest) {
         coverImage: String(coverImage),
         primaryArtistIds,
         featureArtistIds: featIds,
+        featureArtistNames: featManual,
         sortOrder,
         releaseDate: releaseDate ? new Date(releaseDate) : null,
         description: description ? String(description) : null,

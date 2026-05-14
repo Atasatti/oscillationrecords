@@ -7,6 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Image as ImageIcon, Loader2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+  normalizeFeatureArtistNamesInput,
+} from "@/lib/release-format";
 
 
 interface Artist {
@@ -86,6 +91,13 @@ export default function ReleaseForm({
         }
         const data = await res.json();
         if (cancelled) return;
+        const map = buildArtistMap((data.artists || []) as Artist[]);
+        const featureLine = combinedFeatureDisplayNames(
+          data.featureArtistIds || [],
+          data.primaryArtistIds || [],
+          map,
+          data.featureArtistNames
+        ).join(", ");
         setFormData((prev) => ({
           ...prev,
           name: data.name || "",
@@ -102,10 +114,7 @@ export default function ReleaseForm({
           youtubeLink: data.youtubeLink || "",
           soundcloudLink: data.soundcloudLink || "",
           primaryArtistIds: data.primaryArtistIds || [],
-          featureArtistText: ((data.featureArtistIds || []) as string[])
-            .map((id: string) => data.artists?.find((a: Artist) => a.id === id)?.name)
-            .filter(Boolean)
-            .join(", "),
+          featureArtistText: featureLine,
           isrcExplicit: Boolean(data.isrcExplicit),
           upcCode: data.upcCode || "",
         }));
@@ -240,12 +249,9 @@ export default function ReleaseForm({
         isrcExplicit: formData.isrcExplicit,
         upcCode: formData.upcCode || null,
         primaryArtistIds: formData.primaryArtistIds,
-        featureArtistIds: formData.featureArtistText
-          .split(",")
-          .map((n) => n.trim().toLowerCase())
-          .filter(Boolean)
-          .map((name) => artists.find((a) => a.name.toLowerCase() === name)?.id)
-          .filter((id): id is string => Boolean(id)),
+        featureArtistNames: normalizeFeatureArtistNamesInput(
+          formData.featureArtistText
+        ),
       };
 
       if (mode === "create") {
@@ -498,11 +504,12 @@ export default function ReleaseForm({
                       onChange={handlePrimaryArtistsChange}
                       placeholder="Primary artists"
                     />
+                    <p className="text-xs text-gray-500">Featured (optional)</p>
                     <Input
                       name="featureArtistText"
                       value={formData.featureArtistText}
                       onChange={handleInputChange}
-                      placeholder="Feature artists (e.g. Drake, The Strokes)"
+                      placeholder="e.g. Guest Name, Another Artist"
                       className="bg-gray-800 border-gray-700 text-white"
                     />
                   </div>

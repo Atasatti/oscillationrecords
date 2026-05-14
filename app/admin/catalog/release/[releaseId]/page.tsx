@@ -33,6 +33,10 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+} from "@/lib/release-format";
 
 interface Track {
   id: string;
@@ -57,6 +61,7 @@ interface Track {
   soundcloudLink?: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
 }
 
 interface ReleaseDetail {
@@ -79,6 +84,7 @@ interface ReleaseDetail {
   soundcloudLink?: string | null;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   tracks: Track[];
 }
 
@@ -144,6 +150,7 @@ export default function AdminReleaseDetail() {
           soundcloudLink: data.soundcloudLink,
           primaryArtistIds: data.primaryArtistIds || [],
           featureArtistIds: data.featureArtistIds || [],
+          featureArtistNames: data.featureArtistNames || [],
           tracks: data.tracks || data.songs || [],
         });
         const artistsResponse = await fetch("/api/artists");
@@ -172,17 +179,16 @@ export default function AdminReleaseDetail() {
   };
 
   const getFeatureArtistNames = (
+    featureArtistNames: string[] | undefined,
     featureArtistIds: string[] = [],
     primaryArtistIds: string[] = []
   ) => {
-    const primarySet = new Set(primaryArtistIds);
-    return Array.from(
-      new Set(
-        featureArtistIds
-          .filter((id) => !primarySet.has(id))
-          .map((id) => allArtists.find((item) => item.id === id)?.name)
-          .filter((name): name is string => Boolean(name))
-      )
+    const map = buildArtistMap(allArtists);
+    return combinedFeatureDisplayNames(
+      featureArtistIds,
+      primaryArtistIds,
+      map,
+      featureArtistNames
     );
   };
 
@@ -263,6 +269,7 @@ export default function AdminReleaseDetail() {
       soundcloudLink: t.soundcloudLink,
       primaryArtistIds: t.primaryArtistIds,
       featureArtistIds: t.featureArtistIds,
+      featureArtistNames: t.featureArtistNames,
     });
     setTrackDialogOpen(true);
   };
@@ -278,7 +285,11 @@ export default function AdminReleaseDetail() {
     ? getArtistNames(release.primaryArtistIds)
     : [];
   const releaseFeatureNames = release
-    ? getFeatureArtistNames(release.featureArtistIds, release.primaryArtistIds)
+    ? getFeatureArtistNames(
+        release.featureArtistNames,
+        release.featureArtistIds,
+        release.primaryArtistIds
+      )
     : [];
 
   if (isLoading) {
@@ -512,6 +523,7 @@ export default function AdminReleaseDetail() {
                     audio: track.audioFile,
                     primaryArtistName: getPrimaryArtistName(track.primaryArtistIds),
                     featureArtistNames: getFeatureArtistNames(
+                      track.featureArtistNames,
                       track.featureArtistIds,
                       track.primaryArtistIds
                     ),
@@ -607,7 +619,12 @@ export default function AdminReleaseDetail() {
           releaseId={releaseId}
           artists={allArtists}
           defaultPrimaryIds={release.primaryArtistIds}
-          defaultFeatureIds={release.featureArtistIds}
+          defaultFeatureArtistText={combinedFeatureDisplayNames(
+            release.featureArtistIds,
+            release.primaryArtistIds,
+            buildArtistMap(allArtists),
+            release.featureArtistNames
+          ).join(", ")}
           mode={trackDialogMode}
           track={editingTrack}
           onSaved={fetchData}

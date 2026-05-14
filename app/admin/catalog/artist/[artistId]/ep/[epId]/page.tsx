@@ -20,6 +20,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, MoreVertical, Trash2, Pencil } from "lucide-react";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+} from "@/lib/release-format";
 
 interface Single {
   id: string;
@@ -35,6 +39,7 @@ interface Single {
   soundcloudLink?: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   isrcExplicit?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +51,7 @@ interface EP {
   coverImage: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   description?: string;
   songIds: string[];
   songs?: Single[];
@@ -113,17 +119,16 @@ export default function EPDetail() {
   };
 
   const getFeatureArtistNames = (
+    featureArtistNames: string[] | undefined,
     featureArtistIds: string[] = [],
     primaryArtistIds: string[] = []
   ) => {
-    const primarySet = new Set(primaryArtistIds);
-    return Array.from(
-      new Set(
-        featureArtistIds
-          .filter((id) => !primarySet.has(id))
-          .map((id) => allArtists.find((item) => item.id === id)?.name)
-          .filter((name): name is string => Boolean(name))
-      )
+    const map = buildArtistMap(allArtists);
+    return combinedFeatureDisplayNames(
+      featureArtistIds,
+      primaryArtistIds,
+      map,
+      featureArtistNames
     );
   };
 
@@ -308,6 +313,7 @@ export default function EPDetail() {
                         audio: song.audioFile,
                         primaryArtistName: getPrimaryArtistName(song.primaryArtistIds),
                         featureArtistNames: getFeatureArtistNames(
+                          song.featureArtistNames,
                           song.featureArtistIds,
                           song.primaryArtistIds
                         ),

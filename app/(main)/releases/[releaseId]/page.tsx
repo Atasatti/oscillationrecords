@@ -15,6 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+} from "@/lib/release-format";
 
 interface TrackRow {
   id: string;
@@ -30,6 +34,7 @@ interface TrackRow {
   soundcloudLink?: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   isrcExplicit?: boolean;
   composer?: string | null;
   lyricist?: string | null;
@@ -51,6 +56,7 @@ interface Release {
   type: 'single' | 'album' | 'ep';
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   artists: Artist[];
   description?: string | null;
   releaseDate?: string | null;
@@ -239,15 +245,13 @@ export default function ReleaseDetail() {
         .map((id) => release.artists.find((a) => a.id === id)?.name)
         .filter((name): name is string => Boolean(name))
     : [];
-  const primarySet = release ? new Set(release.primaryArtistIds) : new Set<string>();
+  const artistMap = release ? buildArtistMap(release.artists) : new Map();
   const releaseFeatureNames = release
-    ? Array.from(
-        new Set(
-          release.featureArtistIds
-            .filter((id) => !primarySet.has(id))
-            .map((id) => release.artists.find((a) => a.id === id)?.name)
-            .filter((name): name is string => Boolean(name))
-        )
+    ? combinedFeatureDisplayNames(
+        release.featureArtistIds,
+        release.primaryArtistIds,
+        artistMap,
+        release.featureArtistNames
       )
     : [];
 
@@ -300,20 +304,22 @@ export default function ReleaseDetail() {
   };
   const showStream = hasStreamingLinks(streamProps);
   const trackList = release.tracks?.length ? release.tracks : release.songs ?? [];
-  const formatArtistLine = (song: TrackRow) => {
+  const getTrackPrimaryLine = (song: TrackRow) => {
     const primaryNames = song.primaryArtistIds
       .map((id) => release.artists.find((a) => a.id === id)?.name)
       .filter((name): name is string => Boolean(name));
-    const primaryName = primaryNames.length ? primaryNames.join(", ") : "Unknown Artist";
-    const primarySet = new Set(song.primaryArtistIds);
-    const featureNames = Array.from(
-      new Set(
-        song.featureArtistIds
-          .filter((id) => !primarySet.has(id))
-          .map((id) => release.artists.find((a) => a.id === id)?.name)
-          .filter((name): name is string => Boolean(name))
-      )
+    return primaryNames.length ? primaryNames.join(", ") : "Unknown Artist";
+  };
+  const getTrackFeatureNames = (song: TrackRow) =>
+    combinedFeatureDisplayNames(
+      song.featureArtistIds,
+      song.primaryArtistIds,
+      artistMap,
+      song.featureArtistNames
     );
+  const formatArtistLine = (song: TrackRow) => {
+    const primaryName = getTrackPrimaryLine(song);
+    const featureNames = getTrackFeatureNames(song);
     return featureNames.length > 0
       ? `${primaryName} ft ${featureNames.join(", ")}`
       : primaryName;
@@ -500,12 +506,13 @@ export default function ReleaseDetail() {
                     soundcloudLink: song.soundcloudLink,
                   };
                   const showTrackLinks = hasStreamingLinks(trackStreamProps);
+                  const trackFeatureNames = getTrackFeatureNames(song);
                   return (
                   <div
                     key={song.id}
                     className="border-b border-white/5 last:border-b-0"
                   >
-                    <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-center gap-3 px-3 sm:px-4 py-2.5">
+                    <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
                       <span className="w-5 text-xs text-gray-500 text-right">{index + 1}</span>
                       <button
                         type="button"
@@ -525,7 +532,16 @@ export default function ReleaseDetail() {
                           <span>{song.name}</span>
                           {song.isrcExplicit ? <ExplicitBadge size="sm" /> : null}
                         </p>
-                        <p className="text-xs text-gray-400 truncate">{formatArtistLine(song)}</p>
+                        <div className="mt-0.5 space-y-0.5">
+                          <p className="text-xs text-white/90 font-medium truncate">
+                            {getTrackPrimaryLine(song)}
+                          </p>
+                          {trackFeatureNames.length > 0 ? (
+                            <p className="text-xs text-muted-foreground truncate">
+                              ft {trackFeatureNames.join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="hidden md:flex justify-start">
                         <StreamingLinks
@@ -653,9 +669,19 @@ export default function ReleaseDetail() {
           {selectedTrack ? (
             (() => {
               const parsedTrackCredits = parseTrackCredits(selectedTrack.trackCredits);
+              const trackFt = getTrackFeatureNames(selectedTrack);
               return (
             <div className="space-y-4">
-              <p className="text-sm text-gray-300">{formatArtistLine(selectedTrack)}</p>
+              <div className="space-y-0.5">
+                <p className="text-sm text-white/95 font-medium">
+                  {getTrackPrimaryLine(selectedTrack)}
+                </p>
+                {trackFt.length > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    ft {trackFt.join(", ")}
+                  </p>
+                ) : null}
+              </div>
               <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(6rem,auto)_1fr]">
                 <dt className="text-gray-500">Duration</dt>
                 <dd className="text-gray-200">{formatDuration(selectedTrack.duration)}</dd>

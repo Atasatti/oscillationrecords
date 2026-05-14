@@ -118,6 +118,8 @@ model Release {
   coverImage       String
   primaryArtistIds String[]     @db.ObjectId
   featureArtistIds String[]     @db.ObjectId
+  /// Display-only featured credits (comma-free text split on save); used when not linking catalog artists.
+  featureArtistNames String[]  @default([])
   releaseDate      DateTime?
   description      String?
   composer         String?
@@ -175,6 +177,7 @@ model Track {
   soundcloudLink   String?
   primaryArtistIds String[] @db.ObjectId
   featureArtistIds String[] @db.ObjectId
+  featureArtistNames String[] @default([])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

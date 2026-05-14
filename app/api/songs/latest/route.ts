@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Track } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  featureIdsExcludingPrimary,
+  buildArtistMap,
+  combinedFeatureDisplayNames,
   serializeTrackForPublic,
 } from "@/lib/release-format";
 
@@ -54,25 +55,24 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const artistMap = new Map(artists.map((a) => [a.id, a]));
+    const artistMap = buildArtistMap(artists);
 
     const rows = trackReleasePairs.map(({ track, showLatestOnHome }) => {
       const primaryIds = track.primaryArtistIds || [];
       const primaryArtistId = primaryIds[0];
       const primaryArtist = primaryArtistId
-        ? artistMap.get(primaryArtistId)
+        ? artistMap.get(String(primaryArtistId))
         : null;
       const primaryArtistName =
         primaryIds
-          .map((id) => artistMap.get(id)?.name)
+          .map((id) => artistMap.get(String(id))?.name)
           .filter((name): name is string => Boolean(name))
           .join(", ") || "Unknown Artist";
-      const featureArtistNames = Array.from(
-        new Set(
-          featureIdsExcludingPrimary(track.featureArtistIds || [], primaryIds)
-            .map((id) => artistMap.get(id)?.name)
-            .filter((name): name is string => Boolean(name))
-        )
+      const featureArtistNames = combinedFeatureDisplayNames(
+        track.featureArtistIds || [],
+        primaryIds,
+        artistMap,
+        track.featureArtistNames
       );
 
       return {

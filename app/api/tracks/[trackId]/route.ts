@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { serializeTrack, serializeTrackForPublic } from "@/lib/release-format";
+import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -77,6 +77,14 @@ export async function PATCH(
       sortOrder,
     } = body;
 
+    const featureNamesInBody = Object.prototype.hasOwnProperty.call(
+      body,
+      "featureArtistNames"
+    );
+    const featureArtistNamesPatch = featureNamesInBody
+      ? normalizeFeatureArtistNamesInput(body.featureArtistNames)
+      : undefined;
+
     if (primaryArtistIds !== undefined) {
       if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
         return NextResponse.json(
@@ -133,7 +141,12 @@ export async function PATCH(
         ...(youtubeLink !== undefined && { youtubeLink: youtubeLink || null }),
         ...(soundcloudLink !== undefined && { soundcloudLink: soundcloudLink || null }),
         ...(primaryArtistIds !== undefined && { primaryArtistIds }),
-        ...(featIds !== undefined && { featureArtistIds: featIds }),
+        ...(featIds !== undefined &&
+          featureArtistNamesPatch === undefined && { featureArtistIds: featIds }),
+        ...(featureArtistNamesPatch !== undefined && {
+          featureArtistNames: featureArtistNamesPatch,
+          featureArtistIds: [],
+        }),
         ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
       },
     });

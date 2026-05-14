@@ -35,6 +35,47 @@ export function featureIdsExcludingPrimary(
   return featureIds.filter((id) => !primarySet.has(String(id)));
 }
 
+/** Normalize manual feature credits from API or form (string or string[]). */
+export function normalizeFeatureArtistNamesInput(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((x) => String(x ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+  if (typeof value === "string") {
+    return Array.from(
+      new Set(
+        value
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+  return [];
+}
+
+/**
+ * Prefer stored manual names; otherwise resolve from linked artist IDs.
+ */
+export function combinedFeatureDisplayNames(
+  featureArtistIds: string[],
+  primaryArtistIds: string[],
+  artistMap: Map<string, Pick<Artist, "id" | "name">>,
+  manualNames: string[] | null | undefined
+): string[] {
+  const manual = normalizeFeatureArtistNamesInput(manualNames);
+  if (manual.length > 0) return manual;
+  const fromIds = featureIdsExcludingPrimary(featureArtistIds || [], primaryArtistIds)
+    .map((id) => artistMap.get(String(id))?.name)
+    .filter((n): n is string => Boolean(n));
+  return Array.from(new Set(fromIds));
+}
+
 export function buildArtistMap(artists: Pick<Artist, "id" | "name">[]) {
   return new Map(artists.map((a) => [String(a.id), a]));
 }
@@ -85,6 +126,7 @@ export function serializeTrack(t: Track) {
     soundcloudLink: t.soundcloudLink,
     primaryArtistIds: t.primaryArtistIds,
     featureArtistIds: t.featureArtistIds,
+    featureArtistNames: t.featureArtistNames ?? [],
     sortOrder: t.sortOrder,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,

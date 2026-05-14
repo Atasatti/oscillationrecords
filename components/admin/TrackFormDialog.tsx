@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Loader2, Music } from "lucide-react";
+import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -45,6 +46,7 @@ export type TrackFormDialogTrack = {
   soundcloudLink?: string | null;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
 };
 
 /** Row as stored in DB JSON */
@@ -248,7 +250,8 @@ type Props = {
   releaseId: string;
   artists: ArtistOpt[];
   defaultPrimaryIds: string[];
-  defaultFeatureIds: string[];
+  /** Prefill featured line when adding a track (e.g. from release-level credits). */
+  defaultFeatureArtistText?: string;
   mode: "create" | "edit";
   track?: TrackFormDialogTrack | null;
   onSaved: () => void;
@@ -260,7 +263,7 @@ export default function TrackFormDialog({
   releaseId,
   artists,
   defaultPrimaryIds,
-  defaultFeatureIds,
+  defaultFeatureArtistText = "",
   mode,
   track,
   onSaved,
@@ -328,10 +331,11 @@ export default function TrackFormDialog({
       setSoundcloudLink(track.soundcloudLink || "");
       setPrimaryArtistIds(track.primaryArtistIds || []);
       setFeatureArtistText(
-        (track.featureArtistIds || [])
-          .map((id) => artists.find((a) => a.id === id)?.name)
-          .filter(Boolean)
-          .join(", ")
+        (track.featureArtistNames || []).filter(Boolean).join(", ") ||
+          (track.featureArtistIds || [])
+            .map((id) => artists.find((a) => a.id === id)?.name)
+            .filter(Boolean)
+            .join(", ")
       );
       setDuration(track.duration);
       setAudioFile(null);
@@ -353,18 +357,12 @@ export default function TrackFormDialog({
       setYoutubeLink("");
       setSoundcloudLink("");
       setPrimaryArtistIds([...defaultPrimaryIds]);
-      setFeatureArtistText(
-        defaultFeatureIds
-          .filter((id) => !defaultPrimaryIds.includes(id))
-          .map((id) => artists.find((a) => a.id === id)?.name)
-          .filter(Boolean)
-          .join(", ")
-      );
+      setFeatureArtistText(defaultFeatureArtistText.trim());
       setDuration(0);
       setAudioFile(null);
       setStemsFile(null);
     }
-  }, [open, mode, track, defaultPrimaryIds, defaultFeatureIds]);
+  }, [open, mode, track, defaultPrimaryIds, defaultFeatureArtistText, artists]);
 
   const uploadS3 = async (file: File, url: string) => {
     const r = await fetch(url, {
@@ -548,12 +546,7 @@ export default function TrackFormDialog({
         youtubeLink: youtubeLink.trim() || null,
         soundcloudLink: soundcloudLink.trim() || null,
         primaryArtistIds,
-        featureArtistIds: featureArtistText
-          .split(",")
-          .map((n) => n.trim().toLowerCase())
-          .filter(Boolean)
-          .map((name) => artists.find((a) => a.name.toLowerCase() === name)?.id)
-          .filter((id): id is string => Boolean(id)),
+        featureArtistNames: normalizeFeatureArtistNamesInput(featureArtistText),
       };
 
       if (mode === "create") {
@@ -810,10 +803,11 @@ export default function TrackFormDialog({
               placeholder="Primary artist"
             />
             <div className="h-2" />
+            <p className="mb-1 text-xs text-gray-500">Featured (optional)</p>
             <Input
               value={featureArtistText}
               onChange={(e) => setFeatureArtistText(e.target.value)}
-              placeholder="Feature artists (e.g. Drake, The Strokes)"
+              placeholder="e.g. Guest Name, Another Artist"
               className="border-gray-700 bg-gray-900"
             />
           </div>

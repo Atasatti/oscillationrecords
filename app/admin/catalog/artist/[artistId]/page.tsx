@@ -20,6 +20,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeft, MoreVertical, Trash2, Pencil } from "lucide-react";
+import {
+  buildArtistMap,
+  combinedFeatureDisplayNames,
+} from "@/lib/release-format";
 
 interface Artist {
   id: string;
@@ -42,6 +46,7 @@ interface ReleaseRow {
   coverImage: string;
   primaryArtistIds: string[];
   featureArtistIds: string[];
+  featureArtistNames?: string[];
   tracks: { id: string }[];
   spotifyLink?: string | null;
   appleMusicLink?: string | null;
@@ -103,17 +108,16 @@ export default function AdminArtistDetail() {
   };
 
   const getFeatureArtistNames = (
+    featureArtistNames: string[] | undefined,
     featureArtistIds: string[] = [],
     primaryArtistIds: string[] = []
   ) => {
-    const primarySet = new Set(primaryArtistIds);
-    return Array.from(
-      new Set(
-        featureArtistIds
-          .filter((id) => !primarySet.has(id))
-          .map((id) => allArtists.find((a) => a.id === id)?.name)
-          .filter((n): n is string => Boolean(n))
-      )
+    const map = buildArtistMap(allArtists);
+    return combinedFeatureDisplayNames(
+      featureArtistIds,
+      primaryArtistIds,
+      map,
+      featureArtistNames
     );
   };
 
@@ -214,6 +218,7 @@ export default function AdminArtistDetail() {
                         audio: null,
                         primaryArtistName: getPrimaryArtistName(rel.primaryArtistIds),
                         featureArtistNames: getFeatureArtistNames(
+                          rel.featureArtistNames,
                           rel.featureArtistIds,
                           rel.primaryArtistIds
                         ),
