@@ -7,7 +7,6 @@ interface ExtendedToken extends JWT {
   refreshToken?: string;
   expiresAt?: number;
   error?: string;
-  email?: string;
   [key: string]: unknown;
 }
 
@@ -48,10 +47,6 @@ async function refreshGoogleAccessToken(token: ExtendedToken): Promise<JWT> {
   }
 }
 
-// Determine if we're using HTTPS
-const isProduction = process.env.NODE_ENV === "production";
-const isHttps = process.env.NEXTAUTH_URL?.startsWith("https://") ?? isProduction;
-
 export const authOptions: AuthOptions = {
   // adapter: PrismaAdapter(prisma), // Temporarily disabled to fix session issues
   providers: [
@@ -77,43 +72,16 @@ export const authOptions: AuthOptions = {
     signIn: "/login",
   },
   debug: process.env.NODE_ENV === "development",
-  useSecureCookies: isHttps,
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: isHttps,
-        domain: process.env.NEXTAUTH_COOKIE_DOMAIN || undefined,
-      },
-    },
-    callbackUrl: {
-      name: `next-auth.callback-url`,
-      options: {
-        sameSite: "lax",
-        path: "/",
-        secure: isHttps,
-        domain: process.env.NEXTAUTH_COOKIE_DOMAIN || undefined,
-      },
-    },
-    csrfToken: {
-      name: `next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: isHttps,
-        domain: process.env.NEXTAUTH_COOKIE_DOMAIN || undefined,
-      },
-    },
-  },
   callbacks: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async jwt({ token, account, user }): Promise<any> {
       const extendedToken = token as ExtendedToken;
-      // On initial sign in: persist Google user to DB and store email in token
+
+      if (user?.email) {
+        extendedToken.email = user.email;
+      }
+
+      // On initial sign in: persist Google user to DB so APIs (e.g. upload-url) can find them
       if (account && user?.email) {
         try {
           await prisma.user.upsert({
@@ -135,8 +103,7 @@ export const authOptions: AuthOptions = {
         extendedToken.refreshToken = account.refresh_token ?? extendedToken.refreshToken;
         // account.expires_at is in seconds; normalize to ms
         extendedToken.expiresAt = account.expires_at ? account.expires_at * 1000 : Date.now() + 60 * 60 * 1000;
-        extendedToken.email = user.email;
-        return extendedToken;
+        return token;
       }
 
       // If token is near expiry (< 60s), try to refresh
@@ -146,46 +113,19 @@ export const authOptions: AuthOptions = {
 
       return token;
     },
-
     async session({ session, token }) {
-      const extendedToken = token as ExtendedToken;
-      if (session.user) {
-        session.user.id = extendedToken.sub as string;
-        session.user.email = extendedToken.email as string;
-      }
-
-      (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).accessToken = extendedToken.accessToken;
-      (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).refreshToken = extendedToken.refreshToken;
-      (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).expiresAt = extendedToken.expiresAt;
-
-      return session;
-    },
-
-    // CRITICAL: Validate sign-in
-    async signIn({ user }) {
-      if (!user?.email) {
-        console.error("SignIn callback: No email provided");
-        return false;
-      }
-      console.log(`User ${user.email} signed in successfully`);
-      return true;
-    },
-
-    // CRITICAL: Handle post-login redirect properly
-    async redirect({ url, baseUrl }) {
-      // If callback URL is a relative path, use it
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
+        const extendedToken = token as ExtendedToken;
+        if (session.user) {
+          session.user.id = extendedToken.sub as string;
+        }
       
-      // If callback URL is on the same origin, use it
-      try {
-        if (new URL(url).origin === new URL(baseUrl).origin) return url;
-      } catch {
-        // Invalid URL, fall through
+        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).accessToken = extendedToken.accessToken;
+        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).refreshToken = extendedToken.refreshToken;
+        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).expiresAt = extendedToken.expiresAt;
+      
+        return session;
       }
       
-      // Default redirect after successful login
-      return `${baseUrl}/admin`;
-    },
   },
 };
 
