@@ -77,9 +77,9 @@ export async function GET(request: NextRequest) {
       ep: playEvents.filter((e) => e.contentType === "ep").length,
     };
 
-    // Top content
+    // Top content — exclude release page views, only count actual audio plays
     const contentMap = new Map<string, { name: string; plays: number; artistName?: string }>();
-    playEvents.forEach(event => {
+    playEvents.filter(e => e.contentType !== "release").forEach(event => {
       const key = `${event.contentType}-${event.contentId}`;
       const existing = contentMap.get(key) || { name: event.contentName, plays: 0, artistName: event.artistName ?? undefined };
       existing.plays++;
@@ -145,11 +145,17 @@ export async function GET(request: NextRequest) {
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Top artists
+    // Top artists — split combined names like "BSK, Big Heck" or "BSK ft SILVER D.A"
     const artistMap = new Map<string, number>();
     playEvents.forEach(event => {
       if (event.artistName) {
-        artistMap.set(event.artistName, (artistMap.get(event.artistName) || 0) + 1);
+        const individuals = event.artistName
+          .split(/\s*,\s*|\s+ft\.?\s+/i)
+          .map(name => name.trim())
+          .filter(Boolean);
+        individuals.forEach(name => {
+          artistMap.set(name, (artistMap.get(name) || 0) + 1);
+        });
       }
     });
 

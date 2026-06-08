@@ -480,9 +480,9 @@ export default function AnalyticsDashboard() {
 
       {/* Content Detail Dialog */}
       <Dialog open={!!selectedContent} onOpenChange={(open) => !open && setSelectedContent(null)}>
-        <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">{selectedContent?.name}</DialogTitle>
+            <DialogTitle className="text-xl">{selectedContent?.name}</DialogTitle>
             <DialogDescription className="text-gray-400">
               Detailed analytics and audience demographics for this {selectedContent?.type}
             </DialogDescription>
@@ -495,20 +495,20 @@ export default function AnalyticsDashboard() {
           ) : contentAnalytics ? (
             <div className="space-y-6 mt-4">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-[#0F0F0F] rounded-lg p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
                   <p className="text-xs text-gray-400 mb-1">Total Plays</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.totalPlays}</p>
                 </div>
-                <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
                   <p className="text-xs text-gray-400 mb-1">Unique Users</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.uniqueUsers}</p>
                 </div>
-                <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
                   <p className="text-xs text-gray-400 mb-1">Completion Rate</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.completionRate.toFixed(1)}%</p>
                 </div>
-                <div className="bg-[#0F0F0F] rounded-lg p-4">
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
                   <p className="text-xs text-gray-400 mb-1">Avg Duration</p>
                   <p className="text-2xl font-light">
                     {Math.floor(contentAnalytics.summary.averagePlayDuration / 60)}:
@@ -518,19 +518,19 @@ export default function AnalyticsDashboard() {
               </div>
 
               {/* Demographics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-[#0F0F0F] rounded-lg p-6">
-                  <h4 className="text-lg font-medium mb-4">Gender Distribution</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                  <h4 className="text-sm font-medium text-gray-300 mb-3">Gender Distribution</h4>
                   <div className="space-y-3">
                     {Object.entries(contentAnalytics.demographics.gender)
                       .filter(([, count]) => count > 0)
                       .map(([gender, count]) => {
                         const maxGender = Math.max(...Object.values(contentAnalytics.demographics.gender));
                         return (
-                          <div key={gender} className="space-y-2">
+                          <div key={gender} className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm text-gray-300 capitalize">{gender.replace('_', ' ')}</span>
-                              <span className="text-sm font-medium text-gray-400">{count}</span>
+                              <span className="text-xs text-gray-300 capitalize">{gender.replace('_', ' ')}</span>
+                              <span className="text-xs font-medium text-gray-400">{count}</span>
                             </div>
                             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                               <div
@@ -544,18 +544,18 @@ export default function AnalyticsDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-[#0F0F0F] rounded-lg p-6">
-                  <h4 className="text-lg font-medium mb-4">Age Range Distribution</h4>
+                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                  <h4 className="text-sm font-medium text-gray-300 mb-3">Age Range Distribution</h4>
                   <div className="space-y-3">
                     {Object.entries(contentAnalytics.demographics.ageRange)
                       .filter(([, count]) => count > 0)
                       .map(([ageRange, count]) => {
                         const maxAge = Math.max(...Object.values(contentAnalytics.demographics.ageRange));
                         return (
-                          <div key={ageRange} className="space-y-2">
+                          <div key={ageRange} className="space-y-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm text-gray-300">{ageRange === 'unknown' ? 'Unknown' : ageRange}</span>
-                              <span className="text-sm font-medium text-gray-400">{count}</span>
+                              <span className="text-xs text-gray-300">{ageRange === 'unknown' ? 'Unknown' : ageRange}</span>
+                              <span className="text-xs font-medium text-gray-400">{count}</span>
                             </div>
                             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                               <div
@@ -572,15 +572,15 @@ export default function AnalyticsDashboard() {
 
               {/* Top Countries/Cities */}
               {(contentAnalytics.demographics.topCountries.length > 0 || contentAnalytics.demographics.topCities.length > 0) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {contentAnalytics.demographics.topCountries.length > 0 && (
-                    <div className="bg-[#0F0F0F] rounded-lg p-6">
-                      <h4 className="text-lg font-medium mb-4">Top Countries</h4>
+                    <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                      <h4 className="text-sm font-medium text-gray-300 mb-3">Top Countries</h4>
                       <div className="space-y-2">
                         {contentAnalytics.demographics.topCountries.map((item) => (
                           <div key={item.country} className="flex items-center justify-between">
-                            <span className="text-sm text-gray-300">{item.country}</span>
-                            <span className="text-sm font-medium text-gray-400">{item.count}</span>
+                            <span className="text-xs text-gray-300">{item.country}</span>
+                            <span className="text-xs font-medium text-gray-400">{item.count}</span>
                           </div>
                         ))}
                       </div>
@@ -588,13 +588,13 @@ export default function AnalyticsDashboard() {
                   )}
 
                   {contentAnalytics.demographics.topCities.length > 0 && (
-                    <div className="bg-[#0F0F0F] rounded-lg p-6">
-                      <h4 className="text-lg font-medium mb-4">Top Cities</h4>
+                    <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                      <h4 className="text-sm font-medium text-gray-300 mb-3">Top Cities</h4>
                       <div className="space-y-2">
                         {contentAnalytics.demographics.topCities.map((item) => (
                           <div key={item.city} className="flex items-center justify-between">
-                            <span className="text-sm text-gray-300">{item.city}</span>
-                            <span className="text-sm font-medium text-gray-400">{item.count}</span>
+                            <span className="text-xs text-gray-300">{item.city}</span>
+                            <span className="text-xs font-medium text-gray-400">{item.count}</span>
                           </div>
                         ))}
                       </div>
@@ -604,50 +604,69 @@ export default function AnalyticsDashboard() {
               )}
 
               {/* User Engagement Table */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h4 className="text-lg font-medium mb-4">User Engagement</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="text-left py-2 px-3 text-gray-400">User</th>
-                        <th className="text-left py-2 px-3 text-gray-400">Gender</th>
-                        <th className="text-left py-2 px-3 text-gray-400">Age Range</th>
-                        <th className="text-left py-2 px-3 text-gray-400">Location</th>
-                        <th className="text-left py-2 px-3 text-gray-400">Status</th>
-                        <th className="text-left py-2 px-3 text-gray-400">Date</th>
+              <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <h4 className="text-sm font-medium text-gray-300 mb-3">User Engagement</h4>
+                <table className="w-full text-xs border-collapse">
+                  <colgroup>
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "8%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">User</th>
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">Email</th>
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">Gender</th>
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">Age</th>
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">Location</th>
+                      <th className="text-left py-2 pr-3 text-gray-400 font-medium">Status</th>
+                      <th className="text-left py-2 text-gray-400 font-medium">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contentAnalytics.userEngagement.slice(0, 20).map((engagement) => (
+                      <tr
+                        key={`${engagement.userId}-${engagement.createdAt}`}
+                        className="border-b border-gray-800 hover:bg-[#222]/50"
+                      >
+                        <td className="py-2 pr-3 text-gray-300 max-w-0">
+                          <span className="block truncate" title={engagement.userName}>{engagement.userName}</span>
+                        </td>
+                        <td className="py-2 pr-3 text-gray-400 max-w-0">
+                          <span className="block truncate" title={engagement.userEmail || undefined}>{engagement.userEmail || "—"}</span>
+                        </td>
+                        <td className="py-2 pr-3 text-gray-400 capitalize">{engagement.gender || "—"}</td>
+                        <td className="py-2 pr-3 text-gray-400">{engagement.ageRange || "—"}</td>
+                        <td className="py-2 pr-3 text-gray-400 max-w-0">
+                          {(() => {
+                            const loc = engagement.city && engagement.country
+                              ? `${engagement.city}, ${engagement.country}`
+                              : engagement.country || engagement.city || "—";
+                            return <span className="block truncate" title={loc !== "—" ? loc : undefined}>{loc}</span>;
+                          })()}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <span
+                            className={`px-2 py-0.5 rounded whitespace-nowrap ${
+                              engagement.completed
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-yellow-500/20 text-yellow-400"
+                            }`}
+                          >
+                            {engagement.completed ? "Completed" : "Incomplete"}
+                          </span>
+                        </td>
+                        <td className="py-2 text-gray-500 whitespace-nowrap">
+                          {new Date(engagement.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {contentAnalytics.userEngagement.slice(0, 20).map((engagement) => (
-                        <tr key={`${engagement.userId}-${engagement.createdAt}`} className="border-b border-gray-700 hover:bg-[#1a1a1a]/50">
-                          <td className="py-2 px-3 text-gray-300">{engagement.userName}</td>
-                          <td className="py-2 px-3 text-gray-400 capitalize">{engagement.gender || "—"}</td>
-                          <td className="py-2 px-3 text-gray-400">{engagement.ageRange || "—"}</td>
-                          <td className="py-2 px-3 text-gray-400">
-                            {engagement.city && engagement.country 
-                              ? `${engagement.city}, ${engagement.country}` 
-                              : engagement.country || engagement.city || "—"}
-                          </td>
-                          <td className="py-2 px-3">
-                            <span
-                              className={`text-xs px-2 py-1 rounded ${
-                                engagement.completed
-                                  ? "bg-green-500/20 text-green-400"
-                                  : "bg-yellow-500/20 text-yellow-400"
-                              }`}
-                            >
-                              {engagement.completed ? "Completed" : "Incomplete"}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-gray-500">
-                            {new Date(engagement.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) : (

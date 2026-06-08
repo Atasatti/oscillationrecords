@@ -35,56 +35,45 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Tracks the DB id of the currently active play event so we can update it later
+  const currentPlayEventIdRef = useRef<string | null>(null);
 
-  // Track play completion
-  const trackPlayCompletion = async (song: Song, duration: number) => {
+  // Creates a new play event at song start and stores its ID
+  const trackPlay = async (song: Song): Promise<void> => {
     try {
       const artistName = typeof song.artist === 'string' ? song.artist : song.artist || 'Unknown Artist';
-      
-      await fetch("/api/analytics/track-play", {
+      const response = await fetch("/api/analytics/track-play", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contentType: song.releaseType || "track",
           contentId: song.id,
           contentName: song.title,
           artistId: null,
           artistName: artistName,
-          playDuration: Math.floor(duration),
-          completed: true,
-        }),
-      });
-    } catch (error) {
-      console.error("Error tracking play completion:", error);
-    }
-  };
-
-  // Track play event
-  const trackPlay = async (song: Song, artistId?: string) => {
-    try {
-      const artistName = typeof song.artist === 'string' ? song.artist : song.artist || 'Unknown Artist';
-      
-      await fetch("/api/analytics/track-play", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contentType: song.releaseType || "track",
-          contentId: song.id,
-          contentName: song.title,
-          artistId: artistId || null,
-          artistName: artistName,
           playDuration: null,
           completed: false,
         }),
       });
+      const data = await response.json();
+      currentPlayEventIdRef.current = data.playEvent?.id ?? null;
     } catch (error) {
       console.error("Error tracking play:", error);
-      // Don't throw - tracking should not break playback
     }
+  };
+
+  // Updates the active play event with final status — called on end, skip, or close
+  const finalizeCurrentPlay = (completed: boolean, overrideDuration?: number) => {
+    const eventId = currentPlayEventIdRef.current;
+    if (!eventId) return;
+    currentPlayEventIdRef.current = null;
+
+    const elapsed = overrideDuration ?? (audioRef.current ? Math.floor(audioRef.current.currentTime) : 0);
+    fetch(`/api/analytics/play-event/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed, playDuration: elapsed > 0 ? elapsed : null }),
+    }).catch(console.error);
   };
 
   useEffect(() => {
@@ -106,11 +95,9 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
-      
-      // Track completed play
-      if (currentSong && audioRef.current) {
-        trackPlayCompletion(currentSong, audioRef.current.duration || 0);
-      }
+      // Use the full track duration (currentTime resets to 0 on ended)
+      const fullDuration = audioRef.current ? Math.floor(audioRef.current.duration || 0) : 0;
+      finalizeCurrentPlay(true, fullDuration);
     };
     const handleCanPlay = () => {
       // Audio is ready to play
@@ -155,17 +142,20 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         console.error("Error playing audio:", error);
       }
     } else {
+      // Finalize the previous song as incomplete before switching
+      finalizeCurrentPlay(false);
+
       // Play new song
       setCurrentSong(song);
       setCurrentTime(0);
       setIsPlaying(false);
-      
+
       // Set source and try to play immediately
       audioRef.current.src = song.audio;
       audioRef.current.load();
-      
-      // Track play event (fire and forget)
-      trackPlay(song).catch(console.error);
+
+      // Track play event — stores event ID for later finalization
+      trackPlay(song);
       
       // Try to play immediately - browser will buffer if needed
       const attemptPlay = async () => {
@@ -215,6 +205,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   };
 
   const closeSong = () => {
+    finalizeCurrentPlay(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
