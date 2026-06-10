@@ -98,6 +98,8 @@ model Artist {
   amazonMusicLink  String?
   soundcloudLink   String?
   sortOrder     Int      @default(0)
+  /// When true, artist appears on the public site (home Meet the Artists carousel and /artists page).
+  showOnWebsite Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

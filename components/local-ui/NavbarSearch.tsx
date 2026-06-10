@@ -112,7 +112,7 @@ export default function NavbarSearch({
       try {
         const [releaseFetch, artistFetch] = await Promise.allSettled([
           fetch(`/api/releases?q=${encodeURIComponent(debounced)}&limit=18`),
-          fetch(`/api/artists?q=${encodeURIComponent(debounced)}&limit=8`),
+          fetch(`/api/artists?q=${encodeURIComponent(debounced)}&limit=8&public=1`),
         ]);
 
         const releaseJson =

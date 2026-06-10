@@ -113,6 +113,49 @@ export async function PUT(
   }
 }
 
+// PATCH /api/artists/[artistId] - Partial update (currently the "Show on website" toggle)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ artistId: string }> }
+) {
+  try {
+    const { artistId } = await params;
+    const body = await request.json();
+    const { showOnWebsite } = body;
+
+    if (typeof showOnWebsite !== "boolean") {
+      return NextResponse.json(
+        { error: "showOnWebsite must be a boolean" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.artist.findUnique({
+      where: { id: artistId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Artist not found" },
+        { status: 404 }
+      );
+    }
+
+    const artist = await prisma.artist.update({
+      where: { id: artistId },
+      data: { showOnWebsite },
+    });
+
+    return NextResponse.json(artist);
+  } catch (error) {
+    console.error("Error updating artist visibility:", error);
+    return NextResponse.json(
+      { error: "Failed to update artist" },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE /api/artists/[artistId] - Delete an artist and all related data
 export async function DELETE(
   request: NextRequest,

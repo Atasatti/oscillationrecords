@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { fuzzyScore } from "@/lib/fuzzy";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/artists — all artists, or search with `?q=` (case-insensitive substring) and optional `?limit=`
+// GET /api/artists — all artists, or fuzzy search with `?q=` (ignores case/spacing, tolerates typos) and optional `?limit=`.
+// `?public=1` returns only artists ticked "Show on website" (admin omits it to manage everything).
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") || "").trim();
+    const publicOnly = searchParams.get("public") === "1";
     const limitRaw = searchParams.get("limit");
     let take: number | undefined;
     if (limitRaw !== null && limitRaw !== "") {
@@ -19,18 +22,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const where =
-      q.length > 0
-        ? { name: { contains: q, mode: "insensitive" as const } }
-        : undefined;
-
+    // Mongo docs missing the field don't match this filter — every Artist doc
+    // must carry showOnWebsite (backfilled 2026-06; create sets it explicitly).
     const artists = await prisma.artist.findMany({
-      ...(where ? { where } : {}),
+      ...(publicOnly ? { where: { showOnWebsite: true } } : {}),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-      ...(take !== undefined ? { take } : {}),
     });
 
-    return NextResponse.json(artists);
+    // Fuzzy match in JS (roster is small) so "bigheck" still finds "Big Heck".
+    let out = artists;
+    if (q.length > 0) {
+      out = artists
+        .map((artist) => ({ artist, score: fuzzyScore(q, artist.name) }))
+        .filter((x) => x.score > 0)
+        .sort((x, y) => y.score - x.score)
+        .map((x) => x.artist);
+    }
+    if (take !== undefined) out = out.slice(0, take);
+
+    return NextResponse.json(out);
   } catch (error) {
     console.error("Error fetching artists:", error);
     return NextResponse.json(
@@ -95,6 +105,7 @@ export async function POST(request: NextRequest) {
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
         sortOrder,
+        showOnWebsite: true,
       },
     });
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { fuzzyScore } from "@/lib/fuzzy";
 import {
   apiKindToPrisma,
   buildArtistMap,
@@ -57,30 +57,38 @@ export async function GET(request: NextRequest) {
         featured.length > 0
           ? featured
           : await prisma.release.findMany(baseList);
+    } else if (qParam.length > 0) {
+      // Fuzzy match in JS (catalog is small) so "bigheck" still finds
+      // releases by "Big Heck" — against release name, linked artists, and
+      // manually entered feature names.
+      const allArtists = await prisma.artist.findMany({
+        select: { id: true, name: true },
+      });
+      const matchedArtistIds = new Set(
+        allArtists
+          .filter((a) => fuzzyScore(qParam, a.name) > 0)
+          .map((a) => a.id)
+      );
+
+      const all = await prisma.release.findMany(baseList);
+      releases = all
+        .map((r) => {
+          const artistHit =
+            r.primaryArtistIds.some((id) => matchedArtistIds.has(String(id))) ||
+            r.featureArtistIds.some((id) => matchedArtistIds.has(String(id)));
+          const score = Math.max(
+            fuzzyScore(qParam, r.name),
+            ...(r.featureArtistNames || []).map((n) => fuzzyScore(qParam, n)),
+            artistHit ? 75 : 0
+          );
+          return { r, score };
+        })
+        .filter((x) => x.score > 0)
+        .sort((x, y) => y.score - x.score)
+        .map((x) => x.r);
+      if (take !== undefined) releases = releases.slice(0, take);
     } else {
-      let releaseWhere: Prisma.ReleaseWhereInput | undefined;
-
-      if (qParam.length > 0) {
-        const matchingArtists = await prisma.artist.findMany({
-          where: { name: { contains: qParam, mode: "insensitive" } },
-          select: { id: true },
-        });
-        const artistIds = matchingArtists.map((a) => a.id);
-        releaseWhere = {
-          OR: [
-            { name: { contains: qParam, mode: "insensitive" } },
-            ...(artistIds.length > 0
-              ? [
-                  { primaryArtistIds: { hasSome: artistIds } },
-                  { featureArtistIds: { hasSome: artistIds } },
-                ]
-              : []),
-          ],
-        };
-      }
-
       releases = await prisma.release.findMany({
-        ...(releaseWhere ? { where: releaseWhere } : {}),
         ...(take !== undefined ? { take } : {}),
         ...baseList,
       });

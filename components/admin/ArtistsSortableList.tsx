@@ -42,13 +42,16 @@ export type ArtistRow = {
   createdAt: string;
   updatedAt: string;
   sortOrder?: number;
+  showOnWebsite?: boolean;
 };
 
 function SortableArtistRow({
   artist,
+  onShowOnWebsiteChange,
   onDeleteClick,
 }: {
   artist: ArtistRow;
+  onShowOnWebsiteChange: (id: string, checked: boolean) => void | Promise<void>;
   onDeleteClick: (id: string, name: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -96,34 +99,46 @@ function SortableArtistRow({
         </Link>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0 rounded-lg border border-white/10"
-            aria-label="Artist actions"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
-          <DropdownMenuItem asChild>
-            <Link href={`/admin/catalog/edit/artist/${artist.id}`}>
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit Artist
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => onDeleteClick(artist.id, artist.name)}
-            className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete Artist
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-400 select-none">
+          <input
+            type="checkbox"
+            checked={artist.showOnWebsite !== false}
+            onChange={(e) => onShowOnWebsiteChange(artist.id, e.target.checked)}
+            className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
+          />
+          <span className="whitespace-nowrap">Show on website</span>
+        </label>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-lg border border-white/10"
+              aria-label="Artist actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+            <DropdownMenuItem asChild>
+              <Link href={`/admin/catalog/edit/artist/${artist.id}`}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit Artist
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => onDeleteClick(artist.id, artist.name)}
+              className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Artist
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }
@@ -131,10 +146,12 @@ function SortableArtistRow({
 export default function ArtistsSortableList({
   artists,
   onReorderSave,
+  onShowOnWebsiteChange,
   onDeleteClick,
 }: {
   artists: ArtistRow[];
   onReorderSave: (ordered: ArtistRow[]) => Promise<void>;
+  onShowOnWebsiteChange: (id: string, checked: boolean) => Promise<void>;
   onDeleteClick: (id: string, name: string) => void;
 }) {
   const [local, setLocal] = useState(artists);
@@ -187,6 +204,7 @@ export default function ArtistsSortableList({
               <SortableArtistRow
                 key={artist.id}
                 artist={artist}
+                onShowOnWebsiteChange={onShowOnWebsiteChange}
                 onDeleteClick={onDeleteClick}
               />
             ))}

@@ -34,7 +34,7 @@ const ArtistsSection = () => {
 
   const fetchArtists = async () => {
     try {
-      const response = await fetch("/api/artists");
+      const response = await fetch("/api/artists?public=1");
       if (response.ok) {
         const data = await response.json();
         setArtists(data);

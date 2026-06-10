@@ -48,6 +48,7 @@ interface Artist {
   createdAt: string;
   updatedAt: string;
   sortOrder?: number;
+  showOnWebsite?: boolean;
 }
 
 interface CatalogRelease {
@@ -272,6 +273,32 @@ export default function AdminCatalog() {
         alert("Network error - could not save artist order.");
       }
       throw e;
+    }
+  };
+
+  const handleArtistShowOnWebsiteChange = async (id: string, checked: boolean) => {
+    const prev = [...artists];
+    setArtists((list) =>
+      list.map((x) => (x.id === id ? { ...x, showOnWebsite: checked } : x))
+    );
+    try {
+      const res = await fetch(`/api/artists/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showOnWebsite: checked }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(
+          typeof err.error === "string"
+            ? err.error
+            : "Failed to update artist visibility"
+        );
+        setArtists(prev);
+      }
+    } catch {
+      setArtists(prev);
+      alert("Failed to update artist visibility");
     }
   };
 
@@ -630,7 +657,14 @@ export default function AdminCatalog() {
 
         {/* Artists Section */}
         <div className="mb-12 md:mb-16">
-          <h2 className="text-xl md:text-2xl font-light tracking-tighter mb-4 md:mb-6">Artists</h2>
+          <div className="mb-4 md:mb-6 space-y-1">
+            <h2 className="text-xl md:text-2xl font-light tracking-tighter">Artists</h2>
+            <p className="max-w-xl text-sm text-gray-500">
+              Drag to set the public order.{" "}
+              <span className="text-gray-400">Show on website</span> controls whether an
+              artist appears on the public site (home page carousel and Artists page).
+            </p>
+          </div>
           {isLoading ? (
             <div className="flex justify-center items-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -652,6 +686,7 @@ export default function AdminCatalog() {
             <ArtistsSortableList
               artists={artists}
               onReorderSave={handleArtistsReorderSave}
+              onShowOnWebsiteChange={handleArtistShowOnWebsiteChange}
               onDeleteClick={handleDeleteClick}
             />
           )}
