@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_EMAIL, getAuthToken } from "@/lib/auth-session";
+import { isAdminEmail, getAuthToken } from "@/lib/auth-session";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,8 +19,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // If user is authenticated but not the admin user trying to access admin route, redirect to home
-    if (token.email !== ADMIN_EMAIL) {
+    // If user is authenticated but not an admin trying to access admin route, redirect to home
+    if (!isAdminEmail(token.email)) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

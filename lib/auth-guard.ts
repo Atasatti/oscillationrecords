@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken, type JWT } from "next-auth/jwt";
-import { ADMIN_EMAIL } from "@/lib/auth-session";
+import { isAdminEmail } from "@/lib/auth-session";
 
 /**
  * Server-side authorization helpers for API route handlers.
@@ -20,10 +20,10 @@ async function readToken(req: NextRequest): Promise<JWT | null> {
   return getToken({ req, secret });
 }
 
-/** True when the request carries a valid session for the single admin account. */
+/** True when the request carries a valid session for an admin account. */
 export async function isAdminRequest(req: NextRequest): Promise<boolean> {
   const token = await readToken(req);
-  return Boolean(token?.email && token.email === ADMIN_EMAIL);
+  return isAdminEmail(token?.email);
 }
 
 /** Require the admin account. Returns the token, or a ready-to-return error response. */
@@ -39,7 +39,7 @@ export async function requireAdmin(req: NextRequest): Promise<Guard> {
     };
   }
   const token = await getToken({ req, secret });
-  if (!token?.email || token.email !== ADMIN_EMAIL) {
+  if (!token || !isAdminEmail(token.email)) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
@@ -71,5 +71,5 @@ export async function requireUser(req: NextRequest): Promise<Guard> {
 }
 
 export function tokenIsAdmin(token: JWT | null | undefined): boolean {
-  return Boolean(token?.email && token.email === ADMIN_EMAIL);
+  return isAdminEmail(token?.email);
 }

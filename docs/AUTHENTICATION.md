@@ -27,9 +27,10 @@ DATABASE_URL=""                 # MongoDB connection string
 ## Who can sign in vs. who is admin
 
 - **Any Google account** can sign in. On first sign-in the user is upserted into the database.
-- **Admin** is a single email defined by `ADMIN_EMAIL` in
-  [lib/auth-session.ts](../lib/auth-session.ts). Only that account can reach admin pages and
-  admin APIs. To change the admin, edit that constant.
+- **Admin** is any email in the `ADMIN_EMAILS` list in
+  [lib/auth-session.ts](../lib/auth-session.ts) (checked case-insensitively via `isAdminEmail`).
+  Only those accounts can reach admin pages and admin APIs. To grant admin, add a lowercase
+  email to that list.
 
 ## Route protection
 
@@ -52,7 +53,7 @@ When adding an endpoint, guard it explicitly. See [SECURITY_AUDIT.md](../SECURIT
 | --- | --- |
 | [lib/auth.ts](../lib/auth.ts) | NextAuth config (Google provider, JWT, callbacks) |
 | [app/api/auth/[...nextauth]/route.ts](../app/api/auth/%5B...nextauth%5D/route.ts) | NextAuth route handler |
-| [lib/auth-session.ts](../lib/auth-session.ts) | `ADMIN_EMAIL` + session-cookie/token helpers |
+| [lib/auth-session.ts](../lib/auth-session.ts) | `ADMIN_EMAILS` / `isAdminEmail` + session-cookie/token helpers |
 | [lib/auth-guard.ts](../lib/auth-guard.ts) | API authorization guards |
 | [middleware.ts](../middleware.ts) | Page-level route protection |
 
