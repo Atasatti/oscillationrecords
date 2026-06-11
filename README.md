@@ -102,6 +102,7 @@ middleware.ts        protects /admin and /benert-remix/admin pages
 - 🎨 [BRAND.md](BRAND.md) — brand design sheet (name, logo, color, type, voice)
 - 🔐 [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) — Google auth & admin access
 - 🛡️ [SECURITY_AUDIT.md](SECURITY_AUDIT.md) — security review & remediation record
+- ⚡ [PERFORMANCE.md](PERFORMANCE.md) — performance findings & optimization notes
 - 🤝 [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
 
 ## Security

@@ -41,7 +41,11 @@ export async function GET(request: NextRequest) {
     }
     if (take !== undefined) out = out.slice(0, take);
 
-    return NextResponse.json(out);
+    return NextResponse.json(out, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Error fetching artists:", error);
     return NextResponse.json(

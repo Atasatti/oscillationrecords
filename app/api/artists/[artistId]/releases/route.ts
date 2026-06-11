@@ -21,11 +21,16 @@ export async function GET(
       },
       orderBy: { createdAt: "desc" },
       include: {
-        tracks: { orderBy: { sortOrder: "asc" } },
+        // The artist page only shows a track count — fetch ids, not full tracks.
+        tracks: { select: { id: true } },
       },
     });
 
-    return NextResponse.json(releases);
+    return NextResponse.json(releases, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Error fetching artist releases:", error);
     return NextResponse.json(

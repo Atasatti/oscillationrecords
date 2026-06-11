@@ -38,7 +38,15 @@ export async function GET(request: NextRequest) {
     const baseList = {
       orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
       include: {
-        tracks: { orderBy: { sortOrder: "asc" as const } },
+        // Listing/search/carousel only need the first track's audio (for the card
+        // player) and a track count — not every track's audio/lyrics/credits.
+        // This keeps the payload small even as the catalog grows.
+        tracks: {
+          orderBy: { sortOrder: "asc" as const },
+          take: 1,
+          select: { audioFile: true },
+        },
+        _count: { select: { tracks: true } },
       },
     };
 
@@ -144,11 +152,20 @@ export async function GET(request: NextRequest) {
         year: rd
           ? rd.getFullYear().toString()
           : new Date(r.createdAt).getFullYear().toString(),
-        songCount: r.tracks.length,
+        songCount: r._count.tracks,
       };
     });
 
-    return NextResponse.json(out);
+    // Cache the public response at the CDN (results vary by query string, which
+    // is part of the cache key). Admin responses include private fields, so they
+    // are never shared-cached.
+    return NextResponse.json(out, {
+      headers: {
+        "Cache-Control": isAdmin
+          ? "private, no-store"
+          : "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Error fetching releases:", error);
     return NextResponse.json(

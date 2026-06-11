@@ -7,7 +7,11 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const links = await getFooterSocialLinks();
-    return NextResponse.json(links);
+    return NextResponse.json(links, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900",
+      },
+    });
   } catch (error) {
     console.error("Error fetching footer settings:", error);
     return NextResponse.json(

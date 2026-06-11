@@ -72,21 +72,21 @@ export default function ArtistDetail() {
 
   const fetchArtistData = async () => {
     try {
-      const artistResponse = await fetch(`/api/artists/${artistId}`);
-      if (artistResponse.ok) {
-        const artistData = await artistResponse.json();
-        setArtist(artistData);
-      } else {
+      // Fire all three in parallel instead of waiting on the artist first —
+      // removes a round-trip of latency on every artist page load.
+      const [artistResponse, releasesResponse, artistsResponse] = await Promise.all([
+        fetch(`/api/artists/${artistId}`),
+        fetch(`/api/artists/${artistId}/releases`),
+        fetch("/api/artists"),
+      ]);
+
+      if (!artistResponse.ok) {
         setError(
           artistResponse.status === 404 ? "Artist not found" : "Failed to fetch artist"
         );
         return;
       }
-
-      const [releasesResponse, artistsResponse] = await Promise.all([
-        fetch(`/api/artists/${artistId}/releases`),
-        fetch("/api/artists"),
-      ]);
+      setArtist(await artistResponse.json());
 
       if (artistsResponse.ok) {
         setAllArtists(await artistsResponse.json());
