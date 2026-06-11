@@ -63,6 +63,10 @@ export default function ReleaseForm({
   });
 
   const imageInputRef = useRef<HTMLInputElement>(null);
+  // Track the feature line as loaded so we only overwrite feature artists (which
+  // would convert linked artists to plain names) when the field actually changes.
+  const initialFeatureTextRef = useRef<string>("");
+  const hadLinkedFeatureArtistsRef = useRef<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -98,6 +102,9 @@ export default function ReleaseForm({
           map,
           data.featureArtistNames
         ).join(", ");
+        initialFeatureTextRef.current = featureLine;
+        hadLinkedFeatureArtistsRef.current =
+          (data.featureArtistIds || []).length > 0;
         setFormData((prev) => ({
           ...prev,
           name: data.name || "",
@@ -233,7 +240,7 @@ export default function ReleaseForm({
         finalCover = coverImageUrl!;
       }
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: formData.name,
         coverImage: finalCover,
         releaseDate: formData.releaseDate || null,
@@ -249,10 +256,19 @@ export default function ReleaseForm({
         isrcExplicit: formData.isrcExplicit,
         upcCode: formData.upcCode || null,
         primaryArtistIds: formData.primaryArtistIds,
-        featureArtistNames: normalizeFeatureArtistNamesInput(
-          formData.featureArtistText
-        ),
       };
+
+      // Only send feature artists when creating, when the field changed, or when
+      // there were no linked feature artists to begin with. Sending it always
+      // would convert previously-linked feature artists into plain text on every
+      // edit (and drop the release from those artists' pages).
+      const featureChanged =
+        formData.featureArtistText.trim() !== initialFeatureTextRef.current.trim();
+      if (mode === "create" || featureChanged || !hadLinkedFeatureArtistsRef.current) {
+        payload.featureArtistNames = normalizeFeatureArtistNamesInput(
+          formData.featureArtistText
+        );
+      }
 
       if (mode === "create") {
         const res = await fetch("/api/releases", {

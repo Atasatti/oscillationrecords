@@ -30,15 +30,14 @@ function validateOptionalUrl(raw: string | null | undefined): string | undefined
 
 export async function GET() {
   try {
-    const now = new Date();
-
-    // Auto-cleanup releases that have reached/passed release date.
-    await prisma.upcomingRelease.deleteMany({
-      where: { releaseDate: { lte: now } },
-    });
+    // Show today's and future releases. Previously this DELETED past rows on every
+    // read — a destructive side effect that could drop a release scheduled for
+    // "today". We now just filter (from the start of today) and never delete here.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
     const releases = await prisma.upcomingRelease.findMany({
-      where: { releaseDate: { gt: now } },
+      where: { releaseDate: { gte: startOfToday } },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 

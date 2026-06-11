@@ -27,11 +27,29 @@ import {
   ArrowLeft,
   Download,
   FileText,
+  GripVertical,
   MoreVertical,
   Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import {
   buildArtistMap,
@@ -93,6 +111,118 @@ interface ArtistSummary {
   name: string;
 }
 
+/** A single draggable track card with its actions menu. */
+function SortableTrackCard({
+  track,
+  coverImage,
+  primaryArtistName,
+  featureArtistNames,
+  onViewLyrics,
+  onEdit,
+  onDelete,
+}: {
+  track: Track;
+  coverImage: string;
+  primaryArtistName: string;
+  featureArtistNames: string[];
+  onViewLyrics: (track: Track) => void;
+  onEdit: (track: Track) => void;
+  onDelete: (track: Track) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: track.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative group w-72 h-84">
+      <button
+        type="button"
+        className="absolute left-2 top-2 z-20 rounded-md bg-black/60 p-1.5 text-gray-300 backdrop-blur-sm transition-opacity hover:text-white cursor-grab active:cursor-grabbing touch-none opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+        aria-label={`Drag to reorder: ${track.name}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4" aria-hidden />
+      </button>
+
+      <TrackCardSm
+        track={{
+          id: track.id,
+          name: track.name,
+          thumbnail: track.image || coverImage,
+          audio: track.audioFile,
+          primaryArtistName,
+          featureArtistNames,
+          spotifyLink: track.spotifyLink,
+          appleMusicLink: track.appleMusicLink,
+          tidalLink: track.tidalLink,
+          amazonMusicLink: track.amazonMusicLink,
+          youtubeLink: track.youtubeLink,
+          soundcloudLink: track.soundcloudLink,
+          isrcExplicit: track.isrcExplicit,
+        }}
+      />
+
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 z-10 h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <MoreVertical className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+          <DropdownMenuItem onSelect={() => onViewLyrics(track)}>
+            <FileText className="w-4 h-4 mr-2" />
+            View lyrics
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!track.stemsFile}
+            onSelect={() => {
+              if (track.stemsFile) {
+                window.open(track.stemsFile, "_blank", "noopener,noreferrer");
+              }
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download stems
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => requestAnimationFrame(() => onEdit(track))}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit track
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => onDelete(track)}
+            className="text-red-400"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete track
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export default function AdminReleaseDetail() {
   const params = useParams();
   const router = useRouter();
@@ -120,10 +250,21 @@ export default function AdminReleaseDetail() {
     trackName: string;
     lyrics: string | null;
   } | null>(null);
+  const [orderedTracks, setOrderedTracks] = useState<Track[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   useEffect(() => {
     fetchData();
   }, [releaseId]);
+
+  // Keep the local drag order in sync whenever the release (re)loads.
+  useEffect(() => {
+    setOrderedTracks(release?.tracks ?? []);
+  }, [release]);
 
   const fetchData = async () => {
     try {
@@ -233,6 +374,35 @@ export default function AdminReleaseDetail() {
     setTrackDialogMode("create");
     setEditingTrack(null);
     setTrackDialogOpen(true);
+  };
+
+  const handleTrackReorder = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderedTracks.findIndex((t) => t.id === active.id);
+    const newIndex = orderedTracks.findIndex((t) => t.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const prev = orderedTracks;
+    const next = arrayMove(orderedTracks, oldIndex, newIndex);
+    setOrderedTracks(next);
+    try {
+      const res = await fetch("/api/admin/tracks/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ releaseId, orderedIds: next.map((t) => t.id) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(
+          typeof err.error === "string" ? err.error : "Failed to save track order"
+        );
+        setOrderedTracks(prev);
+      }
+    } catch {
+      setOrderedTracks(prev);
+      alert("Network error — could not save track order.");
+    }
   };
 
   const handleTrackDialogOpenChange = (next: boolean) => {
@@ -492,7 +662,12 @@ export default function AdminReleaseDetail() {
         </div>
 
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4 max-w-6xl xl:max-w-7xl mx-auto">
-          <h2 className="text-2xl font-light tracking-tighter">Tracks</h2>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-light tracking-tighter">Tracks</h2>
+            {release.tracks.length > 1 ? (
+              <p className="text-xs text-gray-500">Drag the grip to reorder tracks.</p>
+            ) : null}
+          </div>
           <Button
             type="button"
             onClick={openAddTrack}
@@ -512,96 +687,41 @@ export default function AdminReleaseDetail() {
             </Button>
           </div>
         ) : (
-          <div className="max-w-6xl xl:max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {release.tracks.map((track) => (
-              <div key={track.id} className="relative group w-72 h-84">
-                <TrackCardSm
-                  track={{
-                    id: track.id,
-                    name: track.name,
-                    thumbnail: track.image || release.coverImage,
-                    audio: track.audioFile,
-                    primaryArtistName: getPrimaryArtistName(track.primaryArtistIds),
-                    featureArtistNames: getFeatureArtistNames(
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleTrackReorder}
+          >
+            <SortableContext
+              items={orderedTracks.map((t) => t.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="max-w-6xl xl:max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {orderedTracks.map((track) => (
+                  <SortableTrackCard
+                    key={track.id}
+                    track={track}
+                    coverImage={release.coverImage}
+                    primaryArtistName={getPrimaryArtistName(track.primaryArtistIds)}
+                    featureArtistNames={getFeatureArtistNames(
                       track.featureArtistNames,
                       track.featureArtistIds,
                       track.primaryArtistIds
-                    ),
-                    spotifyLink: track.spotifyLink,
-                    appleMusicLink: track.appleMusicLink,
-                    tidalLink: track.tidalLink,
-                    amazonMusicLink: track.amazonMusicLink,
-                    youtubeLink: track.youtubeLink,
-                    soundcloudLink: track.soundcloudLink,
-                    isrcExplicit: track.isrcExplicit,
-                  }}
-                />
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 z-10 h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setLyricsView({
-                          trackName: track.name,
-                          lyrics: track.lyrics ?? null,
-                        });
-                        setLyricsDialogOpen(true);
-                      }}
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      View lyrics
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={!track.stemsFile}
-                      onSelect={() => {
-                        if (track.stemsFile) {
-                          window.open(
-                            track.stemsFile,
-                            "_blank",
-                            "noopener,noreferrer"
-                          );
-                        }
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download stems
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        requestAnimationFrame(() => openEditTrack(track));
-                      }}
-                    >
-                      <Pencil className="w-4 h-4 mr-2" />
-                      Edit track
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => {
-                        setTrackToDelete({ id: track.id, name: track.name });
-                        setDeleteTrackDialogOpen(true);
-                      }}
-                      className="text-red-400"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete track
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    )}
+                    onViewLyrics={(t) => {
+                      setLyricsView({ trackName: t.name, lyrics: t.lyrics ?? null });
+                      setLyricsDialogOpen(true);
+                    }}
+                    onEdit={(t) => openEditTrack(t)}
+                    onDelete={(t) => {
+                      setTrackToDelete({ id: t.id, name: t.name });
+                      setDeleteTrackDialogOpen(true);
+                    }}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         <TrackFormDialog

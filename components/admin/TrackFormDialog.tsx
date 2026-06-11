@@ -441,20 +441,17 @@ export default function TrackFormDialog({
     setPrimaryArtistIds(selected);
   };
 
+  // Credits are optional. We don't require any rows — we only flag a row that's
+  // half-filled (a name without a role, or a role without a name).
   const validateNameRoleRows = (
     rows: NameRoleRow[],
     label: string
   ): boolean => {
-    const valid = rows.filter((r) => r.name.trim() && r.role.trim());
-    if (valid.length === 0) {
-      alert(`Add at least one ${label} with name and role`);
-      return false;
-    }
     for (const r of rows) {
       const hasName = Boolean(r.name.trim());
       const hasRole = Boolean(r.role.trim());
       if (hasName !== hasRole) {
-        alert(`${label}: each row needs both name and role`);
+        alert(`${label}: each row needs both name and role (or leave both blank)`);
         return false;
       }
     }
@@ -484,10 +481,7 @@ export default function TrackFormDialog({
       return;
     }
 
-    if (!composerNames.some((n) => n.trim())) {
-      alert("Add at least one composer name");
-      return;
-    }
+    // Credits (composer / songwriter / production / performer) are all optional.
     if (!validateNameRoleRows(songwriterRows, "Songwriter")) return;
     if (!validateNameRoleRows(productionRows, "Production / Engineer")) return;
     if (!validateNameRoleRows(performerRows, "Performer")) return;
@@ -813,7 +807,10 @@ export default function TrackFormDialog({
           </div>
 
           <div className="space-y-4 rounded-xl border border-gray-800 bg-black/20 p-4">
-            <p className="text-sm font-medium text-white">Track credits *</p>
+            <p className="text-sm font-medium text-white">
+              Track credits{" "}
+              <span className="font-normal text-gray-500">(optional)</span>
+            </p>
 
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
