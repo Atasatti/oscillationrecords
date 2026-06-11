@@ -115,7 +115,7 @@ function NewReleaseDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={align}
-        className="w-[min(100vw-2rem,20rem)] border-gray-800 bg-[#141414] p-1 text-gray-100 shadow-xl"
+        className="w-[min(100vw-2rem,20rem)] border-white/10 bg-[#141414] p-1 text-gray-100 shadow-xl"
       >
         <DropdownMenuLabel className="px-2 py-1.5 text-xs font-normal text-gray-500">
           Choose a release type
@@ -672,12 +672,12 @@ export default function AdminCatalog() {
           ) : error ? (
             <div className="text-center py-20">
               <p className="text-red-400 mb-4">{error}</p>
-              <Button onClick={fetchArtists} variant="outline" className="border-gray-700">
+              <Button onClick={fetchArtists} variant="outline" className="border-white/10">
                 Try Again
               </Button>
             </div>
           ) : artists.length === 0 ? (
-            <div className="text-center py-20 bg-[#0F0F0F] rounded-xl">
+            <div className="text-center py-20 bg-[#141414] rounded-xl">
               <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 text-lg mb-4">No artists found</p>
               <p className="text-gray-500 mb-6">Create your first artist to get started</p>
@@ -702,7 +702,7 @@ export default function AdminCatalog() {
               <p className="max-w-xl text-sm text-gray-500">
                 Drag to set one global order across Singles, EPs, and Albums.{" "}
                 <span className="text-gray-400">Latest on home</span> shows the red pill;{" "}
-                <span className="text-gray-400">New Music carousel</span> picks which releases appear in the home and releases page carousel (all checked releases, in catalog order; if none are checked, every release is shown in that order).
+                <span className="text-gray-400">New Music carousel</span> pins a release to the front of the home &amp; releases carousel; the remaining slots auto-fill with the newest releases.
               </p>
             </div>
             <NewReleaseDropdown />
@@ -729,7 +729,7 @@ export default function AdminCatalog() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <form
               onSubmit={handleCreateUpcomingRelease}
-              className="bg-[#0F0F0F] border border-gray-800 rounded-xl p-5 space-y-4"
+              className="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4"
             >
               <h3 className="text-lg">Add Upcoming Release</h3>
               <input
@@ -740,13 +740,13 @@ export default function AdminCatalog() {
                 required
               />
               {upcomingImagePreview ? (
-                <img src={upcomingImagePreview} alt="Upcoming preview" className="w-24 h-24 rounded-md object-cover border border-gray-700" />
+                <img src={upcomingImagePreview} alt="Upcoming preview" className="w-24 h-24 rounded-md object-cover border border-white/10" />
               ) : null}
               <input
                 value={upcomingForm.name}
                 onChange={(e) => setUpcomingForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Release name"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
                 required
               />
               <select
@@ -757,7 +757,7 @@ export default function AdminCatalog() {
                     type: e.target.value as "single" | "ep" | "album",
                   }))
                 }
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               >
                 <option value="single">Single</option>
                 <option value="ep">EP</option>
@@ -767,7 +767,7 @@ export default function AdminCatalog() {
                 type="date"
                 value={upcomingForm.releaseDate}
                 onChange={(e) => setUpcomingForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
                 required
               />
               <input
@@ -777,7 +777,7 @@ export default function AdminCatalog() {
                 }
                 placeholder="Pre-smart link URL (e.g. https://ditto.fm/...)"
                 type="url"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <input
                 value={upcomingForm.primaryArtist}
@@ -785,7 +785,7 @@ export default function AdminCatalog() {
                   setUpcomingForm((prev) => ({ ...prev, primaryArtist: e.target.value }))
                 }
                 placeholder="Primary artist"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <input
                 value={upcomingForm.featureArtist}
@@ -793,7 +793,7 @@ export default function AdminCatalog() {
                   setUpcomingForm((prev) => ({ ...prev, featureArtist: e.target.value }))
                 }
                 placeholder="Featured artist (optional)"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <Button type="submit" className="bg-white text-black hover:bg-gray-200" disabled={isCreatingUpcoming}>
                 {isCreatingUpcoming ? (
@@ -810,7 +810,7 @@ export default function AdminCatalog() {
               </Button>
             </form>
 
-            <div className="bg-[#0F0F0F] border border-gray-800 rounded-xl p-5">
+            <div className="bg-[#141414] border border-white/10 rounded-xl p-5">
               <h3 className="text-lg mb-1">Scheduled</h3>
               <p className="text-xs text-gray-500 mb-4">
                 Drag the grip to set the order shown on the public home page. Order
@@ -832,7 +832,7 @@ export default function AdminCatalog() {
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete Artist</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -846,7 +846,7 @@ export default function AdminCatalog() {
                   setDeleteDialogOpen(false);
                   setArtistToDelete(null);
                 }}
-                className="border-gray-700"
+                className="border-white/10"
               >
                 Cancel
               </Button>
@@ -869,7 +869,7 @@ export default function AdminCatalog() {
             }
           }}
         >
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-[#141414] border-white/10 text-white max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit upcoming release</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -889,7 +889,7 @@ export default function AdminCatalog() {
                   <img
                     src={upcomingEditImagePreview}
                     alt="Preview"
-                    className="w-24 h-24 rounded-md object-cover border border-gray-700 mt-2"
+                    className="w-24 h-24 rounded-md object-cover border border-white/10 mt-2"
                   />
                 ) : null}
               </div>
@@ -897,7 +897,7 @@ export default function AdminCatalog() {
                 value={upcomingEditForm.name}
                 onChange={(e) => setUpcomingEditForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Release name"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
                 required
               />
               <select
@@ -908,7 +908,7 @@ export default function AdminCatalog() {
                     type: e.target.value as "single" | "ep" | "album",
                   }))
                 }
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               >
                 <option value="single">Single</option>
                 <option value="ep">EP</option>
@@ -920,7 +920,7 @@ export default function AdminCatalog() {
                 onChange={(e) =>
                   setUpcomingEditForm((prev) => ({ ...prev, releaseDate: e.target.value }))
                 }
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
                 required
               />
               <input
@@ -930,7 +930,7 @@ export default function AdminCatalog() {
                 }
                 placeholder="Pre-smart link URL (e.g. https://ditto.fm/...)"
                 type="url"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <input
                 value={upcomingEditForm.primaryArtist}
@@ -938,7 +938,7 @@ export default function AdminCatalog() {
                   setUpcomingEditForm((prev) => ({ ...prev, primaryArtist: e.target.value }))
                 }
                 placeholder="Primary artist"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <input
                 value={upcomingEditForm.featureArtist}
@@ -946,13 +946,13 @@ export default function AdminCatalog() {
                   setUpcomingEditForm((prev) => ({ ...prev, featureArtist: e.target.value }))
                 }
                 placeholder="Featured artist (optional)"
-                className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white"
+                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
               />
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-gray-700"
+                  className="border-white/10"
                   onClick={() => setUpcomingEditOpen(false)}
                 >
                   Cancel
@@ -973,7 +973,7 @@ export default function AdminCatalog() {
         </Dialog>
 
         <Dialog open={contentDeleteDialogOpen} onOpenChange={setContentDeleteDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete release</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -988,7 +988,7 @@ export default function AdminCatalog() {
                   setContentDeleteDialogOpen(false);
                   setContentToDelete(null);
                 }}
-                className="border-gray-700"
+                className="border-white/10"
               >
                 Cancel
               </Button>

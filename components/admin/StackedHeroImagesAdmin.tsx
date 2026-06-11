@@ -145,7 +145,7 @@ export default function StackedHeroImagesAdmin() {
   }
 
   return (
-    <section className="mt-14 md:mt-16 border-t border-gray-800 pt-10 md:pt-12">
+    <section className="mt-14 md:mt-16 border-t border-white/10 pt-10 md:pt-12">
       <div className="mb-6 text-center md:text-left">
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Home page</p>
         <h2 className="font-light text-2xl md:text-3xl tracking-tighter mt-1">Stacked hero images</h2>
@@ -158,10 +158,10 @@ export default function StackedHeroImagesAdmin() {
         {(["image1", "image2", "image3"] as const).map((slot) => (
           <div
             key={slot}
-            className="bg-[#0F0F0F] border border-gray-800 rounded-xl p-4 flex flex-col gap-3"
+            className="bg-[#141414] border border-white/10 rounded-xl p-4 flex flex-col gap-3"
           >
             <p className="text-sm font-medium text-white">{LABELS[slot]}</p>
-            <div className="relative aspect-square w-full max-w-[280px] mx-auto rounded-lg overflow-hidden bg-gray-900">
+            <div className="relative aspect-square w-full max-w-[280px] mx-auto rounded-lg overflow-hidden bg-[#141414]">
               <Image
                 src={urls[slot]}
                 alt={LABELS[slot]}

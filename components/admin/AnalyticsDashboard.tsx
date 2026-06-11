@@ -213,7 +213,7 @@ export default function AnalyticsDashboard() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/10 rounded-lg">
               <Play className="w-6 h-6 text-red-500" />
@@ -223,7 +223,7 @@ export default function AnalyticsDashboard() {
           <p className="text-3xl font-light">{data.summary.totalPlays.toLocaleString()}</p>
         </div>
 
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-blue-500/10 rounded-lg">
               <Users className="w-6 h-6 text-blue-500" />
@@ -233,7 +233,7 @@ export default function AnalyticsDashboard() {
           <p className="text-3xl font-light">{data.summary.uniqueUsers.toLocaleString()}</p>
         </div>
 
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-green-500/10 rounded-lg">
               <TrendingUp className="w-6 h-6 text-green-500" />
@@ -243,7 +243,7 @@ export default function AnalyticsDashboard() {
           <p className="text-3xl font-light">{data.summary.completionRate.toFixed(1)}%</p>
         </div>
 
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-purple-500/10 rounded-lg">
               <BarChart3 className="w-6 h-6 text-purple-500" />
@@ -255,7 +255,7 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Plays by Type */}
-      <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+      <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
         <h3 className="text-lg font-medium text-gray-200 mb-6">Plays by content type</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
@@ -266,7 +266,7 @@ export default function AnalyticsDashboard() {
               </div>
               <span className="text-sm font-medium">{data.playsByType.track}</span>
             </div>
-            <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+            <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
               <div
                 className="h-full bg-red-500 rounded-full transition-all"
                 style={{ width: `${(data.playsByType.track / (data.summary.totalPlays || 1)) * 100}%` }}
@@ -282,7 +282,7 @@ export default function AnalyticsDashboard() {
               </div>
               <span className="text-sm font-medium">{data.playsByType.release}</span>
             </div>
-            <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+            <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all"
                 style={{ width: `${(data.playsByType.release / (data.summary.totalPlays || 1)) * 100}%` }}
@@ -300,7 +300,7 @@ export default function AnalyticsDashboard() {
                 {data.playsByType.single + data.playsByType.album + data.playsByType.ep}
               </span>
             </div>
-            <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+            <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500 rounded-full transition-all"
                 style={{
@@ -315,7 +315,7 @@ export default function AnalyticsDashboard() {
       {/* Top Content and Demographics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Content */}
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <h3 className="text-lg font-medium text-gray-200 mb-6">Top Content</h3>
           <div className="space-y-4">
             {data.topContent.length > 0 ? (
@@ -328,7 +328,7 @@ export default function AnalyticsDashboard() {
                 return (
                   <div 
                     key={content.id} 
-                    className="space-y-2 cursor-pointer hover:bg-[#1a1a1a]/50 p-2 rounded-lg transition-colors"
+                    className="space-y-2 cursor-pointer hover:bg-[#141414]/50 p-2 rounded-lg transition-colors"
                     onClick={() => handleContentClick(content.id, contentType, content.name)}
                   >
                     <div className="flex items-center justify-between">
@@ -343,7 +343,7 @@ export default function AnalyticsDashboard() {
                       </div>
                       <span className="text-sm font-medium text-gray-400 ml-4">{content.plays}</span>
                     </div>
-                    <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+                    <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
                       <div
                         className="h-full bg-red-500 rounded-full transition-all"
                         style={{ width: `${(content.plays / maxPlays) * 100}%` }}
@@ -359,7 +359,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Demographics - Gender */}
-        <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <h3 className="text-lg font-medium text-gray-200 mb-6">Audience Demographics</h3>
           <div className="space-y-6">
             <div>
@@ -373,7 +373,7 @@ export default function AnalyticsDashboard() {
                         <span className="text-sm text-gray-300 capitalize">{gender.replace('_', ' ')}</span>
                         <span className="text-sm font-medium text-gray-400">{count}</span>
                       </div>
-                      <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+                      <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-blue-500 rounded-full transition-all"
                           style={{ width: `${(count / maxGender) * 100}%` }}
@@ -395,7 +395,7 @@ export default function AnalyticsDashboard() {
                         <span className="text-sm text-gray-300">{ageRange === 'unknown' ? 'Unknown' : ageRange}</span>
                         <span className="text-sm font-medium text-gray-400">{count}</span>
                       </div>
-                      <div className="h-2 bg-[#0F0F0F] rounded-full overflow-hidden">
+                      <div className="h-2 bg-[#141414] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full transition-all"
                           style={{ width: `${(count / maxAgeRange) * 100}%` }}
@@ -410,12 +410,12 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Top Artists */}
-      <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+      <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
         <h3 className="text-lg font-medium text-gray-200 mb-6">Top Artists</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {data.topArtists.length > 0 ? (
             data.topArtists.map((artist, artistIndex) => (
-              <div key={artist.name} className="text-center p-4 bg-[#0F0F0F] rounded-lg">
+              <div key={artist.name} className="text-center p-4 bg-[#141414] rounded-lg">
                 <div className="text-2xl font-bold text-red-500 mb-2">#{artistIndex + 1}</div>
                 <p className="text-sm font-medium text-white truncate mb-1">{artist.name}</p>
                 <p className="text-xs text-gray-400">{artist.plays} plays</p>
@@ -428,12 +428,12 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Recent Plays */}
-      <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+      <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
         <h3 className="text-lg font-medium text-gray-200 mb-6">Recent Plays</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800">
+              <tr className="border-b border-white/10">
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">User</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">Content</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">Artist</th>
@@ -445,7 +445,7 @@ export default function AnalyticsDashboard() {
             <tbody>
               {data.recentPlays.filter((p) => p.contentType !== "release").length > 0 ? (
                 data.recentPlays.filter((p) => p.contentType !== "release").slice(0, 20).map((play) => (
-                  <tr key={play.id} className="border-b border-gray-800 hover:bg-[#1a1a1a]/50">
+                  <tr key={play.id} className="border-b border-white/10 hover:bg-[#141414]/50">
                     <td className="py-3 px-4 text-sm text-gray-300">{play.userName}</td>
                     <td className="py-3 px-4 text-sm text-white">{play.contentName}</td>
                     <td className="py-3 px-4 text-sm text-gray-400">{play.artistName || "—"}</td>
@@ -480,7 +480,7 @@ export default function AnalyticsDashboard() {
 
       {/* Content Detail Dialog */}
       <Dialog open={!!selectedContent} onOpenChange={(open) => !open && setSelectedContent(null)}>
-        <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-[#141414] border-white/10 text-white w-[95vw] max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">{selectedContent?.name}</DialogTitle>
             <DialogDescription className="text-gray-400">
@@ -496,19 +496,19 @@ export default function AnalyticsDashboard() {
             <div className="space-y-6 mt-4">
               {/* Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <p className="text-xs text-gray-400 mb-1">Total Plays</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.totalPlays}</p>
                 </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <p className="text-xs text-gray-400 mb-1">Unique Users</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.uniqueUsers}</p>
                 </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <p className="text-xs text-gray-400 mb-1">Completion Rate</p>
                   <p className="text-2xl font-light">{contentAnalytics.summary.completionRate.toFixed(1)}%</p>
                 </div>
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <p className="text-xs text-gray-400 mb-1">Avg Duration</p>
                   <p className="text-2xl font-light">
                     {Math.floor(contentAnalytics.summary.averagePlayDuration / 60)}:
@@ -519,7 +519,7 @@ export default function AnalyticsDashboard() {
 
               {/* Demographics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <h4 className="text-sm font-medium text-gray-300 mb-3">Gender Distribution</h4>
                   <div className="space-y-3">
                     {Object.entries(contentAnalytics.demographics.gender)
@@ -544,7 +544,7 @@ export default function AnalyticsDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                   <h4 className="text-sm font-medium text-gray-300 mb-3">Age Range Distribution</h4>
                   <div className="space-y-3">
                     {Object.entries(contentAnalytics.demographics.ageRange)
@@ -574,7 +574,7 @@ export default function AnalyticsDashboard() {
               {(contentAnalytics.demographics.topCountries.length > 0 || contentAnalytics.demographics.topCities.length > 0) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {contentAnalytics.demographics.topCountries.length > 0 && (
-                    <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                    <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                       <h4 className="text-sm font-medium text-gray-300 mb-3">Top Countries</h4>
                       <div className="space-y-2">
                         {contentAnalytics.demographics.topCountries.map((item) => (
@@ -588,7 +588,7 @@ export default function AnalyticsDashboard() {
                   )}
 
                   {contentAnalytics.demographics.topCities.length > 0 && (
-                    <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                    <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                       <h4 className="text-sm font-medium text-gray-300 mb-3">Top Cities</h4>
                       <div className="space-y-2">
                         {contentAnalytics.demographics.topCities.map((item) => (
@@ -604,7 +604,7 @@ export default function AnalyticsDashboard() {
               )}
 
               {/* User Engagement Table */}
-              <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+              <div className="bg-[#141414] rounded-lg p-4 border border-white/10">
                 <h4 className="text-sm font-medium text-gray-300 mb-3">User Engagement</h4>
                 <table className="w-full text-xs border-collapse">
                   <colgroup>
@@ -631,7 +631,7 @@ export default function AnalyticsDashboard() {
                     {contentAnalytics.userEngagement.slice(0, 20).map((engagement) => (
                       <tr
                         key={`${engagement.userId}-${engagement.createdAt}`}
-                        className="border-b border-gray-800 hover:bg-[#222]/50"
+                        className="border-b border-white/10 hover:bg-[#222]/50"
                       >
                         <td className="py-2 pr-3 text-gray-300 max-w-0">
                           <span className="block truncate" title={engagement.userName}>{engagement.userName}</span>

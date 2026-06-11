@@ -133,7 +133,7 @@ export default function FooterSettingsAdmin() {
   };
 
   return (
-    <div className="mt-16 md:mt-20 rounded-2xl border border-gray-800 bg-[#0F0F0F] p-6 md:p-8">
+    <div className="mt-16 md:mt-20 rounded-2xl border border-white/10 bg-[#141414] p-6 md:p-8">
       <div className="mb-6">
         <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
           Site footer
@@ -170,7 +170,7 @@ export default function FooterSettingsAdmin() {
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, [key]: e.target.value }))
                   }
-                  className="border-gray-700 bg-black text-white placeholder:text-gray-600"
+                  className="border-white/10 bg-black text-white placeholder:text-gray-600"
                 />
               </div>
             ))}

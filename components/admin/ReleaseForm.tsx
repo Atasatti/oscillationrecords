@@ -351,7 +351,7 @@ export default function ReleaseForm({
         <form onSubmit={handleSubmit} className="max-w-4xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1">
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <label className="block text-sm font-medium text-gray-300 mb-4">
                   Cover image *
                 </label>
@@ -361,7 +361,7 @@ export default function ReleaseForm({
                       <img
                         src={imagePreview}
                         alt="Cover"
-                        className="w-full aspect-square object-cover rounded-lg border border-gray-700"
+                        className="w-full aspect-square object-cover rounded-lg border border-white/10"
                       />
                       <Button
                         type="button"
@@ -376,7 +376,7 @@ export default function ReleaseForm({
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 bg-[#0F0F0F]/50"
+                      className="w-full aspect-square border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 bg-[#141414]/50"
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400">Upload cover</p>
@@ -394,7 +394,7 @@ export default function ReleaseForm({
             </div>
 
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-4">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10 space-y-4">
                 <h3 className="text-lg font-medium text-gray-200">Basic</h3>
                 <Input
                   name="name"
@@ -402,7 +402,7 @@ export default function ReleaseForm({
                   onChange={handleInputChange}
                   placeholder="Release name *"
                   required
-                  className="bg-[#0F0F0F] border-gray-700 text-white"
+                  className="bg-[#141414] border-white/10 text-white"
                 />
                 <Textarea
                   name="description"
@@ -410,14 +410,14 @@ export default function ReleaseForm({
                   onChange={handleInputChange}
                   placeholder="Description"
                   rows={4}
-                  className="bg-gray-800 border-gray-700 text-white resize-none"
+                  className="bg-black/40 border-white/10 text-white resize-none"
                 />
                 <Input
                   name="releaseDate"
                   type="date"
                   value={formData.releaseDate}
                   onChange={handleInputChange}
-                  className="bg-[#0F0F0F] border-gray-700 text-white"
+                  className="bg-[#141414] border-white/10 text-white"
                 />
                 <div>
                   <span className="mb-1 block text-xs font-medium text-gray-400">
@@ -452,7 +452,7 @@ export default function ReleaseForm({
                 </div>
               </div>
 
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <h3 className="text-lg font-medium text-gray-200 mb-4">Genre</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
@@ -460,30 +460,30 @@ export default function ReleaseForm({
                     value={formData.primaryGenre}
                     onChange={handleInputChange}
                     placeholder="Primary genre"
-                    className="bg-gray-800 border-gray-700 text-white"
+                    className="bg-black/40 border-white/10 text-white"
                   />
                   <Input
                     name="secondaryGenre"
                     value={formData.secondaryGenre}
                     onChange={handleInputChange}
                     placeholder="Secondary genre (optional)"
-                    className="bg-gray-800 border-gray-700 text-white"
+                    className="bg-black/40 border-white/10 text-white"
                   />
                 </div>
               </div>
 
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <h3 className="text-lg font-medium text-gray-200 mb-4">UPC Code</h3>
                 <Input
                   name="upcCode"
                   value={formData.upcCode}
                   onChange={handleInputChange}
                   placeholder="e.g. 012345678905"
-                  className="bg-gray-800 border-gray-700 text-white"
+                  className="bg-black/40 border-white/10 text-white"
                 />
               </div>
 
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <h3 className="text-lg font-medium text-gray-200 mb-4">Streaming</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(
@@ -502,13 +502,13 @@ export default function ReleaseForm({
                       value={formData[k]}
                       onChange={handleInputChange}
                       placeholder={label}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-black/40 border-white/10 text-white"
                     />
                   ))}
                 </div>
               </div>
 
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <h3 className="text-lg font-medium text-gray-200 mb-4">Artists *</h3>
                 {loadingArtists ? (
                   <p className="text-sm text-gray-400">Loading…</p>
@@ -526,7 +526,7 @@ export default function ReleaseForm({
                       value={formData.featureArtistText}
                       onChange={handleInputChange}
                       placeholder="e.g. Guest Name, Another Artist"
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-black/40 border-white/10 text-white"
                     />
                   </div>
                 )}
@@ -554,7 +554,7 @@ export default function ReleaseForm({
                   type="button"
                   variant="outline"
                   onClick={() => router.back()}
-                  className="border-gray-700 text-gray-300"
+                  className="border-white/10 text-gray-300"
                 >
                   Cancel
                 </Button>

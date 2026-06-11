@@ -196,7 +196,7 @@ export default function CreateArtist() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column - Image Upload */}
             <div className="lg:col-span-1">
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <label className="block text-sm font-medium text-gray-300 mb-4">
                   Profile Picture *
                 </label>
@@ -206,7 +206,7 @@ export default function CreateArtist() {
                       <img
                         src={imagePreview}
                         alt="Profile preview"
-                        className="w-full aspect-square object-cover rounded-lg border border-gray-700"
+                        className="w-full aspect-square object-cover rounded-lg border border-white/10"
                       />
                       <Button
                         type="button"
@@ -221,7 +221,7 @@ export default function CreateArtist() {
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50"
+                      className="w-full aspect-square border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#141414]/50"
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400 mb-1">Click to upload</p>
@@ -241,7 +241,7 @@ export default function CreateArtist() {
                       onClick={() => imageInputRef.current?.click()}
                       variant="outline"
                       disabled={isLoading || uploadingImage}
-                      className="w-full border-gray-700 text-gray-300 hover:bg-[#1a1a1a]"
+                      className="w-full border-white/10 text-gray-300 hover:bg-white/[0.06]"
                     >
                       <ImageIcon className="w-4 h-4 mr-2" />
                       Choose Image
@@ -264,7 +264,7 @@ export default function CreateArtist() {
             {/* Right Column - Form Fields */}
             <div className="lg:col-span-2 space-y-6">
               {/* Required Fields */}
-              <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-6">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10 space-y-6">
                 <div>
                   <h3 className="text-lg font-medium text-gray-200 mb-4">Basic Information</h3>
                   <div className="space-y-4">
@@ -279,7 +279,7 @@ export default function CreateArtist() {
                         onChange={handleInputChange}
                         placeholder="Enter artist name"
                         required
-                        className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                        className="bg-[#141414] border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                       />
                     </div>
 
@@ -295,7 +295,7 @@ export default function CreateArtist() {
                         placeholder="Tell us about the artist..."
                         rows={5}
                         required
-                        className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600 resize-none"
+                        className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600 resize-none"
                       />
                     </div>
                   </div>
@@ -303,7 +303,7 @@ export default function CreateArtist() {
               </div>
 
               {/* Social Media Links */}
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
                 <h3 className="text-lg font-medium text-gray-200 mb-4">Social Media Links</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -316,7 +316,7 @@ export default function CreateArtist() {
                     value={formData.xLink}
                     onChange={handleInputChange}
                     placeholder="https://x.com/username"
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -330,7 +330,7 @@ export default function CreateArtist() {
                     value={formData.tiktokLink}
                     onChange={handleInputChange}
                     placeholder="https://tiktok.com/@username"
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -344,7 +344,7 @@ export default function CreateArtist() {
                     value={formData.spotifyLink}
                     onChange={handleInputChange}
                     placeholder="https://open.spotify.com/artist/..."
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -358,7 +358,7 @@ export default function CreateArtist() {
                     value={formData.instagramLink}
                     onChange={handleInputChange}
                     placeholder="https://instagram.com/username"
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -372,7 +372,7 @@ export default function CreateArtist() {
                     value={formData.youtubeLink}
                     onChange={handleInputChange}
                     placeholder="https://youtube.com/@username"
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -386,7 +386,7 @@ export default function CreateArtist() {
                     value={formData.facebookLink}
                     onChange={handleInputChange}
                     placeholder="https://facebook.com/username"
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -400,7 +400,7 @@ export default function CreateArtist() {
                     value={formData.appleMusicLink}
                     onChange={handleInputChange}
                     placeholder="https://music.apple.com/..."
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -414,7 +414,7 @@ export default function CreateArtist() {
                     value={formData.tidalLink}
                     onChange={handleInputChange}
                     placeholder="https://tidal.com/..."
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -428,7 +428,7 @@ export default function CreateArtist() {
                     value={formData.amazonMusicLink}
                     onChange={handleInputChange}
                     placeholder="https://music.amazon.com/..."
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
 
@@ -442,7 +442,7 @@ export default function CreateArtist() {
                     value={formData.soundcloudLink}
                     onChange={handleInputChange}
                     placeholder="https://soundcloud.com/..."
-                    className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                    className="bg-black/40 border-white/10 text-white placeholder-gray-500 focus:border-gray-600"
                   />
                 </div>
               </div>
@@ -472,7 +472,7 @@ export default function CreateArtist() {
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
-                className="border-gray-700 text-gray-300 hover:bg-[#1a1a1a]"
+                className="border-white/10 text-gray-300 hover:bg-white/[0.06]"
               >
                 Cancel
               </Button>

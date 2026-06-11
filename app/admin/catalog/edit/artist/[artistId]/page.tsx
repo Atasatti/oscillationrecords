@@ -167,14 +167,14 @@ export default function EditArtist() {
 
         <form onSubmit={handleSubmit} className="max-w-4xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 bg-[#0F0F0F] rounded-xl p-6 border border-gray-800">
+            <div className="lg:col-span-1 bg-[#141414] rounded-xl p-6 border border-white/10">
               <label className="block text-sm font-medium text-gray-300 mb-4">Profile Picture</label>
               <div className="space-y-4">
                 {imagePreview ? (
-                  <img src={imagePreview} alt="Profile preview" className="w-full aspect-square object-cover rounded-lg border border-gray-700" />
+                  <img src={imagePreview} alt="Profile preview" className="w-full aspect-square object-cover rounded-lg border border-white/10" />
                 ) : null}
                 <input ref={imageInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                <Button type="button" onClick={() => imageInputRef.current?.click()} variant="outline" className="w-full border-gray-700 text-gray-300">
+                <Button type="button" onClick={() => imageInputRef.current?.click()} variant="outline" className="w-full border-white/10 text-gray-300">
                   <ImageIcon className="w-4 h-4 mr-2" />
                   {imagePreview ? "Replace Image" : "Choose Image"}
                 </Button>
@@ -182,21 +182,21 @@ export default function EditArtist() {
             </div>
 
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-4">
-                <Input name="name" value={formData.name} onChange={handleInputChange} required placeholder="Artist name" className="bg-[#0F0F0F] border-gray-700 text-white" />
-                <Textarea name="biography" value={formData.biography} onChange={handleInputChange} required rows={5} placeholder="Biography" className="bg-[#0F0F0F] border-gray-700 text-white" />
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10 space-y-4">
+                <Input name="name" value={formData.name} onChange={handleInputChange} required placeholder="Artist name" className="bg-[#141414] border-white/10 text-white" />
+                <Textarea name="biography" value={formData.biography} onChange={handleInputChange} required rows={5} placeholder="Biography" className="bg-[#141414] border-white/10 text-white" />
               </div>
-              <div className="bg-[#0F0F0F] rounded-xl p-6 border border-gray-800 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input name="xLink" value={formData.xLink} onChange={handleInputChange} placeholder="X link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="tiktokLink" value={formData.tiktokLink} onChange={handleInputChange} placeholder="TikTok link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="spotifyLink" value={formData.spotifyLink} onChange={handleInputChange} placeholder="Spotify link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="instagramLink" value={formData.instagramLink} onChange={handleInputChange} placeholder="Instagram link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="youtubeLink" value={formData.youtubeLink} onChange={handleInputChange} placeholder="YouTube link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="facebookLink" value={formData.facebookLink} onChange={handleInputChange} placeholder="Facebook link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="appleMusicLink" value={formData.appleMusicLink} onChange={handleInputChange} placeholder="Apple Music link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="tidalLink" value={formData.tidalLink} onChange={handleInputChange} placeholder="Tidal link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="amazonMusicLink" value={formData.amazonMusicLink} onChange={handleInputChange} placeholder="Amazon Music link" className="bg-gray-800 border-gray-700 text-white" />
-                <Input name="soundcloudLink" value={formData.soundcloudLink} onChange={handleInputChange} placeholder="SoundCloud link" className="bg-gray-800 border-gray-700 text-white" />
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input name="xLink" value={formData.xLink} onChange={handleInputChange} placeholder="X link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="tiktokLink" value={formData.tiktokLink} onChange={handleInputChange} placeholder="TikTok link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="spotifyLink" value={formData.spotifyLink} onChange={handleInputChange} placeholder="Spotify link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="instagramLink" value={formData.instagramLink} onChange={handleInputChange} placeholder="Instagram link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="youtubeLink" value={formData.youtubeLink} onChange={handleInputChange} placeholder="YouTube link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="facebookLink" value={formData.facebookLink} onChange={handleInputChange} placeholder="Facebook link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="appleMusicLink" value={formData.appleMusicLink} onChange={handleInputChange} placeholder="Apple Music link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="tidalLink" value={formData.tidalLink} onChange={handleInputChange} placeholder="Tidal link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="amazonMusicLink" value={formData.amazonMusicLink} onChange={handleInputChange} placeholder="Amazon Music link" className="bg-black/40 border-white/10 text-white" />
+                <Input name="soundcloudLink" value={formData.soundcloudLink} onChange={handleInputChange} placeholder="SoundCloud link" className="bg-black/40 border-white/10 text-white" />
               </div>
               <Button type="submit" disabled={isLoading || uploadingImage} className="bg-white text-black hover:bg-gray-200">
                 {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{uploadingImage ? "Uploading..." : "Saving..."}</> : <><Save className="w-4 h-4 mr-2" />Save Changes</>}

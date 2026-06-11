@@ -189,7 +189,7 @@ function SortableTrackCard({
             <MoreVertical className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+        <DropdownMenuContent align="end" className="bg-[#141414] border-white/10">
           <DropdownMenuItem onSelect={() => onViewLyrics(track)}>
             <FileText className="w-4 h-4 mr-2" />
             View lyrics
@@ -479,7 +479,7 @@ export default function AdminReleaseDetail() {
         <AdminNavbar />
         <div className="px-[10%] py-14 text-center">
           <p className="text-red-400 mb-4">{error || "Not found"}</p>
-          <Button variant="outline" className="border-gray-700" onClick={() => router.back()}>
+          <Button variant="outline" className="border-white/10" onClick={() => router.back()}>
             Go back
           </Button>
         </div>
@@ -563,7 +563,7 @@ export default function AdminReleaseDetail() {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+                  <DropdownMenuContent align="end" className="bg-[#141414] border-white/10">
                     <DropdownMenuItem asChild>
                       <Link href={`/admin/catalog/edit/release/${releaseId}`}>
                         <Pencil className="w-4 h-4 mr-2" />
@@ -587,7 +587,7 @@ export default function AdminReleaseDetail() {
                   className={`grid gap-4 lg:gap-5 ${showAbout && hasCredits ? "md:grid-cols-2" : ""}`}
                 >
                   {showAbout ? (
-                    <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                         About
                       </h2>
@@ -612,7 +612,7 @@ export default function AdminReleaseDetail() {
                   ) : null}
 
                   {hasCredits ? (
-                    <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
                         Credits
                       </h2>
@@ -650,7 +650,7 @@ export default function AdminReleaseDetail() {
               )}
 
               {showStream ? (
-                <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 shrink-0">
                     Stream
                   </h2>
@@ -679,7 +679,7 @@ export default function AdminReleaseDetail() {
         </div>
 
         {release.tracks.length === 0 ? (
-          <div className="max-w-6xl xl:max-w-7xl mx-auto rounded-xl border border-dashed border-gray-700 bg-[#0F0F0F]/50 p-12 text-center">
+          <div className="max-w-6xl xl:max-w-7xl mx-auto rounded-xl border border-dashed border-white/10 bg-[#141414]/50 p-12 text-center">
             <p className="text-gray-400 mb-4">No tracks yet.</p>
             <Button type="button" onClick={openAddTrack} variant="outline" className="border-gray-600">
               <Plus className="w-4 h-4 mr-2" />
@@ -751,7 +751,7 @@ export default function AdminReleaseDetail() {
         />
 
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete release</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -759,7 +759,7 @@ export default function AdminReleaseDetail() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" className="border-gray-700" onClick={() => setDeleteDialogOpen(false)}>
+              <Button variant="outline" className="border-white/10" onClick={() => setDeleteDialogOpen(false)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteRelease}>
@@ -770,7 +770,7 @@ export default function AdminReleaseDetail() {
         </Dialog>
 
         <Dialog open={deleteTrackDialogOpen} onOpenChange={setDeleteTrackDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete track</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -780,7 +780,7 @@ export default function AdminReleaseDetail() {
             <DialogFooter>
               <Button
                 variant="outline"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() => {
                   setDeleteTrackDialogOpen(false);
                   setTrackToDelete(null);
@@ -802,7 +802,7 @@ export default function AdminReleaseDetail() {
             if (!open) setLyricsView(null);
           }}
         >
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white max-h-[85vh] flex flex-col sm:max-w-lg">
+          <DialogContent className="bg-[#141414] border-white/10 text-white max-h-[85vh] flex flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Lyrics</DialogTitle>
               <DialogDescription className="text-gray-400 truncate">
@@ -817,7 +817,7 @@ export default function AdminReleaseDetail() {
             <DialogFooter>
               <Button
                 variant="outline"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() => {
                   setLyricsDialogOpen(false);
                   setLyricsView(null);

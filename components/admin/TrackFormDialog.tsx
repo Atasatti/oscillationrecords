@@ -596,7 +596,7 @@ export default function TrackFormDialog({
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-gray-700 bg-gray-900 px-2 py-2 text-sm"
+      className="w-full rounded-md border border-white/10 bg-black/40 px-2 py-2 text-sm"
     >
       <option value="">Select role *</option>
       {options.map((r) => (
@@ -609,7 +609,7 @@ export default function TrackFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="no-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto border-gray-800 bg-[#0F0F0F] text-white">
+      <DialogContent className="no-scrollbar max-h-[90vh] max-w-2xl overflow-y-auto border-white/10 bg-[#141414] text-white">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "Add track" : "Edit track"}
@@ -624,7 +624,7 @@ export default function TrackFormDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Track name"
-              className="border-gray-700 bg-gray-900"
+              className="border-white/10 bg-black/40"
               required
             />
           </div>
@@ -636,7 +636,7 @@ export default function TrackFormDialog({
             <Button
               type="button"
               variant="outline"
-              className="border-gray-700"
+              className="border-white/10"
               onClick={() => audRef.current?.click()}
               disabled={calcDuration}
             >
@@ -674,7 +674,7 @@ export default function TrackFormDialog({
               value={lyrics}
               onChange={(e) => setLyrics(e.target.value)}
               placeholder="Lyrics"
-              className="border-gray-700 bg-gray-900"
+              className="border-white/10 bg-black/40"
               rows={4}
             />
           </div>
@@ -686,7 +686,7 @@ export default function TrackFormDialog({
             <Button
               type="button"
               variant="outline"
-              className="border-gray-700"
+              className="border-white/10"
               onClick={() => stemsRef.current?.click()}
             >
               Upload stems
@@ -713,7 +713,7 @@ export default function TrackFormDialog({
                 value={isrcCode}
                 onChange={(e) => setIsrcCode(e.target.value)}
                 placeholder="ISRC"
-                className="border-gray-700 bg-gray-900 font-mono text-sm"
+                className="border-white/10 bg-black/40 font-mono text-sm"
                 required
               />
             </div>
@@ -753,37 +753,37 @@ export default function TrackFormDialog({
                 value={spotifyLink}
                 onChange={(e) => setSpotifyLink(e.target.value)}
                 placeholder="Spotify"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
               <Input
                 value={tidalLink}
                 onChange={(e) => setTidalLink(e.target.value)}
                 placeholder="Tidal"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
               <Input
                 value={appleMusicLink}
                 onChange={(e) => setAppleMusicLink(e.target.value)}
                 placeholder="Apple Music"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
               <Input
                 value={amazonMusicLink}
                 onChange={(e) => setAmazonMusicLink(e.target.value)}
                 placeholder="Amazon Music"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
               <Input
                 value={youtubeLink}
                 onChange={(e) => setYoutubeLink(e.target.value)}
                 placeholder="YouTube"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
               <Input
                 value={soundcloudLink}
                 onChange={(e) => setSoundcloudLink(e.target.value)}
                 placeholder="SoundCloud"
-                className="border-gray-700 bg-gray-900"
+                className="border-white/10 bg-black/40"
               />
             </div>
           </div>
@@ -802,11 +802,11 @@ export default function TrackFormDialog({
               value={featureArtistText}
               onChange={(e) => setFeatureArtistText(e.target.value)}
               placeholder="e.g. Guest Name, Another Artist"
-              className="border-gray-700 bg-gray-900"
+              className="border-white/10 bg-black/40"
             />
           </div>
 
-          <div className="space-y-4 rounded-xl border border-gray-800 bg-black/20 p-4">
+          <div className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-4">
             <p className="text-sm font-medium text-white">
               Track credits{" "}
               <span className="font-normal text-gray-500">(optional)</span>
@@ -826,7 +826,7 @@ export default function TrackFormDialog({
                       )
                     }
                     placeholder="Name *"
-                    className="border-gray-700 bg-gray-900"
+                    className="border-white/10 bg-black/40"
                   />
                   <Button
                     type="button"
@@ -846,7 +846,7 @@ export default function TrackFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() => setComposerNames((prev) => [...prev, ""])}
               >
                 Add composer
@@ -860,10 +860,10 @@ export default function TrackFormDialog({
               {songwriterRows.map((row, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 gap-2 border-b border-gray-800/80 pb-3 md:grid-cols-12"
+                  className="grid grid-cols-1 gap-2 border-b border-white/10/80 pb-3 md:grid-cols-12"
                 >
                   <Input
-                    className="border-gray-700 bg-gray-900 md:col-span-5"
+                    className="border-white/10 bg-black/40 md:col-span-5"
                     value={row.name}
                     onChange={(e) =>
                       updateNamedRow(setSongwriterRows, idx, {
@@ -900,7 +900,7 @@ export default function TrackFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() =>
                   setSongwriterRows((prev) => [...prev, { name: "", role: "" }])
                 }
@@ -916,10 +916,10 @@ export default function TrackFormDialog({
               {productionRows.map((row, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 gap-2 border-b border-gray-800/80 pb-3 md:grid-cols-12"
+                  className="grid grid-cols-1 gap-2 border-b border-white/10/80 pb-3 md:grid-cols-12"
                 >
                   <Input
-                    className="border-gray-700 bg-gray-900 md:col-span-5"
+                    className="border-white/10 bg-black/40 md:col-span-5"
                     value={row.name}
                     onChange={(e) =>
                       updateNamedRow(setProductionRows, idx, {
@@ -956,7 +956,7 @@ export default function TrackFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() =>
                   setProductionRows((prev) => [...prev, { name: "", role: "" }])
                 }
@@ -972,10 +972,10 @@ export default function TrackFormDialog({
               {performerRows.map((row, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 gap-2 border-b border-gray-800/80 pb-3 md:grid-cols-12"
+                  className="grid grid-cols-1 gap-2 border-b border-white/10/80 pb-3 md:grid-cols-12"
                 >
                   <Input
-                    className="border-gray-700 bg-gray-900 md:col-span-5"
+                    className="border-white/10 bg-black/40 md:col-span-5"
                     value={row.name}
                     onChange={(e) =>
                       updateNamedRow(setPerformerRows, idx, {
@@ -1012,7 +1012,7 @@ export default function TrackFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() =>
                   setPerformerRows((prev) => [...prev, { name: "", role: "" }])
                 }
@@ -1021,7 +1021,7 @@ export default function TrackFormDialog({
               </Button>
             </div>
 
-            <div className="space-y-2 border-t border-gray-800 pt-4">
+            <div className="space-y-2 border-t border-white/10 pt-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Add more
               </p>
@@ -1031,7 +1031,7 @@ export default function TrackFormDialog({
                   className="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-center"
                 >
                   <Input
-                    className="border-gray-700 bg-gray-900 md:col-span-5"
+                    className="border-white/10 bg-black/40 md:col-span-5"
                     value={row.name}
                     onChange={(e) =>
                       updateNamedRow(setCustomRows, idx, {
@@ -1041,7 +1041,7 @@ export default function TrackFormDialog({
                     placeholder="Name"
                   />
                   <Input
-                    className="border-gray-700 bg-gray-900 md:col-span-5"
+                    className="border-white/10 bg-black/40 md:col-span-5"
                     value={row.role}
                     onChange={(e) =>
                       updateNamedRow(setCustomRows, idx, {
@@ -1066,7 +1066,7 @@ export default function TrackFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() =>
                   setCustomRows((prev) => [...prev, { name: "", role: "" }])
                 }
@@ -1080,7 +1080,7 @@ export default function TrackFormDialog({
             <Button
               type="button"
               variant="outline"
-              className="border-gray-700"
+              className="border-white/10"
               onClick={() => onOpenChange(false)}
             >
               Cancel
