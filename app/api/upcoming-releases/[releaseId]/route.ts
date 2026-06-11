@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,6 +28,9 @@ export async function PATCH(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { releaseId } = await params;
     const existing = await prisma.upcomingRelease.findUnique({
       where: { id: releaseId },
@@ -134,6 +138,9 @@ export async function DELETE(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { releaseId } = await params;
 
     const existing = await prisma.upcomingRelease.findUnique({

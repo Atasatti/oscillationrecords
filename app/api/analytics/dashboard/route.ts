@@ -1,35 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/analytics/dashboard - Get dashboard analytics data
+// GET /api/analytics/dashboard - Get dashboard analytics data (admin only)
 export async function GET(request: NextRequest) {
   try {
-    // Safeguard: Ensure NEXTAUTH_SECRET is available
-    if (!process.env.NEXTAUTH_SECRET) {
-      console.error("NEXTAUTH_SECRET is not configured");
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    const token = await getToken({ 
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET
-    });
-
-    // Check if user is admin
-    if (!token ) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get("days") || "30", 10);

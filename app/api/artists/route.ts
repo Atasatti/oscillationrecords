@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { requireAdmin } from "@/lib/auth-guard";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -53,6 +54,9 @@ export async function GET(request: NextRequest) {
 // POST /api/artists - Create a new artist
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const body = await request.json();
     const {
       name,

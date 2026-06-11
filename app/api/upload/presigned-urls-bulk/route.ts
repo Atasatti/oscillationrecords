@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
-// Check if AWS credentials are available
-const hasCredentials = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY;
-
-const s3Client = hasCredentials ? new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-}) : null;
-
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || "osrecord";
-const region = process.env.AWS_REGION || "us-east-1";
+import { requireAdmin } from "@/lib/auth-guard";
+import {
+  S3_BUCKET,
+  publicFileUrl,
+  s3Client,
+  s3Configured,
+  sanitizeKey,
+} from "@/lib/s3";
 
 // Force dynamic rendering - prevent static generation
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-// POST /api/upload/presigned-urls-bulk - Get presigned URLs for albums/EPs with multiple audio files
+// POST /api/upload/presigned-urls-bulk - Get presigned URLs for albums/EPs with multiple audio files (admin only)
 export async function POST(request: NextRequest) {
   try {
-    // Check if AWS is configured
-    if (!hasCredentials || !s3Client) {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
+    if (!s3Configured() || !s3Client) {
       return NextResponse.json(
         { error: "AWS credentials not configured" },
         { status: 500 }
@@ -32,13 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
-      imageFileName, 
+    const {
+      imageFileName,
       imageFileType,
-      audioFiles // Array of { fileName, fileType }
+      audioFiles, // Array of { fileName, fileType }
     } = body;
 
-    // Validate required fields first
     if (!imageFileName || !imageFileType) {
       return NextResponse.json(
         { error: "imageFileName and imageFileType are required" },
@@ -53,53 +48,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const imageKey = sanitizeKey(imageFileName);
+    if (!imageKey) {
+      return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
+    }
+
     const results: {
       image: { uploadURL: string; fileURL: string };
       audioFiles: Array<{ uploadURL: string; fileURL: string; fileName: string }>;
-    } = {} as {
-      image: { uploadURL: string; fileURL: string };
-      audioFiles: Array<{ uploadURL: string; fileURL: string; fileName: string }>;
+    } = {
+      image: { uploadURL: "", fileURL: "" },
+      audioFiles: [],
     };
 
-    // Generate presigned URL for cover image (required)
-    const imageCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: imageFileName,
-      ContentType: imageFileType,
-    //   ACL: 'public-read',
-    });
-
-    const imageUploadURL = await getSignedUrl(s3Client, imageCommand, { expiresIn: 3600 });
-    const imageFileURL = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${imageFileName}`;
+    const imageUploadURL = await getSignedUrl(
+      s3Client,
+      new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: imageKey,
+        ContentType: imageFileType,
+      }),
+      { expiresIn: 3600 }
+    );
 
     results.image = {
       uploadURL: imageUploadURL,
-      fileURL: imageFileURL,
+      fileURL: publicFileUrl(imageKey),
     };
 
-    // Generate presigned URLs for multiple audio files (required)
     results.audioFiles = await Promise.all(
-      audioFiles.map(async ({ fileName, fileType }: { fileName: string; fileType: string }) => {
-        if (!fileName || !fileType) {
-          throw new Error("Each audio file must have fileName and fileType");
+      audioFiles.map(
+        async ({ fileName, fileType }: { fileName: string; fileType: string }) => {
+          if (!fileName || !fileType) {
+            throw new Error("Each audio file must have fileName and fileType");
+          }
+          const key = sanitizeKey(fileName);
+          if (!key) {
+            throw new Error("Invalid audio fileName");
+          }
+
+          const uploadURL = await getSignedUrl(
+            s3Client!,
+            new PutObjectCommand({
+              Bucket: S3_BUCKET,
+              Key: key,
+              ContentType: fileType,
+            }),
+            { expiresIn: 3600 }
+          );
+
+          return {
+            uploadURL,
+            fileURL: publicFileUrl(key),
+            fileName,
+          };
         }
-
-        const command = new PutObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: fileName,
-          ContentType: fileType,
-        //   ACL: 'public-read',
-        });
-
-        const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-        const fileURL = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${fileName}`;
-
-        return {
-          uploadURL,
-          fileURL,
-          fileName,
-        };
-      })
+      )
     );
 
     return NextResponse.json(results);
@@ -111,4 +115,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

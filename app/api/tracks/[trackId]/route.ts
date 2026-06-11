@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const ADMIN_EMAIL = "oscillationrecordz@gmail.com";
 
 export async function GET(
   request: NextRequest,
@@ -21,11 +19,7 @@ export async function GET(
     if (!track) {
       return NextResponse.json({ error: "Track not found" }, { status: 404 });
     }
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    const isAdmin = Boolean(token?.email && token.email === ADMIN_EMAIL);
+    const isAdmin = await isAdminRequest(request);
     const serialized = isAdmin ? serializeTrack(track) : serializeTrackForPublic(track);
     return NextResponse.json({
       ...serialized,
@@ -45,6 +39,9 @@ export async function PATCH(
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { trackId } = await params;
     const existing = await prisma.track.findUnique({ where: { id: trackId } });
     if (!existing) {
@@ -162,10 +159,13 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { trackId } = await params;
     const existing = await prisma.track.findUnique({
       where: { id: trackId },

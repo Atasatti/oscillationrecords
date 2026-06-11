@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { isOwnBucketUrl } from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,6 +38,15 @@ export async function POST(request: NextRequest) {
     if (!fileURL || typeof fileURL !== "string") {
       return NextResponse.json(
         { error: "fileURL is required" },
+        { status: 400 }
+      );
+    }
+
+    // Only accept URLs that point at our own S3 bucket (set by the presign step),
+    // so an arbitrary/malicious link can't be stored and later shown to the admin.
+    if (!isOwnBucketUrl(fileURL)) {
+      return NextResponse.json(
+        { error: "Invalid fileURL" },
         { status: 400 }
       );
     }

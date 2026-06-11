@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 // Force dynamic rendering - prevent static generation
 // These exports tell Next.js to never statically generate or analyze this route
@@ -15,49 +15,8 @@ export async function GET(
   { params }: { params: Promise<{ contentId: string }> }
 ) {
   try {
-    // Safeguard: Ensure NEXTAUTH_SECRET is available
-    if (!process.env.NEXTAUTH_SECRET) {
-      console.error("NEXTAUTH_SECRET is not configured");
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    // Safely get token - handle build-time scenarios where request might not be valid
-    let token;
-    try {
-      // Check if request is valid before calling getToken
-      if (!request || typeof request !== 'object') {
-        return NextResponse.json(
-          { error: "Invalid request" },
-          { status: 400 }
-        );
-      }
-      
-      token = await getToken({ 
-        req: request,
-        secret: process.env.NEXTAUTH_SECRET
-      });
-    } catch (error) {
-      // If getToken fails (e.g., during build), return error gracefully
-      // Don't log during build to avoid noise
-      if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-        console.error("Error getting token:", error);
-      }
-      return NextResponse.json(
-        { error: "Authentication error" },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    if (!token) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
 
     // Safely await params - handle build-time scenarios
     let contentId: string;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -11,8 +11,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const ADMIN_EMAIL = "oscillationrecordz@gmail.com";
 
 // GET /api/releases/[releaseId]
 export async function GET(
@@ -47,11 +45,7 @@ export async function GET(
       select: { id: true, name: true, profilePicture: true },
     });
 
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    const isAdmin = Boolean(token?.email && token.email === ADMIN_EMAIL);
+    const isAdmin = await isAdminRequest(request);
     const tracks = release.tracks.map((t) =>
       isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
     );
@@ -182,6 +176,9 @@ export async function PATCH(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { releaseId } = await params;
     const existing = await prisma.release.findUnique({
       where: { id: releaseId },
@@ -467,10 +464,13 @@ export async function PATCH(
 
 // DELETE /api/releases/[releaseId]
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { releaseId } = await params;
     const existing = await prisma.release.findUnique({ where: { id: releaseId } });
     if (!existing) {

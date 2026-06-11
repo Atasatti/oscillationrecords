@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const ADMIN_EMAIL = "oscillationrecordz@gmail.com";
-
 // GET /api/benert-remix/admin - List all submissions (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-
-    if (!token?.email || token.email !== ADMIN_EMAIL) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
 
     const entries = await prisma.benertRemixEntry.findMany({
       where: { uploadedFileUrl: { not: null } },

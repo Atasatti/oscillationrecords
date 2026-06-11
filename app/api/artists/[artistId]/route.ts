@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,9 @@ export async function PUT(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { artistId } = await params;
     const body = await request.json();
     const {
@@ -119,6 +123,9 @@ export async function PATCH(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { artistId } = await params;
     const body = await request.json();
     const { showOnWebsite } = body;
@@ -162,6 +169,9 @@ export async function DELETE(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { artistId } = await params;
 
     // Check if artist exists

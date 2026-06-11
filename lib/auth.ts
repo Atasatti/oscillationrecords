@@ -1,4 +1,4 @@
-import NextAuth, { AuthOptions, Session, JWT } from "next-auth";
+import NextAuth, { AuthOptions, JWT } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
@@ -118,14 +118,14 @@ export const authOptions: AuthOptions = {
         if (session.user) {
           session.user.id = extendedToken.sub as string;
         }
-      
-        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).accessToken = extendedToken.accessToken;
-        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).refreshToken = extendedToken.refreshToken;
-        (session as Session & { accessToken?: string; refreshToken?: string; expiresAt?: number }).expiresAt = extendedToken.expiresAt;
-      
+
+        // NOTE: Google access/refresh tokens are intentionally NOT copied onto the
+        // session. The session is sent to the browser; exposing a long-lived refresh
+        // token client-side is a credential leak. Tokens stay in the encrypted JWT
+        // (server-side) where the `jwt` callback can use them for refresh.
         return session;
       }
-      
+
   },
 };
 

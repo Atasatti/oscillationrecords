@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import {
   apiKindToPrisma,
   buildArtistMap,
@@ -16,16 +16,11 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-const ADMIN_EMAIL = "oscillationrecordz@gmail.com";
 
 // GET /api/releases — list releases for public grid (optional `?limit=`; `?carousel=1` returns all `showOnHome` releases with no cap, or all releases if none flagged)
 export async function GET(request: NextRequest) {
   try {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    const isAdmin = Boolean(token?.email && token.email === ADMIN_EMAIL);
+    const isAdmin = await isAdminRequest(request);
 
     const { searchParams } = new URL(request.url);
     const limitRaw = searchParams.get("limit");
@@ -166,6 +161,9 @@ export async function GET(request: NextRequest) {
 // POST /api/releases — create release shell (tracks added separately)
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const body = await request.json();
     const kind = apiKindToPrisma(body.kind);
     if (!kind) {

@@ -5,11 +5,9 @@ declare module "next-auth" {
     user: {
       id: string;
     } & DefaultSession["user"];
-    accessToken?: string;
-    refreshToken?: string;
-    expiresAt?: number;
   }
 
+  // Google OAuth tokens live only in the server-side JWT, never on the client session.
   interface JWT {
     accessToken?: string;
     refreshToken?: string;

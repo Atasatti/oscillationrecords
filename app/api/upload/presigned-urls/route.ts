@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
-// Check if AWS credentials are available
-const hasCredentials = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY;
-
-const s3Client = hasCredentials ? new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-}) : null;
-
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || "osrecord";
-const region = process.env.AWS_REGION || "us-east-1";
+import { requireUser, tokenIsAdmin } from "@/lib/auth-guard";
+import {
+  S3_BUCKET,
+  isAudioContentType,
+  publicFileUrl,
+  s3Client,
+  s3Configured,
+  sanitizeKey,
+} from "@/lib/s3";
 
 // Force dynamic rendering - prevent static generation
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-// POST /api/upload/presigned-urls - Get presigned URLs for both image and audio
+// Non-admin uploads (the public Benert Remix competition) are confined to this prefix.
+const PUBLIC_UPLOAD_PREFIX = "benert-remix/";
+
+// POST /api/upload/presigned-urls - Get presigned URLs for audio (+ optional image).
+// Admin: full catalog uploads (any key/type, incl. stems). Other signed-in users:
+// audio only, confined to the competition prefix.
 export async function POST(request: NextRequest) {
   try {
-    // Check if AWS is configured
-    if (!hasCredentials || !s3Client) {
+    const guard = await requireUser(request);
+    if (!guard.ok) return guard.response;
+    const isAdmin = tokenIsAdmin(guard.token);
+
+    if (!s3Configured() || !s3Client) {
       return NextResponse.json(
         { error: "AWS credentials not configured" },
         { status: 500 }
@@ -42,45 +45,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const audioKey = sanitizeKey(audioFileName);
+    if (!audioKey) {
+      return NextResponse.json({ error: "Invalid audioFileName" }, { status: 400 });
+    }
+
+    // Untrusted (non-admin) users may only upload audio into the competition prefix.
+    if (!isAdmin) {
+      if (!audioKey.startsWith(PUBLIC_UPLOAD_PREFIX)) {
+        return NextResponse.json({ error: "Forbidden upload path" }, { status: 403 });
+      }
+      if (!isAudioContentType(audioFileType)) {
+        return NextResponse.json(
+          { error: "Only audio uploads are allowed" },
+          { status: 400 }
+        );
+      }
+    }
+
     const results: {
       audio: { uploadURL: string; fileURL: string };
       image?: { uploadURL: string; fileURL: string };
-    } = {} as {
-      audio: { uploadURL: string; fileURL: string };
-      image?: { uploadURL: string; fileURL: string };
+    } = {
+      audio: { uploadURL: "", fileURL: "" },
     };
 
-    // Generate presigned URL for audio (required)
-    const audioCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: audioFileName,
-      ContentType: audioFileType,
-    //   ACL: 'public-read',
-    });
-
-    const audioUploadURL = await getSignedUrl(s3Client, audioCommand, { expiresIn: 3600 });
-    const audioFileURL = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${audioFileName}`;
+    const audioUploadURL = await getSignedUrl(
+      s3Client,
+      new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: audioKey,
+        ContentType: audioFileType,
+      }),
+      { expiresIn: 3600 }
+    );
 
     results.audio = {
       uploadURL: audioUploadURL,
-      fileURL: audioFileURL,
+      fileURL: publicFileUrl(audioKey),
     };
 
-    // Generate presigned URL for image (if provided)
-    if (imageFileName && imageFileType) {
-      const imageCommand = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: imageFileName,
-        ContentType: imageFileType,
-        // ACL: 'public-read',
-      });
-
-      const imageUploadURL = await getSignedUrl(s3Client, imageCommand, { expiresIn: 3600 });
-      const imageFileURL = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${imageFileName}`;
-
+    // Optional image is an admin-only convenience (the public flow never sends one).
+    if (isAdmin && imageFileName && imageFileType) {
+      const imageKey = sanitizeKey(imageFileName);
+      if (!imageKey) {
+        return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
+      }
+      const imageUploadURL = await getSignedUrl(
+        s3Client,
+        new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: imageKey,
+          ContentType: imageFileType,
+        }),
+        { expiresIn: 3600 }
+      );
       results.image = {
         uploadURL: imageUploadURL,
-        fileURL: imageFileURL,
+        fileURL: publicFileUrl(imageKey),
       };
     }
 
@@ -93,4 +115,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

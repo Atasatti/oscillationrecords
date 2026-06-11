@@ -1,29 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
-// Check if AWS credentials are available
-const hasCredentials = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY;
-
-const s3Client = hasCredentials ? new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-}) : null;
-
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || "osrecord";
-const region = process.env.AWS_REGION || "us-east-1";
+import { requireAdmin } from "@/lib/auth-guard";
+import {
+  S3_BUCKET,
+  isImageContentType,
+  publicFileUrl,
+  s3Client,
+  s3Configured,
+  sanitizeKey,
+} from "@/lib/s3";
 
 // Force dynamic rendering - prevent static generation
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if AWS is configured
-    if (!hasCredentials || !s3Client) {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
+    if (!s3Configured() || !s3Client) {
       return NextResponse.json(
         { error: "AWS credentials not configured" },
         { status: 500 }
@@ -33,7 +30,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { imageFileName, imageFileType } = body;
 
-    // Image is required
     if (!imageFileName || !imageFileType) {
       return NextResponse.json(
         { error: "imageFileName and imageFileType are required" },
@@ -41,19 +37,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate presigned URL for image
-    const imageCommand = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: imageFileName,
-      ContentType: imageFileType,
-    });
+    const key = sanitizeKey(imageFileName);
+    if (!key) {
+      return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
+    }
 
-    const imageUploadURL = await getSignedUrl(s3Client, imageCommand, { expiresIn: 3600 });
-    const imageFileURL = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${imageFileName}`;
+    if (!isImageContentType(imageFileType)) {
+      return NextResponse.json(
+        { error: "imageFileType must be an image/* content type" },
+        { status: 400 }
+      );
+    }
+
+    const uploadURL = await getSignedUrl(
+      s3Client,
+      new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        ContentType: imageFileType,
+      }),
+      { expiresIn: 3600 }
+    );
 
     return NextResponse.json({
-      uploadURL: imageUploadURL,
-      fileURL: imageFileURL,
+      uploadURL,
+      fileURL: publicFileUrl(key),
     });
   } catch (error) {
     console.error("Error generating presigned URL for image:", error);
@@ -63,5 +71,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-
