@@ -2,6 +2,7 @@
 import React from "react";
 import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import StackedHeroImagesAdmin from "@/components/admin/StackedHeroImagesAdmin";
+import StudioPhotosAdmin from "@/components/admin/StudioPhotosAdmin";
 import FooterSettingsAdmin from "@/components/admin/FooterSettingsAdmin";
 
 export default function AdminSettings() {
@@ -23,6 +24,7 @@ export default function AdminSettings() {
         </div>
 
         <StackedHeroImagesAdmin />
+        <StudioPhotosAdmin />
         <FooterSettingsAdmin />
       </div>
     </div>
