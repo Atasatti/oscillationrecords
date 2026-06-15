@@ -31,17 +31,25 @@ export type MeetArtistSectionVariant = "home" | "artists";
 
 type MeetArtistSectionProps = {
   variant?: MeetArtistSectionVariant;
+  /** Server-rendered artists. When provided, the section renders from the
+   * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
+  initialArtists?: Artist[];
 };
 
-const MeetArtistSection = ({ variant = "home" }: MeetArtistSectionProps) => {
+const MeetArtistSection = ({
+  variant = "home",
+  initialArtists,
+}: MeetArtistSectionProps) => {
   const router = useRouter();
-  const [artists, setArtists] = useState<Artist[]>([]);
+  const [artists, setArtists] = useState<Artist[]>(initialArtists ?? []);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(initialArtists === undefined);
 
   useEffect(() => {
+    // Data already in the HTML from the server — don't refetch on mount.
+    if (initialArtists !== undefined) return;
     fetchArtists();
-  }, []);
+  }, [initialArtists]);
 
   const fetchArtists = async () => {
     try {
@@ -134,11 +142,11 @@ const MeetArtistSection = ({ variant = "home" }: MeetArtistSectionProps) => {
         <div className="relative w-full lg:flex-1 flex justify-center">
           <div className="relative w-full max-w-[500px]">
             <div className="relative w-full aspect-[5/6] max-h-[600px]">
-              <Image 
-                src={currentArtist.profilePicture || "/meet-artist-img.svg"} 
-                width={500} 
-                height={600} 
-                alt={currentArtist.name} 
+              <Image
+                src={currentArtist.profilePicture || "/meet-artist-img.svg"}
+                width={500}
+                height={600}
+                alt={currentArtist.name}
                 className="rounded-[18px] object-cover w-full h-full"
               />
             </div>

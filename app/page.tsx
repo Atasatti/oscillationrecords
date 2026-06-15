@@ -7,8 +7,25 @@ import NoProfitSection from "@/components/sections/NoProfitSection";
 import UpcomingReleasesSection from "@/components/sections/UpcomingReleasesSection";
 import Footer from "@/components/local-ui/Footer";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
+import {
+  getCarouselReleases,
+  getPublicArtists,
+  getUpcomingReleases,
+} from "@/lib/catalog-data";
 
-export default function Home() {
+// Re-render at most once a minute (ISR) so the catalog stays fresh and the page
+// is CDN-cacheable, mirroring the s-maxage=60 the API routes use.
+export const revalidate = 60;
+
+export default async function Home() {
+  // Fetch the page's data on the server, in parallel, so it ships in the initial
+  // HTML — no client hydrate-then-fetch waterfall or loading spinners.
+  const [upcomingReleases, carouselReleases, artists] = await Promise.all([
+    getUpcomingReleases(),
+    getCarouselReleases(),
+    getPublicArtists(),
+  ]);
+
   return (
     <div>
       <Navbar />
@@ -18,13 +35,13 @@ export default function Home() {
         <NoProfitSection />
       </ScrollReveal3D>
       <ScrollReveal3D>
-        <UpcomingReleasesSection />
+        <UpcomingReleasesSection initialReleases={upcomingReleases} />
       </ScrollReveal3D>
       <ScrollReveal3D>
-        <NewMusicSection />
+        <NewMusicSection initialReleases={carouselReleases} />
       </ScrollReveal3D>
       <ScrollReveal3D>
-        <MeetArtistSection />
+        <MeetArtistSection initialArtists={artists} />
       </ScrollReveal3D>
       <ScrollReveal3D>
         <MusicHeardSection

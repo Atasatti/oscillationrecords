@@ -29,10 +29,16 @@ interface Release {
   songCount: number;
 }
 
-const ReleasesSection = () => {
+type ReleasesSectionProps = {
+  /** Server-rendered releases. When provided, the section renders from the
+   * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
+  initialReleases?: Release[];
+};
+
+const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
   const router = useRouter();
-  const [releases, setReleases] = useState<Release[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [releases, setReleases] = useState<Release[]>(initialReleases ?? []);
+  const [isLoading, setIsLoading] = useState(initialReleases === undefined);
   const [selectedFilter, setSelectedFilter] = useState("All");
 
   const handleReleaseClick = (release: Release) => {
@@ -40,8 +46,10 @@ const ReleasesSection = () => {
   };
 
   useEffect(() => {
+    // Data already in the HTML from the server — don't refetch on mount.
+    if (initialReleases !== undefined) return;
     fetchReleases();
-  }, []);
+  }, [initialReleases]);
 
   const fetchReleases = async () => {
     try {
