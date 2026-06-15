@@ -64,6 +64,22 @@ export default function ReleaseForm({
     upcCode: "",
   });
 
+  // Field-level validation errors, shown inline beneath each field so name, date,
+  // and artwork all report problems the same way (no mix of native bubbles/toasts).
+  const [errors, setErrors] = useState<{
+    name?: string;
+    coverImage?: string;
+    releaseDate?: string;
+  }>({});
+
+  const clearError = (field: keyof typeof errors) =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -151,6 +167,7 @@ export default function ReleaseForm({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "name" || name === "releaseDate") clearError(name);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,6 +176,7 @@ export default function ReleaseForm({
       setFormData((prev) => ({ ...prev, coverImageFile: file }));
       const previewUrl = URL.createObjectURL(file);
       setImagePreview(previewUrl);
+      clearError("coverImage");
     }
   };
 
@@ -210,18 +228,38 @@ export default function ReleaseForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Field-level validation — collected together so name, artwork, and date all
+    // surface inline beneath their field in the same style.
+    const fieldErrors: typeof errors = {};
+
     if (!formData.name?.trim()) {
-      toast.error("Please enter a release name");
-      return;
+      fieldErrors.name = "Please enter a release name";
     }
+
     if (mode === "create" && !formData.coverImageFile) {
-      toast.error("Please select a cover image");
+      fieldErrors.coverImage = "Please add a cover image";
+    } else if (mode === "edit" && !formData.coverImageFile && !coverImageUrl) {
+      fieldErrors.coverImage = "Cover image is missing";
+    }
+
+    // Block past release dates on create. Edit is exempt so historical releases
+    // (which legitimately have past dates) stay editable. Compare as YYYY-MM-DD
+    // strings in local time to avoid timezone off-by-one issues.
+    if (mode === "create" && formData.releaseDate) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (formData.releaseDate < todayStr) {
+        fieldErrors.releaseDate = "Release date can’t be in the past";
+      }
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
       return;
     }
-    if (mode === "edit" && !formData.coverImageFile && !coverImageUrl) {
-      toast.error("Cover image is missing");
-      return;
-    }
+    setErrors({});
+
     if (formData.primaryArtistIds.length === 0) {
       toast.error("Please select at least one primary artist");
       return;
@@ -378,7 +416,9 @@ export default function ReleaseForm({
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 bg-[#141414]/50"
+                      className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 bg-[#141414]/50 ${
+                        errors.coverImage ? "border-red-500/70" : "border-white/10"
+                      }`}
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400">Upload cover</p>
@@ -391,6 +431,9 @@ export default function ReleaseForm({
                     onChange={handleImageChange}
                     className="hidden"
                   />
+                  {errors.coverImage && (
+                    <p className="text-sm text-red-400">{errors.coverImage}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -398,14 +441,21 @@ export default function ReleaseForm({
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10 space-y-4">
                 <h3 className="text-lg font-medium text-gray-200">Basic</h3>
-                <Input
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="Release name *"
-                  required
-                  className="bg-[#141414] border-white/10 text-white"
-                />
+                <div>
+                  <Input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Release name *"
+                    aria-invalid={errors.name ? true : undefined}
+                    className={`bg-[#141414] text-white ${
+                      errors.name ? "border-red-500/70" : "border-white/10"
+                    }`}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                  )}
+                </div>
                 <Textarea
                   name="description"
                   value={formData.description}
@@ -414,13 +464,21 @@ export default function ReleaseForm({
                   rows={4}
                   className="bg-black/40 border-white/10 text-white resize-none"
                 />
-                <Input
-                  name="releaseDate"
-                  type="date"
-                  value={formData.releaseDate}
-                  onChange={handleInputChange}
-                  className="bg-[#141414] border-white/10 text-white"
-                />
+                <div>
+                  <Input
+                    name="releaseDate"
+                    type="date"
+                    value={formData.releaseDate}
+                    onChange={handleInputChange}
+                    aria-invalid={errors.releaseDate ? true : undefined}
+                    className={`bg-[#141414] text-white ${
+                      errors.releaseDate ? "border-red-500/70" : "border-white/10"
+                    }`}
+                  />
+                  {errors.releaseDate && (
+                    <p className="mt-1 text-sm text-red-400">{errors.releaseDate}</p>
+                  )}
+                </div>
                 <div>
                   <span className="mb-1 block text-xs font-medium text-gray-400">
                     Explicit *
