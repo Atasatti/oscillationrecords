@@ -174,6 +174,11 @@ export default function AdminCatalog() {
     id: string;
     name: string;
   } | null>(null);
+  const [upcomingDeleteOpen, setUpcomingDeleteOpen] = useState(false);
+  const [upcomingToDelete, setUpcomingToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [upcomingForm, setUpcomingForm] = useState({
     name: "",
     type: "single" as "single" | "ep" | "album",
@@ -514,17 +519,24 @@ export default function AdminCatalog() {
     }
   };
 
-  const handleDeleteUpcomingRelease = async (releaseId: string) => {
-    const confirmed = window.confirm("Delete this upcoming release?");
-    if (!confirmed) return;
+  const handleDeleteUpcomingClick = (releaseId: string) => {
+    const r = upcomingReleases.find((x) => x.id === releaseId);
+    setUpcomingToDelete({ id: releaseId, name: r?.name ?? "this release" });
+    setUpcomingDeleteOpen(true);
+  };
+
+  const handleDeleteUpcomingConfirm = async () => {
+    if (!upcomingToDelete) return;
     try {
-      const response = await fetch(`/api/upcoming-releases/${releaseId}`, {
+      const response = await fetch(`/api/upcoming-releases/${upcomingToDelete.id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || "Failed to delete upcoming release");
       }
+      setUpcomingDeleteOpen(false);
+      setUpcomingToDelete(null);
       fetchAllData();
     } catch (error) {
       console.error("Error deleting upcoming release:", error);
@@ -710,7 +722,16 @@ export default function AdminCatalog() {
             <NewReleaseDropdown />
           </div>
           {releases.length === 0 ? (
-            <p className="text-sm text-gray-500">No releases yet.</p>
+            <div className="text-center py-16 bg-[#141414] rounded-xl">
+              <Disc3 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg mb-2">No releases yet</p>
+              <p className="text-gray-500 mb-6">
+                Create your first single, EP, or album to get started.
+              </p>
+              <div className="flex justify-center">
+                <NewReleaseDropdown align="center" />
+              </div>
+            </div>
           ) : (
             <CatalogReleasesSortableList
               releases={releases}
@@ -825,7 +846,7 @@ export default function AdminCatalog() {
                   releases={upcomingReleases}
                   onReorderSave={handleUpcomingReorderSave}
                   onEdit={openUpcomingEdit}
-                  onDelete={handleDeleteUpcomingRelease}
+                  onDelete={handleDeleteUpcomingClick}
                 />
               )}
             </div>
@@ -995,6 +1016,33 @@ export default function AdminCatalog() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleContentDeleteConfirm}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={upcomingDeleteOpen} onOpenChange={setUpcomingDeleteOpen}>
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
+            <DialogHeader>
+              <DialogTitle>Delete upcoming release</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Are you sure you want to delete &quot;{upcomingToDelete?.name}&quot;?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setUpcomingDeleteOpen(false);
+                  setUpcomingToDelete(null);
+                }}
+                className="border-white/10"
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteUpcomingConfirm}>
                 Delete
               </Button>
             </DialogFooter>

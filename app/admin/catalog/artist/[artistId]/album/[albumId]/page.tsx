@@ -24,6 +24,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
+import { useToast } from "@/components/local-ui/Toast";
 
 interface Single {
   id: string;
@@ -68,6 +69,7 @@ interface ArtistSummary {
 export default function AlbumDetail() {
   const params = useParams();
   const router = useRouter();
+  const toast = useToast();
   const artistId = params.artistId as string;
   const albumId = params.albumId as string;
   
@@ -151,11 +153,11 @@ export default function AlbumDetail() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error deleting album:", error);
-      alert("Failed to delete album");
+      toast.error("Failed to delete album");
     }
   };
 
@@ -179,11 +181,11 @@ export default function AlbumDetail() {
         fetchAlbumData();
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error deleting song:", error);
-      alert("Failed to delete song");
+      toast.error("Failed to delete song");
     }
   };
 

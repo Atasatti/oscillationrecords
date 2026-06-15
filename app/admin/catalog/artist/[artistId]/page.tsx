@@ -24,6 +24,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
+import { useToast } from "@/components/local-ui/Toast";
 
 interface Artist {
   id: string;
@@ -60,6 +61,7 @@ interface ReleaseRow {
 export default function AdminArtistDetail() {
   const params = useParams();
   const router = useRouter();
+  const toast = useToast();
   const artistId = params.artistId as string;
 
   const [artist, setArtist] = useState<Artist | null>(null);
@@ -133,11 +135,11 @@ export default function AdminArtistDetail() {
         setReleases((prev) => prev.filter((r) => r.id !== toDelete.id));
       } else {
         const err = await res.json();
-        alert(err.error || "Failed");
+        toast.error(err.error || "Failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to delete");
+      toast.error("Failed to delete");
     }
   };
 

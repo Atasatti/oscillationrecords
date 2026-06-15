@@ -5,11 +5,13 @@ import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Save, Music, Image as ImageIcon, Loader2 } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
 
 export default function CreateSingle() {
   const params = useParams();
   const router = useRouter();
   const artistId = params.artistId as string;
+  const toast = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -70,7 +72,7 @@ export default function CreateSingle() {
         });
       } catch (error) {
         console.error("Error calculating audio duration:", error);
-        alert("Failed to calculate audio duration. Please try again.");
+        toast.error("Failed to calculate audio duration. Please try again.");
       } finally {
         setCalculatingDuration(false);
       }
@@ -165,12 +167,12 @@ export default function CreateSingle() {
     }
 
     if (!formData.name || !formData.audioFile) {
-      alert("Please fill in the single name and select an audio file");
+      toast.error("Please fill in the single name and select an audio file");
       return;
     }
 
     if (audioDuration === 0) {
-      alert("Please wait for the audio duration to be calculated");
+      toast.error("Please wait for the audio duration to be calculated");
       return;
     }
 
@@ -245,11 +247,11 @@ export default function CreateSingle() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error creating single:", error);
-      alert(`Failed to create single: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to create single: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadingImage(false);
       setUploadingAudio(false);
     } finally {

@@ -24,6 +24,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
+import { useToast } from "@/components/local-ui/Toast";
 
 interface Single {
   id: string;
@@ -67,6 +68,7 @@ interface ArtistSummary {
 export default function EPDetail() {
   const params = useParams();
   const router = useRouter();
+  const toast = useToast();
   const artistId = params.artistId as string;
   const epId = params.epId as string;
 
@@ -150,11 +152,11 @@ export default function EPDetail() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error deleting EP:", error);
-      alert("Failed to delete EP");
+      toast.error("Failed to delete EP");
     }
   };
 
@@ -178,11 +180,11 @@ export default function EPDetail() {
         fetchEPData();
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error deleting song:", error);
-      alert("Failed to delete song");
+      toast.error("Failed to delete song");
     }
   };
 

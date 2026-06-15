@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Music, Image as ImageIcon, Loader2, Plus, X } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
 
 interface Song {
   name: string;
@@ -17,6 +18,7 @@ export default function CreateAlbum() {
   const params = useParams();
   const router = useRouter();
   const artistId = params.artistId as string;
+  const toast = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -112,7 +114,7 @@ export default function CreateAlbum() {
       });
     } catch (error) {
       console.error("Error calculating audio duration:", error);
-      alert("Failed to calculate audio duration. Please try again.");
+      toast.error("Failed to calculate audio duration. Please try again.");
     } finally {
       setCalculatingDurations(prev => ({ ...prev, [index]: false }));
     }
@@ -179,21 +181,21 @@ export default function CreateAlbum() {
     e.preventDefault();
     
     if (!formData.name || !formData.coverImageFile) {
-      alert("Please fill in the album name and select a cover image");
+      toast.error("Please fill in the album name and select a cover image");
       return;
     }
 
     // Validate all songs
     const validSongs = songs.filter(song => song.name && song.audioFile && song.duration > 0);
     if (validSongs.length === 0) {
-      alert("Please add at least one song with name and audio file");
+      toast.error("Please add at least one song with name and audio file");
       return;
     }
 
     // Check if all songs have duration calculated
     const songsWithDuration = songs.every(song => !song.audioFile || song.duration > 0);
     if (!songsWithDuration) {
-      alert("Please wait for all audio durations to be calculated");
+      toast.error("Please wait for all audio durations to be calculated");
       return;
     }
 
@@ -215,7 +217,7 @@ export default function CreateAlbum() {
         coverImageUrl = presignedUrls.image.fileURL;
       } catch (error) {
         console.error("Error uploading cover image:", error);
-        alert("Failed to upload cover image. Please try again.");
+        toast.error("Failed to upload cover image. Please try again.");
         setUploadingImage(false);
         setIsLoading(false);
         return;
@@ -238,7 +240,7 @@ export default function CreateAlbum() {
         );
       } catch (error) {
         console.error("Error uploading audio files:", error);
-        alert("Failed to upload audio files. Please try again.");
+        toast.error("Failed to upload audio files. Please try again.");
         setUploadingAudio(false);
         setIsLoading(false);
         return;
@@ -289,11 +291,11 @@ export default function CreateAlbum() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await albumResponse.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error creating album:", error);
-      alert(`Failed to create album: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to create album: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
