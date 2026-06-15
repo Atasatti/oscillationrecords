@@ -2,40 +2,29 @@
 
 import React, { useRef } from "react";
 import Link from "next/link";
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  useSpring,
-  useMotionTemplate,
-} from "motion/react";
+import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
 import IconButton from "@/components/local-ui/IconButton";
-import StackedImagesSection from "@/components/sections/StackedImagesSection";
+import StudioPhotosCarousel from "@/components/sections/StudioPhotosCarousel";
 
 interface Hero3DSceneProps {
-  image1: string;
-  image2: string;
-  image3: string;
+  photos: string[];
 }
 
-export default function Hero3DScene({ image1, image2, image3 }: Hero3DSceneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function Hero3DScene({ photos }: Hero3DSceneProps) {
+  const headlineRef = useRef<HTMLDivElement>(null);
 
+  // Mouse-driven tilt — applied ONLY to the headline block below, so the rest of
+  // the hero (mission, cards, photos) renders flat.
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-
-  const rawRotateX = useTransform(mouseY, [-1, 1], [5, -5]);
-  const rawRotateY = useTransform(mouseX, [-1, 1], [-5, 5]);
+  const rawRotateX = useTransform(mouseY, [-1, 1], [6, -6]);
+  const rawRotateY = useTransform(mouseX, [-1, 1], [-6, 6]);
   const rotateX = useSpring(rawRotateX, { stiffness: 120, damping: 22 });
   const rotateY = useSpring(rawRotateY, { stiffness: 120, damping: 22 });
 
-  const shadowX = useTransform(mouseX, [-1, 1], [12, -12]);
-  const shadowY = useTransform(mouseY, [-1, 1], [-12, 12]);
-  const cardShadow = useMotionTemplate`${shadowX}px ${shadowY}px 40px rgba(255,255,255,0.04)`;
-
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
+    if (!headlineRef.current) return;
+    const rect = headlineRef.current.getBoundingClientRect();
     mouseX.set(((e.clientX - rect.left) / rect.width - 0.5) * 2);
     mouseY.set(((e.clientY - rect.top) / rect.height - 0.5) * 2);
   };
@@ -47,49 +36,42 @@ export default function Hero3DScene({ image1, image2, image3 }: Hero3DSceneProps
 
   return (
     <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-12 md:py-14"
-      style={{ backgroundImage: `url('/hero-bg.svg')`, perspective: "1200px" }}
+      className="bg-center bg-no-repeat w-full"
+      style={{ backgroundImage: `url('/hero-bg.svg')` }}
     >
-      <motion.div
-        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-        initial={{ rotateX: 8, opacity: 0 }}
-        animate={{ rotateX: 0, opacity: 1 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {/* Subtitle — base layer */}
-        <motion.p
-          className="text-muted-foreground uppercase text-xs sm:text-sm text-center font-[font-family:var(--font-inter)] tracking-wider"
-          style={{ translateZ: "0px" }}
+      <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-12 md:py-14">
+        {/* Headline — the only part with the 3D tilt */}
+        <div
+          ref={headlineRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{ perspective: "1200px" }}
         >
-          Real support for up-and-coming talent
-        </motion.p>
+          <motion.div
+            style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+            initial={{ rotateX: 8, opacity: 0 }}
+            animate={{ rotateX: 0, opacity: 1 }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <p className="text-muted-foreground uppercase text-xs sm:text-sm text-center font-[font-family:var(--font-inter)] tracking-wider">
+              Real support for up-and-coming talent
+            </p>
+            <p className="text-3xl sm:text-[40px] md:text-[64px] text-center leading-none font-light opacity-90 tracking-tighter mt-4 sm:mt-5">
+              A Record Label That
+            </p>
+            <p className="text-3xl sm:text-[40px] md:text-[64px] text-center leading-none font-extrabold mt-2">
+              Puts Artists First
+            </p>
+          </motion.div>
+        </div>
 
-        {/* Main headings — mid layer */}
-        <motion.div style={{ translateZ: "25px" }}>
-          <p className="text-3xl sm:text-[40px] md:text-[64px] text-center leading-none font-light opacity-90 tracking-tighter mt-4 sm:mt-5">
-            A Record Label That
-          </p>
-          <p className="text-3xl sm:text-[40px] md:text-[64px] text-center leading-none font-extrabold mt-2">
-            Puts Artists First
-          </p>
-        </motion.div>
+        {/* CTA button — flat */}
+        <div className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16">
+          <IconButton text="Let's Work Together" href="/contact" />
+        </div>
 
-        {/* CTA button — front layer */}
-        <motion.div
-          className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16"
-          style={{ translateZ: "50px" }}
-        >
-          <IconButton text="Let's Work Together" />
-        </motion.div>
-
-        {/* Mission block — slight elevation */}
-        <motion.div
-          className="mt-10 sm:mt-14 md:mt-16 px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10"
-          style={{ translateZ: "10px" }}
-        >
+        {/* Mission block — flat */}
+        <div className="mt-10 sm:mt-14 md:mt-16 px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10">
           <p className="text-[11px] sm:text-xs uppercase tracking-[0.24em] text-white/60 text-center">
             Our Mission
           </p>
@@ -117,13 +99,10 @@ export default function Hero3DScene({ image1, image2, image3 }: Hero3DSceneProps
               Meet Artists
             </Link>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Feature cards — elevated layer with dynamic shadow */}
-        <motion.div
-          className="px-5 sm:px-8 md:px-10"
-          style={{ translateZ: "35px" }}
-        >
+        {/* Feature cards — flat */}
+        <div className="px-5 sm:px-8 md:px-10">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
@@ -139,28 +118,24 @@ export default function Hero3DScene({ image1, image2, image3 }: Hero3DSceneProps
                 body: "Platform-focused rollout support to build real listener momentum.",
               },
             ].map((item) => (
-              <motion.div
+              <div
                 key={item.title}
-                className="rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5 backdrop-blur-[1px]"
-                style={{ boxShadow: cardShadow }}
+                className="rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5 backdrop-blur-[1px] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)]"
               >
                 <p className="text-sm sm:text-base font-semibold">{item.title}</p>
                 <p className="mt-2 text-xs sm:text-sm text-white/70 leading-relaxed">
                   {item.body}
                 </p>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Stacked images — prominent 3D layer */}
-        <motion.div
-          className="mt-16 mb-16 sm:mt-20 sm:mb-20 md:mt-24 md:mb-24"
-          style={{ translateZ: "20px" }}
-        >
-          <StackedImagesSection image1={image1} image2={image2} image3={image3} />
-        </motion.div>
-      </motion.div>
+      {/* Studio photos — flat, full-width slow carousel */}
+      <div className="mt-12 mb-16 sm:mt-16 sm:mb-20 md:mt-20 md:mb-24">
+        <StudioPhotosCarousel photos={photos} />
+      </div>
     </div>
   );
 }

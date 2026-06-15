@@ -137,14 +137,14 @@ const Navbar = () => {
               ) : isAuthenticated && session?.user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    <button className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
                       {session.user.image ? (
                         <Image
                           src={session.user.image}
                           alt="User Avatar"
                           width={36}
                           height={36}
-                          className="rounded-full cursor-pointer w-9 h-9"
+                          className="rounded-full cursor-pointer w-9 h-9 shrink-0 object-cover"
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
                         />
@@ -243,7 +243,7 @@ const Navbar = () => {
                       alt="User Avatar"
                       width={40}
                       height={40}
-                      className="rounded-full"
+                      className="rounded-full w-10 h-10 shrink-0 object-cover"
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
                     />
