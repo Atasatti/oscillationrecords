@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import ArtistsSortableList from "@/components/admin/ArtistsSortableList";
 import CatalogReleasesSortableList from "@/components/admin/CatalogReleasesSortableList";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
+import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus,
-  Users,
   Image as ImageIcon,
   Loader2,
   ChevronDown,
@@ -33,23 +32,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/local-ui/Toast";
-
-interface Artist {
-  id: string;
-  name: string;
-  biography: string;
-  profilePicture?: string;
-  xLink?: string;
-  tiktokLink?: string;
-  spotifyLink?: string;
-  instagramLink?: string;
-  youtubeLink?: string;
-  facebookLink?: string;
-  createdAt: string;
-  updatedAt: string;
-  sortOrder?: number;
-  showOnWebsite?: boolean;
-}
 
 interface CatalogRelease {
   id: string;
@@ -161,13 +143,8 @@ function NewReleaseDropdown({
 
 export default function AdminCatalog() {
   const toast = useToast();
-  const [artists, setArtists] = useState<Artist[]>([]);
   const [releases, setReleases] = useState<CatalogRelease[]>([]);
   const [upcomingReleases, setUpcomingReleases] = useState<UpcomingRelease[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [artistToDelete, setArtistToDelete] = useState<{ id: string; name: string } | null>(null);
   const [contentDeleteDialogOpen, setContentDeleteDialogOpen] = useState(false);
   const [contentToDelete, setContentToDelete] = useState<{
     id: string;
@@ -211,16 +188,10 @@ export default function AdminCatalog() {
 
   const fetchAllData = async () => {
     try {
-      const [artistsRes, releasesRes, upcomingRes] = await Promise.all([
-        fetch("/api/artists"),
+      const [releasesRes, upcomingRes] = await Promise.all([
         fetch("/api/releases"),
         fetch("/api/upcoming-releases"),
       ]);
-
-      if (artistsRes.ok) {
-        const data = await artistsRes.json();
-        setArtists(data);
-      }
 
       if (releasesRes.ok) {
         const data = await releasesRes.json();
@@ -233,100 +204,7 @@ export default function AdminCatalog() {
       }
     } catch (error) {
       console.error("Error fetching data:", error);
-      setError("Failed to fetch data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchArtists = async () => {
-    try {
-      const response = await fetch("/api/artists");
-      if (response.ok) {
-        const data = await response.json();
-        setArtists(data);
-      } else {
-        setError("Failed to fetch artists");
-      }
-    } catch (error) {
-      console.error("Error fetching artists:", error);
-      setError("Failed to fetch artists");
-    }
-  };
-
-  const handleDeleteClick = (artistId: string, artistName: string) => {
-    setArtistToDelete({ id: artistId, name: artistName });
-    setDeleteDialogOpen(true);
-  };
-
-  const handleArtistsReorderSave = async (ordered: Artist[]) => {
-    try {
-      const res = await fetch("/api/admin/artists/reorder", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: ordered.map((a) => a.id) }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const msg =
-          typeof err.error === "string" ? err.error : "Failed to save artist order";
-        toast.error(msg);
-        throw new Error(msg);
-      }
-      setArtists(ordered);
-    } catch (e) {
-      if (e instanceof TypeError) {
-        toast.error("Network error - could not save artist order.");
-      }
-      throw e;
-    }
-  };
-
-  const handleArtistShowOnWebsiteChange = async (id: string, checked: boolean) => {
-    const prev = [...artists];
-    setArtists((list) =>
-      list.map((x) => (x.id === id ? { ...x, showOnWebsite: checked } : x))
-    );
-    try {
-      const res = await fetch(`/api/artists/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showOnWebsite: checked }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(
-          typeof err.error === "string"
-            ? err.error
-            : "Failed to update artist visibility"
-        );
-        setArtists(prev);
-      }
-    } catch {
-      setArtists(prev);
-      toast.error("Failed to update artist visibility");
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!artistToDelete) return;
-
-    try {
-      const response = await fetch(`/api/artists/${artistToDelete.id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setDeleteDialogOpen(false);
-        setArtistToDelete(null);
-        fetchAllData();
-      } else {
-        const error = await response.json();
-        toast.error(`Error: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Error deleting artist:", error);
-      toast.error("Failed to delete artist");
+      toast.error("Failed to fetch catalog data");
     }
   };
 
@@ -648,63 +526,10 @@ export default function AdminCatalog() {
   return (
     <div>
       <div>
-        {/* Header */}
-        <div className="mb-8 md:mb-12 lg:mb-14">
-          <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
-            Music Catalog
-          </p>
-          <p className="font-light text-3xl md:text-4xl lg:text-5xl text-center tracking-tighter mt-2 md:mt-3">Manage Artists</p>
-        </div>
-
-        {/* Artists Section */}
-        <div className="mb-12 md:mb-16">
-          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-6">
-            <div className="min-w-0 space-y-1">
-              <h2 className="text-xl md:text-2xl font-light tracking-tighter">Artists</h2>
-              <p className="max-w-xl text-sm text-gray-500">
-                Drag to set the public home-page order.{" "}
-                <span className="text-gray-400">Show on website</span> controls visibility.
-                To search, paginate, bulk-edit, or import from Spotify, open the full table.
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Button asChild variant="outline" className="border-white/10">
-                <Link href="/admin/catalog/artists">Manage all artists</Link>
-              </Button>
-              <Button asChild className="bg-white text-black hover:bg-gray-200">
-                <Link href="/admin/catalog/artists/new">
-                  <Plus className="mr-1 h-4 w-4" />
-                  New artist
-                </Link>
-              </Button>
-            </div>
-          </div>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-            </div>
-          ) : error ? (
-            <div className="text-center py-20">
-              <p className="text-red-400 mb-4">{error}</p>
-              <Button onClick={fetchArtists} variant="outline" className="border-white/10">
-                Try Again
-              </Button>
-            </div>
-          ) : artists.length === 0 ? (
-            <div className="text-center py-20 bg-[#141414] rounded-xl">
-              <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg mb-4">No artists found</p>
-              <p className="text-gray-500 mb-6">Create your first artist to get started</p>
-            </div>
-          ) : (
-            <ArtistsSortableList
-              artists={artists}
-              onReorderSave={handleArtistsReorderSave}
-              onShowOnWebsiteChange={handleArtistShowOnWebsiteChange}
-              onDeleteClick={handleDeleteClick}
-            />
-          )}
-        </div>
+        <PageHeader
+          title="Catalog"
+          description="Manage releases and upcoming releases. Artists now have their own section in the sidebar."
+        />
 
         {/* Releases */}
         <div className="mb-12 md:mb-16">
@@ -852,36 +677,6 @@ export default function AdminCatalog() {
             </div>
           </div>
         </div>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="bg-[#141414] border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle>Delete Artist</DialogTitle>
-              <DialogDescription className="text-gray-400">
-                Are you sure you want to delete &quot;{artistToDelete?.name}&quot;? This will also delete all their singles, albums, and EPs. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDeleteDialogOpen(false);
-                  setArtistToDelete(null);
-                }}
-                className="border-white/10"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDeleteConfirm}
-              >
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <Dialog
           open={upcomingEditOpen}

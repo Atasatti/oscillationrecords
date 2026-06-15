@@ -12,6 +12,8 @@ export interface AdminArtistRow {
   name: string;
   profilePicture: string | null;
   showOnWebsite: boolean;
+  featuredOnHome: boolean;
+  homeOrder: number;
   spotifyLink: string | null;
   sortOrder: number;
   createdAt: string; // ISO
@@ -43,6 +45,8 @@ function toRow(a: {
   name: string;
   profilePicture: string | null;
   showOnWebsite: boolean;
+  featuredOnHome: boolean;
+  homeOrder: number;
   spotifyLink: string | null;
   sortOrder: number;
   createdAt: Date;
@@ -52,6 +56,8 @@ function toRow(a: {
     name: a.name,
     profilePicture: a.profilePicture ?? null,
     showOnWebsite: a.showOnWebsite,
+    featuredOnHome: a.featuredOnHome,
+    homeOrder: a.homeOrder,
     spotifyLink: a.spotifyLink ?? null,
     sortOrder: a.sortOrder,
     createdAt: a.createdAt.toISOString(),
@@ -63,6 +69,8 @@ const ROW_SELECT = {
   name: true,
   profilePicture: true,
   showOnWebsite: true,
+  featuredOnHome: true,
+  homeOrder: true,
   spotifyLink: true,
   sortOrder: true,
   createdAt: true,
@@ -72,7 +80,7 @@ export async function getArtistsPage({
   page = 1,
   pageSize = 25,
   q = "",
-  sort = "sortOrder",
+  sort = "name",
   dir = "asc",
 }: {
   page?: number;
@@ -121,4 +129,14 @@ export async function getArtistsPage({
   });
 
   return { items: items.map(toRow), total, page: safePage, pageSize: size };
+}
+
+/** Featured artists in home-carousel order (for the admin "Home order" tab). */
+export async function getFeaturedArtists(): Promise<AdminArtistRow[]> {
+  const items = await prisma.artist.findMany({
+    where: { featuredOnHome: true },
+    select: ROW_SELECT,
+    orderBy: [{ homeOrder: "asc" }, { name: "asc" }],
+  });
+  return items.map(toRow);
 }

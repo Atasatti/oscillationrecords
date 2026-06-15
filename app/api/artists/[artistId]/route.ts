@@ -118,7 +118,9 @@ export async function PUT(
   }
 }
 
-// PATCH /api/artists/[artistId] - Partial update (currently the "Show on website" toggle)
+// PATCH /api/artists/[artistId] - Partial update: "Show on website" and/or
+// "Featured on home" toggles. Enabling featuredOnHome appends the artist to the
+// end of the home-carousel order.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ artistId: string }> }
@@ -129,34 +131,36 @@ export async function PATCH(
 
     const { artistId } = await params;
     const body = await request.json();
-    const { showOnWebsite } = body;
 
-    if (typeof showOnWebsite !== "boolean") {
+    const data: { showOnWebsite?: boolean; featuredOnHome?: boolean; homeOrder?: number } = {};
+    if (typeof body.showOnWebsite === "boolean") data.showOnWebsite = body.showOnWebsite;
+    if (typeof body.featuredOnHome === "boolean") data.featuredOnHome = body.featuredOnHome;
+
+    if (data.showOnWebsite === undefined && data.featuredOnHome === undefined) {
       return NextResponse.json(
-        { error: "showOnWebsite must be a boolean" },
+        { error: "Provide showOnWebsite and/or featuredOnHome (boolean)" },
         { status: 400 }
       );
     }
 
-    const existing = await prisma.artist.findUnique({
-      where: { id: artistId },
-    });
-
+    const existing = await prisma.artist.findUnique({ where: { id: artistId } });
     if (!existing) {
-      return NextResponse.json(
-        { error: "Artist not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
 
-    const artist = await prisma.artist.update({
-      where: { id: artistId },
-      data: { showOnWebsite },
-    });
+    // When newly featuring, append to the end of the home order.
+    if (data.featuredOnHome === true && !existing.featuredOnHome) {
+      const max = await prisma.artist.aggregate({
+        where: { featuredOnHome: true },
+        _max: { homeOrder: true },
+      });
+      data.homeOrder = (max._max.homeOrder ?? -1) + 1;
+    }
 
+    const artist = await prisma.artist.update({ where: { id: artistId }, data });
     return NextResponse.json(artist);
   } catch (error) {
-    console.error("Error updating artist visibility:", error);
+    console.error("Error updating artist:", error);
     return NextResponse.json(
       { error: "Failed to update artist" },
       { status: 500 }

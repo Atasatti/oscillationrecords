@@ -98,12 +98,18 @@ model Artist {
   amazonMusicLink  String?
   soundcloudLink   String?
   sortOrder     Int      @default(0)
-  /// When true, artist appears on the public site (home Meet the Artists carousel and /artists page).
+  /// When true, artist appears on the public /artists page (listed alphabetically).
   showOnWebsite Boolean  @default(true)
+  /// When true, artist is featured in the home "Meet the Artists" carousel (curated subset).
+  featuredOnHome Boolean @default(false)
+  /// Order within the home carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([showOnWebsite, name])
+  @@index([featuredOnHome, homeOrder])
 }
 
 enum ReleaseKind {

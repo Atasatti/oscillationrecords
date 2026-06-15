@@ -14,8 +14,10 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
+  Star,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,6 +65,7 @@ export default function AdminArtistsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
+  const [view, setView] = useState<"manage" | "home">("manage");
 
   // Debounce the search box → query (and reset to page 1).
   useEffect(() => {
@@ -145,6 +148,22 @@ export default function AdminArtistsPage() {
     }
   };
 
+  const setFeatured = async (id: string, featuredOnHome: boolean) => {
+    const prev = items;
+    setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
+    try {
+      const res = await fetch(`/api/artists/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featuredOnHome }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setItems(prev);
+      toast.error("Failed to update featured");
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setWorking(true);
@@ -203,6 +222,36 @@ export default function AdminArtistsPage() {
         }
       />
 
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 border-b border-border">
+        <button
+          type="button"
+          onClick={() => setView("manage")}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            view === "manage"
+              ? "border-white text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Manage
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("home")}
+          className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            view === "home"
+              ? "border-white text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Star className="h-3.5 w-3.5" /> Home order
+        </button>
+      </div>
+
+      {view === "home" ? (
+        <HomeOrderPanel />
+      ) : (
+        <>
       {/* Search */}
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -266,6 +315,7 @@ export default function AdminArtistsPage() {
                 </button>
               </TableHead>
               <TableHead>Visibility</TableHead>
+              <TableHead>Featured</TableHead>
               <TableHead className="hidden md:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
@@ -286,13 +336,14 @@ export default function AdminArtistsPage() {
                     </div>
                   </TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                   {query ? `No artists match “${query}”.` : "No artists yet."}
                 </TableCell>
               </TableRow>
@@ -329,6 +380,21 @@ export default function AdminArtistsPage() {
                         <Badge variant="success">Live</Badge>
                       ) : (
                         <Badge variant="muted">Hidden</Badge>
+                      )}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      onClick={() => setFeatured(a.id, !a.featuredOnHome)}
+                      title="Feature in the home carousel"
+                    >
+                      {a.featuredOnHome ? (
+                        <Badge variant="warning">
+                          <Star className="h-3 w-3" /> Featured
+                        </Badge>
+                      ) : (
+                        <Badge variant="muted">Off</Badge>
                       )}
                     </button>
                   </TableCell>
@@ -377,6 +443,8 @@ export default function AdminArtistsPage() {
           />
         </div>
       </div>
+        </>
+      )}
 
       {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

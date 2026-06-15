@@ -257,33 +257,75 @@ export interface PublicArtistDTO {
   updatedAt: string;
 }
 
-/** Artists ticked "Show on website", in admin order. */
+type ArtistRecord = {
+  id: string;
+  name: string;
+  biography: string;
+  profilePicture: string | null;
+  xLink: string | null;
+  tiktokLink: string | null;
+  spotifyLink: string | null;
+  instagramLink: string | null;
+  youtubeLink: string | null;
+  facebookLink: string | null;
+  appleMusicLink: string | null;
+  tidalLink: string | null;
+  amazonMusicLink: string | null;
+  soundcloudLink: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function toPublicArtist(a: ArtistRecord): PublicArtistDTO {
+  return {
+    id: a.id,
+    name: a.name,
+    biography: a.biography,
+    profilePicture: a.profilePicture ?? null,
+    xLink: a.xLink ?? null,
+    tiktokLink: a.tiktokLink ?? null,
+    spotifyLink: a.spotifyLink ?? null,
+    instagramLink: a.instagramLink ?? null,
+    youtubeLink: a.youtubeLink ?? null,
+    facebookLink: a.facebookLink ?? null,
+    appleMusicLink: a.appleMusicLink ?? null,
+    tidalLink: a.tidalLink ?? null,
+    amazonMusicLink: a.amazonMusicLink ?? null,
+    soundcloudLink: a.soundcloudLink ?? null,
+    createdAt: a.createdAt.toISOString(),
+    updatedAt: a.updatedAt.toISOString(),
+  };
+}
+
+/** All live artists for the public /artists page, listed alphabetically. */
 export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   try {
     const artists = await prisma.artist.findMany({
       where: { showOnWebsite: true },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      orderBy: [{ name: "asc" }],
     });
-    return artists.map((a) => ({
-      id: a.id,
-      name: a.name,
-      biography: a.biography,
-      profilePicture: a.profilePicture ?? null,
-      xLink: a.xLink ?? null,
-      tiktokLink: a.tiktokLink ?? null,
-      spotifyLink: a.spotifyLink ?? null,
-      instagramLink: a.instagramLink ?? null,
-      youtubeLink: a.youtubeLink ?? null,
-      facebookLink: a.facebookLink ?? null,
-      appleMusicLink: a.appleMusicLink ?? null,
-      tidalLink: a.tidalLink ?? null,
-      amazonMusicLink: a.amazonMusicLink ?? null,
-      soundcloudLink: a.soundcloudLink ?? null,
-      createdAt: a.createdAt.toISOString(),
-      updatedAt: a.updatedAt.toISOString(),
-    }));
+    return artists.map(toPublicArtist);
   } catch (e) {
     console.error("getPublicArtists: DB unavailable", e);
+    return [];
+  }
+}
+
+/**
+ * Curated artists for the home "Meet the Artists" carousel: those flagged
+ * `featuredOnHome`, in `homeOrder`. Falls back to all live artists (alphabetical)
+ * when nothing is featured yet, so the home page is never empty.
+ */
+export async function getHomeArtists(): Promise<PublicArtistDTO[]> {
+  try {
+    const featured = await prisma.artist.findMany({
+      where: { featuredOnHome: true, showOnWebsite: true },
+      orderBy: [{ homeOrder: "asc" }, { name: "asc" }],
+    });
+    if (featured.length > 0) return featured.map(toPublicArtist);
+    return getPublicArtists();
+  } catch (e) {
+    console.error("getHomeArtists: DB unavailable", e);
     return [];
   }
 }

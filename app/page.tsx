@@ -9,7 +9,7 @@ import Footer from "@/components/local-ui/Footer";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import {
   getCarouselReleases,
-  getPublicArtists,
+  getHomeArtists,
   getUpcomingReleases,
 } from "@/lib/catalog-data";
 
@@ -23,7 +23,7 @@ export default async function Home() {
   const [upcomingReleases, carouselReleases, artists] = await Promise.all([
     getUpcomingReleases(),
     getCarouselReleases(),
-    getPublicArtists(),
+    getHomeArtists(),
   ]);
 
   return (
