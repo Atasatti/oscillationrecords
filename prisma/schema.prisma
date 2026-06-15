@@ -225,6 +225,8 @@ model SiteSettings {
   stackedHeroImage1 String
   stackedHeroImage2 String
   stackedHeroImage3 String
+  // Home "studio photos" carousel — admin-managed, ordered list of image URLs.
+  studioPhotos      String[] @default([])
   footerXLink          String?
   footerTiktokLink     String?
   footerYoutubeLink    String?
