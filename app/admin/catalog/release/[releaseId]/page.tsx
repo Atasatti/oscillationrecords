@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
@@ -467,8 +466,7 @@ export default function AdminReleaseDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center items-center py-20">
+                <div className="flex justify-center items-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
         </div>
       </div>
@@ -478,8 +476,7 @@ export default function AdminReleaseDetail() {
   if (error || !release) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="px-[10%] py-14 text-center">
+                <div className="px-[10%] py-14 text-center">
           <p className="text-red-400 mb-4">{error || "Not found"}</p>
           <Button variant="outline" className="border-white/10" onClick={() => router.back()}>
             Go back
@@ -508,8 +505,7 @@ export default function AdminReleaseDetail() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
+            <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
         <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
           <Button
             variant="ghost"

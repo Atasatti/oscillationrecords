@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -175,8 +174,7 @@ export default function CreateArtist() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      
+            
       <div className="px-[10%] py-14">
         {/* Header */}
         <div className="mb-8">

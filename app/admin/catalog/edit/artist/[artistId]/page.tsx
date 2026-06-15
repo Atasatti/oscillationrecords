@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -148,8 +147,7 @@ export default function EditArtist() {
   if (isFetching) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center py-24">
+                <div className="flex justify-center py-24">
           <Loader2 className="h-10 w-10 animate-spin" />
         </div>
       </div>
@@ -158,8 +156,7 @@ export default function EditArtist() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-[10%] py-14 pb-40">
+            <div className="px-[10%] py-14 pb-40">
         <Button variant="ghost" onClick={() => router.back()} className="mb-4 text-gray-400 hover:text-white">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back

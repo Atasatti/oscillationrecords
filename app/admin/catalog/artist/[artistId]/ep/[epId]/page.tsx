@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import MusicCardSm from "@/components/local-ui/MusicCardSm";
 import { Button } from "@/components/ui/button";
 import {
@@ -191,8 +190,7 @@ export default function EPDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen  text-white">
-        <AdminNavbar />
-        <div className="flex justify-center items-center py-20">
+                <div className="flex justify-center items-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
       </div>
@@ -202,8 +200,7 @@ export default function EPDetail() {
   if (error || !ep) {
     return (
       <div className="min-h-screen  text-white">
-        <AdminNavbar />
-        <div className="px-[10%] py-14">
+                <div className="px-[10%] py-14">
           <div className="text-center py-20">
             <p className="text-red-400 mb-4">{error || "EP not found"}</p>
             <Button
@@ -221,8 +218,7 @@ export default function EPDetail() {
 
   return (
     <div className="min-h-screen  text-white">
-      <AdminNavbar />
-
+      
       <div className="px-[10%] py-14">
         {/* Header */}
         <div className="mb-8">

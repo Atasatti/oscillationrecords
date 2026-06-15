@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import ArtistsSortableList from "@/components/admin/ArtistsSortableList";
 import CatalogReleasesSortableList from "@/components/admin/CatalogReleasesSortableList";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
@@ -647,10 +646,8 @@ export default function AdminCatalog() {
   };
 
   return (
-    <div className="min-h-screen text-white">
-      <AdminNavbar />
-      
-      <div className="px-4 md:px-6 lg:px-[10%] py-8 md:py-12 lg:py-14">
+    <div>
+      <div>
         {/* Header */}
         <div className="mb-8 md:mb-12 lg:mb-14">
           <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
