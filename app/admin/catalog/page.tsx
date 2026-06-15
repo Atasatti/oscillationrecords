@@ -722,7 +722,16 @@ export default function AdminCatalog() {
             <NewReleaseDropdown />
           </div>
           {releases.length === 0 ? (
-            <p className="text-sm text-gray-500">No releases yet.</p>
+            <div className="text-center py-16 bg-[#141414] rounded-xl">
+              <Disc3 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg mb-2">No releases yet</p>
+              <p className="text-gray-500 mb-6">
+                Create your first single, EP, or album to get started.
+              </p>
+              <div className="flex justify-center">
+                <NewReleaseDropdown align="center" />
+              </div>
+            </div>
           ) : (
             <CatalogReleasesSortableList
               releases={releases}
