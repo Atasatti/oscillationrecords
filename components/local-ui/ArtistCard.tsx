@@ -24,17 +24,17 @@ interface Artist {
   id: string;
   name: string;
   biography: string;
-  profilePicture?: string;
-  xLink?: string;
-  tiktokLink?: string;
-  spotifyLink?: string;
-  instagramLink?: string;
-  youtubeLink?: string;
-  facebookLink?: string;
-  appleMusicLink?: string;
-  tidalLink?: string;
-  amazonMusicLink?: string;
-  soundcloudLink?: string;
+  profilePicture?: string | null;
+  xLink?: string | null;
+  tiktokLink?: string | null;
+  spotifyLink?: string | null;
+  instagramLink?: string | null;
+  youtubeLink?: string | null;
+  facebookLink?: string | null;
+  appleMusicLink?: string | null;
+  tidalLink?: string | null;
+  amazonMusicLink?: string | null;
+  soundcloudLink?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,7 +80,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
     setIsHovered(false);
   };
 
-  const handleSocialClick = (url: string | undefined, e: React.MouseEvent) => {
+  const handleSocialClick = (url: string | null | undefined, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (url) window.open(url, "_blank", "noopener,noreferrer");

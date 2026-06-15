@@ -2,15 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { mapReleasesToCards, releaseCardListArgs } from "@/lib/catalog-data";
 import {
   apiKindToPrisma,
-  buildArtistMap,
-  combinedFeatureDisplayNames,
-  featureIdsExcludingPrimary,
-  formatArtistLine,
-  getOptionalDate,
   normalizeFeatureArtistNamesInput,
-  primaryNamesFromIds,
   prismaKindToApi,
 } from "@/lib/release-format";
 
@@ -35,20 +30,9 @@ export async function GET(request: NextRequest) {
     const carouselOnly = searchParams.get("carousel") === "1";
     const qParam = (searchParams.get("q") || "").trim();
 
-    const baseList = {
-      orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
-      include: {
-        // Listing/search/carousel only need the first track's audio (for the card
-        // player) and a track count — not every track's audio/lyrics/credits.
-        // This keeps the payload small even as the catalog grows.
-        tracks: {
-          orderBy: { sortOrder: "asc" as const },
-          take: 1,
-          select: { audioFile: true },
-        },
-        _count: { select: { tracks: true } },
-      },
-    };
+    // Shared with the Server Components via lib/catalog-data so the card shape
+    // can't drift between the initial HTML and client fetches.
+    const baseList = releaseCardListArgs;
 
     let releases;
     if (carouselOnly) {
@@ -103,64 +87,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const allArtistIds = new Set<string>();
-    releases.forEach((r) => {
-      r.primaryArtistIds.forEach((id) => allArtistIds.add(String(id)));
-      r.featureArtistIds.forEach((id) => allArtistIds.add(String(id)));
-    });
-
-    const artists = await prisma.artist.findMany({
-      where: { id: { in: Array.from(allArtistIds) } },
-      select: { id: true, name: true },
-    });
-    const artistMap = buildArtistMap(artists);
-
-    const out = releases.map((r) => {
-      const primaryIds = r.primaryArtistIds || [];
-      const primaryArtistId = primaryIds[0];
-      const rawFeatureIds = r.featureArtistIds || [];
-      const featureArtistIds = featureIdsExcludingPrimary(rawFeatureIds, primaryIds);
-      const featureArtistNames = combinedFeatureDisplayNames(
-        rawFeatureIds,
-        primaryIds,
-        artistMap,
-        r.featureArtistNames
-      );
-      const primaryName = primaryNamesFromIds(primaryIds, artistMap);
-      const rd = getOptionalDate(r.releaseDate);
-
-      const firstAudio = r.tracks[0]?.audioFile ?? null;
-
-      return {
-        id: r.id,
-        name: r.name,
-        thumbnail: r.coverImage,
-        audio: firstAudio,
-        type: prismaKindToApi(r.kind),
-        primaryArtistName: primaryName,
-        artist: formatArtistLine(primaryName, featureArtistNames),
-        artistId: primaryArtistId ? String(primaryArtistId) : "",
-        featureArtistIds,
-        featureArtistNames,
-        releaseDate: r.releaseDate,
-        upcCode: isAdmin ? r.upcCode : null,
-        spotifyLink: r.spotifyLink || null,
-        appleMusicLink: r.appleMusicLink || null,
-        tidalLink: r.tidalLink || null,
-        amazonMusicLink: r.amazonMusicLink || null,
-        youtubeLink: r.youtubeLink || null,
-        soundcloudLink: r.soundcloudLink || null,
-        isrcExplicit: r.isrcExplicit,
-        sortOrder: r.sortOrder,
-        showLatestOnHome: r.showLatestOnHome,
-        showOnHome: r.showOnHome,
-        createdAt: r.createdAt,
-        year: rd
-          ? rd.getFullYear().toString()
-          : new Date(r.createdAt).getFullYear().toString(),
-        songCount: r._count.tracks,
-      };
-    });
+    const out = await mapReleasesToCards(releases, { isAdmin });
 
     // Cache the public response at the CDN (results vary by query string, which
     // is part of the cache key). Admin responses include private fields, so they

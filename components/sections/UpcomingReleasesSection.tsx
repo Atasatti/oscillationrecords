@@ -179,11 +179,23 @@ function LoadingCards() {
   );
 }
 
-const UpcomingReleasesSection = () => {
-  const [releases, setReleases] = useState<UpcomingRelease[]>([]);
-  const [loading, setLoading] = useState(true);
+type UpcomingReleasesSectionProps = {
+  /** Server-rendered releases. When provided, the section renders from the
+   * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
+  initialReleases?: UpcomingRelease[];
+};
+
+const UpcomingReleasesSection = ({
+  initialReleases,
+}: UpcomingReleasesSectionProps) => {
+  const [releases, setReleases] = useState<UpcomingRelease[]>(
+    initialReleases ?? []
+  );
+  const [loading, setLoading] = useState(initialReleases === undefined);
 
   useEffect(() => {
+    // Data already in the HTML from the server — don't refetch on mount.
+    if (initialReleases !== undefined) return;
     const fetchReleases = async () => {
       try {
         const response = await fetch("/api/upcoming-releases");
@@ -198,7 +210,7 @@ const UpcomingReleasesSection = () => {
       }
     };
     fetchReleases();
-  }, []);
+  }, [initialReleases]);
 
   const sectionChrome = (
     <>

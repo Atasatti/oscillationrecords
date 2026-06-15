@@ -7,30 +7,38 @@ interface Artist {
   id: string;
   name: string;
   biography: string;
-  profilePicture?: string;
-  xLink?: string;
-  tiktokLink?: string;
-  spotifyLink?: string;
-  instagramLink?: string;
-  youtubeLink?: string;
-  facebookLink?: string;
-  appleMusicLink?: string;
-  tidalLink?: string;
-  amazonMusicLink?: string;
-  soundcloudLink?: string;
+  profilePicture?: string | null;
+  xLink?: string | null;
+  tiktokLink?: string | null;
+  spotifyLink?: string | null;
+  instagramLink?: string | null;
+  youtubeLink?: string | null;
+  facebookLink?: string | null;
+  appleMusicLink?: string | null;
+  tidalLink?: string | null;
+  amazonMusicLink?: string | null;
+  soundcloudLink?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-const ArtistsSection = () => {
+type ArtistsSectionProps = {
+  /** Server-rendered artists. When provided, the section renders from the
+   * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
+  initialArtists?: Artist[];
+};
+
+const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
   const [selectedFilter, setSelectedFilter] = useState("All");
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [artists, setArtists] = useState<Artist[]>(initialArtists ?? []);
+  const [isLoading, setIsLoading] = useState(initialArtists === undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Data already in the HTML from the server — don't refetch on mount.
+    if (initialArtists !== undefined) return;
     fetchArtists();
-  }, []);
+  }, [initialArtists]);
 
   const fetchArtists = async () => {
     try {
