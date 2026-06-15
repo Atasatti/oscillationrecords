@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { requireAdmin } from "@/lib/auth-guard";
+import { getArtistsPage, type ArtistSort, type SortDir } from "@/lib/admin-data";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -9,9 +10,32 @@ export const runtime = 'nodejs';
 
 // GET /api/artists — all artists, or fuzzy search with `?q=` (ignores case/spacing, tolerates typos) and optional `?limit=`.
 // `?public=1` returns only artists ticked "Show on website" (admin omits it to manage everything).
+// `?page=&pageSize=` (admin) switches to a paginated `{items,total,page,pageSize}`
+// envelope (with optional `sort`/`dir`); without those params the response shape
+// is unchanged (bare array) so the public site keeps working.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+
+    // Opt-in pagination (admin tables). Backward-compatible: only when `page` or
+    // `pageSize` is present do we return the paginated envelope.
+    if (searchParams.has("page") || searchParams.has("pageSize")) {
+      const page = parseInt(searchParams.get("page") || "1", 10) || 1;
+      const pageSize = parseInt(searchParams.get("pageSize") || "25", 10) || 25;
+      const sort = (searchParams.get("sort") || "sortOrder") as ArtistSort;
+      const dir = (searchParams.get("dir") || "asc") as SortDir;
+      const result = await getArtistsPage({
+        page,
+        pageSize,
+        q: searchParams.get("q") || "",
+        sort,
+        dir,
+      });
+      return NextResponse.json(result, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
+
     const q = (searchParams.get("q") || "").trim();
     const publicOnly = searchParams.get("public") === "1";
     const limitRaw = searchParams.get("limit");

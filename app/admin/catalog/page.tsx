@@ -656,25 +656,28 @@ export default function AdminCatalog() {
           <p className="font-light text-3xl md:text-4xl lg:text-5xl text-center tracking-tighter mt-2 md:mt-3">Manage Artists</p>
         </div>
 
-        {/* Create Artist Button */}
-        <div className="mb-6 md:mb-8 flex justify-center">
-          <Link href="/admin/catalog/create">
-            <Button className="bg-white text-black hover:bg-gray-200 px-4 md:px-6 py-2.5 md:py-3 text-sm md:text-base">
-              <Plus className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-              Create New Artist
-            </Button>
-          </Link>
-        </div>
-
         {/* Artists Section */}
         <div className="mb-12 md:mb-16">
-          <div className="mb-4 md:mb-6 space-y-1">
-            <h2 className="text-xl md:text-2xl font-light tracking-tighter">Artists</h2>
-            <p className="max-w-xl text-sm text-gray-500">
-              Drag to set the public order.{" "}
-              <span className="text-gray-400">Show on website</span> controls whether an
-              artist appears on the public site (home page carousel and Artists page).
-            </p>
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-6">
+            <div className="min-w-0 space-y-1">
+              <h2 className="text-xl md:text-2xl font-light tracking-tighter">Artists</h2>
+              <p className="max-w-xl text-sm text-gray-500">
+                Drag to set the public home-page order.{" "}
+                <span className="text-gray-400">Show on website</span> controls visibility.
+                To search, paginate, bulk-edit, or import from Spotify, open the full table.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button asChild variant="outline" className="border-white/10">
+                <Link href="/admin/catalog/artists">Manage all artists</Link>
+              </Button>
+              <Button asChild className="bg-white text-black hover:bg-gray-200">
+                <Link href="/admin/catalog/artists/new">
+                  <Plus className="mr-1 h-4 w-4" />
+                  New artist
+                </Link>
+              </Button>
+            </div>
           </div>
           {isLoading ? (
             <div className="flex justify-center items-center py-20">
