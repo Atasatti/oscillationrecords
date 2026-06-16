@@ -38,6 +38,7 @@ export type TrackFormDialogTrack = {
   stemsFile?: string | null;
   trackCredits?: TrackCreditJsonRow[] | null;
   isrcCode?: string | null;
+  iswc?: string | null;
   isrcExplicit?: boolean;
   spotifyLink?: string | null;
   appleMusicLink?: string | null;
@@ -280,6 +281,7 @@ export default function TrackFormDialog({
   const [name, setName] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [isrcCode, setIsrcCode] = useState("");
+  const [iswc, setIswc] = useState("");
   const [stemsFile, setStemsFile] = useState<File | null>(null);
   const [stemsUrl, setStemsUrl] = useState("");
   const [uploadingStems, setUploadingStems] = useState(false);
@@ -323,6 +325,7 @@ export default function TrackFormDialog({
       setCustomRows(parsed.customRows);
       setLyrics(track.lyrics || "");
       setIsrcCode(track.isrcCode || "");
+      setIswc(track.iswc || "");
       setStemsUrl(track.stemsFile || "");
       setIsrcExplicit(Boolean(track.isrcExplicit));
       setSpotifyLink(track.spotifyLink || "");
@@ -534,6 +537,7 @@ export default function TrackFormDialog({
         stemsFile: finalStemsUrl || null,
         trackCredits: trackCreditsPayload,
         isrcCode: isrcCode.trim(),
+        iswc: iswc.trim() || null,
         isrcExplicit,
         spotifyLink: spotifyLink.trim() || null,
         appleMusicLink: appleMusicLink.trim() || null,
@@ -717,6 +721,17 @@ export default function TrackFormDialog({
                 placeholder="ISRC"
                 className="border-white/10 bg-black/40 font-mono text-sm"
                 required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-400">
+                ISWC
+              </label>
+              <Input
+                value={iswc}
+                onChange={(e) => setIswc(e.target.value)}
+                placeholder="e.g. T3125086393"
+                className="border-white/10 bg-black/40 font-mono text-sm"
               />
             </div>
             <div>

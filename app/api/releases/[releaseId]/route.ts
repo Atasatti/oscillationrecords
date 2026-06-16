@@ -112,6 +112,7 @@ function parseTrackInput(
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
   isrcCode: string | null;
+  iswc: string | null;
   isrcExplicit: boolean;
   spotifyLink: string | null;
   appleMusicLink: string | null;
@@ -159,6 +160,7 @@ function parseTrackInput(
         ? (t.trackCredits as Prisma.InputJsonValue)
         : null,
     isrcCode: t.isrcCode ? String(t.isrcCode) : null,
+    iswc: t.iswc ? String(t.iswc).trim() : null,
     isrcExplicit: Boolean(t.isrcExplicit),
     spotifyLink: t.spotifyLink ? String(t.spotifyLink) : null,
     appleMusicLink: t.appleMusicLink ? String(t.appleMusicLink) : null,
@@ -408,6 +410,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,
@@ -437,6 +440,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,

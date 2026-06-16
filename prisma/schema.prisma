@@ -214,6 +214,8 @@ model Track {
   stemsFile        String?
   trackCredits     Json?
   isrcCode         String?
+  /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
+  iswc             String?
   isrcExplicit     Boolean  @default(false)
   spotifyLink      String?
   appleMusicLink   String?

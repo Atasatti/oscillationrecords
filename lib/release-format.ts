@@ -117,6 +117,7 @@ export function serializeTrack(t: Track) {
     stemsFile: t.stemsFile,
     trackCredits: t.trackCredits,
     isrcCode: t.isrcCode,
+    iswc: t.iswc,
     isrcExplicit: t.isrcExplicit,
     spotifyLink: t.spotifyLink,
     appleMusicLink: t.appleMusicLink,
@@ -133,12 +134,13 @@ export function serializeTrack(t: Track) {
   };
 }
 
-/** Public payloads: omit ISRC and lyrics — admin session still uses full {@link serializeTrack}. */
+/** Public payloads: omit ISRC, ISWC and lyrics — admin session still uses full {@link serializeTrack}. */
 export function serializeTrackForPublic(
   t: Track
-): Omit<ReturnType<typeof serializeTrack>, "isrcCode" | "lyrics"> {
-  const { isrcCode: _isrc, lyrics: _lyrics, ...rest } = serializeTrack(t);
+): Omit<ReturnType<typeof serializeTrack>, "isrcCode" | "iswc" | "lyrics"> {
+  const { isrcCode: _isrc, iswc: _iswc, lyrics: _lyrics, ...rest } = serializeTrack(t);
   void _isrc;
+  void _iswc;
   void _lyrics;
   return rest;
 }
