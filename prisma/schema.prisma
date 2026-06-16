@@ -98,6 +98,11 @@ model Artist {
   contactEmail  String?
   /// Free-form admin notes — internal.
   internalNotes String?
+  /// IPI (Interested Parties Information) name numbers — a writer/publisher may
+  /// have several. Rights/PRO admin; also seeded to MusicBrainz.
+  ipis          String[] @default([])
+  /// ISNI (International Standard Name Identifier) — one per artist identity.
+  isni          String?
   composer      String?
   lyricist      String?
   leadVocal     String?

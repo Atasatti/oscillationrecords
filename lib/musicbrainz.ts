@@ -117,19 +117,28 @@ type RawArtistRels = {
     url?: { resource?: string };
     "target-type"?: string;
   }>;
+  isnis?: string[];
+  ipis?: string[];
+};
+
+export type MbArtistDetails = {
+  links: Partial<Record<ArtistLinkKey, string>>;
+  /** ISNIs MusicBrainz holds for this artist (usually 0 or 1). */
+  isnis: string[];
+  /** IPI name numbers MusicBrainz holds for this artist. */
+  ipis: string[];
 };
 
 /**
- * Resolve an artist's URL relationships into our link fields. Returns the first
- * URL found per platform (MB may list several). Throws on network/HTTP error.
+ * Resolve an artist's URL relationships into our link fields, plus any ISNI/IPI
+ * codes MusicBrainz already holds (these come back in the same lookup). Returns
+ * the first URL found per platform. Throws on network/HTTP error.
  */
-export async function getArtistUrls(
-  mbid: string
-): Promise<Partial<Record<ArtistLinkKey, string>>> {
+export async function getArtistDetails(mbid: string): Promise<MbArtistDetails> {
   const data = (await mbFetch(
     `/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`
   )) as RawArtistRels;
-  const out: Partial<Record<ArtistLinkKey, string>> = {};
+  const links: Partial<Record<ArtistLinkKey, string>> = {};
   for (const rel of data.relations || []) {
     const url = rel.url?.resource;
     if (!url) continue;
@@ -140,7 +149,11 @@ export async function getArtistUrls(
       continue;
     }
     const key = linkKeyForHost(host);
-    if (key && !out[key]) out[key] = url;
+    if (key && !links[key]) links[key] = url;
   }
-  return out;
+  return {
+    links,
+    isnis: Array.isArray(data.isnis) ? data.isnis : [],
+    ipis: Array.isArray(data.ipis) ? data.ipis : [],
+  };
 }

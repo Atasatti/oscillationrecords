@@ -18,14 +18,39 @@ const HARMONY_BASE = "https://harmony.pulsewidth.org.uk";
 export type ArtistSeedInput = {
   name: string;
   country?: string | null;
+  city?: string | null;
+  genres?: string[];
+  /** Disambiguation comment; if omitted, one is suggested from genre + location. */
+  disambiguation?: string | null;
+  isni?: string | null;
+  ipis?: string[];
   /** Social / streaming profile URLs (empty/falsey entries are dropped). */
   urls?: Array<string | null | undefined>;
 };
 
 /**
+ * Suggest a MusicBrainz disambiguation comment — a short phrase distinguishing
+ * same-named artists, e.g. "house producer from London". Built from genre +
+ * location; returns "" when there's nothing useful to say.
+ */
+export function suggestDisambiguation(input: {
+  genres?: string[];
+  city?: string | null;
+  country?: string | null;
+}): string {
+  const genre = (input.genres ?? []).map((g) => g.trim()).filter(Boolean)[0];
+  const location = (input.city || input.country || "").trim();
+  if (genre && location) return `${genre.toLowerCase()} artist from ${location}`;
+  if (genre) return `${genre.toLowerCase()} artist`;
+  if (location) return `artist from ${location}`;
+  return "";
+}
+
+/**
  * Link to MusicBrainz's "Add Artist" form, pre-seeded. We seed only the URL
  * text per relationship; MusicBrainz's external-link editor auto-selects the
  * relationship type from the domain for known sites (Spotify, Instagram, etc.).
+ * ISNI/IPI and a disambiguation comment are seeded when available.
  */
 export function buildArtistSeedUrl(input: ArtistSeedInput): string {
   const params = new URLSearchParams();
@@ -35,6 +60,20 @@ export function buildArtistSeedUrl(input: ArtistSeedInput): string {
   if (input.country && input.country.trim()) {
     params.set("edit-artist.area.name", input.country.trim());
   }
+
+  const comment =
+    (input.disambiguation && input.disambiguation.trim()) ||
+    suggestDisambiguation(input);
+  if (comment) params.set("edit-artist.comment", comment);
+
+  const isni = (input.isni ?? "").replace(/[^0-9]/g, "");
+  if (isni) params.set("edit-artist.isni_codes.0", isni);
+
+  (input.ipis ?? [])
+    .map((x) => (x ?? "").replace(/[^0-9]/g, ""))
+    .filter(Boolean)
+    .forEach((ipi, i) => params.set(`edit-artist.ipi_codes.${i}`, ipi));
+
   const urls = (input.urls ?? [])
     .map((u) => (u ?? "").trim())
     .filter((u) => u.length > 0);

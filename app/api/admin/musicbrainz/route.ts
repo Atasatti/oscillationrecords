@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
-import { searchArtists, getArtistUrls } from "@/lib/musicbrainz";
+import { searchArtists, getArtistDetails } from "@/lib/musicbrainz";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // GET /api/admin/musicbrainz?q=<name>      → { artists: MbArtistMatch[] }
-// GET /api/admin/musicbrainz?mbid=<mbid>   → { links: { [linkKey]: url } }
-// Admin-only free social/streaming-link enrichment for the artist editor.
+// GET /api/admin/musicbrainz?mbid=<mbid>   → { links, isnis, ipis }
+// Admin-only free social/streaming-link (+ ISNI/IPI) enrichment for the editor.
 // No API key required, so it's always "available" (unlike Spotify).
 export async function GET(request: NextRequest) {
   const guard = await requireAdmin(request);
@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
 
   try {
     if (mbid) {
-      const links = await getArtistUrls(mbid);
-      return NextResponse.json({ links });
+      const details = await getArtistDetails(mbid);
+      return NextResponse.json(details);
     }
     if (q && q.trim()) {
       const artists = await searchArtists(q);

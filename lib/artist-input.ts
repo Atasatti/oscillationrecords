@@ -13,7 +13,13 @@ export type ArtistExtras = {
   managerName: string | null;
   contactEmail: string | null;
   internalNotes: string | null;
+  ipis: string[];
+  isni: string | null;
 };
+
+// IPI/ISNI are digit strings; strip everything else so spaces/dashes the admin
+// pastes don't break matching. (IPI is 9-11 digits, ISNI 16.)
+const digitsOnly = (v: string): string => v.replace(/[^0-9]/g, "");
 
 /** Accept `string[]` or a comma-separated string → trimmed, de-duped, non-empty. */
 export function normalizeGenres(input: unknown): string[] {
@@ -48,8 +54,27 @@ const cleanEmail = (v: unknown): string | null => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 };
 
+/** Accept `string[]` or comma/space/newline-separated string → digit-only, de-duped. */
+export function normalizeIpis(input: unknown): string[] {
+  const raw = Array.isArray(input)
+    ? input
+    : typeof input === "string"
+      ? input.split(/[,\n]/)
+      : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    const d = digitsOnly(String(v));
+    if (!d || seen.has(d)) continue;
+    seen.add(d);
+    out.push(d);
+  }
+  return out;
+}
+
 /** Extract + normalize the new artist fields from a request body. */
 export function extractArtistExtras(body: Record<string, unknown>): ArtistExtras {
+  const isni = typeof body.isni === "string" ? digitsOnly(body.isni) : "";
   return {
     genres: normalizeGenres(body.genres),
     spotifyId: cleanStr(body.spotifyId),
@@ -59,5 +84,7 @@ export function extractArtistExtras(body: Record<string, unknown>): ArtistExtras
     managerName: cleanStr(body.managerName),
     contactEmail: cleanEmail(body.contactEmail),
     internalNotes: cleanStr(body.internalNotes),
+    ipis: normalizeIpis(body.ipis),
+    isni: isni.length ? isni : null,
   };
 }

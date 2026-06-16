@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
+import type { IsniMatch } from "@/lib/isni";
 import { buildArtistSeedUrl } from "@/lib/musicbrainz-seed";
 
 const LINK_FIELDS = [
@@ -62,6 +63,8 @@ type FormState = {
   genres: string; // comma-separated in the UI; normalized server-side
   spotifyId: string;
   internalNotes: string;
+  ipis: string; // comma-separated in the UI
+  isni: string;
 } & Record<LinkKey, string> &
   Record<InternalKey, string>;
 
@@ -77,6 +80,8 @@ const emptyForm: FormState = {
   managerName: "",
   contactEmail: "",
   internalNotes: "",
+  ipis: "",
+  isni: "",
   xLink: "",
   tiktokLink: "",
   spotifyLink: "",
@@ -126,6 +131,14 @@ export default function ArtistEditor({
   // Resolved links pending the admin's confirmation.
   const [mbPreview, setMbPreview] = useState<Partial<Record<LinkKey, string>> | null>(null);
   const [mbPickedName, setMbPickedName] = useState("");
+  const [mbIsni, setMbIsni] = useState<string | null>(null);
+  const [mbIpis, setMbIpis] = useState<string[]>([]);
+
+  // ISNI name lookup (public OCLC SRU)
+  const [isniOpen, setIsniOpen] = useState(false);
+  const [isniQuery, setIsniQuery] = useState("");
+  const [isniResults, setIsniResults] = useState<IsniMatch[]>([]);
+  const [isniSearching, setIsniSearching] = useState(false);
 
   // Detect whether Spotify is configured (cheap probe; empty q).
   useEffect(() => {
@@ -165,6 +178,8 @@ export default function ArtistEditor({
           managerName: a.managerName || "",
           contactEmail: a.contactEmail || "",
           internalNotes: a.internalNotes || "",
+          ipis: Array.isArray(a.ipis) ? a.ipis.join(", ") : "",
+          isni: a.isni || "",
           xLink: a.xLink || "",
           tiktokLink: a.tiktokLink || "",
           spotifyLink: a.spotifyLink || "",
@@ -267,20 +282,25 @@ export default function ArtistEditor({
       if (!res.ok) throw new Error();
       const data = await res.json();
       const links = (data.links || {}) as Partial<Record<LinkKey, string>>;
-      if (Object.keys(links).length === 0) {
-        toast.error("No social links found on MusicBrainz for this artist.");
+      const isnis = (data.isnis || []) as string[];
+      const ipis = (data.ipis || []) as string[];
+      if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0) {
+        toast.error("Nothing found on MusicBrainz for this artist.");
         setMbPreview(null);
         return;
       }
       setMbPreview(links);
+      setMbIsni(isnis[0] || null);
+      setMbIpis(ipis);
     } catch {
-      toast.error("Couldn't load links from MusicBrainz");
+      toast.error("Couldn't load data from MusicBrainz");
     } finally {
       setMbResolving(false);
     }
   };
 
   // Apply ONLY to currently-empty link fields; never overwrite what's filled.
+  // Also fills ISNI (if empty) and merges any IPI codes found.
   const applyMbLinks = () => {
     if (!mbPreview) return;
     let applied = 0;
@@ -295,13 +315,48 @@ export default function ArtistEditor({
           applied++;
         }
       });
+      if (mbIsni && !next.isni.trim()) {
+        next.isni = mbIsni;
+        applied++;
+      }
+      if (mbIpis.length) {
+        const have = new Set(next.ipis.split(",").map((s) => s.replace(/\D/g, "")).filter(Boolean));
+        const add = mbIpis.filter((x) => !have.has(x.replace(/\D/g, "")));
+        if (add.length) {
+          next.ipis = [next.ipis.trim(), ...add].filter(Boolean).join(", ");
+          applied += add.length;
+        }
+      }
       return next;
     });
     setMbOpen(false);
     setMbPreview(null);
+    setMbIsni(null);
+    setMbIpis([]);
     toast.success(
-      `Added ${applied} link${applied === 1 ? "" : "s"}${skipped ? `, kept ${skipped} existing` : ""} — review and save.`
+      `Added ${applied} item${applied === 1 ? "" : "s"}${skipped ? `, kept ${skipped} existing` : ""} — review and save.`
     );
+  };
+
+  const runIsniSearch = async () => {
+    if (!isniQuery.trim()) return;
+    setIsniSearching(true);
+    try {
+      const res = await fetch(`/api/admin/isni?q=${encodeURIComponent(isniQuery)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setIsniResults(data.matches || []);
+    } catch {
+      toast.error("ISNI search failed");
+    } finally {
+      setIsniSearching(false);
+    }
+  };
+
+  const pickIsni = (m: IsniMatch) => {
+    setField("isni", m.isni);
+    setIsniOpen(false);
+    toast.success(`ISNI set to ${m.isni} — review and save.`);
   };
 
   const uploadImage = async (file: File): Promise<string> => {
@@ -354,6 +409,8 @@ export default function ArtistEditor({
         managerName: form.managerName,
         contactEmail: form.contactEmail,
         internalNotes: form.internalNotes,
+        ipis: form.ipis,
+        isni: form.isni,
         xLink: form.xLink,
         tiktokLink: form.tiktokLink,
         spotifyLink: form.spotifyLink,
@@ -444,6 +501,10 @@ export default function ArtistEditor({
                 const url = buildArtistSeedUrl({
                   name: form.name,
                   country: form.country,
+                  city: form.city,
+                  genres: form.genres.split(",").map((g) => g.trim()).filter(Boolean),
+                  isni: form.isni,
+                  ipis: form.ipis.split(",").map((s) => s.trim()).filter(Boolean),
                   urls: LINK_FIELDS.map(([k]) => form[k]),
                 });
                 window.open(url, "_blank", "noopener,noreferrer");
@@ -627,6 +688,71 @@ export default function ArtistEditor({
                   </div>
                 ))}
               </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label htmlFor="isni" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    ISNI
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="isni"
+                      name="isni"
+                      value={form.isni}
+                      onChange={(e) => setField("isni", e.target.value)}
+                      placeholder="16 digits"
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsniQuery(form.name);
+                        setIsniResults([]);
+                        setIsniOpen(true);
+                      }}
+                    >
+                      <Search className="h-4 w-4" /> Find
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Often auto-assigned once on streaming. Use Find, or “Find social links” pulls it from MusicBrainz.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="ipis" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    IPI number(s)
+                  </label>
+                  <Input
+                    id="ipis"
+                    name="ipis"
+                    value={form.ipis}
+                    onChange={(e) => setField("ipis", e.target.value)}
+                    placeholder="comma-separated"
+                    className="font-mono text-sm"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    From the writer’s PRO/publisher. Look up on{" "}
+                    <a
+                      href="https://www.ascap.com/repertory"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      ASCAP
+                    </a>{" "}
+                    or{" "}
+                    <a
+                      href="https://repertoire.bmi.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      BMI
+                    </a>
+                    .
+                  </p>
+                </div>
+              </div>
               <div className="mt-4">
                 <label htmlFor="internalNotes" className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Notes
@@ -745,8 +871,32 @@ export default function ArtistEditor({
           {mbPreview ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Links found for <span className="text-foreground">{mbPickedName}</span>:
+                Found for <span className="text-foreground">{mbPickedName}</span>:
               </p>
+              {(mbIsni || mbIpis.length) ? (
+                <ul className="space-y-2">
+                  {mbIsni ? (
+                    <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                      <span className="w-24 shrink-0 font-medium">ISNI</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{mbIsni}</span>
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-xs ${
+                          form.isni.trim() ? "bg-muted text-muted-foreground" : "bg-green-500/15 text-green-400"
+                        }`}
+                      >
+                        {form.isni.trim() ? "keep existing" : "will add"}
+                      </span>
+                    </li>
+                  ) : null}
+                  {mbIpis.length ? (
+                    <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                      <span className="w-24 shrink-0 font-medium">IPI</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{mbIpis.join(", ")}</span>
+                      <span className="shrink-0 rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-400">merge</span>
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
               <ul className="space-y-2">
                 {(Object.entries(mbPreview) as [LinkKey, string][]).map(([key, url]) => {
                   const label = LINK_FIELDS.find(([k]) => k === key)?.[1] || key;
@@ -832,6 +982,61 @@ export default function ArtistEditor({
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ISNI lookup dialog */}
+      <Dialog open={isniOpen} onOpenChange={setIsniOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Find ISNI</DialogTitle>
+            <DialogDescription>
+              Searches the public ISNI registry by name. Released artists are
+              often already assigned an ISNI via streaming. Pick the right match.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Input
+              value={isniQuery}
+              onChange={(e) => setIsniQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  runIsniSearch();
+                }
+              }}
+              placeholder="Artist name…"
+              autoFocus
+            />
+            <Button type="button" onClick={runIsniSearch} disabled={isniSearching}>
+              {isniSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Search
+            </Button>
+          </div>
+          <div className="mt-2 space-y-2">
+            {isniResults.map((m) => (
+              <button
+                key={m.isni}
+                type="button"
+                onClick={() => pickIsni(m)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left hover:bg-white/[0.04]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{m.name}</p>
+                  <p className="truncate font-mono text-xs text-muted-foreground">
+                    {m.isni}
+                    {m.type ? ` · ${m.type}` : ""}
+                  </p>
+                </div>
+                <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+            {!isniSearching && isniQuery && isniResults.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No ISNI matches — they may not have one yet.
+              </p>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
