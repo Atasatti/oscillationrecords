@@ -214,9 +214,19 @@ const Footer = () => {
 
       <div className="border-t border-border mt-10 sm:mt-12 mb-4" />
 
-      <p className="text-center text-xs text-muted-foreground pb-5">
-        © Copyright {year} All Rights Reserved by Oscillation Records.
-      </p>
+      <div className="flex flex-col-reverse items-center justify-between gap-3 pb-5 sm:flex-row">
+        <p className="text-xs text-muted-foreground">
+          © Copyright {year} All Rights Reserved by Oscillation Records.
+        </p>
+        <div className="flex items-center gap-5 text-xs">
+          <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
+            Privacy
+          </Link>
+          <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
+            Terms
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };
