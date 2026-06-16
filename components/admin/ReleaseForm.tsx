@@ -64,6 +64,9 @@ export default function ReleaseForm({
     featureArtistText: "",
     isrcExplicit: false,
     upcCode: "",
+    catalogueNumber: "",
+    pLine: "",
+    cLine: "",
   });
   const [credits, setCredits] = useState<CreditEntry[]>([]);
 
@@ -145,6 +148,9 @@ export default function ReleaseForm({
           featureArtistText: featureLine,
           isrcExplicit: Boolean(data.isrcExplicit),
           upcCode: data.upcCode || "",
+          catalogueNumber: data.catalogueNumber || "",
+          pLine: data.pLine || "",
+          cLine: data.cLine || "",
         }));
         setCredits(normalizeCredits(data.credits));
         setCoverImageUrl(data.coverImage || null);
@@ -299,6 +305,9 @@ export default function ReleaseForm({
         soundcloudLink: formData.soundcloudLink || null,
         isrcExplicit: formData.isrcExplicit,
         upcCode: formData.upcCode || null,
+        catalogueNumber: formData.catalogueNumber || null,
+        pLine: formData.pLine || null,
+        cLine: formData.cLine || null,
         primaryArtistIds: formData.primaryArtistIds,
         credits: normalizeCredits(credits),
       };
@@ -555,14 +564,52 @@ export default function ReleaseForm({
               </div>
 
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-                <h3 className="text-lg font-medium text-gray-200 mb-4">UPC Code</h3>
-                <Input
-                  name="upcCode"
-                  value={formData.upcCode}
-                  onChange={handleInputChange}
-                  placeholder="e.g. 012345678905"
-                  className="bg-black/40 border-white/10 text-white"
-                />
+                <h3 className="text-lg font-medium text-gray-200 mb-1">Codes &amp; copyright</h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Label data from your distributor (Ditto) — stored for your records.
+                </p>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">UPC / barcode</label>
+                    <Input
+                      name="upcCode"
+                      value={formData.upcCode}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 012345678905"
+                      className="bg-black/40 border-white/10 text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">Catalogue number</label>
+                    <Input
+                      name="catalogueNumber"
+                      value={formData.catalogueNumber}
+                      onChange={handleInputChange}
+                      placeholder="e.g. OSC001"
+                      className="bg-black/40 border-white/10 text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">℗ line (recording)</label>
+                    <Input
+                      name="pLine"
+                      value={formData.pLine}
+                      onChange={handleInputChange}
+                      placeholder="2024 Oscillation Records"
+                      className="bg-black/40 border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">© line (composition)</label>
+                    <Input
+                      name="cLine"
+                      value={formData.cLine}
+                      onChange={handleInputChange}
+                      placeholder="2024 Oscillation Records"
+                      className="bg-black/40 border-white/10 text-white"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10">

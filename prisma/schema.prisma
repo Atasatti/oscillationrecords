@@ -159,6 +159,12 @@ model Release {
   lyricist         String?
   leadVocal        String?
   upcCode          String?
+  /// Label-assigned catalogue number for this release (e.g. "OSC001"). Internal.
+  catalogueNumber  String?
+  /// ℗ (phonogram) line, e.g. "2024 Oscillation Records". Stored for future use.
+  pLine            String?
+  /// © (copyright) line, e.g. "2024 Oscillation Records". Stored for future use.
+  cLine            String?
   isrcCode         String?
   isrcExplicit     Boolean      @default(false)
   primaryGenre     String?

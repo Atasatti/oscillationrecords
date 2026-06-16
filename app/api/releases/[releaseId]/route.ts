@@ -66,6 +66,9 @@ export async function GET(
       secondaryGenre: release.secondaryGenre,
       credits: release.credits ?? [],
       upcCode: isAdmin ? release.upcCode : null,
+      catalogueNumber: isAdmin ? release.catalogueNumber : null,
+      pLine: isAdmin ? release.pLine : null,
+      cLine: isAdmin ? release.cLine : null,
       isrcExplicit: release.isrcExplicit,
       spotifyLink: release.spotifyLink,
       appleMusicLink: release.appleMusicLink,
@@ -199,6 +202,9 @@ export async function PATCH(
       primaryGenre,
       secondaryGenre,
       upcCode,
+      catalogueNumber,
+      pLine,
+      cLine,
       isrcExplicit,
       credits,
       spotifyLink,
@@ -326,6 +332,11 @@ export async function PATCH(
           ...(upcCode !== undefined && {
             upcCode: upcCode ? String(upcCode) : null,
           }),
+          ...(catalogueNumber !== undefined && {
+            catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
+          }),
+          ...(pLine !== undefined && { pLine: pLine ? String(pLine).trim() : null }),
+          ...(cLine !== undefined && { cLine: cLine ? String(cLine).trim() : null }),
           ...(isrcExplicit !== undefined && {
             isrcExplicit: Boolean(isrcExplicit),
           }),

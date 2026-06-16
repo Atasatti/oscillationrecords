@@ -158,6 +158,9 @@ export async function POST(request: NextRequest) {
       soundcloudLink,
       isrcExplicit,
       upcCode,
+      catalogueNumber,
+      pLine,
+      cLine,
       primaryArtistIds,
       featureArtistIds,
       featureArtistNames: featureArtistNamesRaw,
@@ -234,6 +237,9 @@ export async function POST(request: NextRequest) {
           upcCode != null && String(upcCode).trim() !== ""
             ? String(upcCode).trim()
             : null,
+        catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
+        pLine: pLine ? String(pLine).trim() : null,
+        cLine: cLine ? String(cLine).trim() : null,
       },
       include: { tracks: { orderBy: { sortOrder: "asc" } } },
     });
