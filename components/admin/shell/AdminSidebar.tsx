@@ -4,13 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Library, Users, Settings, LogOut, User, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, CalendarClock, Settings, LogOut, User, ExternalLink } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 
 const adminLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/catalog/artists", label: "Artists", icon: Users },
-  { href: "/admin/catalog", label: "Catalog", icon: Library },
+  { href: "/admin/catalog/releases", label: "Releases", icon: Disc3 },
+  { href: "/admin/catalog", label: "Upcoming", icon: CalendarClock },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 

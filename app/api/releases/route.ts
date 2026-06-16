@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import { mapReleasesToCards, releaseCardListArgs } from "@/lib/catalog-data";
+import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
 import {
   apiKindToPrisma,
   normalizeFeatureArtistNamesInput,
@@ -18,6 +19,23 @@ export async function GET(request: NextRequest) {
     const isAdmin = await isAdminRequest(request);
 
     const { searchParams } = new URL(request.url);
+
+    // Opt-in pagination (admin table). Backward-compatible: only when `page`/
+    // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
+    // otherwise the response stays the existing bare array (public site, carousel).
+    if (searchParams.has("page") || searchParams.has("pageSize")) {
+      const result = await getReleasesPage({
+        page: parseInt(searchParams.get("page") || "1", 10) || 1,
+        pageSize: parseInt(searchParams.get("pageSize") || "25", 10) || 25,
+        q: searchParams.get("q") || "",
+        sort: (searchParams.get("sort") || "createdAt") as ReleaseSort,
+        dir: (searchParams.get("dir") || "desc") as SortDir,
+      });
+      return NextResponse.json(result, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
+
     const limitRaw = searchParams.get("limit");
     let take: number | undefined;
     if (limitRaw !== null && limitRaw !== "") {
@@ -41,7 +59,9 @@ export async function GET(request: NextRequest) {
       // first. New releases therefore appear automatically without being flagged,
       // and the newest cycle to the front. Capped so it stays a highlight reel.
       const all = await prisma.release.findMany(baseList);
-      const pinned = all.filter((r) => r.showOnHome);
+      const pinned = all
+        .filter((r) => r.showOnHome)
+        .sort((a, b) => a.homeOrder - b.homeOrder);
       const rest = all
         .filter((r) => !r.showOnHome)
         .sort((a, b) => {

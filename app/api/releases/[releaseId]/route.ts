@@ -218,6 +218,17 @@ export async function PATCH(
         ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)
         : undefined;
 
+    // When newly featuring for the New Music carousel, append to the end of the
+    // home order so it doesn't collide with existing featured releases.
+    let homeOrderPatch: number | undefined;
+    if (showOnHome === true && !existing.showOnHome) {
+      const max = await prisma.release.aggregate({
+        where: { showOnHome: true },
+        _max: { homeOrder: true },
+      });
+      homeOrderPatch = (max._max.homeOrder ?? -1) + 1;
+    }
+
     if (primaryArtistIds !== undefined) {
       if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
         return NextResponse.json(
@@ -338,6 +349,7 @@ export async function PATCH(
           ...(showOnHome !== undefined && {
             showOnHome: Boolean(showOnHome),
           }),
+          ...(homeOrderPatch !== undefined && { homeOrder: homeOrderPatch }),
           ...(primaryArtistIds !== undefined && { primaryArtistIds }),
           ...(featIds !== undefined && { featureArtistIds: featIds }),
           ...(releaseFeatureNamesPatch !== undefined && {

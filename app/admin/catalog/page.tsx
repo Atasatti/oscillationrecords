@@ -1,18 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import CatalogReleasesSortableList from "@/components/admin/CatalogReleasesSortableList";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -21,39 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Plus,
-  Image as ImageIcon,
-  Loader2,
-  ChevronDown,
-  Disc3,
-  Layers,
-  Library,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Image as ImageIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
-
-interface CatalogRelease {
-  id: string;
-  name: string;
-  thumbnail?: string | null;
-  audio?: string | null;
-  type: "single" | "ep" | "album";
-  primaryArtistName?: string;
-  featureArtistNames?: string[];
-  artist: string;
-  songCount: number;
-  spotifyLink?: string | null;
-  appleMusicLink?: string | null;
-  tidalLink?: string | null;
-  amazonMusicLink?: string | null;
-  youtubeLink?: string | null;
-  soundcloudLink?: string | null;
-  isrcExplicit?: boolean;
-  sortOrder?: number;
-  showLatestOnHome?: boolean;
-  showOnHome?: boolean;
-}
 
 interface UpcomingRelease {
   id: string;
@@ -69,87 +28,9 @@ interface UpcomingRelease {
   updatedAt: string;
 }
 
-function NewReleaseDropdown({
-  align = "end",
-  className,
-}: {
-  align?: "start" | "center" | "end";
-  className?: string;
-}) {
-  const itemClass =
-    "flex w-full cursor-pointer items-start gap-3 rounded-sm px-2 py-2.5 text-left outline-none";
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          className={cn(
-            "gap-2 bg-white text-black shadow-sm hover:bg-gray-200 sm:min-w-[11rem]",
-            "w-full justify-center sm:w-auto",
-            className
-          )}
-        >
-          <Plus className="h-4 w-4 shrink-0" aria-hidden />
-          <span>New release</span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align={align}
-        className="w-[min(100vw-2rem,20rem)] border-white/10 bg-[#141414] p-1 text-gray-100 shadow-xl"
-      >
-        <DropdownMenuLabel className="px-2 py-1.5 text-xs font-normal text-gray-500">
-          Choose a release type
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-gray-800" />
-        <DropdownMenuItem asChild className="p-0 focus:bg-white/10">
-          <Link href="/admin/catalog/create/single" className={itemClass}>
-            <Disc3 className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-medium text-white">Single</span>
-              <span className="text-xs leading-snug text-gray-500">
-                One main track — typical for a single drop
-              </span>
-            </span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="p-0 focus:bg-white/10">
-          <Link href="/admin/catalog/create/ep" className={itemClass}>
-            <Layers className="mt-0.5 h-4 w-4 shrink-0 text-amber-500/90" aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-medium text-white">EP</span>
-              <span className="text-xs leading-snug text-gray-500">
-                A short multi-track release
-              </span>
-            </span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className="p-0 focus:bg-white/10">
-          <Link href="/admin/catalog/create/album" className={itemClass}>
-            <Library className="mt-0.5 h-4 w-4 shrink-0 text-sky-400/90" aria-hidden />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm font-medium text-white">Album</span>
-              <span className="text-xs leading-snug text-gray-500">
-                Full-length release with multiple tracks
-              </span>
-            </span>
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 export default function AdminCatalog() {
   const toast = useToast();
-  const [releases, setReleases] = useState<CatalogRelease[]>([]);
   const [upcomingReleases, setUpcomingReleases] = useState<UpcomingRelease[]>([]);
-  const [contentDeleteDialogOpen, setContentDeleteDialogOpen] = useState(false);
-  const [contentToDelete, setContentToDelete] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
   const [upcomingDeleteOpen, setUpcomingDeleteOpen] = useState(false);
   const [upcomingToDelete, setUpcomingToDelete] = useState<{
     id: string;
@@ -188,49 +69,14 @@ export default function AdminCatalog() {
 
   const fetchAllData = async () => {
     try {
-      const [releasesRes, upcomingRes] = await Promise.all([
-        fetch("/api/releases"),
-        fetch("/api/upcoming-releases"),
-      ]);
-
-      if (releasesRes.ok) {
-        const data = await releasesRes.json();
-        setReleases(data);
-      }
-
+      const upcomingRes = await fetch("/api/upcoming-releases");
       if (upcomingRes.ok) {
         const data = await upcomingRes.json();
         setUpcomingReleases(data);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
-      toast.error("Failed to fetch catalog data");
-    }
-  };
-
-  const handleContentDeleteClick = (id: string, name: string) => {
-    setContentToDelete({ id, name });
-    setContentDeleteDialogOpen(true);
-  };
-
-  const handleContentDeleteConfirm = async () => {
-    if (!contentToDelete) return;
-
-    try {
-      const response = await fetch(`/api/releases/${contentToDelete.id}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        setContentDeleteDialogOpen(false);
-        setContentToDelete(null);
-        fetchAllData();
-      } else {
-        const error = await response.json();
-        toast.error(`Error: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Error deleting release:", error);
-      toast.error("Failed to delete release");
+      toast.error("Failed to fetch upcoming releases");
     }
   };
 
@@ -421,85 +267,6 @@ export default function AdminCatalog() {
     }
   };
 
-  const handleCatalogReorderSave = async (
-    ordered: CatalogRelease[]
-  ) => {
-    try {
-      const res = await fetch("/api/admin/releases/reorder", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: ordered.map((r) => r.id) }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const msg =
-          typeof err.error === "string" ? err.error : "Failed to save order";
-        toast.error(msg);
-        throw new Error(msg);
-      }
-      setReleases(ordered);
-    } catch (e) {
-      if (e instanceof TypeError) {
-        toast.error("Network error — could not save order.");
-      }
-      throw e;
-    }
-  };
-
-  const handleReleaseLatestChange = async (id: string, checked: boolean) => {
-    const prev = [...releases];
-    setReleases((list) =>
-      list.map((x) =>
-        x.id === id ? { ...x, showLatestOnHome: checked } : x
-      )
-    );
-    try {
-      const res = await fetch(`/api/releases/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showLatestOnHome: checked }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(
-          typeof err.error === "string"
-            ? err.error
-            : "Failed to update Latest flag"
-        );
-        setReleases(prev);
-      }
-    } catch {
-      setReleases(prev);
-      toast.error("Failed to update Latest flag");
-    }
-  };
-
-  const handleReleaseShowOnHomeChange = async (id: string, checked: boolean) => {
-    const prev = [...releases];
-    setReleases((list) =>
-      list.map((x) => (x.id === id ? { ...x, showOnHome: checked } : x))
-    );
-    try {
-      const res = await fetch(`/api/releases/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showOnHome: checked }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(
-          typeof err.error === "string"
-            ? err.error
-            : "Failed to update New Music carousel"
-        );
-        setReleases(prev);
-      }
-    } catch {
-      setReleases(prev);
-      toast.error("Failed to update New Music carousel");
-    }
-  };
-
   const handleUpcomingReorderSave = async (ordered: UpcomingRelease[]) => {
     try {
       const res = await fetch("/api/admin/upcoming-releases/reorder", {
@@ -527,46 +294,9 @@ export default function AdminCatalog() {
     <div>
       <div>
         <PageHeader
-          title="Catalog"
-          description="Manage releases and upcoming releases. Artists now have their own section in the sidebar."
+          title="Upcoming releases"
+          description="Schedule releases that aren't out yet. Artists and Releases each have their own section in the sidebar."
         />
-
-        {/* Releases */}
-        <div className="mb-12 md:mb-16">
-          <div className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0 space-y-1">
-              <h2 className="text-xl font-light tracking-tighter md:text-2xl">
-                Releases
-              </h2>
-              <p className="max-w-xl text-sm text-gray-500">
-                Drag to set one global order across Singles, EPs, and Albums.{" "}
-                <span className="text-gray-400">Latest on home</span> shows the red pill;{" "}
-                <span className="text-gray-400">New Music carousel</span> pins a release to the front of the home &amp; releases carousel; the remaining slots auto-fill with the newest releases.
-              </p>
-            </div>
-            <NewReleaseDropdown />
-          </div>
-          {releases.length === 0 ? (
-            <div className="text-center py-16 bg-[#141414] rounded-xl">
-              <Disc3 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg mb-2">No releases yet</p>
-              <p className="text-gray-500 mb-6">
-                Create your first single, EP, or album to get started.
-              </p>
-              <div className="flex justify-center">
-                <NewReleaseDropdown align="center" />
-              </div>
-            </div>
-          ) : (
-            <CatalogReleasesSortableList
-              releases={releases}
-              onReorderSave={handleCatalogReorderSave}
-              onLatestChange={handleReleaseLatestChange}
-              onShowOnHomeChange={handleReleaseShowOnHomeChange}
-              onDeleteClick={handleContentDeleteClick}
-            />
-          )}
-        </div>
 
         {/* Upcoming Releases Section */}
         <div className="mb-12 md:mb-16">
@@ -787,33 +517,6 @@ export default function AdminCatalog() {
                 </Button>
               </DialogFooter>
             </form>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={contentDeleteDialogOpen} onOpenChange={setContentDeleteDialogOpen}>
-          <DialogContent className="bg-[#141414] border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle>Delete release</DialogTitle>
-              <DialogDescription className="text-gray-400">
-                Are you sure you want to delete &quot;{contentToDelete?.name}&quot;?
-                This removes the release and all of its tracks. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setContentDeleteDialogOpen(false);
-                  setContentToDelete(null);
-                }}
-                className="border-white/10"
-              >
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleContentDeleteConfirm}>
-                Delete
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
 

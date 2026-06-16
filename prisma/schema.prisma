@@ -148,14 +148,18 @@ model Release {
   sortOrder        Int          @default(0)
   /// When true, home New Music carousel shows a Latest pill on this release's featured track.
   showLatestOnHome Boolean      @default(false)
-  /// When true, release is eligible for the "New Music" horizontal carousel on home and /releases (up to API limit; order follows catalog sort). If none are selected, all releases are considered (fallback).
+  /// When true, release is featured in the "New Music" carousel on home and /releases. If none are featured, all releases are considered (fallback).
   showOnHome       Boolean      @default(false)
+  /// Order within the New Music carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder        Int          @default(0)
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   @@index([kind])
   @@index([sortOrder])
+  @@index([showOnHome, homeOrder])
+  @@index([kind, sortOrder])
 }
 
 /// A playable track (song file). Former `Single` fields live here.

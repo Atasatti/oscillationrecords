@@ -4,17 +4,31 @@ import React, { useEffect, useState } from "react";
 import { ArrowUp, ArrowDown, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
-import type { AdminArtistRow } from "@/lib/admin-data";
+
+type OrderItem = {
+  id: string;
+  name: string;
+  profilePicture?: string | null;
+  thumbnail?: string | null;
+};
 
 /**
- * Manage the home "Meet the Artists" carousel: the featured artists, in order.
- * Reordering is via up/down (no drag), and only the small featured set appears
- * here, so it stays manageable regardless of roster size. Persists to
- * /api/admin/artists/home-order.
+ * Generic "home order" manager: loads a small featured set from `endpoint`
+ * (GET -> { items }), lets the admin reorder it with up/down (no drag), and
+ * persists via PUT { orderedIds } to the same endpoint. Used for both the home
+ * artists carousel and the New Music releases carousel.
  */
-export default function HomeOrderPanel() {
+export default function HomeOrderPanel({
+  endpoint,
+  emptyTitle,
+  emptyHint,
+}: {
+  endpoint: string;
+  emptyTitle: string;
+  emptyHint: React.ReactNode;
+}) {
   const toast = useToast();
-  const [items, setItems] = useState<AdminArtistRow[]>([]);
+  const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -22,7 +36,7 @@ export default function HomeOrderPanel() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/admin/artists/home-order");
+        const res = await fetch(endpoint);
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (!cancelled) setItems(data.items || []);
@@ -35,14 +49,14 @@ export default function HomeOrderPanel() {
     return () => {
       cancelled = true;
     };
-  }, [toast]);
+  }, [endpoint, toast]);
 
-  const persist = async (ordered: AdminArtistRow[]) => {
+  const persist = async (ordered: OrderItem[]) => {
     const prev = items;
     setItems(ordered);
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/artists/home-order", {
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderedIds: ordered.map((a) => a.id) }),
@@ -76,11 +90,8 @@ export default function HomeOrderPanel() {
     return (
       <div className="rounded-xl border border-border bg-card py-16 text-center">
         <Star className="mx-auto mb-3 h-10 w-10 text-gray-600" />
-        <p className="text-muted-foreground">No featured artists yet.</p>
-        <p className="mt-1 text-sm text-gray-500">
-          Switch to “Manage” and toggle <span className="text-foreground">Featured</span> on the
-          artists you want in the home carousel.
-        </p>
+        <p className="text-muted-foreground">{emptyTitle}</p>
+        <p className="mt-1 text-sm text-gray-500">{emptyHint}</p>
       </div>
     );
   }
@@ -88,7 +99,7 @@ export default function HomeOrderPanel() {
   return (
     <div>
       <p className="mb-3 text-sm text-muted-foreground">
-        These artists appear in the home “Meet the Artists” carousel, in this order.
+        These appear on the home page, in this order.
         {saving ? <span className="ml-2 text-xs">Saving…</span> : null}
       </p>
       <ol className="space-y-2">
@@ -102,9 +113,9 @@ export default function HomeOrderPanel() {
             </span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={a.profilePicture || "/placeholder.svg"}
+              src={a.profilePicture || a.thumbnail || "/placeholder.svg"}
               alt=""
-              className="h-10 w-10 shrink-0 rounded-full object-cover"
+              className="h-10 w-10 shrink-0 rounded-lg object-cover"
             />
             <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
             <div className="flex shrink-0 gap-1">

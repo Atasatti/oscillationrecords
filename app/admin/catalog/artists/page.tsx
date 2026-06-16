@@ -249,7 +249,17 @@ export default function AdminArtistsPage() {
       </div>
 
       {view === "home" ? (
-        <HomeOrderPanel />
+        <HomeOrderPanel
+          endpoint="/api/admin/artists/home-order"
+          emptyTitle="No featured artists yet."
+          emptyHint={
+            <>
+              Switch to “Manage” and toggle{" "}
+              <span className="text-foreground">Featured</span> on the artists you want
+              in the home carousel.
+            </>
+          }
+        />
       ) : (
         <>
       {/* Search */}

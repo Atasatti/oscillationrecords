@@ -39,6 +39,7 @@ export interface ReleaseCardDTO {
   sortOrder: number;
   showLatestOnHome: boolean;
   showOnHome: boolean;
+  homeOrder: number;
   // ISO strings (matches the API's JSON shape; safe to pass to client components).
   releaseDate: string | null;
   createdAt: string;
@@ -123,6 +124,7 @@ export async function mapReleasesToCards(
       sortOrder: r.sortOrder,
       showLatestOnHome: r.showLatestOnHome,
       showOnHome: r.showOnHome,
+      homeOrder: r.homeOrder,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
       year: rd
@@ -141,7 +143,11 @@ export async function mapReleasesToCards(
 export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
   try {
     const all = await prisma.release.findMany(releaseCardListArgs);
-    const pinned = all.filter((r) => r.showOnHome);
+    // Featured releases first, in their curated home order; then the rest fill in
+    // newest-first up to the cap.
+    const pinned = all
+      .filter((r) => r.showOnHome)
+      .sort((a, b) => a.homeOrder - b.homeOrder);
     const rest = all
       .filter((r) => !r.showOnHome)
       .sort((a, b) => {
