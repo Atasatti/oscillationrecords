@@ -279,3 +279,17 @@ model PlayEvent {
   @@index([contentType, contentId])
   @@index([createdAt])
 }
+
+/// Outbound click on a streaming/social link (anonymous), for click-through analytics.
+model LinkClick {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  context   String   // "release" | "artist" | "track"
+  contextId String   // id of the release/artist/track (not a relation — kept loose)
+  contextName String? // name snapshot for quick reporting
+  linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  createdAt DateTime @default(now())
+
+  @@index([context, contextId])
+  @@index([linkType])
+  @@index([createdAt])
+}

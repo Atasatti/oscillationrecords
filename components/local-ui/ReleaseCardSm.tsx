@@ -131,6 +131,9 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release })
               youtubeLink={release.youtubeLink}
               soundcloudLink={release.soundcloudLink}
               className="mt-2"
+              context="release"
+              contextId={String(release.id)}
+              contextName={release.name}
             />
           </div>
         </div>

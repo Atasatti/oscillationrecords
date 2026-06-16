@@ -9,6 +9,7 @@ import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { LuX } from "react-icons/lu";
 import { RiTiktokFill } from "react-icons/ri";
 import type { ArtistDetailDTO, ReleaseCardDTO } from "@/lib/catalog-data";
+import { trackLinkClick } from "@/lib/track-link-click";
 
 type ArtistDetailViewProps = {
   artist: ArtistDetailDTO;
@@ -18,10 +19,15 @@ type ArtistDetailViewProps = {
 export default function ArtistDetailView({ artist, releases }: ArtistDetailViewProps) {
   const router = useRouter();
 
-  const handleSocialClick = (url: string | null, e: React.MouseEvent) => {
+  const handleSocialClick = (
+    url: string | null,
+    linkType: string,
+    e: React.MouseEvent
+  ) => {
     e.preventDefault();
     e.stopPropagation();
     if (url) {
+      trackLinkClick("artist", artist.id, linkType, artist.name);
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };
@@ -55,7 +61,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                 <div className="flex items-center gap-4">
                   {artist.xLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.xLink, e)}
+                      onClick={(e) => handleSocialClick(artist.xLink, "x", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="X (Twitter)"
                     >
@@ -64,7 +70,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.tiktokLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.tiktokLink, e)}
+                      onClick={(e) => handleSocialClick(artist.tiktokLink, "tiktok", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="TikTok"
                     >
@@ -73,7 +79,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.youtubeLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.youtubeLink, e)}
+                      onClick={(e) => handleSocialClick(artist.youtubeLink, "youtube", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="YouTube"
                     >
@@ -82,7 +88,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.instagramLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.instagramLink, e)}
+                      onClick={(e) => handleSocialClick(artist.instagramLink, "instagram", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Instagram"
                     >
@@ -91,7 +97,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.facebookLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.facebookLink, e)}
+                      onClick={(e) => handleSocialClick(artist.facebookLink, "facebook", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Facebook"
                     >
@@ -100,7 +106,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.spotifyLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.spotifyLink, e)}
+                      onClick={(e) => handleSocialClick(artist.spotifyLink, "spotify", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Spotify"
                     >
@@ -109,7 +115,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.appleMusicLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.appleMusicLink, e)}
+                      onClick={(e) => handleSocialClick(artist.appleMusicLink, "appleMusic", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Apple Music"
                     >
@@ -118,7 +124,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.tidalLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.tidalLink, e)}
+                      onClick={(e) => handleSocialClick(artist.tidalLink, "tidal", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Tidal"
                     >
@@ -127,7 +133,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.amazonMusicLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.amazonMusicLink, e)}
+                      onClick={(e) => handleSocialClick(artist.amazonMusicLink, "amazonMusic", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="Amazon Music"
                     >
@@ -136,7 +142,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   )}
                   {artist.soundcloudLink && (
                     <button
-                      onClick={(e) => handleSocialClick(artist.soundcloudLink, e)}
+                      onClick={(e) => handleSocialClick(artist.soundcloudLink, "soundcloud", e)}
                       className="text-gray-400 hover:text-white transition-colors"
                       aria-label="SoundCloud"
                     >

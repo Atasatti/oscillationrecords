@@ -3,6 +3,7 @@ import React from "react";
 import { FaSpotify, FaApple } from "react-icons/fa";
 import { SiTidal, SiAmazonmusic } from "react-icons/si";
 import { FaYoutube, FaSoundcloud } from "react-icons/fa";
+import { trackLinkClick, type LinkContext } from "@/lib/track-link-click";
 
 export type StreamingLinksFields = {
   spotifyLink?: string | null;
@@ -17,6 +18,10 @@ interface StreamingLinksProps extends StreamingLinksFields {
   className?: string;
   /** Default `sm` (16px). `md` is 20px — good for release detail headers. */
   size?: "sm" | "md";
+  /** When provided, clicks are recorded for click-through analytics. */
+  context?: LinkContext;
+  contextId?: string;
+  contextName?: string;
 }
 
 export function hasStreamingLinks({
@@ -46,13 +51,17 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
   soundcloudLink,
   className = "",
   size = "sm",
+  context,
+  contextId,
+  contextName,
 }) => {
-  const open = (url?: string | null, e?: React.MouseEvent) => {
+  const open = (url: string | null | undefined, linkType: string, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     if (!url) return;
+    if (context) trackLinkClick(context, contextId, linkType, contextName);
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
@@ -77,7 +86,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {spotifyLink && (
         <button
           type="button"
-          onClick={(e) => open(spotifyLink, e)}
+          onClick={(e) => open(spotifyLink, "spotify", e)}
           className="text-gray-300 hover:text-[#1ed760] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Spotify"
         >
@@ -87,7 +96,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {appleMusicLink && (
         <button
           type="button"
-          onClick={(e) => open(appleMusicLink, e)}
+          onClick={(e) => open(appleMusicLink, "appleMusic", e)}
           className="text-gray-300 hover:text-white transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Apple Music"
         >
@@ -97,7 +106,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {tidalLink && (
         <button
           type="button"
-          onClick={(e) => open(tidalLink, e)}
+          onClick={(e) => open(tidalLink, "tidal", e)}
           className="text-gray-300 hover:text-white transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Tidal"
         >
@@ -107,7 +116,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {amazonMusicLink && (
         <button
           type="button"
-          onClick={(e) => open(amazonMusicLink, e)}
+          onClick={(e) => open(amazonMusicLink, "amazonMusic", e)}
           className="text-gray-300 hover:text-[#25d1da] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Amazon Music"
         >
@@ -117,7 +126,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {youtubeLink && (
         <button
           type="button"
-          onClick={(e) => open(youtubeLink, e)}
+          onClick={(e) => open(youtubeLink, "youtube", e)}
           className="text-gray-300 hover:text-[#ff0033] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on YouTube"
         >
@@ -127,7 +136,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
       {soundcloudLink && (
         <button
           type="button"
-          onClick={(e) => open(soundcloudLink, e)}
+          onClick={(e) => open(soundcloudLink, "soundcloud", e)}
           className="text-gray-300 hover:text-[#ff5500] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on SoundCloud"
         >

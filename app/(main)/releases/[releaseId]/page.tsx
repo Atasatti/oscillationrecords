@@ -492,7 +492,14 @@ export default function ReleaseDetail() {
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
                       Stream
                     </h2>
-                    <StreamingLinks {...streamProps} size="md" className="sm:ml-auto" />
+                    <StreamingLinks
+                      {...streamProps}
+                      size="md"
+                      className="sm:ml-auto"
+                      context="release"
+                      contextId={release.id}
+                      contextName={release.name}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -558,6 +565,9 @@ export default function ReleaseDetail() {
                           {...trackStreamProps}
                           size="sm"
                           className="opacity-85 hover:opacity-100 transition-opacity"
+                          context="track"
+                          contextId={song.id}
+                          contextName={song.name}
                         />
                       </div>
                       <span className="text-xs text-gray-500 tabular-nums">
@@ -578,6 +588,9 @@ export default function ReleaseDetail() {
                           {...trackStreamProps}
                           size="sm"
                           className="opacity-90"
+                          context="track"
+                          contextId={song.id}
+                          contextName={song.name}
                         />
                       </div>
                     ) : null}

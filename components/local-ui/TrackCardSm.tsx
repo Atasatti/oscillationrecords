@@ -116,6 +116,9 @@ const TrackCardSm: React.FC<{ track: TrackCardSmTrack }> = ({ track }) => {
             youtubeLink={track.youtubeLink}
             soundcloudLink={track.soundcloudLink}
             className="mt-2"
+            context="track"
+            contextId={String(track.id)}
+            contextName={track.name}
           />
         </div>
       </div>

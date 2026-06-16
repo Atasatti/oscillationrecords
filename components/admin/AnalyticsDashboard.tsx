@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BarChart3, Users, Play, TrendingUp, Music, Radio, Eye } from "lucide-react";
+import { BarChart3, Users, Play, TrendingUp, Music, Radio, Eye, MousePointerClick, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -68,6 +68,45 @@ interface DashboardData {
   }>;
 }
 
+interface LinkClickData {
+  summary: {
+    totalClicks: number;
+    uniqueTargets: number;
+  };
+  byLinkType: Array<{ linkType: string; count: number }>;
+  byContext: Array<{ context: string; count: number }>;
+  topLinks: Array<{
+    context: string;
+    contextId: string;
+    name: string;
+    clicks: number;
+    byType: Record<string, number>;
+  }>;
+  ctrByRelease: Array<{
+    contextId: string;
+    name: string;
+    clicks: number;
+    views: number;
+    ctr: number | null;
+  }>;
+  clicksOverTime: Array<{ date: string; count: number }>;
+}
+
+// Friendly labels for the raw linkType / context keys stored on LinkClick.
+const LINK_TYPE_LABELS: Record<string, string> = {
+  spotify: "Spotify",
+  appleMusic: "Apple Music",
+  tidal: "Tidal",
+  amazonMusic: "Amazon Music",
+  youtube: "YouTube",
+  soundcloud: "SoundCloud",
+  x: "X",
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  facebook: "Facebook",
+};
+const linkTypeLabel = (t: string) => LINK_TYPE_LABELS[t] || t;
+
 interface ContentAnalytics {
   contentId: string;
   contentType: string;
@@ -119,6 +158,7 @@ interface ContentAnalytics {
 
 export default function AnalyticsDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [ctr, setCtr] = useState<LinkClickData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
@@ -128,6 +168,7 @@ export default function AnalyticsDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchLinkClicks();
   }, [days]);
 
   const fetchDashboardData = async () => {
@@ -147,6 +188,19 @@ export default function AnalyticsDashboard() {
       setError("Failed to fetch dashboard data");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchLinkClicks = async () => {
+    try {
+      const response = await fetch(`/api/analytics/link-clicks?days=${days}`, {
+        cache: "no-store",
+      });
+      if (response.ok) {
+        setCtr(await response.json());
+      }
+    } catch (error) {
+      console.error("Error fetching link-click analytics:", error);
     }
   };
 
@@ -426,6 +480,144 @@ export default function AnalyticsDashboard() {
           )}
         </div>
       </div>
+
+      {/* Link Click-Through Analytics */}
+      {ctr && (
+        <div className="space-y-6">
+          <div className="flex items-center gap-2">
+            <MousePointerClick className="w-5 h-5 text-amber-400" />
+            <h2 className="text-xl font-light tracking-tight text-gray-100">
+              Link click-through
+            </h2>
+          </div>
+
+          {/* CTR summary + per-platform */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
+              <h3 className="text-lg font-medium text-gray-200 mb-6">By platform</h3>
+              {ctr.byLinkType.length > 0 ? (
+                <div className="space-y-4">
+                  {(() => {
+                    const maxType = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
+                    return ctr.byLinkType.map((t) => (
+                      <div key={t.linkType} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">{linkTypeLabel(t.linkType)}</span>
+                          <span className="text-sm font-medium text-gray-400">{t.count}</span>
+                        </div>
+                        <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400 rounded-full transition-all"
+                            style={{ width: `${(t.count / maxType) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No link clicks recorded yet</p>
+              )}
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="bg-black/30 rounded-lg p-4 border border-white/10">
+                  <p className="text-xs text-gray-400 mb-1">Total clicks</p>
+                  <p className="text-2xl font-light">{ctr.summary.totalClicks.toLocaleString()}</p>
+                </div>
+                <div className="bg-black/30 rounded-lg p-4 border border-white/10">
+                  <p className="text-xs text-gray-400 mb-1">Links clicked</p>
+                  <p className="text-2xl font-light">{ctr.summary.uniqueTargets.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Top links */}
+            <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
+              <h3 className="text-lg font-medium text-gray-200 mb-6">Most-clicked links</h3>
+              {ctr.topLinks.length > 0 ? (
+                <div className="space-y-3">
+                  {(() => {
+                    const maxLink = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
+                    return ctr.topLinks.map((l) => (
+                      <div key={`${l.context}-${l.contextId}`} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ExternalLink className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                            <span className="text-sm text-white truncate">{l.name}</span>
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500 flex-shrink-0">
+                              {l.context}
+                            </span>
+                          </div>
+                          <span className="text-sm font-medium text-gray-400 flex-shrink-0">{l.clicks}</span>
+                        </div>
+                        <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400/80 rounded-full transition-all"
+                            style={{ width: `${(l.clicks / maxLink) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 truncate">
+                          {Object.entries(l.byType)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([type, n]) => `${linkTypeLabel(type)} ${n}`)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No link clicks recorded yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* CTR vs release views */}
+          <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
+            <h3 className="text-lg font-medium text-gray-200 mb-1">Release click-through rate</h3>
+            <p className="text-xs text-gray-500 mb-6">
+              Outbound streaming-link clicks vs release-page views in this period.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">Release</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">Views</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">Clicks</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">CTR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ctr.ctrByRelease.length > 0 ? (
+                    ctr.ctrByRelease.map((r) => (
+                      <tr key={r.contextId} className="border-b border-white/10 hover:bg-white/[0.02]">
+                        <td className="py-3 px-4 text-sm text-white">{r.name}</td>
+                        <td className="py-3 px-4 text-sm text-gray-400 text-right tabular-nums">{r.views}</td>
+                        <td className="py-3 px-4 text-sm text-gray-300 text-right tabular-nums">{r.clicks}</td>
+                        <td className="py-3 px-4 text-sm text-right tabular-nums">
+                          {r.ctr === null ? (
+                            <span className="text-gray-600">—</span>
+                          ) : (
+                            <span className={r.ctr >= 100 ? "text-green-400" : "text-amber-400"}>
+                              {r.ctr.toFixed(0)}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-gray-500 text-sm">
+                        No release link clicks recorded yet
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent Plays */}
       <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
