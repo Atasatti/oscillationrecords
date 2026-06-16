@@ -124,14 +124,16 @@ const Navbar = () => {
             ))}
           </motion.div>
 
-          {/* Right side — Search, Auth, Hamburger */}
+          {/* Right side — Search, Auth, Hamburger. These share the 2xl breakpoint
+              with the desktop nav + hamburger so they never appear in both the
+              navbar and the mobile menu at the same time (incl. when zoomed). */}
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="hidden md:block w-full max-w-[200px] lg:max-w-[280px]">
+            <div className="hidden 2xl:block w-full max-w-[200px] lg:max-w-[280px]">
               <NavbarSearch className="w-full" />
             </div>
 
             {/* Auth — Desktop */}
-            <div className="hidden md:flex items-center">
+            <div className="hidden 2xl:flex items-center">
               {isLoading ? (
                 <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
               ) : isAuthenticated && session?.user ? (

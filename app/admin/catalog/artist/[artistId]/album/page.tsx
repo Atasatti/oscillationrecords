@@ -35,7 +35,15 @@ export default function CreateAlbum() {
   const [songs, setSongs] = useState<Song[]>([
     { name: "", audioFile: null, duration: 0 }
   ]);
-  
+  const [errors, setErrors] = useState<{ name?: string; coverImage?: string; releaseDate?: string }>({});
+  const clearError = (field: "name" | "coverImage" | "releaseDate") =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
@@ -45,6 +53,7 @@ export default function CreateAlbum() {
       ...prev,
       [name]: value
     }));
+    if (name === "name" || name === "releaseDate") clearError(name);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,6 +63,7 @@ export default function CreateAlbum() {
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setImagePreview(previewUrl);
+      clearError("coverImage");
     }
   };
 
@@ -179,10 +189,23 @@ export default function CreateAlbum() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.coverImageFile) {
-      toast.error("Please fill in the album name and select a cover image");
+    const fieldErrors: typeof errors = {};
+    if (!formData.name?.trim()) fieldErrors.name = "Please enter an album name";
+    if (!formData.coverImageFile) fieldErrors.coverImage = "Please add a cover image";
+    if (formData.releaseDate) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (formData.releaseDate < todayStr) {
+        fieldErrors.releaseDate = "Release date can’t be in the past";
+      }
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
       return;
     }
+    setErrors({});
+    // Validated above; this also narrows the type for the upload calls below.
+    if (!formData.coverImageFile) return;
 
     // Validate all songs
     const validSongs = songs.filter(song => song.name && song.audioFile && song.duration > 0);
@@ -347,7 +370,9 @@ export default function CreateAlbum() {
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50"
+                      className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50 ${
+                        errors.coverImage ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400 mb-1">Click to upload</p>
@@ -361,6 +386,9 @@ export default function CreateAlbum() {
                     onChange={handleImageChange}
                     className="hidden"
                   />
+                  {errors.coverImage && (
+                    <p className="text-sm text-red-400">{errors.coverImage}</p>
+                  )}
                   {!imagePreview && (
                     <Button
                       type="button"
@@ -393,9 +421,14 @@ export default function CreateAlbum() {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Enter album name"
-                      required
-                      className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                      aria-invalid={errors.name ? true : undefined}
+                      className={`bg-[#0F0F0F] text-white placeholder-gray-500 focus:border-gray-600 ${
+                        errors.name ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     />
+                    {errors.name && (
+                      <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                    )}
                   </div>
 
                   <div>
@@ -423,8 +456,14 @@ export default function CreateAlbum() {
                       type="date"
                       value={formData.releaseDate}
                       onChange={handleInputChange}
-                      className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                      aria-invalid={errors.releaseDate ? true : undefined}
+                      className={`bg-[#0F0F0F] text-white placeholder-gray-500 focus:border-gray-600 ${
+                        errors.releaseDate ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     />
+                    {errors.releaseDate && (
+                      <p className="mt-1 text-sm text-red-400">{errors.releaseDate}</p>
+                    )}
                   </div>
                 </div>
               </div>

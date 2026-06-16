@@ -34,7 +34,15 @@ export default function CreateEP() {
   const [songs, setSongs] = useState<Song[]>([
     { name: "", audioFile: null, duration: 0 }
   ]);
-  
+  const [errors, setErrors] = useState<{ name?: string; coverImage?: string }>({});
+  const clearError = (field: "name" | "coverImage") =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
@@ -44,6 +52,7 @@ export default function CreateEP() {
       ...prev,
       [name]: value
     }));
+    if (name === "name") clearError("name");
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,6 +62,7 @@ export default function CreateEP() {
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setImagePreview(previewUrl);
+      clearError("coverImage");
     }
   };
 
@@ -178,10 +188,16 @@ export default function CreateEP() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.coverImageFile) {
-      toast.error("Please fill in the EP name and select a cover image");
+    const fieldErrors: typeof errors = {};
+    if (!formData.name?.trim()) fieldErrors.name = "Please enter an EP name";
+    if (!formData.coverImageFile) fieldErrors.coverImage = "Please add a cover image";
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
       return;
     }
+    setErrors({});
+    // Validated above; this also narrows the type for the upload calls below.
+    if (!formData.coverImageFile) return;
 
     // Validate all songs
     const validSongs = songs.filter(song => song.name && song.audioFile && song.duration > 0);
@@ -345,7 +361,9 @@ export default function CreateEP() {
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50"
+                      className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50 ${
+                        errors.coverImage ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400 mb-1">Click to upload</p>
@@ -359,6 +377,9 @@ export default function CreateEP() {
                     onChange={handleImageChange}
                     className="hidden"
                   />
+                  {errors.coverImage && (
+                    <p className="text-sm text-red-400">{errors.coverImage}</p>
+                  )}
                   {!imagePreview && (
                     <Button
                       type="button"
@@ -391,9 +412,14 @@ export default function CreateEP() {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Enter EP name"
-                      required
-                      className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                      aria-invalid={errors.name ? true : undefined}
+                      className={`bg-[#0F0F0F] text-white placeholder-gray-500 focus:border-gray-600 ${
+                        errors.name ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     />
+                    {errors.name && (
+                      <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                    )}
                   </div>
 
                   <div>

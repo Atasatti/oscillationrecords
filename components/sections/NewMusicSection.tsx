@@ -50,6 +50,23 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   // latest releases stay in view until a visitor scrolls down to the section
   // (previously it started scrolling immediately on page load).
   const [isInView, setIsInView] = useState(false);
+  // Pause auto-advance while the user is interacting (touch swipe / pointer drag)
+  // and for a few seconds after, so it never fights a manual scroll on mobile.
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pauseForInteraction = useCallback(() => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    setIsPaused(true);
+  }, []);
+
+  const resumeAfterDelay = useCallback(() => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    resumeTimer.current = setTimeout(() => setIsPaused(false), 4000);
+  }, []);
+
+  useEffect(() => () => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+  }, []);
 
   const updateScrollArrows = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -176,6 +193,9 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
             className="flex items-center gap-2 sm:gap-3 mt-8 sm:mt-10 min-w-0"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
+            onTouchStart={pauseForInteraction}
+            onTouchEnd={resumeAfterDelay}
+            onTouchCancel={resumeAfterDelay}
           >
             {canScrollLeft ? (
               <button
