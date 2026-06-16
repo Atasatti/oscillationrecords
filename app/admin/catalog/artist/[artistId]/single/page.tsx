@@ -1,21 +1,23 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Save, Music, Image as ImageIcon, Loader2 } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
 
 export default function CreateSingle() {
   const params = useParams();
   const router = useRouter();
   const artistId = params.artistId as string;
+  const toast = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [calculatingDuration, setCalculatingDuration] = useState(false);
   const [imageError, setImageError] = useState<string>("");
+  const [nameError, setNameError] = useState<string>("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -35,6 +37,7 @@ export default function CreateSingle() {
       ...prev,
       [name]: value
     }));
+    if (name === "name") setNameError("");
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'audio') => {
@@ -70,7 +73,7 @@ export default function CreateSingle() {
         });
       } catch (error) {
         console.error("Error calculating audio duration:", error);
-        alert("Failed to calculate audio duration. Please try again.");
+        toast.error("Failed to calculate audio duration. Please try again.");
       } finally {
         setCalculatingDuration(false);
       }
@@ -157,20 +160,33 @@ export default function CreateSingle() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate that cover image is required
+    // Required-field validation — name and cover both surface inline.
+    let invalid = false;
+    if (!formData.name?.trim()) {
+      setNameError("Please enter a single name");
+      invalid = true;
+    } else {
+      setNameError("");
+    }
     if (!formData.imageFile) {
       setImageError("Cover image is required");
+      invalid = true;
+    } else {
+      setImageError("");
+    }
+    if (invalid) {
       setIsLoading(false);
       return;
     }
+    if (!formData.imageFile) return; // narrows type for the upload below
 
-    if (!formData.name || !formData.audioFile) {
-      alert("Please fill in the single name and select an audio file");
+    if (!formData.audioFile) {
+      toast.error("Please select an audio file");
       return;
     }
 
     if (audioDuration === 0) {
-      alert("Please wait for the audio duration to be calculated");
+      toast.error("Please wait for the audio duration to be calculated");
       return;
     }
 
@@ -245,11 +261,11 @@ export default function CreateSingle() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error creating single:", error);
-      alert(`Failed to create single: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to create single: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadingImage(false);
       setUploadingAudio(false);
     } finally {
@@ -265,8 +281,7 @@ export default function CreateSingle() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      
+            
       <div className="px-[10%] py-14">
         {/* Header */}
         <div className="mb-8">
@@ -313,7 +328,9 @@ export default function CreateSingle() {
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50"
+                      className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50 ${
+                        imageError ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400 mb-1">Click to upload</p>
@@ -364,9 +381,14 @@ export default function CreateSingle() {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Enter single name"
-                      required
-                      className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                      aria-invalid={nameError ? true : undefined}
+                      className={`bg-[#0F0F0F] text-white placeholder-gray-500 focus:border-gray-600 ${
+                        nameError ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     />
+                    {nameError && (
+                      <p className="mt-1 text-sm text-red-400">{nameError}</p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -84,6 +84,28 @@ model Artist {
   name          String
   biography     String
   profilePicture String?
+  /// Genre tags (auto-filled from Spotify on import, editable). Public.
+  genres        String[] @default([])
+  /// Spotify artist id (not just the URL) — enables re-sync / dedupe on import.
+  spotifyId     String?
+  /// MusicBrainz artist MBID — links our record to the MB entity to avoid
+  /// duplicate submissions and enable re-syncing ISNI/links later.
+  musicBrainzId String?
+  /// Legal/real name — internal, never shown publicly.
+  realName      String?
+  country       String?
+  city          String?
+  /// Manager name — internal.
+  managerName   String?
+  /// Contact email — internal.
+  contactEmail  String?
+  /// Free-form admin notes — internal.
+  internalNotes String?
+  /// IPI (Interested Parties Information) name numbers — a writer/publisher may
+  /// have several. Rights/PRO admin; also seeded to MusicBrainz.
+  ipis          String[] @default([])
+  /// ISNI (International Standard Name Identifier) — one per artist identity.
+  isni          String?
   composer      String?
   lyricist      String?
   leadVocal     String?
@@ -98,12 +120,21 @@ model Artist {
   amazonMusicLink  String?
   soundcloudLink   String?
   sortOrder     Int      @default(0)
-  /// When true, artist appears on the public site (home Meet the Artists carousel and /artists page).
+  /// When true, artist appears on the public /artists page (listed alphabetically).
   showOnWebsite Boolean  @default(true)
+  /// When true, artist is featured in the home "Meet the Artists" carousel (curated subset).
+  featuredOnHome Boolean @default(false)
+  /// Order within the home carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([name])
+  @@index([showOnWebsite, name])
+  @@index([featuredOnHome, homeOrder])
+  @@index([spotifyId])
+  @@index([musicBrainzId])
 }
 
 enum ReleaseKind {
@@ -128,10 +159,18 @@ model Release {
   lyricist         String?
   leadVocal        String?
   upcCode          String?
+  /// Label-assigned catalogue number for this release (e.g. "OSC001"). Internal.
+  catalogueNumber  String?
+  /// ℗ (phonogram) line, e.g. "2024 Oscillation Records". Stored for future use.
+  pLine            String?
+  /// © (copyright) line, e.g. "2024 Oscillation Records". Stored for future use.
+  cLine            String?
   isrcCode         String?
   isrcExplicit     Boolean      @default(false)
   primaryGenre     String?
   secondaryGenre   String?
+  /// Flexible credits: array of { role, people[] } (producers, songwriters, etc.).
+  credits          Json?
   spotifyLink      String?
   appleMusicLink   String?
   tidalLink        String?
@@ -142,14 +181,19 @@ model Release {
   sortOrder        Int          @default(0)
   /// When true, home New Music carousel shows a Latest pill on this release's featured track.
   showLatestOnHome Boolean      @default(false)
-  /// When true, release is eligible for the "New Music" horizontal carousel on home and /releases (up to API limit; order follows catalog sort). If none are selected, all releases are considered (fallback).
+  /// When true, release is featured in the "New Music" carousel on home and /releases. If none are featured, all releases are considered (fallback).
   showOnHome       Boolean      @default(false)
+  /// Order within the New Music carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder        Int          @default(0)
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   @@index([kind])
   @@index([sortOrder])
+  @@index([createdAt])
+  @@index([showOnHome, homeOrder])
+  @@index([kind, sortOrder])
 }
 
 /// A playable track (song file). Former `Single` fields live here.
@@ -170,6 +214,8 @@ model Track {
   stemsFile        String?
   trackCredits     Json?
   isrcCode         String?
+  /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
+  iswc             String?
   isrcExplicit     Boolean  @default(false)
   spotifyLink      String?
   appleMusicLink   String?
@@ -263,5 +309,20 @@ model PlayEvent {
   
   @@index([userId])
   @@index([contentType, contentId])
+  @@index([createdAt])
+  @@index([artistId, createdAt])
+}
+
+/// Outbound click on a streaming/social link (anonymous), for click-through analytics.
+model LinkClick {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  context   String   // "release" | "artist" | "track"
+  contextId String   // id of the release/artist/track (not a relation — kept loose)
+  contextName String? // name snapshot for quick reporting
+  linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  createdAt DateTime @default(now())
+
+  @@index([context, contextId])
+  @@index([linkType])
   @@index([createdAt])
 }

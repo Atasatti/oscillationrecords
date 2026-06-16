@@ -1,13 +1,15 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, Image as ImageIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Image as ImageIcon, Loader2, Database } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/components/local-ui/Toast";
+import CreditsEditor from "@/components/admin/CreditsEditor";
+import { normalizeCredits, type CreditEntry } from "@/lib/credits";
+import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -62,7 +64,11 @@ export default function ReleaseForm({
     featureArtistText: "",
     isrcExplicit: false,
     upcCode: "",
+    catalogueNumber: "",
+    pLine: "",
+    cLine: "",
   });
+  const [credits, setCredits] = useState<CreditEntry[]>([]);
 
   // Field-level validation errors, shown inline beneath each field so name, date,
   // and artwork all report problems the same way (no mix of native bubbles/toasts).
@@ -142,7 +148,11 @@ export default function ReleaseForm({
           featureArtistText: featureLine,
           isrcExplicit: Boolean(data.isrcExplicit),
           upcCode: data.upcCode || "",
+          catalogueNumber: data.catalogueNumber || "",
+          pLine: data.pLine || "",
+          cLine: data.cLine || "",
         }));
+        setCredits(normalizeCredits(data.credits));
         setCoverImageUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
         if (data.kind) setLoadedKind(data.kind as "SINGLE" | "EP" | "ALBUM");
@@ -295,7 +305,11 @@ export default function ReleaseForm({
         soundcloudLink: formData.soundcloudLink || null,
         isrcExplicit: formData.isrcExplicit,
         upcCode: formData.upcCode || null,
+        catalogueNumber: formData.catalogueNumber || null,
+        pLine: formData.pLine || null,
+        cLine: formData.cLine || null,
         primaryArtistIds: formData.primaryArtistIds,
+        credits: normalizeCredits(credits),
       };
 
       // Only send feature artists when creating, when the field changed, or when
@@ -358,19 +372,15 @@ export default function ReleaseForm({
 
   if (loadingRelease) {
     return (
-      <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center items-center py-40">
-          <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
-        </div>
+      <div className="flex justify-center items-center py-40">
+        <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-[10%] py-14">
+    <div>
+      <div>
         <div className="mb-8">
           <Button
             variant="ghost"
@@ -380,9 +390,30 @@ export default function ReleaseForm({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <h1 className="text-4xl font-light tracking-tighter">
-            {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-4xl font-light tracking-tighter">
+              {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
+            </h1>
+            {canSeedRelease({
+              gtin: formData.upcCode,
+              urls: [formData.spotifyLink, formData.appleMusicLink],
+            }) ? (
+              <Button
+                type="button"
+                variant="outline"
+                title="Open Harmony to import this release into MusicBrainz (review & submit)"
+                onClick={() => {
+                  const url = buildHarmonyReleaseUrl({
+                    gtin: formData.upcCode,
+                    urls: [formData.spotifyLink, formData.appleMusicLink],
+                  });
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <Database className="h-4 w-4" /> Add to MusicBrainz
+              </Button>
+            ) : null}
+          </div>
           <p className="text-gray-400 mt-2">
             Release details only — add tracks from the release page after saving.
           </p>
@@ -533,14 +564,61 @@ export default function ReleaseForm({
               </div>
 
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-                <h3 className="text-lg font-medium text-gray-200 mb-4">UPC Code</h3>
-                <Input
-                  name="upcCode"
-                  value={formData.upcCode}
-                  onChange={handleInputChange}
-                  placeholder="e.g. 012345678905"
-                  className="bg-black/40 border-white/10 text-white"
-                />
+                <h3 className="text-lg font-medium text-gray-200 mb-1">Codes &amp; copyright</h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Label data from your distributor (Ditto) — stored for your records.
+                </p>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">UPC / barcode</label>
+                    <Input
+                      name="upcCode"
+                      value={formData.upcCode}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 012345678905"
+                      className="bg-black/40 border-white/10 text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">Catalogue number</label>
+                    <Input
+                      name="catalogueNumber"
+                      value={formData.catalogueNumber}
+                      onChange={handleInputChange}
+                      placeholder="e.g. OSC001"
+                      className="bg-black/40 border-white/10 text-white font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">℗ line (recording)</label>
+                    <Input
+                      name="pLine"
+                      value={formData.pLine}
+                      onChange={handleInputChange}
+                      placeholder="2024 Oscillation Records"
+                      className="bg-black/40 border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">© line (composition)</label>
+                    <Input
+                      name="cLine"
+                      value={formData.cLine}
+                      onChange={handleInputChange}
+                      placeholder="2024 Oscillation Records"
+                      className="bg-black/40 border-white/10 text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-medium text-gray-200 mb-1">Credits</h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Release-level credits — producers, songwriters, composers, etc.
+                  (per-track credits are set on each track.)
+                </p>
+                <CreditsEditor value={credits} onChange={setCredits} idPrefix="release-credits" />
               </div>
 
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10">

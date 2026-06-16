@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Music, Image as ImageIcon, Loader2, Plus, X } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
 
 interface Song {
   name: string;
@@ -17,6 +17,7 @@ export default function CreateEP() {
   const params = useParams();
   const router = useRouter();
   const artistId = params.artistId as string;
+  const toast = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -33,7 +34,15 @@ export default function CreateEP() {
   const [songs, setSongs] = useState<Song[]>([
     { name: "", audioFile: null, duration: 0 }
   ]);
-  
+  const [errors, setErrors] = useState<{ name?: string; coverImage?: string }>({});
+  const clearError = (field: "name" | "coverImage") =>
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const audioInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
@@ -43,6 +52,7 @@ export default function CreateEP() {
       ...prev,
       [name]: value
     }));
+    if (name === "name") clearError("name");
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,6 +62,7 @@ export default function CreateEP() {
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setImagePreview(previewUrl);
+      clearError("coverImage");
     }
   };
 
@@ -111,7 +122,7 @@ export default function CreateEP() {
       });
     } catch (error) {
       console.error("Error calculating audio duration:", error);
-      alert("Failed to calculate audio duration. Please try again.");
+      toast.error("Failed to calculate audio duration. Please try again.");
     } finally {
       setCalculatingDurations(prev => ({ ...prev, [index]: false }));
     }
@@ -177,22 +188,28 @@ export default function CreateEP() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.coverImageFile) {
-      alert("Please fill in the EP name and select a cover image");
+    const fieldErrors: typeof errors = {};
+    if (!formData.name?.trim()) fieldErrors.name = "Please enter an EP name";
+    if (!formData.coverImageFile) fieldErrors.coverImage = "Please add a cover image";
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
       return;
     }
+    setErrors({});
+    // Validated above; this also narrows the type for the upload calls below.
+    if (!formData.coverImageFile) return;
 
     // Validate all songs
     const validSongs = songs.filter(song => song.name && song.audioFile && song.duration > 0);
     if (validSongs.length === 0) {
-      alert("Please add at least one song with name and audio file");
+      toast.error("Please add at least one song with name and audio file");
       return;
     }
 
     // Check if all songs have duration calculated
     const songsWithDuration = songs.every(song => !song.audioFile || song.duration > 0);
     if (!songsWithDuration) {
-      alert("Please wait for all audio durations to be calculated");
+      toast.error("Please wait for all audio durations to be calculated");
       return;
     }
 
@@ -214,7 +231,7 @@ export default function CreateEP() {
         coverImageUrl = presignedUrls.image.fileURL;
       } catch (error) {
         console.error("Error uploading cover image:", error);
-        alert("Failed to upload cover image. Please try again.");
+        toast.error("Failed to upload cover image. Please try again.");
         setUploadingImage(false);
         setIsLoading(false);
         return;
@@ -237,7 +254,7 @@ export default function CreateEP() {
         );
       } catch (error) {
         console.error("Error uploading audio files:", error);
-        alert("Failed to upload audio files. Please try again.");
+        toast.error("Failed to upload audio files. Please try again.");
         setUploadingAudio(false);
         setIsLoading(false);
         return;
@@ -287,11 +304,11 @@ export default function CreateEP() {
         router.push(`/admin/catalog/artist/${artistId}`);
       } else {
         const error = await epResponse.json();
-        alert(`Error: ${error.error}`);
+        toast.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error("Error creating EP:", error);
-      alert(`Failed to create EP: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to create EP: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -299,8 +316,7 @@ export default function CreateEP() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      
+            
       <div className="px-[10%] py-14">
         <div className="mb-8">
           <Button
@@ -345,7 +361,9 @@ export default function CreateEP() {
                   ) : (
                     <div
                       onClick={() => imageInputRef.current?.click()}
-                      className="w-full aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50"
+                      className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 transition-colors bg-[#0F0F0F]/50 ${
+                        errors.coverImage ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     >
                       <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
                       <p className="text-sm text-gray-400 mb-1">Click to upload</p>
@@ -359,6 +377,9 @@ export default function CreateEP() {
                     onChange={handleImageChange}
                     className="hidden"
                   />
+                  {errors.coverImage && (
+                    <p className="text-sm text-red-400">{errors.coverImage}</p>
+                  )}
                   {!imagePreview && (
                     <Button
                       type="button"
@@ -391,9 +412,14 @@ export default function CreateEP() {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Enter EP name"
-                      required
-                      className="bg-[#0F0F0F] border-gray-700 text-white placeholder-gray-500 focus:border-gray-600"
+                      aria-invalid={errors.name ? true : undefined}
+                      className={`bg-[#0F0F0F] text-white placeholder-gray-500 focus:border-gray-600 ${
+                        errors.name ? "border-red-500/70" : "border-gray-700"
+                      }`}
                     />
+                    {errors.name && (
+                      <p className="mt-1 text-sm text-red-400">{errors.name}</p>
+                    )}
                   </div>
 
                   <div>

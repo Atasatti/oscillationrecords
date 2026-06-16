@@ -37,6 +37,7 @@ export async function POST(
       stemsFile,
       trackCredits,
       isrcCode,
+      iswc,
       isrcExplicit,
       spotifyLink,
       appleMusicLink,
@@ -127,6 +128,7 @@ export async function POST(
             ? trackCredits
             : null,
         isrcCode: isrcCode ? String(isrcCode) : null,
+        iswc: iswc ? String(iswc).trim() : null,
         isrcExplicit: Boolean(isrcExplicit),
         spotifyLink: spotifyLink || null,
         appleMusicLink: appleMusicLink || null,

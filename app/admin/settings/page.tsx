@@ -1,9 +1,9 @@
 "use client";
 import React from "react";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import StackedHeroImagesAdmin from "@/components/admin/StackedHeroImagesAdmin";
 import StudioPhotosAdmin from "@/components/admin/StudioPhotosAdmin";
 import FooterSettingsAdmin from "@/components/admin/FooterSettingsAdmin";
+import PageHeader from "@/components/admin/shell/PageHeader";
 
 export default function AdminSettings() {
   return (

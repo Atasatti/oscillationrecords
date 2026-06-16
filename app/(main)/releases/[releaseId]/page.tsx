@@ -65,6 +65,7 @@ interface Release {
   composer?: string | null;
   lyricist?: string | null;
   leadVocal?: string | null;
+  credits?: { role: string; people: string[] }[] | null;
   isrcExplicit?: boolean;
   spotifyLink?: string | null;
   appleMusicLink?: string | null;
@@ -286,11 +287,14 @@ export default function ReleaseDetail() {
 
   const kindLabel =
     release.type === "album" ? "Album" : release.type === "ep" ? "EP" : "Single";
+  const releaseCredits = Array.isArray(release.credits)
+    ? release.credits.filter(
+        (c) => c && c.role && Array.isArray(c.people) && c.people.length > 0
+      )
+    : [];
   const hasCredits = Boolean(
-    release.composer ||
-      release.lyricist ||
-      release.leadVocal
-  );
+    release.composer || release.lyricist || release.leadVocal
+  ) || releaseCredits.length > 0;
   const showAbout =
     Boolean(release.description) || Boolean(release.releaseDate) ||
     Boolean(release.primaryGenre) || Boolean(release.secondaryGenre);
@@ -471,6 +475,12 @@ export default function ReleaseDetail() {
                               <dd className="text-gray-200">{release.leadVocal}</dd>
                             </>
                           ) : null}
+                          {releaseCredits.map((c, i) => (
+                            <React.Fragment key={i}>
+                              <dt className="text-gray-500 font-medium">{c.role}</dt>
+                              <dd className="text-gray-200">{c.people.join(", ")}</dd>
+                            </React.Fragment>
+                          ))}
                         </dl>
                       </div>
                     ) : null}
@@ -482,7 +492,14 @@ export default function ReleaseDetail() {
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
                       Stream
                     </h2>
-                    <StreamingLinks {...streamProps} size="md" className="sm:ml-auto" />
+                    <StreamingLinks
+                      {...streamProps}
+                      size="md"
+                      className="sm:ml-auto"
+                      context="release"
+                      contextId={release.id}
+                      contextName={release.name}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -548,6 +565,9 @@ export default function ReleaseDetail() {
                           {...trackStreamProps}
                           size="sm"
                           className="opacity-85 hover:opacity-100 transition-opacity"
+                          context="track"
+                          contextId={song.id}
+                          contextName={song.name}
                         />
                       </div>
                       <span className="text-xs text-gray-500 tabular-nums">
@@ -568,6 +588,9 @@ export default function ReleaseDetail() {
                           {...trackStreamProps}
                           size="sm"
                           className="opacity-90"
+                          context="track"
+                          contextId={song.id}
+                          contextName={song.name}
                         />
                       </div>
                     ) : null}

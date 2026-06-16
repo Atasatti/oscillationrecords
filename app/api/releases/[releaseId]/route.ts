@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -63,7 +64,11 @@ export async function GET(
       releaseDate: release.releaseDate,
       primaryGenre: release.primaryGenre,
       secondaryGenre: release.secondaryGenre,
+      credits: release.credits ?? [],
       upcCode: isAdmin ? release.upcCode : null,
+      catalogueNumber: isAdmin ? release.catalogueNumber : null,
+      pLine: isAdmin ? release.pLine : null,
+      cLine: isAdmin ? release.cLine : null,
       isrcExplicit: release.isrcExplicit,
       spotifyLink: release.spotifyLink,
       appleMusicLink: release.appleMusicLink,
@@ -107,6 +112,7 @@ function parseTrackInput(
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
   isrcCode: string | null;
+  iswc: string | null;
   isrcExplicit: boolean;
   spotifyLink: string | null;
   appleMusicLink: string | null;
@@ -154,6 +160,7 @@ function parseTrackInput(
         ? (t.trackCredits as Prisma.InputJsonValue)
         : null,
     isrcCode: t.isrcCode ? String(t.isrcCode) : null,
+    iswc: t.iswc ? String(t.iswc).trim() : null,
     isrcExplicit: Boolean(t.isrcExplicit),
     spotifyLink: t.spotifyLink ? String(t.spotifyLink) : null,
     appleMusicLink: t.appleMusicLink ? String(t.appleMusicLink) : null,
@@ -197,7 +204,11 @@ export async function PATCH(
       primaryGenre,
       secondaryGenre,
       upcCode,
+      catalogueNumber,
+      pLine,
+      cLine,
       isrcExplicit,
+      credits,
       spotifyLink,
       appleMusicLink,
       tidalLink,
@@ -217,6 +228,17 @@ export async function PATCH(
       releaseFeatureNamesRaw !== undefined
         ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)
         : undefined;
+
+    // When newly featuring for the New Music carousel, append to the end of the
+    // home order so it doesn't collide with existing featured releases.
+    let homeOrderPatch: number | undefined;
+    if (showOnHome === true && !existing.showOnHome) {
+      const max = await prisma.release.aggregate({
+        where: { showOnHome: true },
+        _max: { homeOrder: true },
+      });
+      homeOrderPatch = (max._max.homeOrder ?? -1) + 1;
+    }
 
     if (primaryArtistIds !== undefined) {
       if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
@@ -308,9 +330,15 @@ export async function PATCH(
           ...(secondaryGenre !== undefined && {
             secondaryGenre: secondaryGenre ? String(secondaryGenre) : null,
           }),
+          ...(credits !== undefined && { credits: normalizeCredits(credits) }),
           ...(upcCode !== undefined && {
             upcCode: upcCode ? String(upcCode) : null,
           }),
+          ...(catalogueNumber !== undefined && {
+            catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
+          }),
+          ...(pLine !== undefined && { pLine: pLine ? String(pLine).trim() : null }),
+          ...(cLine !== undefined && { cLine: cLine ? String(cLine).trim() : null }),
           ...(isrcExplicit !== undefined && {
             isrcExplicit: Boolean(isrcExplicit),
           }),
@@ -338,6 +366,7 @@ export async function PATCH(
           ...(showOnHome !== undefined && {
             showOnHome: Boolean(showOnHome),
           }),
+          ...(homeOrderPatch !== undefined && { homeOrder: homeOrderPatch }),
           ...(primaryArtistIds !== undefined && { primaryArtistIds }),
           ...(featIds !== undefined && { featureArtistIds: featIds }),
           ...(releaseFeatureNamesPatch !== undefined && {
@@ -381,6 +410,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,
@@ -410,6 +440,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,
