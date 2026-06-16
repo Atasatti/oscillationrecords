@@ -15,6 +15,7 @@ import {
   ArrowDown,
   Loader2,
   Star,
+  Database,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
@@ -47,6 +48,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import type { ReleaseCardDTO } from "@/lib/catalog-data";
 import type { ReleaseSort, SortDir } from "@/lib/admin-data";
+import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 
 const PAGE_SIZE = 25;
 
@@ -345,6 +347,22 @@ export default function AdminReleasesPage() {
                             <DropdownMenuItem onClick={() => router.push(`/admin/catalog/edit/release/${r.id}`)}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit details
                             </DropdownMenuItem>
+                            {canSeedRelease({ gtin: r.upcCode, urls: [r.spotifyLink, r.appleMusicLink] }) ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  window.open(
+                                    buildHarmonyReleaseUrl({
+                                      gtin: r.upcCode,
+                                      urls: [r.spotifyLink, r.appleMusicLink],
+                                    }),
+                                    "_blank",
+                                    "noopener,noreferrer"
+                                  )
+                                }
+                              >
+                                <Database className="mr-2 h-4 w-4" /> Add to MusicBrainz
+                              </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuItem
                               variant="destructive"
                               className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
