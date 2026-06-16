@@ -130,7 +130,11 @@ export default function PrivacyPolicy() {
           <p>
             Subject to applicable law, you have the right to access, correct, delete,
             restrict, or object to the processing of your data, to data portability, and
-            to withdraw consent. To exercise any of these, contact{" "}
+            to withdraw consent. Signed-in users can{" "}
+            <a className="text-white underline" href="/account">
+              download or delete their data
+            </a>{" "}
+            directly, or contact{" "}
             <a className="text-white underline" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>

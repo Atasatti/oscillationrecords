@@ -225,6 +225,9 @@ const Footer = () => {
           <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
             Terms
           </Link>
+          <Link href="/account" className="text-muted-foreground hover:text-foreground transition-colors">
+            Your data
+          </Link>
         </div>
       </div>
     </div>
