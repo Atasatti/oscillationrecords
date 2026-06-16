@@ -17,14 +17,9 @@ interface StudioPhotosCarouselProps {
 const StudioPhotosCarousel = ({ photos }: StudioPhotosCarouselProps) => {
   if (!photos || photos.length === 0) return null;
 
-  // Repeat the photos so ONE "set" is wider than any viewport — otherwise on
-  // large screens the -50% loop reveals empty space and appears to jump/reset.
-  // The track is then that set rendered twice for a seamless loop.
-  const reps = Math.max(1, Math.ceil(8 / photos.length));
-  const base = Array.from({ length: reps }, () => photos).flat();
-  // ~7s per card keeps the pace constant regardless of count.
-  const durationSeconds = Math.max(20, base.length * 7);
-  const loop = [...base, ...base];
+  // ~7s per photo keeps the pace constant regardless of how many there are.
+  const durationSeconds = Math.max(20, photos.length * 7);
+  const loop = [...photos, ...photos];
 
   return (
     <section className="w-full py-4">
@@ -75,7 +70,7 @@ const StudioPhotosCarousel = ({ photos }: StudioPhotosCarouselProps) => {
                 sizes="(max-width: 640px) 18rem, (max-width: 768px) 24rem, 30rem"
                 className="object-cover"
                 unoptimized={url.startsWith("/")}
-                aria-hidden={i >= base.length}
+                aria-hidden={i >= photos.length}
               />
             </div>
           ))}
