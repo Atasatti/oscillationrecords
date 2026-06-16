@@ -424,8 +424,12 @@ export interface UpcomingReleaseDTO {
   image: string;
   releaseDate: string; // ISO string (matches the API's JSON shape).
   preSmartLinkUrl: string | null;
+  /** Legacy free-text (kept for older rows / fallback). */
   primaryArtist: string | null;
   featureArtist: string | null;
+  /** Resolved display names (linked catalogue artists, falling back to legacy text). */
+  primaryArtistName: string | null;
+  featureLine: string | null;
 }
 
 /** Today's and future scheduled releases, in admin order. */
@@ -439,16 +443,38 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
-    return releases.map((r) => ({
-      id: r.id,
-      name: r.name,
-      type: r.type as UpcomingReleaseDTO["type"],
-      image: r.image,
-      releaseDate: r.releaseDate.toISOString(),
-      preSmartLinkUrl: r.preSmartLinkUrl ?? null,
-      primaryArtist: r.primaryArtist ?? null,
-      featureArtist: r.featureArtist ?? null,
-    }));
+    // Resolve linked artist ids → names in one query.
+    const ids = [
+      ...new Set(
+        releases.flatMap((r) => [...r.primaryArtistIds, ...r.featureArtistIds])
+      ),
+    ];
+    const artists = ids.length
+      ? await prisma.artist.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map(artists.map((a) => [a.id, a.name]));
+
+    return releases.map((r) => {
+      const primaryNames = r.primaryArtistIds
+        .map((id) => nameById.get(id))
+        .filter((n): n is string => Boolean(n));
+      const featureNames = [
+        ...r.featureArtistIds.map((id) => nameById.get(id)).filter((n): n is string => Boolean(n)),
+        ...(r.featureArtistNames ?? []),
+      ];
+      return {
+        id: r.id,
+        name: r.name,
+        type: r.type as UpcomingReleaseDTO["type"],
+        image: r.image,
+        releaseDate: r.releaseDate.toISOString(),
+        preSmartLinkUrl: r.preSmartLinkUrl ?? null,
+        primaryArtist: r.primaryArtist ?? null,
+        featureArtist: r.featureArtist ?? null,
+        primaryArtistName: primaryNames.join(", ") || r.primaryArtist || null,
+        featureLine: featureNames.join(", ") || r.featureArtist || null,
+      };
+    });
   } catch (e) {
     console.error("getUpcomingReleases: DB unavailable", e);
     return [];

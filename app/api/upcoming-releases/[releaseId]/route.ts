@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const VALID_TYPES = new Set(["single", "ep", "album"]);
+
+function parseArtistIds(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
+async function validateArtistIds(ids: string[]): Promise<string | null> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return null;
+  const found = await prisma.artist.findMany({
+    where: { id: { in: unique } },
+    select: { id: true },
+  });
+  return found.length === unique.length ? null : "One or more artists not found";
+}
 
 function normalizeOptionalString(v: unknown): string | null | undefined {
   if (v === undefined) return undefined;
@@ -52,6 +67,9 @@ export async function PATCH(
       preSmartLinkUrl?: string | null;
       primaryArtist?: string | null;
       featureArtist?: string | null;
+      primaryArtistIds?: string[];
+      featureArtistIds?: string[];
+      featureArtistNames?: string[];
     } = {};
 
     if (body.name !== undefined) {
@@ -110,6 +128,18 @@ export async function PATCH(
       const n = normalizeOptionalString(body.featureArtist);
       update.featureArtist = n === undefined ? null : n;
     }
+
+    if (body.primaryArtistIds !== undefined) update.primaryArtistIds = parseArtistIds(body.primaryArtistIds);
+    if (body.featureArtistIds !== undefined) update.featureArtistIds = parseArtistIds(body.featureArtistIds);
+    if (body.featureArtistNames !== undefined) {
+      update.featureArtistNames = normalizeFeatureArtistNamesInput(body.featureArtistNames);
+    }
+
+    const idError = await validateArtistIds([
+      ...(update.primaryArtistIds ?? []),
+      ...(update.featureArtistIds ?? []),
+    ]);
+    if (idError) return NextResponse.json({ error: idError }, { status: 404 });
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json(

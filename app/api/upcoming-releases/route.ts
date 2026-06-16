@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const VALID_TYPES = new Set(["single", "ep", "album"]);
+
+function parseArtistIds(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
+/** Returns an error message if any id doesn't exist, else null. */
+async function validateArtistIds(ids: string[]): Promise<string | null> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return null;
+  const found = await prisma.artist.findMany({
+    where: { id: { in: unique } },
+    select: { id: true },
+  });
+  return found.length === unique.length ? null : "One or more artists not found";
+}
 
 function normalizeOptionalString(v: unknown): string | null | undefined {
   if (v === undefined) return undefined;
@@ -61,6 +77,9 @@ export async function POST(request: NextRequest) {
     const preSmartLinkUrlRaw = normalizeOptionalString(body.preSmartLinkUrl);
     const primaryArtist = normalizeOptionalString(body.primaryArtist);
     const featureArtist = normalizeOptionalString(body.featureArtist);
+    const primaryArtistIds = parseArtistIds(body.primaryArtistIds);
+    const featureArtistIds = parseArtistIds(body.featureArtistIds);
+    const featureArtistNames = normalizeFeatureArtistNamesInput(body.featureArtistNames);
 
     if (!name || !type || !image || !releaseDate) {
       return NextResponse.json(
@@ -94,6 +113,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid releaseDate" }, { status: 400 });
     }
 
+    const idError = await validateArtistIds([...primaryArtistIds, ...featureArtistIds]);
+    if (idError) return NextResponse.json({ error: idError }, { status: 404 });
+
     const maxOrder = await prisma.upcomingRelease.aggregate({
       _max: { sortOrder: true },
     });
@@ -107,6 +129,9 @@ export async function POST(request: NextRequest) {
         releaseDate: parsedDate,
         sortOrder,
         preSmartLinkUrl,
+        primaryArtistIds,
+        featureArtistIds,
+        featureArtistNames,
         primaryArtist: primaryArtist ?? null,
         featureArtist: featureArtist ?? null,
       },

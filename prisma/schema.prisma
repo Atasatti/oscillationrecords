@@ -242,6 +242,11 @@ model UpcomingRelease {
   sortOrder        Int       @default(0)
   /// Pre-smart link target (e.g. Ditto pre-save URL)
   preSmartLinkUrl  String?
+  /// Linked catalogue artists (preferred). Legacy free-text primaryArtist /
+  /// featureArtist below are kept for older rows + non-catalogue fallback.
+  primaryArtistIds   String[] @db.ObjectId
+  featureArtistIds   String[] @db.ObjectId
+  featureArtistNames String[] @default([])
   primaryArtist    String?
   featureArtist    String?
   createdAt        DateTime  @default(now())

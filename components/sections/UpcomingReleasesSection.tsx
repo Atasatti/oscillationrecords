@@ -13,6 +13,9 @@ interface UpcomingRelease {
   preSmartLinkUrl?: string | null;
   primaryArtist?: string | null;
   featureArtist?: string | null;
+  /** Resolved from linked catalogue artists (preferred over the legacy text). */
+  primaryArtistName?: string | null;
+  featureLine?: string | null;
 }
 
 function kindLabel(type: UpcomingRelease["type"]) {
@@ -86,23 +89,21 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           {release.name}
         </p>
         <div className="min-h-[2.75rem] text-sm leading-snug">
-          {release.primaryArtist?.trim() || release.featureArtist?.trim() ? (
-            <p className="break-words hyphens-auto text-muted-foreground">
-              {release.primaryArtist?.trim() ? (
-                <span className="text-foreground/88">{release.primaryArtist.trim()}</span>
-              ) : null}
-              {release.primaryArtist?.trim() && release.featureArtist?.trim() ? (
-                <span className="text-muted-foreground/75"> · </span>
-              ) : null}
-              {release.featureArtist?.trim() ? (
-                <span>feat. {release.featureArtist.trim()}</span>
-              ) : null}
-            </p>
-          ) : (
-            <span className="invisible select-none" aria-hidden>
-              .
-            </span>
-          )}
+          {(() => {
+            const primary = (release.primaryArtistName ?? release.primaryArtist)?.trim();
+            const feature = (release.featureLine ?? release.featureArtist)?.trim();
+            return primary || feature ? (
+              <p className="break-words hyphens-auto text-muted-foreground">
+                {primary ? <span className="text-foreground/88">{primary}</span> : null}
+                {primary && feature ? <span className="text-muted-foreground/75"> · </span> : null}
+                {feature ? <span>feat. {feature}</span> : null}
+              </p>
+            ) : (
+              <span className="invisible select-none" aria-hidden>
+                .
+              </span>
+            );
+          })()}
         </div>
         <p className="mt-auto text-sm text-muted-foreground">Releases {dateStr}</p>
         {href ? (
