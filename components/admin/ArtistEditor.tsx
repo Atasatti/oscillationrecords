@@ -28,7 +28,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
 import type { IsniMatch } from "@/lib/isni";
-import { buildArtistSeedUrl } from "@/lib/musicbrainz-seed";
+import { buildArtistSeedUrl, buildArtistEditUrl } from "@/lib/musicbrainz-seed";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -62,6 +62,7 @@ type FormState = {
   showOnWebsite: boolean;
   genres: string; // comma-separated in the UI; normalized server-side
   spotifyId: string;
+  musicBrainzId: string;
   internalNotes: string;
   ipis: string; // comma-separated in the UI
   isni: string;
@@ -74,6 +75,7 @@ const emptyForm: FormState = {
   showOnWebsite: true,
   genres: "",
   spotifyId: "",
+  musicBrainzId: "",
   realName: "",
   country: "",
   city: "",
@@ -172,6 +174,7 @@ export default function ArtistEditor({
           showOnWebsite: a.showOnWebsite !== false,
           genres: Array.isArray(a.genres) ? a.genres.join(", ") : "",
           spotifyId: a.spotifyId || "",
+          musicBrainzId: a.musicBrainzId || "",
           realName: a.realName || "",
           country: a.country || "",
           city: a.city || "",
@@ -284,9 +287,12 @@ export default function ArtistEditor({
       const links = (data.links || {}) as Partial<Record<LinkKey, string>>;
       const isnis = (data.isnis || []) as string[];
       const ipis = (data.ipis || []) as string[];
+      // Record the MB link regardless — picking the artist establishes it, even
+      // if the MB page has no links/codes yet (e.g. a freshly-added artist).
+      setForm((p) => ({ ...p, musicBrainzId: m.mbid }));
       if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0) {
-        toast.error("Nothing found on MusicBrainz for this artist.");
-        setMbPreview(null);
+        toast.success("Linked to MusicBrainz. That page has no links/codes yet — nothing to import.");
+        setMbOpen(false);
         return;
       }
       setMbPreview(links);
@@ -403,6 +409,7 @@ export default function ArtistEditor({
         profilePicture: finalImage,
         genres: form.genres,
         spotifyId: form.spotifyId,
+        musicBrainzId: form.musicBrainzId,
         realName: form.realName,
         country: form.country,
         city: form.city,
@@ -496,9 +503,13 @@ export default function ArtistEditor({
               type="button"
               variant="outline"
               disabled={!form.name.trim()}
-              title="Open a pre-filled MusicBrainz “Add Artist” submission to review and submit"
+              title={
+                form.musicBrainzId
+                  ? "Open this artist's MusicBrainz edit page, pre-filled with our links/codes"
+                  : "Open a pre-filled MusicBrainz “Add Artist” submission to review and submit"
+              }
               onClick={() => {
-                const url = buildArtistSeedUrl({
+                const seed = {
                   name: form.name,
                   country: form.country,
                   city: form.city,
@@ -506,11 +517,15 @@ export default function ArtistEditor({
                   isni: form.isni,
                   ipis: form.ipis.split(",").map((s) => s.trim()).filter(Boolean),
                   urls: LINK_FIELDS.map(([k]) => form[k]),
-                });
+                };
+                const url = form.musicBrainzId
+                  ? buildArtistEditUrl(form.musicBrainzId, seed)
+                  : buildArtistSeedUrl(seed);
                 window.open(url, "_blank", "noopener,noreferrer");
               }}
             >
-              <Database className="h-4 w-4" /> Add to MusicBrainz
+              <Database className="h-4 w-4" />
+              {form.musicBrainzId ? "Open on MusicBrainz" : "Add to MusicBrainz"}
             </Button>
           </div>
         }

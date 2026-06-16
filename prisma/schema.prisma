@@ -88,6 +88,9 @@ model Artist {
   genres        String[] @default([])
   /// Spotify artist id (not just the URL) — enables re-sync / dedupe on import.
   spotifyId     String?
+  /// MusicBrainz artist MBID — links our record to the MB entity to avoid
+  /// duplicate submissions and enable re-syncing ISNI/links later.
+  musicBrainzId String?
   /// Legal/real name — internal, never shown publicly.
   realName      String?
   country       String?
@@ -131,6 +134,7 @@ model Artist {
   @@index([showOnWebsite, name])
   @@index([featuredOnHome, homeOrder])
   @@index([spotifyId])
+  @@index([musicBrainzId])
 }
 
 enum ReleaseKind {

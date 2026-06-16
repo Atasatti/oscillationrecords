@@ -7,6 +7,7 @@
 export type ArtistExtras = {
   genres: string[];
   spotifyId: string | null;
+  musicBrainzId: string | null;
   realName: string | null;
   country: string | null;
   city: string | null;
@@ -78,6 +79,7 @@ export function extractArtistExtras(body: Record<string, unknown>): ArtistExtras
   return {
     genres: normalizeGenres(body.genres),
     spotifyId: cleanStr(body.spotifyId),
+    musicBrainzId: cleanStr(body.musicBrainzId),
     realName: cleanStr(body.realName),
     country: cleanStr(body.country),
     city: cleanStr(body.city),

@@ -46,13 +46,7 @@ export function suggestDisambiguation(input: {
   return "";
 }
 
-/**
- * Link to MusicBrainz's "Add Artist" form, pre-seeded. We seed only the URL
- * text per relationship; MusicBrainz's external-link editor auto-selects the
- * relationship type from the domain for known sites (Spotify, Instagram, etc.).
- * ISNI/IPI and a disambiguation comment are seeded when available.
- */
-export function buildArtistSeedUrl(input: ArtistSeedInput): string {
+function seedParams(input: ArtistSeedInput): URLSearchParams {
   const params = new URLSearchParams();
   const name = input.name.trim();
   params.set("edit-artist.name", name);
@@ -74,13 +68,33 @@ export function buildArtistSeedUrl(input: ArtistSeedInput): string {
     .filter(Boolean)
     .forEach((ipi, i) => params.set(`edit-artist.ipi_codes.${i}`, ipi));
 
-  const urls = (input.urls ?? [])
+  (input.urls ?? [])
     .map((u) => (u ?? "").trim())
-    .filter((u) => u.length > 0);
-  urls.forEach((url, i) => {
-    params.set(`edit-artist.url.${i}.text`, url);
-  });
-  return `${MB_BASE}/artist/create?${params.toString()}`;
+    .filter((u) => u.length > 0)
+    .forEach((url, i) => params.set(`edit-artist.url.${i}.text`, url));
+
+  return params;
+}
+
+/**
+ * Link to MusicBrainz's "Add Artist" form, pre-seeded. We seed only the URL
+ * text per relationship; MusicBrainz's external-link editor auto-selects the
+ * relationship type from the domain for known sites (Spotify, Instagram, etc.).
+ * ISNI/IPI and a disambiguation comment are seeded when available.
+ */
+export function buildArtistSeedUrl(input: ArtistSeedInput): string {
+  return `${MB_BASE}/artist/create?${seedParams(input).toString()}`;
+}
+
+/**
+ * Link to an EXISTING MusicBrainz artist's edit form, pre-seeded with our data
+ * (used once we know the MBID, e.g. after picking the artist in "Find social
+ * links"). Opens the real entity — no duplicate — with our links/ISNI/IPI
+ * pre-filled for the admin to add. Seeds are best-effort: if MB ignores any,
+ * the edit page still opens for manual entry.
+ */
+export function buildArtistEditUrl(mbid: string, input: ArtistSeedInput): string {
+  return `${MB_BASE}/artist/${encodeURIComponent(mbid)}/edit?${seedParams(input).toString()}`;
 }
 
 export type ReleaseSeedInput = {
