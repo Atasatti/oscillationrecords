@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -358,19 +357,15 @@ export default function ReleaseForm({
 
   if (loadingRelease) {
     return (
-      <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center items-center py-40">
-          <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
-        </div>
+      <div className="flex justify-center items-center py-40">
+        <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-[10%] py-14">
+    <div>
+      <div>
         <div className="mb-8">
           <Button
             variant="ghost"
