@@ -1,6 +1,18 @@
 import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
 import { getReleaseMeta } from "@/lib/catalog-data";
 import { buildReleaseJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/lib/seo";
+
+// Prerender every release at build for fast TTFB; new releases render on demand
+// and are then cached.
+export async function generateStaticParams() {
+  try {
+    const releases = await prisma.release.findMany({ select: { id: true } });
+    return releases.map((r) => ({ releaseId: r.id }));
+  } catch {
+    return [];
+  }
+}
 
 // The release detail page itself is a client component (rich audio UI), so this
 // server layout supplies the SEO metadata + schema.org JSON-LD for the route.

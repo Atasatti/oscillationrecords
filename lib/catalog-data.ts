@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   buildArtistMap,
@@ -200,9 +201,9 @@ export interface ArtistDetailDTO {
  * roster to label features. Returns null if the artist doesn't exist; throws
  * are swallowed to an empty-releases result so the page can still render.
  */
-export async function getArtistDetail(
+export const getArtistDetail = cache(async (
   artistId: string
-): Promise<{ artist: ArtistDetailDTO; releases: ReleaseCardDTO[] } | null> {
+): Promise<{ artist: ArtistDetailDTO; releases: ReleaseCardDTO[] } | null> => {
   try {
     const [artist, releaseRows] = await Promise.all([
       prisma.artist.findUnique({ where: { id: artistId } }),
@@ -247,7 +248,7 @@ export async function getArtistDetail(
     console.error("getArtistDetail: DB unavailable", e);
     return null;
   }
-}
+});
 
 export interface PublicArtistDTO {
   id: string;
@@ -341,7 +342,7 @@ export interface ReleaseMetaDTO {
 }
 
 /** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
-export async function getReleaseMeta(id: string): Promise<ReleaseMetaDTO | null> {
+export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO | null> => {
   try {
     const r = await prisma.release.findUnique({
       where: { id },
@@ -395,7 +396,7 @@ export async function getReleaseMeta(id: string): Promise<ReleaseMetaDTO | null>
     console.error("getReleaseMeta: DB unavailable", e);
     return null;
   }
-}
+});
 
 /**
  * Curated artists for the home "Meet the Artists" carousel: those flagged
