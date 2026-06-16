@@ -61,7 +61,6 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none group-hover:scale-[1.045]"
-          unoptimized
         />
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:transition-none"
