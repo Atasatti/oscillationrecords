@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   buildArtistMap,
@@ -51,6 +52,27 @@ export interface ReleaseCardDTO {
 // Listing/search/carousel only need the first track's audio (for the card
 // player) and a track count — not every track's audio/lyrics/credits. This
 // keeps the payload small even as the catalog grows.
+// ---------------------------------------------------------------------------
+// Release visibility gating (shared by EVERY public reader — a missed filter
+// leaks unreleased music). No cron exists, so publishing is query-time: a
+// SCHEDULED release auto-goes-public once its releaseDate passes.
+// ---------------------------------------------------------------------------
+
+/** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived. */
+export function publicReleaseWhere(): Prisma.ReleaseWhereInput {
+  return {
+    OR: [
+      { status: "RELEASED" },
+      { status: "SCHEDULED", releaseDate: { lte: new Date() } },
+    ],
+  };
+}
+
+/** Future-dated SCHEDULED releases — the "Coming Soon" source. */
+export function scheduledReleaseWhere(): Prisma.ReleaseWhereInput {
+  return { status: "SCHEDULED", releaseDate: { gt: new Date() } };
+}
+
 export const releaseCardListArgs = {
   orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
   include: {
@@ -143,7 +165,10 @@ export async function mapReleasesToCards(
  */
 export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const all = await prisma.release.findMany(releaseCardListArgs);
+    const all = await prisma.release.findMany({
+      ...releaseCardListArgs,
+      where: publicReleaseWhere(),
+    });
     // Featured releases first, in their curated home order; then the rest fill in
     // newest-first up to the cap.
     const pinned = all
@@ -167,7 +192,10 @@ export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
 /** All releases for the public "All releases" grid, newest/admin order. */
 export async function getPublicReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const releases = await prisma.release.findMany(releaseCardListArgs);
+    const releases = await prisma.release.findMany({
+      ...releaseCardListArgs,
+      where: publicReleaseWhere(),
+    });
     return await mapReleasesToCards(releases, { isAdmin: false });
   } catch (e) {
     console.error("getPublicReleases: DB unavailable", e);
@@ -210,9 +238,14 @@ export const getArtistDetail = cache(async (
       prisma.release.findMany({
         ...releaseCardListArgs,
         where: {
-          OR: [
-            { primaryArtistIds: { has: artistId } },
-            { featureArtistIds: { has: artistId } },
+          AND: [
+            {
+              OR: [
+                { primaryArtistIds: { has: artistId } },
+                { featureArtistIds: { has: artistId } },
+              ],
+            },
+            publicReleaseWhere(),
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -344,8 +377,10 @@ export interface ReleaseMetaDTO {
 /** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
 export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO | null> => {
   try {
-    const r = await prisma.release.findUnique({
-      where: { id },
+    // SCHEDULED is allowed (the public Coming-Soon detail page + its SEO use this);
+    // DRAFT returns null so it stays unlisted.
+    const r = await prisma.release.findFirst({
+      where: { id, status: { not: "DRAFT" } },
       select: {
         id: true,
         name: true,

@@ -32,6 +32,12 @@ export async function GET(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
 
+    const isAdmin = await isAdminRequest(request);
+    // DRAFT releases are admin-only; SCHEDULED is public (Coming-Soon page).
+    if (!isAdmin && release.status === "DRAFT") {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
+
     const allArtistIds = [
       ...release.primaryArtistIds,
       ...release.featureArtistIds,
@@ -46,7 +52,6 @@ export async function GET(
       select: { id: true, name: true, profilePicture: true },
     });
 
-    const isAdmin = await isAdminRequest(request);
     const tracks = release.tracks.map((t) =>
       isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
     );
@@ -54,6 +59,8 @@ export async function GET(
     return NextResponse.json({
       id: release.id,
       name: release.name,
+      status: release.status,
+      preSaveUrl: release.preSaveUrl,
       coverImage: release.coverImage,
       kind: release.kind,
       type: prismaKindToApi(release.kind),

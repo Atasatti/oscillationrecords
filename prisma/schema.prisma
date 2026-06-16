@@ -143,10 +143,23 @@ enum ReleaseKind {
   ALBUM
 }
 
+/// Lifecycle of a release. DRAFT = hidden (work in progress); SCHEDULED = shown
+/// in the public "Coming Soon" section until its releaseDate passes, then it
+/// auto-publishes (query-time gating); RELEASED = fully public.
+enum ReleaseStatus {
+  DRAFT
+  SCHEDULED
+  RELEASED
+}
+
 /// A release (Single, EP, or Album) — same metadata shape; `kind` distinguishes presentation.
 model Release {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   kind             ReleaseKind
+  /// Publishing lifecycle. Existing rows default to RELEASED (no behaviour change).
+  status           ReleaseStatus @default(RELEASED)
+  /// Pre-save link (e.g. Ditto) shown while SCHEDULED.
+  preSaveUrl       String?
   name             String
   coverImage       String
   primaryArtistIds String[]     @db.ObjectId
@@ -194,6 +207,8 @@ model Release {
   @@index([createdAt])
   @@index([showOnHome, homeOrder])
   @@index([kind, sortOrder])
+  @@index([status])
+  @@index([status, releaseDate])
 }
 
 /// A playable track (song file). Former `Single` fields live here.
