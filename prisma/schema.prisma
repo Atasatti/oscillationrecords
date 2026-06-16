@@ -139,6 +139,8 @@ model Release {
   isrcExplicit     Boolean      @default(false)
   primaryGenre     String?
   secondaryGenre   String?
+  /// Flexible credits: array of { role, people[] } (producers, songwriters, etc.).
+  credits          Json?
   spotifyLink      String?
   appleMusicLink   String?
   tidalLink        String?

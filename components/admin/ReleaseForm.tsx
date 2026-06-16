@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Save, Image as ImageIcon, Loader2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/components/local-ui/Toast";
+import CreditsEditor from "@/components/admin/CreditsEditor";
+import { normalizeCredits, type CreditEntry } from "@/lib/credits";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -62,6 +64,7 @@ export default function ReleaseForm({
     isrcExplicit: false,
     upcCode: "",
   });
+  const [credits, setCredits] = useState<CreditEntry[]>([]);
 
   // Field-level validation errors, shown inline beneath each field so name, date,
   // and artwork all report problems the same way (no mix of native bubbles/toasts).
@@ -142,6 +145,7 @@ export default function ReleaseForm({
           isrcExplicit: Boolean(data.isrcExplicit),
           upcCode: data.upcCode || "",
         }));
+        setCredits(normalizeCredits(data.credits));
         setCoverImageUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
         if (data.kind) setLoadedKind(data.kind as "SINGLE" | "EP" | "ALBUM");
@@ -295,6 +299,7 @@ export default function ReleaseForm({
         isrcExplicit: formData.isrcExplicit,
         upcCode: formData.upcCode || null,
         primaryArtistIds: formData.primaryArtistIds,
+        credits: normalizeCredits(credits),
       };
 
       // Only send feature artists when creating, when the field changed, or when
@@ -536,6 +541,15 @@ export default function ReleaseForm({
                   placeholder="e.g. 012345678905"
                   className="bg-black/40 border-white/10 text-white"
                 />
+              </div>
+
+              <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
+                <h3 className="text-lg font-medium text-gray-200 mb-1">Credits</h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Release-level credits — producers, songwriters, composers, etc.
+                  (per-track credits are set on each track.)
+                </p>
+                <CreditsEditor value={credits} onChange={setCredits} idPrefix="release-credits" />
               </div>
 
               <div className="bg-[#141414] rounded-xl p-6 border border-white/10">

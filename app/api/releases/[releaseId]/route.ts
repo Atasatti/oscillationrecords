@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -63,6 +64,7 @@ export async function GET(
       releaseDate: release.releaseDate,
       primaryGenre: release.primaryGenre,
       secondaryGenre: release.secondaryGenre,
+      credits: release.credits ?? [],
       upcCode: isAdmin ? release.upcCode : null,
       isrcExplicit: release.isrcExplicit,
       spotifyLink: release.spotifyLink,
@@ -198,6 +200,7 @@ export async function PATCH(
       secondaryGenre,
       upcCode,
       isrcExplicit,
+      credits,
       spotifyLink,
       appleMusicLink,
       tidalLink,
@@ -319,6 +322,7 @@ export async function PATCH(
           ...(secondaryGenre !== undefined && {
             secondaryGenre: secondaryGenre ? String(secondaryGenre) : null,
           }),
+          ...(credits !== undefined && { credits: normalizeCredits(credits) }),
           ...(upcCode !== undefined && {
             upcCode: upcCode ? String(upcCode) : null,
           }),
