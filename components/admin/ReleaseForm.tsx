@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save, Image as ImageIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Image as ImageIcon, Loader2, Database } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/components/local-ui/Toast";
 import CreditsEditor from "@/components/admin/CreditsEditor";
 import { normalizeCredits, type CreditEntry } from "@/lib/credits";
+import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -380,9 +381,30 @@ export default function ReleaseForm({
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
-          <h1 className="text-4xl font-light tracking-tighter">
-            {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-4xl font-light tracking-tighter">
+              {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
+            </h1>
+            {canSeedRelease({
+              gtin: formData.upcCode,
+              urls: [formData.spotifyLink, formData.appleMusicLink],
+            }) ? (
+              <Button
+                type="button"
+                variant="outline"
+                title="Open Harmony to import this release into MusicBrainz (review & submit)"
+                onClick={() => {
+                  const url = buildHarmonyReleaseUrl({
+                    gtin: formData.upcCode,
+                    urls: [formData.spotifyLink, formData.appleMusicLink],
+                  });
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <Database className="h-4 w-4" /> Add to MusicBrainz
+              </Button>
+            ) : null}
+          </div>
           <p className="text-gray-400 mt-2">
             Release details only — add tracks from the release page after saving.
           </p>

@@ -11,6 +11,7 @@ import {
   Check,
   Lock,
   Link2,
+  Database,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
+import { buildArtistSeedUrl } from "@/lib/musicbrainz-seed";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -432,6 +434,22 @@ export default function ArtistEditor({
               }}
             >
               <Link2 className="h-4 w-4" /> Find social links
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!form.name.trim()}
+              title="Open a pre-filled MusicBrainz “Add Artist” submission to review and submit"
+              onClick={() => {
+                const url = buildArtistSeedUrl({
+                  name: form.name,
+                  country: form.country,
+                  urls: LINK_FIELDS.map(([k]) => form[k]),
+                });
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <Database className="h-4 w-4" /> Add to MusicBrainz
             </Button>
           </div>
         }
