@@ -118,20 +118,23 @@ export async function getArtistsPage({
     };
   }
 
-  const total = await prisma.artist.count();
-  const safePage = clampPage(page, size, total);
+  const safePage = Math.max(1, page);
   const orderBy =
     sortField === "name"
       ? [{ name: dir }]
       : sortField === "createdAt"
         ? [{ createdAt: dir }]
         : [{ sortOrder: dir }, { createdAt: "desc" as const }];
-  const items = await prisma.artist.findMany({
-    select: ROW_SELECT,
-    orderBy,
-    skip: (safePage - 1) * size,
-    take: size,
-  });
+  // Run the count and the page query in parallel to halve the DB round-trips.
+  const [total, items] = await Promise.all([
+    prisma.artist.count(),
+    prisma.artist.findMany({
+      select: ROW_SELECT,
+      orderBy,
+      skip: (safePage - 1) * size,
+      take: size,
+    }),
+  ]);
 
   return { items: items.map(toRow), total, page: safePage, pageSize: size };
 }
@@ -191,20 +194,23 @@ export async function getReleasesPage({
     return { items: ranked.slice(start, start + size), total, page: safePage, pageSize: size };
   }
 
-  const total = await prisma.release.count();
-  const safePage = clampPage(page, size, total);
+  const safePage = Math.max(1, page);
   const orderBy =
     sort === "name"
       ? [{ name: dir }]
       : sort === "kind"
         ? [{ kind: dir }, { createdAt: "desc" as const }]
         : [{ createdAt: dir }];
-  const rows = await prisma.release.findMany({
-    ...releaseCardListArgs,
-    orderBy,
-    skip: (safePage - 1) * size,
-    take: size,
-  });
+  // Count + page query in parallel; then resolve artist names.
+  const [total, rows] = await Promise.all([
+    prisma.release.count(),
+    prisma.release.findMany({
+      ...releaseCardListArgs,
+      orderBy,
+      skip: (safePage - 1) * size,
+      take: size,
+    }),
+  ]);
   const items = await mapReleasesToCards(rows, { isAdmin: true });
   return { items, total, page: safePage, pageSize: size };
 }

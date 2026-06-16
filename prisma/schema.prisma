@@ -108,6 +108,7 @@ model Artist {
   updatedAt     DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([name])
   @@index([showOnWebsite, name])
   @@index([featuredOnHome, homeOrder])
 }
@@ -158,6 +159,7 @@ model Release {
 
   @@index([kind])
   @@index([sortOrder])
+  @@index([createdAt])
   @@index([showOnHome, homeOrder])
   @@index([kind, sortOrder])
 }
