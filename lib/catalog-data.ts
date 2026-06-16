@@ -323,6 +323,80 @@ export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   }
 }
 
+export interface ReleaseMetaDTO {
+  id: string;
+  name: string;
+  coverImage: string | null;
+  description: string | null;
+  releaseDate: string | null; // ISO
+  genres: string[];
+  primaryArtist: { id: string; name: string } | null;
+  spotifyLink: string | null;
+  appleMusicLink: string | null;
+  tidalLink: string | null;
+  amazonMusicLink: string | null;
+  youtubeLink: string | null;
+  soundcloudLink: string | null;
+  tracks: { name: string }[];
+}
+
+/** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
+export async function getReleaseMeta(id: string): Promise<ReleaseMetaDTO | null> {
+  try {
+    const r = await prisma.release.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        coverImage: true,
+        description: true,
+        releaseDate: true,
+        primaryGenre: true,
+        secondaryGenre: true,
+        primaryArtistIds: true,
+        spotifyLink: true,
+        appleMusicLink: true,
+        tidalLink: true,
+        amazonMusicLink: true,
+        youtubeLink: true,
+        soundcloudLink: true,
+        tracks: { select: { name: true }, orderBy: { sortOrder: "asc" } },
+      },
+    });
+    if (!r) return null;
+
+    let primaryArtist: { id: string; name: string } | null = null;
+    const firstId = r.primaryArtistIds?.[0];
+    if (firstId) {
+      const a = await prisma.artist.findUnique({
+        where: { id: firstId },
+        select: { id: true, name: true },
+      });
+      if (a) primaryArtist = a;
+    }
+
+    return {
+      id: r.id,
+      name: r.name,
+      coverImage: r.coverImage ?? null,
+      description: r.description ?? null,
+      releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
+      genres: [r.primaryGenre, r.secondaryGenre].filter((g): g is string => Boolean(g)),
+      primaryArtist,
+      spotifyLink: r.spotifyLink ?? null,
+      appleMusicLink: r.appleMusicLink ?? null,
+      tidalLink: r.tidalLink ?? null,
+      amazonMusicLink: r.amazonMusicLink ?? null,
+      youtubeLink: r.youtubeLink ?? null,
+      soundcloudLink: r.soundcloudLink ?? null,
+      tracks: r.tracks.map((t) => ({ name: t.name })),
+    };
+  } catch (e) {
+    console.error("getReleaseMeta: DB unavailable", e);
+    return null;
+  }
+}
+
 /**
  * Curated artists for the home "Meet the Artists" carousel: those flagged
  * `featuredOnHome`, in `homeOrder`. Falls back to all live artists (alphabetical)

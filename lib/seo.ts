@@ -86,3 +86,84 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
   jsonLd.subjectOf = { "@type": "WebPage", url };
   return jsonLd;
 }
+
+type ReleaseDetailLike = {
+  id: string;
+  name: string;
+  coverImage?: string | null;
+  description?: string | null;
+  releaseDate?: string | Date | null;
+  genres?: Array<string | null | undefined>;
+  primaryArtist?: { id: string; name: string } | null;
+  spotifyLink?: string | null;
+  appleMusicLink?: string | null;
+  tidalLink?: string | null;
+  amazonMusicLink?: string | null;
+  youtubeLink?: string | null;
+  soundcloudLink?: string | null;
+  tracks?: Array<{ name: string }>;
+};
+
+/** schema.org MusicAlbum for a release page. */
+export function buildReleaseJsonLd(release: ReleaseDetailLike) {
+  const url = absoluteUrl(`/releases/${release.id}`);
+  const genres = (release.genres ?? [])
+    .map((g) => (g || "").trim())
+    .filter((g): g is string => g.length > 0);
+  const sameAs = [
+    release.spotifyLink,
+    release.appleMusicLink,
+    release.tidalLink,
+    release.amazonMusicLink,
+    release.youtubeLink,
+    release.soundcloudLink,
+  ].filter((u): u is string => Boolean(u && u.trim()));
+
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "MusicAlbum",
+    name: release.name,
+    url,
+    "@id": url,
+  };
+  if (release.coverImage) jsonLd.image = release.coverImage;
+  const desc = metaDescription(release.description, 5000);
+  if (desc) jsonLd.description = desc;
+  if (genres.length) jsonLd.genre = genres;
+  if (release.releaseDate) {
+    const d = new Date(release.releaseDate);
+    if (!isNaN(d.getTime())) jsonLd.datePublished = d.toISOString().slice(0, 10);
+  }
+  if (release.primaryArtist) {
+    jsonLd.byArtist = {
+      "@type": "MusicGroup",
+      name: release.primaryArtist.name,
+      url: absoluteUrl(`/artists/${release.primaryArtist.id}`),
+    };
+  }
+  if (release.tracks && release.tracks.length) {
+    jsonLd.numTracks = release.tracks.length;
+    jsonLd.track = release.tracks.map((t, i) => ({
+      "@type": "MusicRecording",
+      name: t.name,
+      position: i + 1,
+    }));
+  }
+  if (sameAs.length) jsonLd.sameAs = sameAs;
+  return jsonLd;
+}
+
+/** schema.org Organization for the label itself (site-wide entity). */
+export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
+  const sameAs = (opts?.sameAs ?? []).filter((u) => Boolean(u && u.trim()));
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${SITE_URL}/#organization`,
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: absoluteUrl("/logo-icon.svg"),
+  };
+  if (sameAs.length) jsonLd.sameAs = sameAs;
+  return jsonLd;
+}
