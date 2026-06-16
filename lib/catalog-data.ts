@@ -179,6 +179,9 @@ export interface ArtistDetailDTO {
   name: string;
   biography: string;
   profilePicture: string | null;
+  genres: string[];
+  isni: string | null;
+  musicBrainzId: string | null;
   xLink: string | null;
   tiktokLink: string | null;
   spotifyLink: string | null;
@@ -224,6 +227,9 @@ export async function getArtistDetail(
         name: artist.name,
         biography: artist.biography,
         profilePicture: artist.profilePicture ?? null,
+        genres: artist.genres ?? [],
+        isni: artist.isni ?? null,
+        musicBrainzId: artist.musicBrainzId ?? null,
         xLink: artist.xLink ?? null,
         tiktokLink: artist.tiktokLink ?? null,
         spotifyLink: artist.spotifyLink ?? null,
