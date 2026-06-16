@@ -308,9 +308,16 @@ export default function TrackFormDialog({
   const [soundcloudLink, setSoundcloudLink] = useState("");
   const [primaryArtistIds, setPrimaryArtistIds] = useState<string[]>([]);
   const [featureArtistText, setFeatureArtistText] = useState("");
+  const [errors, setErrors] = useState<{
+    name?: string;
+    audio?: string;
+    isrc?: string;
+    artists?: string;
+  }>({});
 
   useEffect(() => {
     if (!open) return;
+    setErrors({});
     if (mode === "edit" && track) {
       setName(track.name);
       const parsed = parseStoredCredits(track.trackCredits, {
@@ -412,6 +419,20 @@ export default function TrackFormDialog({
   const onPickAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Reject non-audio files (e.g. a video) with a clear message instead of a
+    // cryptic failure later on. Accept by MIME type or known audio extension
+    // (some valid files report an empty type).
+    const isAudio =
+      file.type.startsWith("audio/") ||
+      /\.(mp3|wav|flac|m4a|aac|ogg|oga|aif|aiff|alac)$/i.test(file.name);
+    if (file.type.startsWith("video/") || !isAudio) {
+      toast.error("Please choose an audio file (MP3, WAV, FLAC, etc.). Video and other file types aren't supported.");
+      e.target.value = "";
+      return;
+    }
+    setErrors((p) => ({ ...p, audio: undefined }));
+
     setAudioFile(file);
     setCalcDuration(true);
     const audio = new Audio();
@@ -444,6 +465,7 @@ export default function TrackFormDialog({
 
   const handlePrimary = (selected: string[]) => {
     setPrimaryArtistIds(selected);
+    if (selected.length) setErrors((p) => ({ ...p, artists: undefined }));
   };
 
   // Credits are optional. We don't require any rows — we only flag a row that's
@@ -465,26 +487,26 @@ export default function TrackFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error("Track name is required");
+
+    // Collect all missing required fields at once so each shows inline next to
+    // its field, rather than one toast at a time.
+    const fieldErrors: typeof errors = {};
+    if (!name.trim()) fieldErrors.name = "Track name is required";
+    if (primaryArtistIds.length === 0) fieldErrors.artists = "Select at least one primary artist";
+    if (mode === "create") {
+      if (!audioFile) fieldErrors.audio = "Add an audio file (MP3 or WAV)";
+      else if (duration <= 0) fieldErrors.audio = "Couldn't read the audio length — re-pick the file";
+    } else if (!audioFile && !track?.audioFile) {
+      fieldErrors.audio = "Audio is missing";
+    }
+    if (!isrcCode.trim()) fieldErrors.isrc = "ISRC is required";
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors);
+      toast.error("Please fix the highlighted fields.");
       return;
     }
-    if (primaryArtistIds.length === 0) {
-      toast.error("Select at least one primary artist");
-      return;
-    }
-    if (mode === "create" && (!audioFile || duration <= 0)) {
-      toast.error("Add an audio file (WAV or MP3) and wait for duration");
-      return;
-    }
-    if (!isrcCode.trim()) {
-      toast.error("ISRC is required");
-      return;
-    }
-    if (mode === "edit" && !audioFile && !track?.audioFile) {
-      toast.error("Audio is missing");
-      return;
-    }
+    setErrors({});
 
     // Credits (composer / songwriter / production / performer) are all optional.
     if (!validateNameRoleRows(songwriterRows, "Songwriter")) return;
@@ -628,11 +650,14 @@ export default function TrackFormDialog({
             </label>
             <Input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
+              }}
               placeholder="Track name"
-              className="border-white/10 bg-black/40"
-              required
+              className={`border-white/10 bg-black/40 ${errors.name ? "border-red-500/70" : ""}`}
             />
+            {errors.name ? <p className="mt-1 text-sm text-red-400">{errors.name}</p> : null}
           </div>
 
           <div>
@@ -670,6 +695,7 @@ export default function TrackFormDialog({
                 : "—"}
               {calcDuration ? " (reading…)" : ""}
             </p>
+            {errors.audio ? <p className="mt-1 text-sm text-red-400">{errors.audio}</p> : null}
           </div>
 
           <div>
@@ -717,11 +743,14 @@ export default function TrackFormDialog({
               </label>
               <Input
                 value={isrcCode}
-                onChange={(e) => setIsrcCode(e.target.value)}
+                onChange={(e) => {
+                  setIsrcCode(e.target.value);
+                  if (errors.isrc) setErrors((p) => ({ ...p, isrc: undefined }));
+                }}
                 placeholder="ISRC"
-                className="border-white/10 bg-black/40 font-mono text-sm"
-                required
+                className={`border-white/10 bg-black/40 font-mono text-sm ${errors.isrc ? "border-red-500/70" : ""}`}
               />
+              {errors.isrc ? <p className="mt-1 text-sm text-red-400">{errors.isrc}</p> : null}
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-400">
@@ -813,6 +842,7 @@ export default function TrackFormDialog({
               onChange={handlePrimary}
               placeholder="Primary artist"
             />
+            {errors.artists ? <p className="mt-1 text-sm text-red-400">{errors.artists}</p> : null}
             <div className="h-2" />
             <p className="mb-1 text-xs text-gray-500">Featured (optional)</p>
             <Input

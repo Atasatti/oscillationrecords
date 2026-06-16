@@ -76,6 +76,7 @@ export default function ReleaseForm({
     name?: string;
     coverImage?: string;
     releaseDate?: string;
+    primaryArtists?: string;
   }>({});
 
   const clearError = (field: keyof typeof errors) =>
@@ -264,16 +265,16 @@ export default function ReleaseForm({
       }
     }
 
+    if (formData.primaryArtistIds.length === 0) {
+      fieldErrors.primaryArtists = "Select at least one primary artist";
+    }
+
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
       return;
     }
     setErrors({});
 
-    if (formData.primaryArtistIds.length === 0) {
-      toast.error("Please select at least one primary artist");
-      return;
-    }
     if (artists.length === 0) {
       toast.error("No artists available. Create an artist first.");
       return;
@@ -655,9 +656,15 @@ export default function ReleaseForm({
                     <MultiSelect
                       options={artists.map((a) => ({ value: a.id, label: a.name }))}
                       selected={formData.primaryArtistIds}
-                      onChange={handlePrimaryArtistsChange}
-                      placeholder="Primary artists"
+                      onChange={(ids) => {
+                        handlePrimaryArtistsChange(ids);
+                        if (errors.primaryArtists) setErrors((p) => ({ ...p, primaryArtists: undefined }));
+                      }}
+                      placeholder="Primary artists *"
                     />
+                    {errors.primaryArtists ? (
+                      <p className="text-sm text-red-400">{errors.primaryArtists}</p>
+                    ) : null}
                     <p className="text-xs text-gray-500">Featured (optional)</p>
                     <Input
                       name="featureArtistText"
