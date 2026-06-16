@@ -991,8 +991,10 @@ export default function ArtistEditor({
           <DialogHeader>
             <DialogTitle>Find ISNI</DialogTitle>
             <DialogDescription>
-              Searches the public ISNI registry by name. Released artists are
-              often already assigned an ISNI via streaming. Pick the right match.
+              Searches the public ISNI registry by name. It lists every kind of
+              entity (companies too), so verify via the sources/links shown —
+              music entries are flagged and listed first. For artists already on
+              MusicBrainz, “Find social links” returns the ISNI without guessing.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
@@ -1014,23 +1016,68 @@ export default function ArtistEditor({
             </Button>
           </div>
           <div className="mt-2 space-y-2">
-            {isniResults.map((m) => (
-              <button
-                key={m.isni}
-                type="button"
-                onClick={() => pickIsni(m)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left hover:bg-white/[0.04]"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{m.name}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">
-                    {m.isni}
-                    {m.type ? ` · ${m.type}` : ""}
-                  </p>
+            {isniResults.map((m) => {
+              const hostOf = (u: string) => {
+                try {
+                  return new URL(u).host.replace(/^www\./, "");
+                } catch {
+                  return "link";
+                }
+              };
+              return (
+                <div
+                  key={m.isni}
+                  className={`rounded-lg border p-2.5 ${
+                    m.isMusic ? "border-green-500/30 bg-green-500/[0.03]" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 truncate font-medium">
+                        {m.name}
+                        {m.isMusic ? (
+                          <span className="shrink-0 rounded bg-green-500/15 px-1.5 py-0.5 text-[10px] font-medium text-green-400">
+                            ♪ music
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="truncate font-mono text-xs text-muted-foreground">
+                        {m.isni}
+                        {m.type ? ` · ${m.type}` : ""}
+                      </p>
+                      {m.sources.length ? (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          Sources: {m.sources.join(", ")}
+                        </p>
+                      ) : null}
+                      {m.works.length ? (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          Works: {m.works.join(", ")}
+                        </p>
+                      ) : null}
+                      {m.links.length ? (
+                        <p className="mt-1 flex flex-wrap gap-2 text-xs">
+                          {m.links.map((l) => (
+                            <a
+                              key={l}
+                              href={l}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 underline hover:text-blue-300"
+                            >
+                              {hostOf(l)} ↗
+                            </a>
+                          ))}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={() => pickIsni(m)}>
+                      <Check className="h-4 w-4" /> Use
+                    </Button>
+                  </div>
                 </div>
-                <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))}
+              );
+            })}
             {!isniSearching && isniQuery && isniResults.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
                 No ISNI matches — they may not have one yet.
