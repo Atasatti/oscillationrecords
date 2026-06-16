@@ -2,17 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { deleteArtistCascade } from "@/lib/artist-delete";
+import { extractArtistExtras } from "@/lib/artist-input";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/artists/[artistId] - Get a single artist by ID
+// GET /api/artists/[artistId] - Get a single artist by ID.
+// Admin-only: returns the FULL row including internal fields (realName, contact,
+// managerName, internalNotes). Every caller is the admin editor — the public
+// artist page is server-rendered via getArtistDetail in lib/catalog-data.ts.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { artistId } = await params;
 
     const artist = await prisma.artist.findUnique({
@@ -105,6 +112,7 @@ export async function PUT(
         tidalLink: tidalLink || null,
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
+        ...extractArtistExtras(body),
       },
     });
 

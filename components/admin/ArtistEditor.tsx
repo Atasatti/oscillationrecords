@@ -9,6 +9,8 @@ import {
   Loader2,
   Search,
   Check,
+  Lock,
+  Link2,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import type { SpotifyArtist } from "@/lib/spotify";
+import type { MbArtistMatch } from "@/lib/musicbrainz";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -39,16 +42,39 @@ const LINK_FIELDS = [
 
 type LinkKey = (typeof LINK_FIELDS)[number][0];
 
+// Internal (admin-only) fields — never shown on the public site.
+const INTERNAL_FIELDS = [
+  ["realName", "Real / legal name", "Jane Doe"],
+  ["country", "Country", "United Kingdom"],
+  ["city", "City", "London"],
+  ["managerName", "Manager", "Manager name"],
+  ["contactEmail", "Contact email", "manager@example.com"],
+] as const;
+
+type InternalKey = (typeof INTERNAL_FIELDS)[number][0];
+
 type FormState = {
   name: string;
   biography: string;
   showOnWebsite: boolean;
-} & Record<LinkKey, string>;
+  genres: string; // comma-separated in the UI; normalized server-side
+  spotifyId: string;
+  internalNotes: string;
+} & Record<LinkKey, string> &
+  Record<InternalKey, string>;
 
 const emptyForm: FormState = {
   name: "",
   biography: "",
   showOnWebsite: true,
+  genres: "",
+  spotifyId: "",
+  realName: "",
+  country: "",
+  city: "",
+  managerName: "",
+  contactEmail: "",
+  internalNotes: "",
   xLink: "",
   tiktokLink: "",
   spotifyLink: "",
@@ -89,6 +115,16 @@ export default function ArtistEditor({
   const [importResults, setImportResults] = useState<SpotifyArtist[]>([]);
   const [importing, setImporting] = useState(false);
 
+  // MusicBrainz social-link import (free; no config needed)
+  const [mbOpen, setMbOpen] = useState(false);
+  const [mbQuery, setMbQuery] = useState("");
+  const [mbResults, setMbResults] = useState<MbArtistMatch[]>([]);
+  const [mbSearching, setMbSearching] = useState(false);
+  const [mbResolving, setMbResolving] = useState(false);
+  // Resolved links pending the admin's confirmation.
+  const [mbPreview, setMbPreview] = useState<Partial<Record<LinkKey, string>> | null>(null);
+  const [mbPickedName, setMbPickedName] = useState("");
+
   // Detect whether Spotify is configured (cheap probe; empty q).
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +155,14 @@ export default function ArtistEditor({
           name: a.name || "",
           biography: a.biography || "",
           showOnWebsite: a.showOnWebsite !== false,
+          genres: Array.isArray(a.genres) ? a.genres.join(", ") : "",
+          spotifyId: a.spotifyId || "",
+          realName: a.realName || "",
+          country: a.country || "",
+          city: a.city || "",
+          managerName: a.managerName || "",
+          contactEmail: a.contactEmail || "",
+          internalNotes: a.internalNotes || "",
           xLink: a.xLink || "",
           tiktokLink: a.tiktokLink || "",
           spotifyLink: a.spotifyLink || "",
@@ -183,6 +227,9 @@ export default function ArtistEditor({
       ...p,
       name: a.name || p.name,
       spotifyLink: a.spotifyUrl || p.spotifyLink,
+      spotifyId: a.id || p.spotifyId,
+      // Only fill genres if the admin hasn't entered any (don't clobber).
+      genres: p.genres.trim() ? p.genres : (a.genres || []).join(", "),
     }));
     if (a.imageUrl) {
       setImageFile(null);
@@ -192,6 +239,67 @@ export default function ArtistEditor({
     }
     setImportOpen(false);
     toast.success(`Imported “${a.name}” from Spotify — review and save.`);
+  };
+
+  const runMbSearch = async () => {
+    if (!mbQuery.trim()) return;
+    setMbSearching(true);
+    setMbPreview(null);
+    try {
+      const res = await fetch(`/api/admin/musicbrainz?q=${encodeURIComponent(mbQuery)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setMbResults(data.artists || []);
+    } catch {
+      toast.error("MusicBrainz search failed");
+    } finally {
+      setMbSearching(false);
+    }
+  };
+
+  const pickMbArtist = async (m: MbArtistMatch) => {
+    setMbResolving(true);
+    setMbPickedName(m.name);
+    try {
+      const res = await fetch(`/api/admin/musicbrainz?mbid=${encodeURIComponent(m.mbid)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const links = (data.links || {}) as Partial<Record<LinkKey, string>>;
+      if (Object.keys(links).length === 0) {
+        toast.error("No social links found on MusicBrainz for this artist.");
+        setMbPreview(null);
+        return;
+      }
+      setMbPreview(links);
+    } catch {
+      toast.error("Couldn't load links from MusicBrainz");
+    } finally {
+      setMbResolving(false);
+    }
+  };
+
+  // Apply ONLY to currently-empty link fields; never overwrite what's filled.
+  const applyMbLinks = () => {
+    if (!mbPreview) return;
+    let applied = 0;
+    let skipped = 0;
+    setForm((p) => {
+      const next = { ...p };
+      (Object.entries(mbPreview) as [LinkKey, string][]).forEach(([key, url]) => {
+        if (next[key].trim()) {
+          skipped++;
+        } else {
+          next[key] = url;
+          applied++;
+        }
+      });
+      return next;
+    });
+    setMbOpen(false);
+    setMbPreview(null);
+    toast.success(
+      `Added ${applied} link${applied === 1 ? "" : "s"}${skipped ? `, kept ${skipped} existing` : ""} — review and save.`
+    );
   };
 
   const uploadImage = async (file: File): Promise<string> => {
@@ -236,6 +344,14 @@ export default function ArtistEditor({
         name: form.name,
         biography: form.biography,
         profilePicture: finalImage,
+        genres: form.genres,
+        spotifyId: form.spotifyId,
+        realName: form.realName,
+        country: form.country,
+        city: form.city,
+        managerName: form.managerName,
+        contactEmail: form.contactEmail,
+        internalNotes: form.internalNotes,
         xLink: form.xLink,
         tiktokLink: form.tiktokLink,
         spotifyLink: form.spotifyLink,
@@ -299,11 +415,25 @@ export default function ArtistEditor({
       <PageHeader
         title={mode === "edit" ? "Edit artist" : "New artist"}
         actions={
-          spotifyEnabled ? (
-            <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
-              <Search className="h-4 w-4" /> Import from Spotify
+          <div className="flex flex-wrap gap-2">
+            {spotifyEnabled ? (
+              <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+                <Search className="h-4 w-4" /> Import from Spotify
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setMbQuery(form.name);
+                setMbResults([]);
+                setMbPreview(null);
+                setMbOpen(true);
+              }}
+            >
+              <Link2 className="h-4 w-4" /> Find social links
             </Button>
-          ) : undefined
+          </div>
         }
       />
 
@@ -392,6 +522,21 @@ export default function ArtistEditor({
                 rows={5}
                 className="resize-none"
               />
+              <div>
+                <label htmlFor="genres" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Genres
+                </label>
+                <Input
+                  id="genres"
+                  name="genres"
+                  value={form.genres}
+                  onChange={(e) => setField("genres", e.target.value)}
+                  placeholder="e.g. House, Techno, Melodic"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Comma-separated. Auto-filled from Spotify on import; editable.
+                </p>
+              </div>
               {mode === "edit" ? (
                 <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -422,6 +567,61 @@ export default function ArtistEditor({
                     />
                   </div>
                 ))}
+              </div>
+              <div className="mt-4">
+                <label htmlFor="spotifyId" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Spotify artist ID
+                </label>
+                <Input
+                  id="spotifyId"
+                  name="spotifyId"
+                  value={form.spotifyId}
+                  onChange={(e) => setField("spotifyId", e.target.value)}
+                  placeholder="Auto-filled on import — used to re-sync"
+                  className="font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Internal — never shown publicly */}
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-6">
+              <div className="mb-1 flex items-center gap-2">
+                <Lock className="h-4 w-4 text-amber-400/80" />
+                <h3 className="text-lg font-medium">Identity &amp; internal</h3>
+              </div>
+              <p className="mb-4 text-xs text-amber-200/70">
+                Internal — not shown publicly. For your team only.
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {INTERNAL_FIELDS.map(([key, label, placeholder]) => (
+                  <div key={key}>
+                    <label htmlFor={key} className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      {label}
+                    </label>
+                    <Input
+                      id={key}
+                      name={key}
+                      type={key === "contactEmail" ? "email" : "text"}
+                      value={form[key]}
+                      onChange={(e) => setField(key, e.target.value)}
+                      placeholder={placeholder}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4">
+                <label htmlFor="internalNotes" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Notes
+                </label>
+                <Textarea
+                  id="internalNotes"
+                  name="internalNotes"
+                  value={form.internalNotes}
+                  onChange={(e) => setField("internalNotes", e.target.value)}
+                  placeholder="Private notes about this artist…"
+                  rows={3}
+                  className="resize-none"
+                />
               </div>
             </div>
 
@@ -509,6 +709,111 @@ export default function ArtistEditor({
               </p>
             ) : null}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MusicBrainz social-link import dialog */}
+      <Dialog open={mbOpen} onOpenChange={setMbOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Find social links</DialogTitle>
+            <DialogDescription>
+              Searches the free MusicBrainz database for social &amp; streaming
+              links. Coverage varies — review before applying. Only empty link
+              fields are filled; your existing links are never overwritten.
+            </DialogDescription>
+          </DialogHeader>
+
+          {mbPreview ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Links found for <span className="text-foreground">{mbPickedName}</span>:
+              </p>
+              <ul className="space-y-2">
+                {(Object.entries(mbPreview) as [LinkKey, string][]).map(([key, url]) => {
+                  const label = LINK_FIELDS.find(([k]) => k === key)?.[1] || key;
+                  const willKeep = form[key].trim().length > 0;
+                  return (
+                    <li
+                      key={key}
+                      className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm"
+                    >
+                      <span className="w-24 shrink-0 font-medium">{label}</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{url}</span>
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-xs ${
+                          willKeep
+                            ? "bg-muted text-muted-foreground"
+                            : "bg-green-500/15 text-green-400"
+                        }`}
+                      >
+                        {willKeep ? "keep existing" : "will add"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex gap-2 pt-1">
+                <Button type="button" onClick={applyMbLinks}>
+                  <Check className="h-4 w-4" /> Apply links
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setMbPreview(null)}>
+                  Back
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  value={mbQuery}
+                  onChange={(e) => setMbQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      runMbSearch();
+                    }
+                  }}
+                  placeholder="Artist name…"
+                  autoFocus
+                />
+                <Button type="button" onClick={runMbSearch} disabled={mbSearching}>
+                  {mbSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  Search
+                </Button>
+              </div>
+              <div className="mt-2 space-y-2">
+                {mbResolving ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                    Loading links…
+                  </p>
+                ) : (
+                  mbResults.map((m) => (
+                    <button
+                      key={m.mbid}
+                      type="button"
+                      onClick={() => pickMbArtist(m)}
+                      className="flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left hover:bg-white/[0.04]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{m.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {[m.disambiguation, m.country].filter(Boolean).join(" · ") || "—"}
+                        </p>
+                      </div>
+                      <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))
+                )}
+                {!mbSearching && !mbResolving && mbQuery && mbResults.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No matches — try a different spelling.
+                  </p>
+                ) : null}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

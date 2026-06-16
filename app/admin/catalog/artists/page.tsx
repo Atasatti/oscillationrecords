@@ -15,6 +15,9 @@ import {
   ArrowDown,
   Loader2,
   Star,
+  Disc3,
+  Play,
+  Calendar,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
@@ -60,6 +63,10 @@ export default function AdminArtistsPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<ArtistSort>("sortOrder");
   const [dir, setDir] = useState<SortDir>("asc");
+  const [visFilter, setVisFilter] = useState<"all" | "live" | "hidden">("all");
+  const [featFilter, setFeatFilter] = useState<"all" | "featured" | "not">("all");
+  const [genre, setGenre] = useState("");
+  const [genreOptions, setGenreOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -86,6 +93,9 @@ export default function AdminArtistsPage() {
         dir,
       });
       if (query) params.set("q", query);
+      if (visFilter !== "all") params.set("visibility", visFilter);
+      if (featFilter !== "all") params.set("featured", featFilter);
+      if (genre) params.set("genre", genre);
       const res = await fetch(`/api/artists?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to load artists");
       const data = await res.json();
@@ -98,11 +108,19 @@ export default function AdminArtistsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, query, sort, dir, toast]);
+  }, [page, query, sort, dir, visFilter, featFilter, genre, toast]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Load distinct genres once for the filter dropdown.
+  useEffect(() => {
+    fetch("/api/admin/artists/genres")
+      .then((r) => (r.ok ? r.json() : { genres: [] }))
+      .then((d) => setGenreOptions(d.genres || []))
+      .catch(() => {});
+  }, []);
 
   const toggleSort = (field: ArtistSort) => {
     if (sort === field) {
@@ -262,25 +280,87 @@ export default function AdminArtistsPage() {
         />
       ) : (
         <>
-      {/* Search */}
-      <div className="relative mb-4 max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <input
-          type="text"
-          value={queryInput}
-          onChange={(e) => setQueryInput(e.target.value)}
-          placeholder="Search artists by name…"
-          aria-label="Search artists"
-          className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
-        {queryInput ? (
+      {/* Search + filters */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <input
+            type="text"
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            placeholder="Search artists by name…"
+            aria-label="Search artists"
+            className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          {queryInput ? (
+            <button
+              type="button"
+              onClick={() => setQueryInput("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+
+        <select
+          value={visFilter}
+          onChange={(e) => {
+            setVisFilter(e.target.value as typeof visFilter);
+            setPage(1);
+          }}
+          aria-label="Filter by visibility"
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="all">All visibility</option>
+          <option value="live">Live</option>
+          <option value="hidden">Hidden</option>
+        </select>
+
+        <select
+          value={featFilter}
+          onChange={(e) => {
+            setFeatFilter(e.target.value as typeof featFilter);
+            setPage(1);
+          }}
+          aria-label="Filter by featured"
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="all">All artists</option>
+          <option value="featured">Featured only</option>
+          <option value="not">Not featured</option>
+        </select>
+
+        <select
+          value={genre}
+          onChange={(e) => {
+            setGenre(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Filter by genre"
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="">All genres</option>
+          {genreOptions.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+
+        {(visFilter !== "all" || featFilter !== "all" || genre) ? (
           <button
             type="button"
-            onClick={() => setQueryInput("")}
-            aria-label="Clear search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+            onClick={() => {
+              setVisFilter("all");
+              setFeatFilter("all");
+              setGenre("");
+              setPage(1);
+            }}
+            className="text-sm text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            Clear filters
           </button>
         ) : null}
       </div>
@@ -324,9 +404,20 @@ export default function AdminArtistsPage() {
                   Artist {sortIcon("name")}
                 </button>
               </TableHead>
+              <TableHead className="hidden lg:table-cell">Genre</TableHead>
+              <TableHead className="hidden md:table-cell text-right">
+                <span className="inline-flex items-center gap-1"><Disc3 className="h-3.5 w-3.5" /> Releases</span>
+              </TableHead>
+              <TableHead className="hidden lg:table-cell text-right">
+                <span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Plays 90d</span>
+              </TableHead>
+              <TableHead className="hidden xl:table-cell">
+                <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
+              </TableHead>
+              <TableHead className="hidden sm:table-cell">Profile</TableHead>
               <TableHead>Visibility</TableHead>
               <TableHead>Featured</TableHead>
-              <TableHead className="hidden md:table-cell">
+              <TableHead className="hidden xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
                 </button>
@@ -345,15 +436,20 @@ export default function AdminArtistsPage() {
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden md:table-cell"><Skeleton className="ml-auto h-4 w-8" /></TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
+                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                  <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-12 text-center text-muted-foreground">
                   {query ? `No artists match “${query}”.` : "No artists yet."}
                 </TableCell>
               </TableRow>
@@ -379,6 +475,44 @@ export default function AdminArtistsPage() {
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
                     </Link>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {a.genres.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {a.genres.slice(0, 2).map((g) => (
+                          <Badge key={g} variant="muted">{g}</Badge>
+                        ))}
+                        {a.genres.length > 2 ? (
+                          <Badge variant="muted">+{a.genres.length - 2}</Badge>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
+                    {a.releaseCount}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
+                    {a.playsLast90d.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                    {a.lastReleaseDate
+                      ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {a.complete ? (
+                      <Badge variant="success">Complete</Badge>
+                    ) : (
+                      <Badge variant="warning" title={`Missing: ${a.missing.join(", ")}`}>
+                        Needs {a.missing.length}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <button
@@ -408,7 +542,7 @@ export default function AdminArtistsPage() {
                       )}
                     </button>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
                     {new Date(a.createdAt).toLocaleDateString(undefined, {
                       year: "numeric",
                       month: "short",

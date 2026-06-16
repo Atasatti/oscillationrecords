@@ -84,6 +84,20 @@ model Artist {
   name          String
   biography     String
   profilePicture String?
+  /// Genre tags (auto-filled from Spotify on import, editable). Public.
+  genres        String[] @default([])
+  /// Spotify artist id (not just the URL) — enables re-sync / dedupe on import.
+  spotifyId     String?
+  /// Legal/real name — internal, never shown publicly.
+  realName      String?
+  country       String?
+  city          String?
+  /// Manager name — internal.
+  managerName   String?
+  /// Contact email — internal.
+  contactEmail  String?
+  /// Free-form admin notes — internal.
+  internalNotes String?
   composer      String?
   lyricist      String?
   leadVocal     String?
@@ -111,6 +125,7 @@ model Artist {
   @@index([name])
   @@index([showOnWebsite, name])
   @@index([featuredOnHome, homeOrder])
+  @@index([spotifyId])
 }
 
 enum ReleaseKind {
@@ -278,6 +293,7 @@ model PlayEvent {
   @@index([userId])
   @@index([contentType, contentId])
   @@index([createdAt])
+  @@index([artistId, createdAt])
 }
 
 /// Outbound click on a streaming/social link (anonymous), for click-through analytics.

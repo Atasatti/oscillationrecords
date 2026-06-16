@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { extractArtistExtras } from "@/lib/artist-input";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { requireAdmin } from "@/lib/auth-guard";
-import { getArtistsPage, type ArtistSort, type SortDir } from "@/lib/admin-data";
+import {
+  getArtistsPage,
+  type ArtistSort,
+  type SortDir,
+  type ArtistVisibility,
+  type ArtistFeatured,
+} from "@/lib/admin-data";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -30,6 +37,11 @@ export async function GET(request: NextRequest) {
         q: searchParams.get("q") || "",
         sort,
         dir,
+        filters: {
+          visibility: (searchParams.get("visibility") || "all") as ArtistVisibility,
+          featured: (searchParams.get("featured") || "all") as ArtistFeatured,
+          genre: searchParams.get("genre") || "",
+        },
       });
       return NextResponse.json(result, {
         headers: { "Cache-Control": "private, no-store" },
@@ -49,9 +61,33 @@ export async function GET(request: NextRequest) {
 
     // Mongo docs missing the field don't match this filter — every Artist doc
     // must carry showOnWebsite (backfilled 2026-06; create sets it explicitly).
+    // Explicit select: this (legacy/bare-array) branch feeds the public client
+    // sections, so it must NEVER ship internal fields (realName, contact,
+    // managerName, internalNotes, spotifyId, etc.). Keep keys public-safe.
     const artists = await prisma.artist.findMany({
       ...(publicOnly ? { where: { showOnWebsite: true } } : {}),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        biography: true,
+        profilePicture: true,
+        genres: true,
+        xLink: true,
+        tiktokLink: true,
+        spotifyLink: true,
+        instagramLink: true,
+        youtubeLink: true,
+        facebookLink: true,
+        appleMusicLink: true,
+        tidalLink: true,
+        amazonMusicLink: true,
+        soundcloudLink: true,
+        sortOrder: true,
+        showOnWebsite: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     // Fuzzy match in JS (roster is small) so "bigheck" still finds "Big Heck".
@@ -136,6 +172,7 @@ export async function POST(request: NextRequest) {
         tidalLink: tidalLink || null,
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
+        ...extractArtistExtras(body),
         sortOrder,
         showOnWebsite: true,
       },
