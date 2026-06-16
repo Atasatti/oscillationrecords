@@ -3,7 +3,20 @@ import NewMusicSection from "@/components/sections/NewMusicSection";
 import ReleasesSection from "@/components/sections/ReleasesSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import { getCarouselReleases, getPublicReleases } from "@/lib/catalog-data";
+import type { Metadata } from "next";
 import React from "react";
+
+export const metadata: Metadata = {
+  title: "Music",
+  description:
+    "New music and the full release catalogue from Oscillation Records — singles, EPs, and albums.",
+  alternates: { canonical: "/releases" },
+  openGraph: {
+    title: "Music | Oscillation Records",
+    description: "New music and the full release catalogue from Oscillation Records.",
+    url: "/releases",
+  },
+};
 
 // ISR: keep the catalog fresh and CDN-cacheable (matches the API's s-maxage=60).
 export const revalidate = 60;

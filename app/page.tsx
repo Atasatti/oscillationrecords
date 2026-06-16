@@ -12,6 +12,14 @@ import {
   getHomeArtists,
   getUpcomingReleases,
 } from "@/lib/catalog-data";
+import { buildOrganizationJsonLd } from "@/lib/seo";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  // Home keeps the brand name as-is (no "%s | …" template) and is the canonical root.
+  title: { absolute: "Oscillation Records — A Record Label That Puts Artists First" },
+  alternates: { canonical: "/" },
+};
 
 // Re-render at most once a minute (ISR) so the catalog stays fresh and the page
 // is CDN-cacheable, mirroring the s-maxage=60 the API routes use.
@@ -28,6 +36,12 @@ export default async function Home() {
 
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildOrganizationJsonLd()),
+        }}
+      />
       <Navbar />
       {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
       <HomeHeroSection />

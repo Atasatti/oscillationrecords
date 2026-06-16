@@ -9,12 +9,14 @@ export default function AdminSettings() {
   return (
     <div>
       <PageHeader
-        title="Settings"
-        description="Hero images, studio photos, and footer links shown across the public site."
+        title="Site settings"
+        description="Hero images and footer social links shown across the public site."
       />
-      <StackedHeroImagesAdmin />
-      <StudioPhotosAdmin />
-      <FooterSettingsAdmin />
+      <div className="space-y-8">
+        <StackedHeroImagesAdmin />
+        <StudioPhotosAdmin />
+        <FooterSettingsAdmin />
+      </div>
     </div>
   );
 }
