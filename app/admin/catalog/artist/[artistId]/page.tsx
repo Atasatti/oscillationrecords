@@ -248,7 +248,7 @@ export default function AdminArtistDetail() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-[#0F0F0F] border-gray-800">
                       <DropdownMenuItem asChild>
-                        <Link href={`/admin/catalog/edit/release/${rel.id}`}>
+                        <Link href={`/admin/catalog/releases/${rel.id}/edit`}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
                         </Link>

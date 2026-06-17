@@ -564,7 +564,7 @@ export default function AdminReleaseDetail() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-[#141414] border-white/10">
                     <DropdownMenuItem asChild>
-                      <Link href={`/admin/catalog/edit/release/${releaseId}`}>
+                      <Link href={`/admin/catalog/releases/${releaseId}/edit`}>
                         <Pencil className="w-4 h-4 mr-2" />
                         Edit release
                       </Link>

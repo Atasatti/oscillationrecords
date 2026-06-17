@@ -373,7 +373,7 @@ export default function AdminReleasesPage() {
                             <DropdownMenuItem onClick={() => router.push(`/admin/catalog/release/${r.id}`)}>
                               <Eye className="mr-2 h-4 w-4" /> View / tracks
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push(`/admin/catalog/edit/release/${r.id}`)}>
+                            <DropdownMenuItem onClick={() => router.push(`/admin/catalog/releases/${r.id}/edit`)}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit details
                             </DropdownMenuItem>
                             {canSeedRelease({ gtin: r.upcCode, urls: [r.spotifyLink, r.appleMusicLink] }) ? (
@@ -485,7 +485,7 @@ export default function AdminReleasesPage() {
                 <button
                   key={a.id}
                   type="button"
-                  onClick={() => router.push(`/admin/catalog/artist/${a.id}/${newType}`)}
+                  onClick={() => router.push(`/admin/catalog/releases/new?artistId=${a.id}&kind=${newType}`)}
                   className="flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left hover:bg-white/[0.04]"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}

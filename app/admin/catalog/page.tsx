@@ -140,7 +140,7 @@ export default function ComingSoonAdmin() {
           <UpcomingReleasesSortableList
             releases={rows}
             onReorderSave={handleReorderSave}
-            onEdit={(r) => router.push(`/admin/catalog/edit/release/${r.id}`)}
+            onEdit={(r) => router.push(`/admin/catalog/releases/${r.id}/edit`)}
             onDelete={(id) => {
               const r = rows.find((x) => x.id === id);
               setDeleteTarget({ id, name: r?.name ?? "this release" });
