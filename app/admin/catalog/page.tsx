@@ -158,38 +158,28 @@ export default function HomepageAdmin() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="mb-1 text-lg">New Music carousel</h3>
           <p className="mb-4 text-xs text-muted-foreground">
-            The releases featured on the home page, in order. Turn releases on/off
-            from the Releases page (the “New Music” toggle).
+            The releases featured on the home page, in order. Search to add one, drag
+            order with the arrows, or remove with ✕.
           </p>
           <HomeOrderPanel
+            kind="release"
             endpoint="/api/admin/releases/home-order"
             emptyTitle="No releases in the New Music carousel yet."
-            emptyHint={
-              <>
-                Go to <span className="text-foreground">Releases</span> and turn on{" "}
-                <span className="text-foreground">New Music</span> for the releases you
-                want featured here.
-              </>
-            }
+            emptyHint={<>Use the search above to add your first release.</>}
           />
         </div>
       ) : tab === "artists" ? (
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="mb-1 text-lg">Featured Artists carousel</h3>
           <p className="mb-4 text-xs text-muted-foreground">
-            The artists featured on the home page, in order. Toggle{" "}
-            <span className="text-foreground">Featured</span> on the Artists page.
+            The artists featured on the home page, in order. Search to add one, order
+            with the arrows, or remove with ✕.
           </p>
           <HomeOrderPanel
+            kind="artist"
             endpoint="/api/admin/artists/home-order"
             emptyTitle="No featured artists yet."
-            emptyHint={
-              <>
-                Go to <span className="text-foreground">Artists</span> and toggle{" "}
-                <span className="text-foreground">Featured</span> on the artists you
-                want in the home carousel.
-              </>
-            }
+            emptyHint={<>Use the search above to add your first artist.</>}
           />
         </div>
       ) : (
