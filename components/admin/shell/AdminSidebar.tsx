@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Home, Settings, Activity, LogOut, User, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Home, Settings, Activity, Mail, LogOut, User, ExternalLink } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 
 const adminLinks = [
@@ -13,6 +13,7 @@ const adminLinks = [
   { href: "/admin/catalog/releases", label: "Releases", icon: Disc3 },
   { href: "/admin/catalog/artists", label: "Artists", icon: Users },
   { href: "/admin/catalog", label: "Homepage", icon: Home },
+  { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
