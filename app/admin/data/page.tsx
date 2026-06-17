@@ -37,7 +37,7 @@ const when = (iso: string) => new Date(iso).toLocaleString();
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-xl border border-border bg-card p-6">
       <h3 className="text-lg font-medium text-foreground">{title}</h3>
       {hint ? <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{hint}</p> : <div className="mb-3" />}
       {children}

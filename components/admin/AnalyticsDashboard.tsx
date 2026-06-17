@@ -190,7 +190,7 @@ function KpiCard({
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className="group rounded-xl border border-border bg-card p-5 text-left transition-colors enabled:cursor-pointer enabled:hover:border-white/20"
+      className="group rounded-xl border border-border bg-card p-6 text-left transition-colors enabled:cursor-pointer enabled:hover:border-white/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="mb-3 flex items-center justify-between">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
@@ -293,7 +293,7 @@ export default function AnalyticsDashboard() {
   const jumpArtists = data.topArtists.filter((a) => a.id).slice(0, 3);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 duration-500 animate-in fade-in">
       {/* Quick bar: search + jump-to artists + period */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
@@ -360,7 +360,7 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Hero trend */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-medium text-foreground">Trend</h3>
           <div className="flex gap-1">
@@ -388,7 +388,7 @@ export default function AnalyticsDashboard() {
 
       {/* What's working */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-medium text-foreground">Top content</h3>
             {data.topContent.length > 6 ? (
@@ -422,7 +422,7 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
             <Flame className="h-4 w-4 text-muted-foreground" /> Rising
           </h3>
@@ -486,7 +486,7 @@ export default function AnalyticsDashboard() {
 
       {/* Audience */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="mb-4 flex items-center gap-2 text-lg font-medium text-foreground">
             <Globe className="h-4 w-4 text-muted-foreground" /> Where listeners are
           </h3>
@@ -532,7 +532,7 @@ export default function AnalyticsDashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="mb-4 text-lg font-medium text-foreground">Who&apos;s listening</h3>
           <p className="mb-4 text-xs text-muted-foreground">From signed-in members&apos; profiles.</p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -554,7 +554,7 @@ export default function AnalyticsDashboard() {
 
       {/* Traffic: top pages + campaigns */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-medium text-foreground">Top pages</h3>
             {data.topPages.length > 8 ? (
@@ -580,7 +580,7 @@ export default function AnalyticsDashboard() {
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-xl border border-border bg-card p-6">
           <div className="mb-1 flex items-center justify-between">
             <h3 className="text-lg font-medium text-foreground">Campaigns</h3>
             {data.campaigns.length > 8 ? (
@@ -637,7 +637,7 @@ export default function AnalyticsDashboard() {
             <h2 className="text-xl font-light tracking-tight text-foreground">Conversion — outbound clicks</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card p-5">
+            <div className="rounded-xl border border-border bg-card p-6">
               <h3 className="mb-4 text-lg font-medium text-foreground">By platform</h3>
               {ctr.byLinkType.length > 0 ? (
                 <div className="space-y-3">
@@ -652,7 +652,7 @@ export default function AnalyticsDashboard() {
                 <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
               )}
             </div>
-            <div className="rounded-xl border border-border bg-card p-5">
+            <div className="rounded-xl border border-border bg-card p-6">
               <h3 className="mb-4 text-lg font-medium text-foreground">Most-clicked</h3>
               {ctr.topLinks.length > 0 ? (
                 <div className="space-y-3">
@@ -681,7 +681,7 @@ export default function AnalyticsDashboard() {
           </div>
 
           {leakingReleases.length > 0 ? (
-            <div className="rounded-xl border border-border bg-card p-5">
+            <div className="rounded-xl border border-border bg-card p-6">
               <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Views but no clicks
               </h3>
@@ -700,7 +700,7 @@ export default function AnalyticsDashboard() {
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border border-border bg-card p-6">
             <h3 className="mb-1 text-lg font-medium text-foreground">Release click-through rate</h3>
             <p className="mb-4 text-xs text-muted-foreground">Outbound streaming-link clicks vs release-page views in this period.</p>
             <div className="overflow-x-auto">
@@ -742,7 +742,7 @@ export default function AnalyticsDashboard() {
       ) : null}
 
       {/* Recent activity */}
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="mb-4 text-lg font-medium text-foreground">Recent plays</h3>
         <div className="overflow-x-auto">
           <table className="w-full">

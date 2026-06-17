@@ -17,7 +17,8 @@ export default function PageHeader({
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-8">
       <div className="min-w-0">
-        <h1 className="text-2xl font-light tracking-tighter md:text-3xl">{title}</h1>
+        {/* Brand fluid type scale (BRAND.md §5): clamp()-based, light + tight. */}
+        <h1 className="font-light leading-tight tracking-tighter text-[length:var(--text-h2)]">{title}</h1>
         {description ? (
           <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
         ) : null}

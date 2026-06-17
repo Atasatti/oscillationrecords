@@ -63,7 +63,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-background/70 px-4 py-3 backdrop-blur-xl backdrop-saturate-150 md:px-8">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
