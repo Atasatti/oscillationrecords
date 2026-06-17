@@ -9,6 +9,22 @@ const prisma = new PrismaClient();
 const KIND = { single: "SINGLE", ep: "EP", album: "ALBUM" };
 
 async function main() {
+  // Backfill: existing Release docs created before the `status` field have it
+  // missing in MongoDB (Prisma does NOT apply @default on read for Mongo — it
+  // errors on the null enum, and they'd vanish from publicReleaseWhere). Set
+  // them to RELEASED first. Idempotent.
+  const backfill = await prisma.$runCommandRaw({
+    update: "Release",
+    updates: [
+      {
+        q: { $or: [{ status: { $exists: false } }, { status: null }] },
+        u: { $set: { status: "RELEASED" } },
+        multi: true,
+      },
+    ],
+  });
+  console.log(`Backfilled status=RELEASED on ${backfill.nModified ?? 0} existing release(s).`);
+
   const upcoming = await prisma.upcomingRelease.findMany();
   console.log(`Found ${upcoming.length} upcoming release(s).`);
 
