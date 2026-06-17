@@ -17,6 +17,7 @@ import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { OPEN_CONSENT_EVENT } from "@/lib/consent";
 
 const EMPTY_LINKS: FooterSocialLinks = {
   xLink: null,
@@ -228,6 +229,13 @@ const Footer = () => {
           <Link href="/account" className="text-muted-foreground hover:text-foreground transition-colors">
             Your data
           </Link>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cookies
+          </button>
         </div>
       </div>
     </div>

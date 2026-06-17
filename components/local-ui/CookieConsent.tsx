@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { readConsentClient } from "@/lib/consent";
+import { readConsentClient, OPEN_CONSENT_EVENT } from "@/lib/consent";
 
 /**
  * Opt-in cookie consent banner (UK GDPR / PECR). Shows until the visitor makes a
@@ -18,6 +18,13 @@ export default function CookieConsent() {
   useEffect(() => {
     // Only show once, after mount, if no choice has been recorded yet.
     if (!readConsentClient()) setShow(true);
+  }, []);
+
+  useEffect(() => {
+    // Let the footer's "Cookies" link reopen the banner to change a prior choice.
+    const open = () => setShow(true);
+    window.addEventListener(OPEN_CONSENT_EVENT, open);
+    return () => window.removeEventListener(OPEN_CONSENT_EVENT, open);
   }, []);
 
   // Consent is for the public site; the signed-in admin workspace doesn't show it.
