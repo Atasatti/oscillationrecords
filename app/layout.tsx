@@ -6,6 +6,7 @@ import { MusicProvider } from "@/contexts/music-context";
 import { MusicPlayer } from "@/components/local-ui/MusicPlayer";
 import UserDemographicsCollector from "@/components/user/UserDemographicsCollector";
 import CookieConsent from "@/components/local-ui/CookieConsent";
+import PageViewTracker from "@/components/local-ui/PageViewTracker";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
 
 // Load all weights by omitting `weight`
@@ -58,6 +59,7 @@ export default function RootLayout({
             <MusicPlayer />
             <UserDemographicsCollector />
             <CookieConsent />
+            <PageViewTracker />
           </MusicProvider>
         </SessionProvider>
       </body>

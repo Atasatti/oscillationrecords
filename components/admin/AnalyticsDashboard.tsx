@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Globe,
   Flame,
+  AlertTriangle,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,12 +42,17 @@ interface DashboardData {
     anonPlays: number;
     newVisitors: number;
     returning: number;
+    visits: number;
+    pageViews: number;
+    pagesPerVisit: number;
   };
-  previous: { plays: number; listeners: number; releaseViews: number; linkClicks: number };
+  previous: { plays: number; listeners: number; releaseViews: number; linkClicks: number; visits: number };
   series: { plays: Series; views: Series; clicks: Series };
   topContent: Array<{ id: string; name: string; plays: number; artistName?: string }>;
   risingContent: Array<{ id: string; name: string; artistName?: string; plays: number; delta: number }>;
   topArtists: Array<{ name: string; plays: number }>;
+  topPages: Array<{ name: string; count: number }>;
+  campaigns: Array<{ name: string; visits: number; plays: number; clicks: number }>;
   demographics: {
     gender: Record<string, number>;
     ageRange: Record<string, number>;
@@ -254,6 +260,8 @@ export default function AnalyticsDashboard() {
   const maxContent = Math.max(...data.topContent.map((c) => c.plays), 1);
   const maxCountry = Math.max(...data.geography.topCountries.map((c) => c.count), 1);
   const maxCity = Math.max(...data.geography.topCities.map((c) => c.count), 1);
+  const maxPage = Math.max(...data.topPages.map((p) => p.count), 1);
+  const leakingReleases = (ctr?.ctrByRelease || []).filter((r) => r.views > 0 && r.clicks === 0);
   const genderEntries = Object.entries(data.demographics.gender).filter(([, n]) => n > 0);
   const ageEntries = Object.entries(data.demographics.ageRange).filter(([, n]) => n > 0);
   const maxGender = Math.max(...genderEntries.map(([, n]) => n), 1);
@@ -287,12 +295,14 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Secondary stat strip */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {[
+          { label: "Visits", value: s.visits.toLocaleString() },
+          { label: "Pages / visit", value: s.pagesPerVisit.toFixed(1) },
           { label: "Completion rate", value: `${s.completionRate.toFixed(0)}%` },
           { label: "New listeners", value: s.newVisitors.toLocaleString() },
           { label: "Returning", value: s.returning.toLocaleString() },
-          { label: "Registered members", value: s.totalUsers.toLocaleString() },
+          { label: "Members", value: s.totalUsers.toLocaleString() },
         ].map((x) => (
           <div key={x.label} className="rounded-xl border border-border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{x.label}</p>
@@ -441,6 +451,61 @@ export default function AnalyticsDashboard() {
         </div>
       </div>
 
+      {/* Traffic: top pages + campaigns */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-4 text-lg font-medium text-foreground">Top pages</h3>
+          {data.topPages.length > 0 ? (
+            <div className="space-y-3">
+              {data.topPages.map((p) => (
+                <BarRow key={p.name} label={p.name} value={p.count} max={maxPage} color="var(--chart-1)" />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No page views yet — they start collecting as consented visitors browse.
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg font-medium text-foreground">Campaigns</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Visits, plays &amp; clicks credited to <code className="text-foreground">utm_campaign</code> link tags.
+          </p>
+          {data.campaigns.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="px-2 py-2 text-left text-sm font-medium text-muted-foreground">Campaign</th>
+                    <th className="px-2 py-2 text-right text-sm font-medium text-muted-foreground">Visits</th>
+                    <th className="px-2 py-2 text-right text-sm font-medium text-muted-foreground">Plays</th>
+                    <th className="px-2 py-2 text-right text-sm font-medium text-muted-foreground">Clicks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.campaigns.map((c) => (
+                    <tr key={c.name} className="border-b border-border">
+                      <td className="px-2 py-2.5 text-sm text-foreground">{c.name}</td>
+                      <td className="px-2 py-2.5 text-right text-sm tabular-nums text-muted-foreground">{c.visits}</td>
+                      <td className="px-2 py-2.5 text-right text-sm tabular-nums text-foreground">{c.plays}</td>
+                      <td className="px-2 py-2.5 text-right text-sm tabular-nums text-foreground">{c.clicks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No campaign traffic yet. Add <code className="text-foreground">?utm_campaign=spring-drop</code> (plus
+              optional <code className="text-foreground">utm_source</code>/<code className="text-foreground">utm_medium</code>)
+              to the links you share, and attributed visits will show here.
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Conversion */}
       {ctr ? (
         <div className="space-y-4">
@@ -491,6 +556,26 @@ export default function AnalyticsDashboard() {
               )}
             </div>
           </div>
+
+          {leakingReleases.length > 0 ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-5">
+              <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
+                <AlertTriangle className="h-4 w-4 text-amber-400" /> Views but no clicks
+              </h3>
+              <p className="mb-4 text-xs text-muted-foreground">
+                These releases got page views but zero outbound streaming-link clicks this
+                period — likely leaking conversion (missing/broken links or weak calls to action).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {leakingReleases.map((r) => (
+                  <span key={r.contextId} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs">
+                    <span className="text-foreground">{r.name}</span>
+                    <span className="text-muted-foreground">{r.views} views · 0 clicks</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="mb-1 text-lg font-medium text-foreground">Release click-through rate</h3>

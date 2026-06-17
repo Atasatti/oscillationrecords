@@ -23,30 +23,40 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(now.getTime() - days * 86400000);
     const prevStart = new Date(now.getTime() - 2 * days * 86400000);
 
-    const [events, prevEvents, clickRows, prevClicks, totalUsers] = await Promise.all([
-      prisma.playEvent.findMany({
-        where: { createdAt: { gte: startDate } },
-        include: { user: { include: { profile: true } } },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.playEvent.findMany({
-        where: { createdAt: { gte: prevStart, lt: startDate } },
-        select: {
-          userId: true,
-          visitorId: true,
-          contentType: true,
-          contentId: true,
-          contentName: true,
-          completed: true,
-        },
-      }),
-      prisma.linkClick.findMany({
-        where: { createdAt: { gte: startDate } },
-        select: { createdAt: true },
-      }),
-      prisma.linkClick.count({ where: { createdAt: { gte: prevStart, lt: startDate } } }),
-      prisma.user.count({ where: { profile: { isNot: null } } }),
-    ]);
+    const [events, prevEvents, clickRows, prevClicks, totalUsers, pageViews, prevPageViews] =
+      await Promise.all([
+        prisma.playEvent.findMany({
+          where: { createdAt: { gte: startDate } },
+          include: { user: { include: { profile: true } } },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.playEvent.findMany({
+          where: { createdAt: { gte: prevStart, lt: startDate } },
+          select: {
+            userId: true,
+            visitorId: true,
+            sessionId: true,
+            contentType: true,
+            contentId: true,
+            contentName: true,
+            completed: true,
+          },
+        }),
+        prisma.linkClick.findMany({
+          where: { createdAt: { gte: startDate } },
+          select: { createdAt: true, sessionId: true },
+        }),
+        prisma.linkClick.count({ where: { createdAt: { gte: prevStart, lt: startDate } } }),
+        prisma.user.count({ where: { profile: { isNot: null } } }),
+        prisma.pageView.findMany({
+          where: { createdAt: { gte: startDate } },
+          select: { sessionId: true, path: true, utmCampaign: true },
+        }),
+        prisma.pageView.findMany({
+          where: { createdAt: { gte: prevStart, lt: startDate } },
+          select: { sessionId: true },
+        }),
+      ]);
 
     // Identity for an event: logged-in userId, else anonymous visitor id.
     const idOf = (e: { userId: string | null; visitorId: string | null }) =>
@@ -171,6 +181,50 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => b.count - a.count)
         .slice(0, n);
 
+    // ---- visits / pages-per-visit / top pages / campaigns ----
+    const sessionsCur = new Set<string>();
+    pageViews.forEach((p) => p.sessionId && sessionsCur.add(p.sessionId));
+    events.forEach((e) => e.sessionId && sessionsCur.add(e.sessionId));
+    clickRows.forEach((c) => c.sessionId && sessionsCur.add(c.sessionId));
+    const visits = sessionsCur.size;
+    const pagesPerVisit = visits > 0 ? pageViews.length / visits : 0;
+
+    const prevSessions = new Set<string>();
+    prevPageViews.forEach((p) => p.sessionId && prevSessions.add(p.sessionId));
+    prevEvents.forEach((e) => e.sessionId && prevSessions.add(e.sessionId));
+    const prevVisits = prevSessions.size;
+
+    const pathMap = new Map<string, number>();
+    pageViews.forEach((p) => pathMap.set(p.path, (pathMap.get(p.path) || 0) + 1));
+    const topPages = topList(pathMap, 8);
+
+    // Campaign attribution: a session's campaign = first UTM seen in its pageviews;
+    // plays/clicks in that session are credited to the campaign.
+    const sessionCampaign = new Map<string, string>();
+    pageViews.forEach((p) => {
+      if (p.sessionId && p.utmCampaign && !sessionCampaign.has(p.sessionId)) {
+        sessionCampaign.set(p.sessionId, p.utmCampaign);
+      }
+    });
+    const campMap = new Map<string, { sessions: Set<string>; plays: number; clicks: number }>();
+    sessionCampaign.forEach((camp, sid) => {
+      const c = campMap.get(camp) || { sessions: new Set<string>(), plays: 0, clicks: 0 };
+      c.sessions.add(sid);
+      campMap.set(camp, c);
+    });
+    audio.forEach((e) => {
+      const camp = e.sessionId ? sessionCampaign.get(e.sessionId) : undefined;
+      if (camp) campMap.get(camp)!.plays += 1;
+    });
+    clickRows.forEach((c) => {
+      const camp = c.sessionId ? sessionCampaign.get(c.sessionId) : undefined;
+      if (camp) campMap.get(camp)!.clicks += 1;
+    });
+    const campaigns = Array.from(campMap.entries())
+      .map(([name, v]) => ({ name, visits: v.sessions.size, plays: v.plays, clicks: v.clicks }))
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 8);
+
     return NextResponse.json({
       days,
       summary: {
@@ -185,12 +239,17 @@ export async function GET(request: NextRequest) {
         anonPlays,
         newVisitors,
         returning,
+        visits,
+        pageViews: pageViews.length,
+        pagesPerVisit,
       },
-      previous: prev,
+      previous: { ...prev, visits: prevVisits },
       series,
       topContent,
       risingContent,
       topArtists,
+      topPages,
+      campaigns,
       demographics: { gender, ageRange },
       geography: { topCountries: topList(countryMap, 8), topCities: topList(cityMap, 8) },
       recentPlays: events.slice(0, 60).map((e) => ({

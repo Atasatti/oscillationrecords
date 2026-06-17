@@ -309,13 +309,37 @@ model PlayEvent {
   artistName  String?  // Artist name for quick reference
   playDuration Int?    // Duration played in seconds
   completed   Boolean  @default(false) // Whether the play was completed
+  sessionId   String?  // groups events into a visit (30-min sliding window)
   createdAt   DateTime @default(now())
 
   @@index([userId])
   @@index([visitorId])
+  @@index([sessionId])
   @@index([contentType, contentId])
   @@index([createdAt])
   @@index([artistId, createdAt])
+}
+
+/// Lightweight page view (consented) — powers visits, pages-per-visit, top pages
+/// and campaign (UTM) attribution. Kept loose (no relations) like LinkClick.
+model PageView {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String?  @db.ObjectId
+  visitorId   String?
+  sessionId   String?
+  path        String
+  referrer    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  country     String?
+  city        String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([utmCampaign])
+  @@index([visitorId])
 }
 
 /// Outbound click on a streaming/social link (anonymous), for click-through analytics.
@@ -325,9 +349,12 @@ model LinkClick {
   contextId String   // id of the release/artist/track (not a relation — kept loose)
   contextName String? // name snapshot for quick reporting
   linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  visitorId String?  // consented anonymous visitor (for attribution)
+  sessionId String?  // visit grouping for campaign attribution
   createdAt DateTime @default(now())
 
   @@index([context, contextId])
   @@index([linkType])
+  @@index([sessionId])
   @@index([createdAt])
 }

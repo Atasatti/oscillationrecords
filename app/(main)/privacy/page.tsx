@@ -86,8 +86,12 @@ export default function PrivacyPolicy() {
             <strong className="text-white">first-party analytics cookie</strong> (a
             random anonymous identifier — not your name, email, or precise location).
             It lets us count plays and page views and understand which releases
-            resonate, including from visitors who aren&apos;t signed in. We never sell
-            or share this data, and we don&apos;t use third-party advertising cookies.
+            resonate, including from visitors who aren&apos;t signed in. We also use a
+            short-lived <strong className="text-white">session cookie</strong> to group
+            your activity into a single visit, and we read campaign tags
+            (<code>utm_source</code>/<code>utm_medium</code>/<code>utm_campaign</code>)
+            from links you arrive through so we can see which promotions work. We never
+            sell or share this data, and we don&apos;t use third-party advertising cookies.
           </p>
           <p>
             You choose when you first visit (&ldquo;Accept&rdquo; or &ldquo;Reject

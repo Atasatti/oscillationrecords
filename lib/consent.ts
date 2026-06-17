@@ -6,6 +6,10 @@
 export const CONSENT_COOKIE = "osc_consent";
 /** httpOnly first-party anonymous analytics id — only set with analytics consent. */
 export const VISITOR_COOKIE = "osc_vid";
+/** httpOnly session id, sliding 30-min window — groups events into a "visit". */
+export const SESSION_COOKIE = "osc_sid";
+
+export const SESSION_MAX_AGE = 60 * 30; // 30 minutes (re-set on each event = sliding)
 
 export type ConsentValue = "all" | "essential";
 
@@ -30,6 +34,29 @@ export function geoFromHeaders(h: Headers): { country: string | null; city: stri
   const cityRaw = h.get("x-vercel-ip-city");
   const city = cityRaw ? decodeURIComponent(cityRaw).trim() || null : null;
   return { country: country ? country.toUpperCase() : null, city };
+}
+
+/** Existing session id if valid, else a fresh one (sliding window resets via cookie). */
+export function nextSessionId(existing: string | null | undefined): string {
+  return existing && existing.length >= 8 ? existing : crypto.randomUUID();
+}
+
+/** Extract UTM campaign params from a URL query string (trimmed/capped). */
+export function parseUtm(search: string): {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+} {
+  try {
+    const p = new URLSearchParams(search);
+    const g = (k: string) => {
+      const v = p.get(k);
+      return v ? v.slice(0, 120) : null;
+    };
+    return { utmSource: g("utm_source"), utmMedium: g("utm_medium"), utmCampaign: g("utm_campaign") };
+  } catch {
+    return { utmSource: null, utmMedium: null, utmCampaign: null };
+  }
 }
 
 /** Read the consent choice from document.cookie (client-only). */
