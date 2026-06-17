@@ -18,6 +18,7 @@ import ReleaseDetailsPanel, {
   type ReleaseDetailsErrors,
   type ReleaseDetailsValue,
 } from "./ReleaseDetailsPanel";
+import TrackList from "./TrackList";
 
 export type ReleaseKind = "SINGLE" | "EP" | "ALBUM";
 
@@ -58,6 +59,8 @@ export default function ReleaseEditor({
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<ReleaseDetailsErrors>({});
+  const [initialTracks, setInitialTracks] = useState<Record<string, unknown>[]>([]);
+  const [tracksActive, setTracksActive] = useState(false);
 
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -141,6 +144,7 @@ export default function ReleaseEditor({
         setCredits(normalizeCredits(data.credits));
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
+        setInitialTracks(Array.isArray(data.tracks) ? data.tracks : []);
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -234,6 +238,12 @@ export default function ReleaseEditor({
     setErrors({});
     if (artists.length === 0) {
       toast.error("No artists available. Create an artist first.");
+      return;
+    }
+    // Don't publish/schedule while tracks are still uploading or saving — a
+    // half-saved tracklist would go live. Saving as DRAFT is always allowed.
+    if (form.status !== "DRAFT" && tracksActive) {
+      toast.error("Hold on — tracks are still uploading. Try again in a moment.");
       return;
     }
 
@@ -407,6 +417,24 @@ export default function ReleaseEditor({
           onPickImage={onPickImage}
           onRemoveImage={onRemoveImage}
         />
+
+        {mode === "edit" && releaseId ? (
+          <div className="mt-8 rounded-xl border border-white/10 bg-[#141414] p-6">
+            <TrackList
+              releaseId={releaseId}
+              artists={artists}
+              defaultPrimaryArtistIds={form.primaryArtistIds}
+              defaultFeatureArtistText={form.featureArtistText}
+              requireIsrc={form.status === "RELEASED"}
+              initialTracks={initialTracks}
+              onActivityChange={setTracksActive}
+            />
+          </div>
+        ) : (
+          <p className="mt-8 rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
+            Save a draft to start adding the tracklist with background uploads.
+          </p>
+        )}
 
         <div className="mt-8 flex gap-4">
           <Button
