@@ -8,6 +8,13 @@ function toKind(value: string | null): ReleaseKind {
   return v === "album" ? "ALBUM" : v === "ep" ? "EP" : "SINGLE";
 }
 
+function toStatus(
+  value: string | null
+): "DRAFT" | "SCHEDULED" | "RELEASED" | undefined {
+  const v = (value || "").toUpperCase();
+  return v === "DRAFT" || v === "SCHEDULED" || v === "RELEASED" ? v : undefined;
+}
+
 function NewReleaseInner() {
   const params = useSearchParams();
   return (
@@ -15,6 +22,7 @@ function NewReleaseInner() {
       mode="create"
       releaseKind={toKind(params.get("kind"))}
       initialArtistId={params.get("artistId") || undefined}
+      initialStatus={toStatus(params.get("status"))}
     />
   );
 }

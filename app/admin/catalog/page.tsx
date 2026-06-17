@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import {
@@ -37,6 +38,7 @@ export default function ComingSoonAdmin() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [working, setWorking] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,12 +118,14 @@ export default function ComingSoonAdmin() {
         actions={
           <Button
             className="bg-white text-black hover:bg-gray-200"
-            onClick={() => router.push("/admin/catalog/releases")}
+            onClick={() => setNewOpen(true)}
           >
             <Plus className="h-4 w-4" /> New release
           </Button>
         }
       />
+
+      <NewReleaseDialog open={newOpen} onOpenChange={setNewOpen} status="scheduled" />
 
       <div className="rounded-xl border border-white/10 bg-[#141414] p-5">
         <h3 className="mb-1 text-lg">Scheduled order</h3>

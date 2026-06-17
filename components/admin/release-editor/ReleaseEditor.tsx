@@ -28,6 +28,8 @@ export interface ReleaseEditorProps {
   releaseId?: string;
   /** Prefill the primary artist when launched from an artist's catalog row. */
   initialArtistId?: string;
+  /** Pre-set status on create (e.g. "SCHEDULED" from the Coming Soon page). */
+  initialStatus?: ReleaseDetailsValue["status"];
 }
 
 export default function ReleaseEditor({
@@ -35,6 +37,7 @@ export default function ReleaseEditor({
   releaseKind,
   releaseId,
   initialArtistId,
+  initialStatus,
 }: ReleaseEditorProps) {
   const router = useRouter();
   const toast = useToast();
@@ -48,9 +51,9 @@ export default function ReleaseEditor({
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
-    // New releases default to live; the unified surface lets the user flip to
-    // Draft/Scheduled explicitly. (Edit loads the saved status below.)
-    base.status = mode === "create" ? "RELEASED" : "DRAFT";
+    // New releases default to live unless launched with an explicit status (e.g.
+    // SCHEDULED from Coming Soon). Edit loads the saved status below.
+    base.status = mode === "create" ? initialStatus ?? "RELEASED" : "DRAFT";
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });

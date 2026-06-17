@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,32 +74,8 @@ export default function AdminReleasesPage() {
   const [working, setWorking] = useState(false);
   const [view, setView] = useState<"manage" | "home">("manage");
 
-  // "New release" picker: choose an artist + type, then go to the all-at-once
-  // create form for that artist.
+  // "New release" picker (choose artist + type) — shared with the Coming Soon page.
   const [newOpen, setNewOpen] = useState(false);
-  const [newType, setNewType] = useState<"single" | "ep" | "album">("single");
-  const [artistQuery, setArtistQuery] = useState("");
-  const [artistResults, setArtistResults] = useState<{ id: string; name: string; profilePicture: string | null }[]>([]);
-  const [artistSearching, setArtistSearching] = useState(false);
-
-  useEffect(() => {
-    if (!newOpen) return;
-    const t = setTimeout(async () => {
-      setArtistSearching(true);
-      try {
-        const params = new URLSearchParams({ page: "1", pageSize: "8" });
-        if (artistQuery.trim()) params.set("q", artistQuery.trim());
-        const res = await fetch(`/api/artists?${params.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          setArtistResults(data.items || []);
-        }
-      } finally {
-        setArtistSearching(false);
-      }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [artistQuery, newOpen]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -435,69 +412,7 @@ export default function AdminReleasesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* New release picker: choose type + artist, then open the all-at-once form */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>New release</DialogTitle>
-            <DialogDescription>
-              Choose the type and the primary artist. You can add the cover and all
-              tracks on the next screen.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex gap-2">
-            {(["single", "ep", "album"] as const).map((t) => (
-              <Button
-                key={t}
-                type="button"
-                variant={newType === t ? "default" : "outline"}
-                size="sm"
-                onClick={() => setNewType(t)}
-                className={newType === t ? "bg-white text-black hover:bg-gray-200" : ""}
-              >
-                {t === "ep" ? "EP" : t.charAt(0).toUpperCase() + t.slice(1)}
-              </Button>
-            ))}
-          </div>
-
-          <div className="relative mt-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <input
-              type="text"
-              value={artistQuery}
-              onChange={(e) => setArtistQuery(e.target.value)}
-              placeholder="Search for the primary artist…"
-              autoFocus
-              className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
-
-          <div className="mt-1 max-h-72 space-y-1 overflow-y-auto">
-            {artistSearching ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">Searching…</p>
-            ) : artistResults.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                {artistQuery ? "No artists match." : "No artists yet — create one first."}
-              </p>
-            ) : (
-              artistResults.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => router.push(`/admin/catalog/releases/new?artistId=${a.id}&kind=${newType}`)}
-                  className="flex w-full items-center gap-3 rounded-lg border border-border p-2 text-left hover:bg-white/[0.04]"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                  <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
-                  <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <NewReleaseDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
   );
 }
