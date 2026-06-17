@@ -246,6 +246,21 @@ function parseStoredCredits(
   };
 }
 
+// Read an error message from a failed Response without crashing on an HTML
+// error page (which is what produced the cryptic "Unexpected token '<'" JSON
+// error). Falls back to the HTTP status.
+async function readError(res: Response, fallback: string): Promise<string> {
+  try {
+    if ((res.headers.get("content-type") || "").includes("application/json")) {
+      const j = await res.json();
+      return (j && j.error) || `${fallback} (HTTP ${res.status})`;
+    }
+  } catch {
+    /* fall through */
+  }
+  return `${fallback} (HTTP ${res.status})`;
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -399,8 +414,11 @@ export default function TrackFormDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audioFileName: key, audioFileType: file.type }),
     });
-    if (!res.ok) throw new Error("Presign audio failed");
-    const data = await res.json();
+    if (!res.ok) throw new Error(await readError(res, "Couldn't start the audio upload"));
+    const data = await res.json().catch(() => null);
+    if (!data?.audio?.uploadURL || !data?.audio?.fileURL) {
+      throw new Error("The upload service returned an unexpected response.");
+    }
     await uploadS3(file, data.audio.uploadURL);
     return data.audio.fileURL as string;
   };
@@ -416,8 +434,11 @@ export default function TrackFormDialog({
         audioFileType: file.type || "application/octet-stream",
       }),
     });
-    if (!res.ok) throw new Error("Presign stems failed");
-    const data = await res.json();
+    if (!res.ok) throw new Error(await readError(res, "Couldn't start the stems upload"));
+    const data = await res.json().catch(() => null);
+    if (!data?.audio?.uploadURL || !data?.audio?.fileURL) {
+      throw new Error("The upload service returned an unexpected response.");
+    }
     await uploadS3(file, data.audio.uploadURL);
     return data.audio.fileURL as string;
   };
@@ -585,8 +606,7 @@ export default function TrackFormDialog({
           body: JSON.stringify(body),
         });
         if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to create track");
+          throw new Error(await readError(res, "Failed to create track"));
         }
       } else if (track) {
         const res = await fetch(`/api/tracks/${track.id}`, {
@@ -595,8 +615,7 @@ export default function TrackFormDialog({
           body: JSON.stringify(body),
         });
         if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to update track");
+          throw new Error(await readError(res, "Failed to update track"));
         }
       }
 
