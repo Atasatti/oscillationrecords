@@ -170,11 +170,11 @@ export default function AdminArtistDetail() {
             <div className="px-[10%] py-14">
         <Button
           variant="ghost"
-          onClick={() => router.push("/admin/catalog")}
+          onClick={() => router.push("/admin/catalog/artists")}
           className="mb-6 text-gray-400 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Catalog
+          Artists
         </Button>
 
         <div className="flex flex-col md:flex-row gap-8 mb-12">
@@ -188,7 +188,7 @@ export default function AdminArtistDetail() {
           <div>
             <h1 className="text-4xl font-light tracking-tighter mb-2">{artist.name}</h1>
             <p className="text-gray-400 max-w-3xl mb-4">{artist.biography}</p>
-            <Link href={`/admin/catalog/edit/artist/${artistId}`}>
+            <Link href={`/admin/catalog/artists/${artistId}/edit`}>
               <Button variant="outline" size="sm" className="border-gray-700">
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit artist

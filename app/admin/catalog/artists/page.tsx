@@ -20,7 +20,6 @@ import {
   Calendar,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
-import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,7 +71,6 @@ export default function AdminArtistsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
-  const [view, setView] = useState<"manage" | "home">("manage");
 
   // Debounce the search box → query (and reset to page 1).
   useEffect(() => {
@@ -240,46 +238,6 @@ export default function AdminArtistsPage() {
         }
       />
 
-      {/* Tabs */}
-      <div className="mb-5 flex gap-1 border-b border-border">
-        <button
-          type="button"
-          onClick={() => setView("manage")}
-          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-            view === "manage"
-              ? "border-white text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Manage
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("home")}
-          className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-            view === "home"
-              ? "border-white text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Star className="h-3.5 w-3.5" /> Home order
-        </button>
-      </div>
-
-      {view === "home" ? (
-        <HomeOrderPanel
-          endpoint="/api/admin/artists/home-order"
-          emptyTitle="No featured artists yet."
-          emptyHint={
-            <>
-              Switch to “Manage” and toggle{" "}
-              <span className="text-foreground">Featured</span> on the artists you want
-              in the home carousel.
-            </>
-          }
-        />
-      ) : (
-        <>
       {/* Search + filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:max-w-xs">
@@ -587,8 +545,6 @@ export default function AdminArtistsPage() {
           />
         </div>
       </div>
-        </>
-      )}
 
       {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

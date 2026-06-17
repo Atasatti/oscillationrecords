@@ -3,9 +3,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Disc3, Users, CalendarClock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 
-// A "Coming Soon" item is now just a Release with status=SCHEDULED. This page
-// lists those (future-dated) and lets you order how they appear on the home
-// "Coming Soon" section. Create/edit happens in the release editor.
+// The Homepage hub: one place to curate everything shown on the public home page
+// — the New Music carousel, the Featured Artists carousel, and the Coming Soon
+// (scheduled releases) strip. Creating/editing releases happens in the editor.
 type Row = {
   id: string;
   name: string;
@@ -31,9 +32,18 @@ type Row = {
   updatedAt: string;
 };
 
-export default function ComingSoonAdmin() {
+type Tab = "new-music" | "artists" | "coming-soon";
+
+const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "new-music", label: "New Music", icon: Disc3 },
+  { key: "artists", label: "Featured Artists", icon: Users },
+  { key: "coming-soon", label: "Coming Soon", icon: CalendarClock },
+];
+
+export default function HomepageAdmin() {
   const router = useRouter();
   const toast = useToast();
+  const [tab, setTab] = useState<Tab>("new-music");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -77,8 +87,8 @@ export default function ComingSoonAdmin() {
   }, [toast]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (tab === "coming-soon") load();
+  }, [tab, load]);
 
   const handleReorderSave = async (ordered: Row[]) => {
     try {
@@ -113,45 +123,104 @@ export default function ComingSoonAdmin() {
   return (
     <div>
       <PageHeader
-        title="Coming Soon"
-        description="Releases scheduled for a future date. Create one in Releases → New release and set its status to “Scheduled”; order them here for the home page."
+        title="Homepage"
+        description="Curate what appears on the public home page — the New Music and Featured Artists carousels, and the Coming Soon strip."
         actions={
-          <Button
-            className="bg-white text-black hover:bg-gray-200"
-            onClick={() => setNewOpen(true)}
-          >
-            <Plus className="h-4 w-4" /> New release
-          </Button>
+          tab === "coming-soon" ? (
+            <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4" /> Schedule a release
+            </Button>
+          ) : undefined
         }
       />
 
       <NewReleaseDialog open={newOpen} onOpenChange={setNewOpen} status="scheduled" />
 
-      <div className="rounded-xl border border-white/10 bg-[#141414] p-5">
-        <h3 className="mb-1 text-lg">Scheduled order</h3>
-        <p className="mb-4 text-xs text-gray-500">
-          Drag the grip to set the order shown in the home “Coming Soon” section. Saves automatically.
-        </p>
-        {loading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="text-gray-400">
-            No scheduled releases. Create a release and set its status to “Scheduled”.
-          </p>
-        ) : (
-          <UpcomingReleasesSortableList
-            releases={rows}
-            onReorderSave={handleReorderSave}
-            onEdit={(r) => router.push(`/admin/catalog/releases/${r.id}/edit`)}
-            onDelete={(id) => {
-              const r = rows.find((x) => x.id === id);
-              setDeleteTarget({ id, name: r?.name ?? "this release" });
-            }}
-          />
-        )}
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 border-b border-border">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              tab === key
+                ? "border-white text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
       </div>
+
+      {tab === "new-music" ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">New Music carousel</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            The releases featured on the home page, in order. Turn releases on/off
+            from the Releases page (the “New Music” toggle).
+          </p>
+          <HomeOrderPanel
+            endpoint="/api/admin/releases/home-order"
+            emptyTitle="No releases in the New Music carousel yet."
+            emptyHint={
+              <>
+                Go to <span className="text-foreground">Releases</span> and turn on{" "}
+                <span className="text-foreground">New Music</span> for the releases you
+                want featured here.
+              </>
+            }
+          />
+        </div>
+      ) : tab === "artists" ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">Featured Artists carousel</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            The artists featured on the home page, in order. Toggle{" "}
+            <span className="text-foreground">Featured</span> on the Artists page.
+          </p>
+          <HomeOrderPanel
+            endpoint="/api/admin/artists/home-order"
+            emptyTitle="No featured artists yet."
+            emptyHint={
+              <>
+                Go to <span className="text-foreground">Artists</span> and toggle{" "}
+                <span className="text-foreground">Featured</span> on the artists you
+                want in the home carousel.
+              </>
+            }
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">Coming Soon</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Future-dated (Scheduled) releases. Drag the grip to set the order shown
+            in the home “Coming Soon” section — saves automatically.
+          </p>
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="text-muted-foreground">
+              No scheduled releases. Use “Schedule a release”, or set a release’s
+              status to “Scheduled” in the editor.
+            </p>
+          ) : (
+            <UpcomingReleasesSortableList
+              releases={rows}
+              onReorderSave={handleReorderSave}
+              onEdit={(r) => router.push(`/admin/catalog/releases/${r.id}/edit`)}
+              onDelete={(id) => {
+                const r = rows.find((x) => x.id === id);
+                setDeleteTarget({ id, name: r?.name ?? "this release" });
+              }}
+            />
+          )}
+        </div>
+      )}
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent className="bg-[#141414] text-white border-white/10">
