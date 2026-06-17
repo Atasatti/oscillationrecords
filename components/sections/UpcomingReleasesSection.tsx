@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 
 interface UpcomingRelease {
@@ -13,6 +13,9 @@ interface UpcomingRelease {
   preSmartLinkUrl?: string | null;
   primaryArtist?: string | null;
   featureArtist?: string | null;
+  /** Resolved from linked catalogue artists (preferred over the legacy text). */
+  primaryArtistName?: string | null;
+  featureLine?: string | null;
 }
 
 function kindLabel(type: UpcomingRelease["type"]) {
@@ -61,7 +64,6 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none group-hover:scale-[1.045]"
-          unoptimized
         />
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:transition-none"
@@ -87,23 +89,21 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           {release.name}
         </p>
         <div className="min-h-[2.75rem] text-sm leading-snug">
-          {release.primaryArtist?.trim() || release.featureArtist?.trim() ? (
-            <p className="break-words hyphens-auto text-muted-foreground">
-              {release.primaryArtist?.trim() ? (
-                <span className="text-foreground/88">{release.primaryArtist.trim()}</span>
-              ) : null}
-              {release.primaryArtist?.trim() && release.featureArtist?.trim() ? (
-                <span className="text-muted-foreground/75"> · </span>
-              ) : null}
-              {release.featureArtist?.trim() ? (
-                <span>feat. {release.featureArtist.trim()}</span>
-              ) : null}
-            </p>
-          ) : (
-            <span className="invisible select-none" aria-hidden>
-              .
-            </span>
-          )}
+          {(() => {
+            const primary = (release.primaryArtistName ?? release.primaryArtist)?.trim();
+            const feature = (release.featureLine ?? release.featureArtist)?.trim();
+            return primary || feature ? (
+              <p className="break-words hyphens-auto text-muted-foreground">
+                {primary ? <span className="text-foreground/88">{primary}</span> : null}
+                {primary && feature ? <span className="text-muted-foreground/75"> · </span> : null}
+                {feature ? <span>feat. {feature}</span> : null}
+              </p>
+            ) : (
+              <span className="invisible select-none" aria-hidden>
+                .
+              </span>
+            );
+          })()}
         </div>
         <p className="mt-auto text-sm text-muted-foreground">Releases {dateStr}</p>
         {href ? (
@@ -188,29 +188,9 @@ type UpcomingReleasesSectionProps = {
 const UpcomingReleasesSection = ({
   initialReleases,
 }: UpcomingReleasesSectionProps) => {
-  const [releases, setReleases] = useState<UpcomingRelease[]>(
-    initialReleases ?? []
-  );
-  const [loading, setLoading] = useState(initialReleases === undefined);
-
-  useEffect(() => {
-    // Data already in the HTML from the server — don't refetch on mount.
-    if (initialReleases !== undefined) return;
-    const fetchReleases = async () => {
-      try {
-        const response = await fetch("/api/upcoming-releases");
-        if (response.ok) {
-          const data = await response.json();
-          setReleases(data);
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming releases:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReleases();
-  }, [initialReleases]);
+  // Always server-supplied (home SSRs getUpcomingReleases into initialReleases).
+  const releases = initialReleases ?? [];
+  const loading = false;
 
   const sectionChrome = (
     <>

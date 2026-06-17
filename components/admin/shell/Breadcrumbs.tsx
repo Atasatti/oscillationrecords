@@ -9,7 +9,7 @@ import React from "react";
 // chars) are shown generically since resolving names needs data we don't have here.
 const SEGMENT_LABELS: Record<string, string> = {
   admin: "Admin",
-  catalog: "Catalog",
+  catalog: "Homepage",
   artist: "Artist",
   artists: "Artists",
   release: "Release",
@@ -33,14 +33,21 @@ function labelFor(seg: string) {
 
 export default function Breadcrumbs() {
   const pathname = usePathname();
-  const segments = pathname.split("/").filter(Boolean); // e.g. ["admin","catalog","artist","<id>"]
+  // "catalog" is a routing group, not a place users navigate to (except when it
+  // IS the page — the Homepage hub). Drop it from the trail unless it's the leaf,
+  // so /admin/catalog/releases reads "Admin › Releases", not "Admin › Homepage › …".
+  const raw = pathname.split("/").filter(Boolean); // e.g. ["admin","catalog","releases"]
+  if (raw.length === 0) return null;
 
-  if (segments.length === 0) return null;
+  const kept = raw
+    .map((seg, i) => ({ seg, i }))
+    .filter(({ seg, i }) => !(seg === "catalog" && i !== raw.length - 1));
 
-  const crumbs = segments.map((seg, i) => ({
+  const crumbs = kept.map(({ seg, i }, idx) => ({
     label: labelFor(seg),
-    href: "/" + segments.slice(0, i + 1).join("/"),
-    isLast: i === segments.length - 1,
+    // Rebuild hrefs from the original path so dropped segments stay in the URL.
+    href: "/" + raw.slice(0, i + 1).join("/"),
+    isLast: idx === kept.length - 1,
   }));
 
   return (

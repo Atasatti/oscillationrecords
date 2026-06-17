@@ -32,6 +32,12 @@ export async function GET(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
 
+    const isAdmin = await isAdminRequest(request);
+    // DRAFT releases are admin-only; SCHEDULED is public (Coming-Soon page).
+    if (!isAdmin && release.status === "DRAFT") {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
+
     const allArtistIds = [
       ...release.primaryArtistIds,
       ...release.featureArtistIds,
@@ -46,7 +52,6 @@ export async function GET(
       select: { id: true, name: true, profilePicture: true },
     });
 
-    const isAdmin = await isAdminRequest(request);
     const tracks = release.tracks.map((t) =>
       isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
     );
@@ -54,6 +59,8 @@ export async function GET(
     return NextResponse.json({
       id: release.id,
       name: release.name,
+      status: release.status,
+      preSaveUrl: release.preSaveUrl,
       coverImage: release.coverImage,
       kind: release.kind,
       type: prismaKindToApi(release.kind),
@@ -207,6 +214,8 @@ export async function PATCH(
       catalogueNumber,
       pLine,
       cLine,
+      status,
+      preSaveUrl,
       isrcExplicit,
       credits,
       spotifyLink,
@@ -313,6 +322,14 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
+      // "Latest" is single-select: turning it on for this release clears it on the
+      // others, so the home page only ever shows one "Latest" pill.
+      if (showLatestOnHome === true) {
+        await tx.release.updateMany({
+          where: { id: { not: releaseId }, showLatestOnHome: true },
+          data: { showLatestOnHome: false },
+        });
+      }
       await tx.release.update({
         where: { id: releaseId },
         data: {
@@ -339,6 +356,12 @@ export async function PATCH(
           }),
           ...(pLine !== undefined && { pLine: pLine ? String(pLine).trim() : null }),
           ...(cLine !== undefined && { cLine: cLine ? String(cLine).trim() : null }),
+          ...(["DRAFT", "SCHEDULED", "RELEASED"].includes(String(status)) && {
+            status: status as "DRAFT" | "SCHEDULED" | "RELEASED",
+          }),
+          ...(preSaveUrl !== undefined && {
+            preSaveUrl: preSaveUrl ? String(preSaveUrl).trim() : null,
+          }),
           ...(isrcExplicit !== undefined && {
             isrcExplicit: Boolean(isrcExplicit),
           }),

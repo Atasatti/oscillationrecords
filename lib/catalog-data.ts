@@ -1,3 +1,5 @@
+import { cache } from "react";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   buildArtistMap,
@@ -40,6 +42,8 @@ export interface ReleaseCardDTO {
   showLatestOnHome: boolean;
   showOnHome: boolean;
   homeOrder: number;
+  status: "DRAFT" | "SCHEDULED" | "RELEASED";
+  preSaveUrl: string | null;
   // ISO strings (matches the API's JSON shape; safe to pass to client components).
   releaseDate: string | null;
   createdAt: string;
@@ -50,6 +54,27 @@ export interface ReleaseCardDTO {
 // Listing/search/carousel only need the first track's audio (for the card
 // player) and a track count — not every track's audio/lyrics/credits. This
 // keeps the payload small even as the catalog grows.
+// ---------------------------------------------------------------------------
+// Release visibility gating (shared by EVERY public reader — a missed filter
+// leaks unreleased music). No cron exists, so publishing is query-time: a
+// SCHEDULED release auto-goes-public once its releaseDate passes.
+// ---------------------------------------------------------------------------
+
+/** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived. */
+export function publicReleaseWhere(): Prisma.ReleaseWhereInput {
+  return {
+    OR: [
+      { status: "RELEASED" },
+      { status: "SCHEDULED", releaseDate: { lte: new Date() } },
+    ],
+  };
+}
+
+/** Future-dated SCHEDULED releases — the "Coming Soon" source. */
+export function scheduledReleaseWhere(): Prisma.ReleaseWhereInput {
+  return { status: "SCHEDULED", releaseDate: { gt: new Date() } };
+}
+
 export const releaseCardListArgs = {
   orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
   include: {
@@ -125,6 +150,8 @@ export async function mapReleasesToCards(
       showLatestOnHome: r.showLatestOnHome,
       showOnHome: r.showOnHome,
       homeOrder: r.homeOrder,
+      status: r.status,
+      preSaveUrl: r.preSaveUrl ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
       year: rd
@@ -142,7 +169,10 @@ export async function mapReleasesToCards(
  */
 export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const all = await prisma.release.findMany(releaseCardListArgs);
+    const all = await prisma.release.findMany({
+      ...releaseCardListArgs,
+      where: publicReleaseWhere(),
+    });
     // Featured releases first, in their curated home order; then the rest fill in
     // newest-first up to the cap.
     const pinned = all
@@ -166,7 +196,10 @@ export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
 /** All releases for the public "All releases" grid, newest/admin order. */
 export async function getPublicReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const releases = await prisma.release.findMany(releaseCardListArgs);
+    const releases = await prisma.release.findMany({
+      ...releaseCardListArgs,
+      where: publicReleaseWhere(),
+    });
     return await mapReleasesToCards(releases, { isAdmin: false });
   } catch (e) {
     console.error("getPublicReleases: DB unavailable", e);
@@ -200,18 +233,23 @@ export interface ArtistDetailDTO {
  * roster to label features. Returns null if the artist doesn't exist; throws
  * are swallowed to an empty-releases result so the page can still render.
  */
-export async function getArtistDetail(
+export const getArtistDetail = cache(async (
   artistId: string
-): Promise<{ artist: ArtistDetailDTO; releases: ReleaseCardDTO[] } | null> {
+): Promise<{ artist: ArtistDetailDTO; releases: ReleaseCardDTO[] } | null> => {
   try {
     const [artist, releaseRows] = await Promise.all([
       prisma.artist.findUnique({ where: { id: artistId } }),
       prisma.release.findMany({
         ...releaseCardListArgs,
         where: {
-          OR: [
-            { primaryArtistIds: { has: artistId } },
-            { featureArtistIds: { has: artistId } },
+          AND: [
+            {
+              OR: [
+                { primaryArtistIds: { has: artistId } },
+                { featureArtistIds: { has: artistId } },
+              ],
+            },
+            publicReleaseWhere(),
           ],
         },
         orderBy: { createdAt: "desc" },
@@ -247,7 +285,7 @@ export async function getArtistDetail(
     console.error("getArtistDetail: DB unavailable", e);
     return null;
   }
-}
+});
 
 export interface PublicArtistDTO {
   id: string;
@@ -341,10 +379,12 @@ export interface ReleaseMetaDTO {
 }
 
 /** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
-export async function getReleaseMeta(id: string): Promise<ReleaseMetaDTO | null> {
+export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO | null> => {
   try {
-    const r = await prisma.release.findUnique({
-      where: { id },
+    // SCHEDULED is allowed (the public Coming-Soon detail page + its SEO use this);
+    // DRAFT returns null so it stays unlisted.
+    const r = await prisma.release.findFirst({
+      where: { id, status: { not: "DRAFT" } },
       select: {
         id: true,
         name: true,
@@ -395,7 +435,7 @@ export async function getReleaseMeta(id: string): Promise<ReleaseMetaDTO | null>
     console.error("getReleaseMeta: DB unavailable", e);
     return null;
   }
-}
+});
 
 /**
  * Curated artists for the home "Meet the Artists" carousel: those flagged
@@ -423,8 +463,12 @@ export interface UpcomingReleaseDTO {
   image: string;
   releaseDate: string; // ISO string (matches the API's JSON shape).
   preSmartLinkUrl: string | null;
+  /** Legacy free-text (kept for older rows / fallback). */
   primaryArtist: string | null;
   featureArtist: string | null;
+  /** Resolved display names (linked catalogue artists, falling back to legacy text). */
+  primaryArtistName: string | null;
+  featureLine: string | null;
 }
 
 /** Today's and future scheduled releases, in admin order. */
@@ -433,21 +477,44 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const releases = await prisma.upcomingRelease.findMany({
-      where: { releaseDate: { gte: startOfToday } },
+    // "Upcoming" is now just SCHEDULED releases with a future date.
+    const releases = await prisma.release.findMany({
+      where: scheduledReleaseWhere(),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
-    return releases.map((r) => ({
-      id: r.id,
-      name: r.name,
-      type: r.type as UpcomingReleaseDTO["type"],
-      image: r.image,
-      releaseDate: r.releaseDate.toISOString(),
-      preSmartLinkUrl: r.preSmartLinkUrl ?? null,
-      primaryArtist: r.primaryArtist ?? null,
-      featureArtist: r.featureArtist ?? null,
-    }));
+    // Resolve linked artist ids → names in one query.
+    const ids = [
+      ...new Set(
+        releases.flatMap((r) => [...r.primaryArtistIds, ...r.featureArtistIds])
+      ),
+    ];
+    const artists = ids.length
+      ? await prisma.artist.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map(artists.map((a) => [a.id, a.name]));
+
+    return releases.map((r) => {
+      const primaryNames = r.primaryArtistIds
+        .map((id) => nameById.get(id))
+        .filter((n): n is string => Boolean(n));
+      const featureNames = [
+        ...r.featureArtistIds.map((id) => nameById.get(id)).filter((n): n is string => Boolean(n)),
+        ...(r.featureArtistNames ?? []),
+      ];
+      return {
+        id: r.id,
+        name: r.name,
+        type: prismaKindToApi(r.kind),
+        image: r.coverImage,
+        releaseDate: (r.releaseDate ?? new Date()).toISOString(),
+        preSmartLinkUrl: r.preSaveUrl ?? null,
+        primaryArtist: null,
+        featureArtist: null,
+        primaryArtistName: primaryNames.join(", ") || null,
+        featureLine: featureNames.join(", ") || null,
+      };
+    });
   } catch (e) {
     console.error("getUpcomingReleases: DB unavailable", e);
     return [];

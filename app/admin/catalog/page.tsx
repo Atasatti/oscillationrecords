@@ -1,8 +1,12 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSortableList";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import { Button } from "@/components/ui/button";
+import { Plus, Loader2, Disc3, Users, CalendarClock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,542 +15,241 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Image as ImageIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 
-interface UpcomingRelease {
+// The Homepage hub: one place to curate everything shown on the public home page
+// — the New Music carousel, the Featured Artists carousel, and the Coming Soon
+// (scheduled releases) strip. Creating/editing releases happens in the editor.
+type Row = {
   id: string;
   name: string;
   type: "single" | "ep" | "album";
   image: string;
   releaseDate: string;
-  sortOrder?: number;
-  preSmartLinkUrl?: string | null;
   primaryArtist?: string | null;
   featureArtist?: string | null;
   createdAt: string;
   updatedAt: string;
-}
+};
 
-export default function AdminCatalog() {
+type Tab = "new-music" | "artists" | "coming-soon";
+
+const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "new-music", label: "New Music", icon: Disc3 },
+  { key: "artists", label: "Featured Artists", icon: Users },
+  { key: "coming-soon", label: "Coming Soon", icon: CalendarClock },
+];
+
+export default function HomepageAdmin() {
+  const router = useRouter();
   const toast = useToast();
-  const [upcomingReleases, setUpcomingReleases] = useState<UpcomingRelease[]>([]);
-  const [upcomingDeleteOpen, setUpcomingDeleteOpen] = useState(false);
-  const [upcomingToDelete, setUpcomingToDelete] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [upcomingForm, setUpcomingForm] = useState({
-    name: "",
-    type: "single" as "single" | "ep" | "album",
-    releaseDate: "",
-    preSmartLinkUrl: "",
-    primaryArtist: "",
-    featureArtist: "",
-    imageFile: null as File | null,
-  });
-  const [upcomingImagePreview, setUpcomingImagePreview] = useState<string | null>(null);
-  const [isCreatingUpcoming, setIsCreatingUpcoming] = useState(false);
-  const [isUploadingUpcomingImage, setIsUploadingUpcomingImage] = useState(false);
-  const [upcomingEditOpen, setUpcomingEditOpen] = useState(false);
-  const [upcomingEditingId, setUpcomingEditingId] = useState<string | null>(null);
-  const [upcomingEditForm, setUpcomingEditForm] = useState({
-    name: "",
-    type: "single" as "single" | "ep" | "album",
-    releaseDate: "",
-    preSmartLinkUrl: "",
-    primaryArtist: "",
-    featureArtist: "",
-    imageFile: null as File | null,
-    existingImageUrl: "",
-  });
-  const [upcomingEditImagePreview, setUpcomingEditImagePreview] = useState<string | null>(null);
-  const [isSavingUpcomingEdit, setIsSavingUpcomingEdit] = useState(false);
+  const [tab, setTab] = useState<Tab>("new-music");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [working, setWorking] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/releases?status=SCHEDULED&pageSize=100");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const mapped: Row[] = (data.items || []).map(
+        (r: {
+          id: string;
+          name: string;
+          type: "single" | "ep" | "album";
+          thumbnail: string | null;
+          releaseDate: string | null;
+          primaryArtistName: string | null;
+          preSaveUrl: string | null;
+          createdAt: string;
+        }) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          image: r.thumbnail || "",
+          releaseDate: r.releaseDate || "",
+          primaryArtist: r.primaryArtistName,
+          featureArtist: null,
+          createdAt: r.createdAt,
+          updatedAt: r.createdAt,
+        })
+      );
+      setRows(mapped);
+    } catch {
+      toast.error("Failed to load scheduled releases");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    if (tab === "coming-soon") load();
+  }, [tab, load]);
 
-  const fetchAllData = async () => {
+  const handleReorderSave = async (ordered: Row[]) => {
     try {
-      const upcomingRes = await fetch("/api/upcoming-releases");
-      if (upcomingRes.ok) {
-        const data = await upcomingRes.json();
-        setUpcomingReleases(data);
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to fetch upcoming releases");
-    }
-  };
-
-  const getUpcomingPresignedUrl = async (imageFile: File) => {
-    const timestamp = Date.now();
-    const imageFileName = `upcoming-releases/images/${timestamp}-${imageFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const response = await fetch("/api/upload/presigned-url-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        imageFileName,
-        imageFileType: imageFile.type,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to get image upload URL");
-    }
-    return response.json() as Promise<{ uploadURL: string; fileURL: string }>;
-  };
-
-  const handleUpcomingImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUpcomingForm((prev) => ({ ...prev, imageFile: file }));
-    setUpcomingImagePreview(URL.createObjectURL(file));
-  };
-
-  const openUpcomingEdit = (release: UpcomingRelease) => {
-    setUpcomingEditingId(release.id);
-    const d = new Date(release.releaseDate);
-    const releaseDateStr = Number.isNaN(d.getTime())
-      ? ""
-      : d.toISOString().slice(0, 10);
-    setUpcomingEditForm({
-      name: release.name,
-      type: release.type,
-      releaseDate: releaseDateStr,
-      preSmartLinkUrl: release.preSmartLinkUrl ?? "",
-      primaryArtist: release.primaryArtist ?? "",
-      featureArtist: release.featureArtist ?? "",
-      imageFile: null,
-      existingImageUrl: release.image,
-    });
-    setUpcomingEditImagePreview(release.image);
-    setUpcomingEditOpen(true);
-  };
-
-  const handleUpcomingEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUpcomingEditForm((prev) => ({ ...prev, imageFile: file }));
-    setUpcomingEditImagePreview(URL.createObjectURL(file));
-  };
-
-  const handleSaveUpcomingEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!upcomingEditingId) return;
-    if (!upcomingEditForm.name.trim() || !upcomingEditForm.releaseDate) {
-      toast.error("Name and release date are required");
-      return;
-    }
-
-    setIsSavingUpcomingEdit(true);
-    try {
-      let imageUrl = upcomingEditForm.existingImageUrl;
-      if (upcomingEditForm.imageFile) {
-        setIsUploadingUpcomingImage(true);
-        const presigned = await getUpcomingPresignedUrl(upcomingEditForm.imageFile);
-        const uploadRes = await fetch(presigned.uploadURL, {
-          method: "PUT",
-          body: upcomingEditForm.imageFile,
-          headers: { "Content-Type": upcomingEditForm.imageFile.type },
-        });
-        if (!uploadRes.ok) throw new Error("Failed to upload image");
-        imageUrl = presigned.fileURL;
-        setIsUploadingUpcomingImage(false);
-      }
-
-      const patchRes = await fetch(`/api/upcoming-releases/${upcomingEditingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: upcomingEditForm.name.trim(),
-          type: upcomingEditForm.type,
-          image: imageUrl,
-          releaseDate: upcomingEditForm.releaseDate,
-          preSmartLinkUrl: upcomingEditForm.preSmartLinkUrl.trim() || null,
-          primaryArtist: upcomingEditForm.primaryArtist.trim() || null,
-          featureArtist: upcomingEditForm.featureArtist.trim() || null,
-        }),
-      });
-      if (!patchRes.ok) {
-        const err = await patchRes.json();
-        throw new Error(err.error || "Failed to update upcoming release");
-      }
-
-      setUpcomingEditOpen(false);
-      setUpcomingEditingId(null);
-      fetchAllData();
-    } catch (error) {
-      console.error("Error updating upcoming release:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to update upcoming release");
-    } finally {
-      setIsUploadingUpcomingImage(false);
-      setIsSavingUpcomingEdit(false);
-    }
-  };
-
-  const handleCreateUpcomingRelease = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!upcomingForm.name || !upcomingForm.releaseDate || !upcomingForm.imageFile) {
-      toast.error("Please fill all fields and choose an image");
-      return;
-    }
-
-    setIsCreatingUpcoming(true);
-    try {
-      setIsUploadingUpcomingImage(true);
-      const presigned = await getUpcomingPresignedUrl(upcomingForm.imageFile);
-      const uploadRes = await fetch(presigned.uploadURL, {
-        method: "PUT",
-        body: upcomingForm.imageFile,
-        headers: { "Content-Type": upcomingForm.imageFile.type },
-      });
-      if (!uploadRes.ok) throw new Error("Failed to upload image");
-      setIsUploadingUpcomingImage(false);
-
-      const createRes = await fetch("/api/upcoming-releases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: upcomingForm.name,
-          type: upcomingForm.type,
-          image: presigned.fileURL,
-          releaseDate: upcomingForm.releaseDate,
-          preSmartLinkUrl: upcomingForm.preSmartLinkUrl.trim() || undefined,
-          primaryArtist: upcomingForm.primaryArtist.trim() || undefined,
-          featureArtist: upcomingForm.featureArtist.trim() || undefined,
-        }),
-      });
-      if (!createRes.ok) {
-        const err = await createRes.json();
-        throw new Error(err.error || "Failed to create upcoming release");
-      }
-
-      setUpcomingForm({
-        name: "",
-        type: "single",
-        releaseDate: "",
-        preSmartLinkUrl: "",
-        primaryArtist: "",
-        featureArtist: "",
-        imageFile: null,
-      });
-      setUpcomingImagePreview(null);
-      fetchAllData();
-    } catch (error) {
-      console.error("Error creating upcoming release:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to create upcoming release");
-    } finally {
-      setIsUploadingUpcomingImage(false);
-      setIsCreatingUpcoming(false);
-    }
-  };
-
-  const handleDeleteUpcomingClick = (releaseId: string) => {
-    const r = upcomingReleases.find((x) => x.id === releaseId);
-    setUpcomingToDelete({ id: releaseId, name: r?.name ?? "this release" });
-    setUpcomingDeleteOpen(true);
-  };
-
-  const handleDeleteUpcomingConfirm = async () => {
-    if (!upcomingToDelete) return;
-    try {
-      const response = await fetch(`/api/upcoming-releases/${upcomingToDelete.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to delete upcoming release");
-      }
-      setUpcomingDeleteOpen(false);
-      setUpcomingToDelete(null);
-      fetchAllData();
-    } catch (error) {
-      console.error("Error deleting upcoming release:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to delete upcoming release");
-    }
-  };
-
-  const handleUpcomingReorderSave = async (ordered: UpcomingRelease[]) => {
-    try {
-      const res = await fetch("/api/admin/upcoming-releases/reorder", {
+      const res = await fetch("/api/admin/releases/coming-soon-order", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderedIds: ordered.map((r) => r.id) }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const msg =
-          typeof err.error === "string" ? err.error : "Failed to save order";
-        toast.error(msg);
-        throw new Error(msg);
-      }
-      setUpcomingReleases(ordered);
+      if (!res.ok) throw new Error();
+      setRows(ordered);
     } catch (e) {
-      if (e instanceof TypeError) {
-        toast.error("Network error — could not save order.");
-      }
+      toast.error("Failed to save order");
       throw e;
+    }
+  };
+
+  // Remove from Coming Soon without deleting the release — move it back to Draft.
+  const handleUnschedule = async (id: string) => {
+    const prev = rows;
+    setRows((list) => list.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`/api/releases/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DRAFT" }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Unscheduled — moved to draft");
+    } catch {
+      setRows(prev);
+      toast.error("Failed to unschedule");
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setWorking(true);
+    try {
+      const res = await fetch(`/api/releases/${deleteTarget.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setDeleteTarget(null);
+      load();
+    } catch {
+      toast.error("Failed to delete release");
+    } finally {
+      setWorking(false);
     }
   };
 
   return (
     <div>
-      <div>
-        <PageHeader
-          title="Upcoming releases"
-          description="Schedule releases that aren't out yet. Artists and Releases each have their own section in the sidebar."
-        />
+      <PageHeader
+        title="Homepage"
+        description="Curate what appears on the public home page — the New Music and Featured Artists carousels, and the Coming Soon strip."
+        actions={
+          tab === "coming-soon" ? (
+            <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
+              <Plus className="h-4 w-4" /> Schedule a release
+            </Button>
+          ) : undefined
+        }
+      />
 
-        {/* Upcoming Releases Section */}
-        <div className="mb-12 md:mb-16">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 md:mb-6">
-            <h2 className="text-xl md:text-2xl font-light tracking-tighter">Upcoming Releases</h2>
-          </div>
+      <NewReleaseDialog open={newOpen} onOpenChange={setNewOpen} status="scheduled" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <form
-              onSubmit={handleCreateUpcomingRelease}
-              className="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4"
-            >
-              <h3 className="text-lg">Add Upcoming Release</h3>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleUpcomingImageChange}
-                className="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-white file:text-black hover:file:bg-gray-200"
-                required
-              />
-              {upcomingImagePreview ? (
-                <img src={upcomingImagePreview} alt="Upcoming preview" className="w-24 h-24 rounded-md object-cover border border-white/10" />
-              ) : null}
-              <input
-                value={upcomingForm.name}
-                onChange={(e) => setUpcomingForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Release name"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-                required
-              />
-              <select
-                value={upcomingForm.type}
-                onChange={(e) =>
-                  setUpcomingForm((prev) => ({
-                    ...prev,
-                    type: e.target.value as "single" | "ep" | "album",
-                  }))
-                }
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              >
-                <option value="single">Single</option>
-                <option value="ep">EP</option>
-                <option value="album">Album</option>
-              </select>
-              <input
-                type="date"
-                value={upcomingForm.releaseDate}
-                onChange={(e) => setUpcomingForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-                required
-              />
-              <input
-                value={upcomingForm.preSmartLinkUrl}
-                onChange={(e) =>
-                  setUpcomingForm((prev) => ({ ...prev, preSmartLinkUrl: e.target.value }))
-                }
-                placeholder="Pre-smart link URL (e.g. https://ditto.fm/...)"
-                type="url"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <input
-                value={upcomingForm.primaryArtist}
-                onChange={(e) =>
-                  setUpcomingForm((prev) => ({ ...prev, primaryArtist: e.target.value }))
-                }
-                placeholder="Primary artist"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <input
-                value={upcomingForm.featureArtist}
-                onChange={(e) =>
-                  setUpcomingForm((prev) => ({ ...prev, featureArtist: e.target.value }))
-                }
-                placeholder="Featured artist (optional)"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <Button type="submit" className="bg-white text-black hover:bg-gray-200" disabled={isCreatingUpcoming}>
-                {isCreatingUpcoming ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isUploadingUpcomingImage ? "Uploading..." : "Saving..."}
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Add Upcoming Release
-                  </>
-                )}
-              </Button>
-            </form>
-
-            <div className="bg-[#141414] border border-white/10 rounded-xl p-5">
-              <h3 className="text-lg mb-1">Scheduled</h3>
-              <p className="text-xs text-gray-500 mb-4">
-                Drag the grip to set the order shown on the public home page. Order
-                saves automatically.
-              </p>
-              {upcomingReleases.length === 0 ? (
-                <p className="text-gray-400">No upcoming releases scheduled.</p>
-              ) : (
-                <UpcomingReleasesSortableList
-                  releases={upcomingReleases}
-                  onReorderSave={handleUpcomingReorderSave}
-                  onEdit={openUpcomingEdit}
-                  onDelete={handleDeleteUpcomingClick}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        <Dialog
-          open={upcomingEditOpen}
-          onOpenChange={(open) => {
-            setUpcomingEditOpen(open);
-            if (!open) {
-              setUpcomingEditingId(null);
-            }
-          }}
-        >
-          <DialogContent className="bg-[#141414] border-white/10 text-white max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit upcoming release</DialogTitle>
-              <DialogDescription className="text-gray-400">
-                Update cover art, pre-smart link, artists, and release details.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSaveUpcomingEdit} className="space-y-4">
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Cover image — leave unchanged or pick a new file</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleUpcomingEditImageChange}
-                  className="block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-white file:text-black hover:file:bg-gray-200"
-                />
-                {upcomingEditImagePreview ? (
-                  <img
-                    src={upcomingEditImagePreview}
-                    alt="Preview"
-                    className="w-24 h-24 rounded-md object-cover border border-white/10 mt-2"
-                  />
-                ) : null}
-              </div>
-              <input
-                value={upcomingEditForm.name}
-                onChange={(e) => setUpcomingEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Release name"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-                required
-              />
-              <select
-                value={upcomingEditForm.type}
-                onChange={(e) =>
-                  setUpcomingEditForm((prev) => ({
-                    ...prev,
-                    type: e.target.value as "single" | "ep" | "album",
-                  }))
-                }
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              >
-                <option value="single">Single</option>
-                <option value="ep">EP</option>
-                <option value="album">Album</option>
-              </select>
-              <input
-                type="date"
-                value={upcomingEditForm.releaseDate}
-                onChange={(e) =>
-                  setUpcomingEditForm((prev) => ({ ...prev, releaseDate: e.target.value }))
-                }
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-                required
-              />
-              <input
-                value={upcomingEditForm.preSmartLinkUrl}
-                onChange={(e) =>
-                  setUpcomingEditForm((prev) => ({ ...prev, preSmartLinkUrl: e.target.value }))
-                }
-                placeholder="Pre-smart link URL (e.g. https://ditto.fm/...)"
-                type="url"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <input
-                value={upcomingEditForm.primaryArtist}
-                onChange={(e) =>
-                  setUpcomingEditForm((prev) => ({ ...prev, primaryArtist: e.target.value }))
-                }
-                placeholder="Primary artist"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <input
-                value={upcomingEditForm.featureArtist}
-                onChange={(e) =>
-                  setUpcomingEditForm((prev) => ({ ...prev, featureArtist: e.target.value }))
-                }
-                placeholder="Featured artist (optional)"
-                className="w-full bg-black/40 border border-white/10 rounded-md px-3 py-2 text-white"
-              />
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-white/10"
-                  onClick={() => setUpcomingEditOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-white text-black hover:bg-gray-200" disabled={isSavingUpcomingEdit}>
-                  {isSavingUpcomingEdit ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {isUploadingUpcomingImage ? "Uploading..." : "Saving..."}
-                    </>
-                  ) : (
-                    "Save changes"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={upcomingDeleteOpen} onOpenChange={setUpcomingDeleteOpen}>
-          <DialogContent className="bg-[#141414] border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle>Delete upcoming release</DialogTitle>
-              <DialogDescription className="text-gray-400">
-                Are you sure you want to delete &quot;{upcomingToDelete?.name}&quot;?
-                This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setUpcomingDeleteOpen(false);
-                  setUpcomingToDelete(null);
-                }}
-                className="border-white/10"
-              >
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteUpcomingConfirm}>
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 border-b border-border">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              tab === key
+                ? "border-white text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
       </div>
+
+      {tab === "new-music" ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">New Music carousel</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            The releases featured on the home page, in order. Search to add one, drag
+            order with the arrows, or remove with ✕.
+          </p>
+          <HomeOrderPanel
+            kind="release"
+            endpoint="/api/admin/releases/home-order"
+            emptyTitle="No releases in the New Music carousel yet."
+            emptyHint={<>Use the search above to add your first release.</>}
+          />
+        </div>
+      ) : tab === "artists" ? (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">Featured Artists carousel</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            The artists featured on the home page, in order. Search to add one, order
+            with the arrows, or remove with ✕.
+          </p>
+          <HomeOrderPanel
+            kind="artist"
+            endpoint="/api/admin/artists/home-order"
+            emptyTitle="No featured artists yet."
+            emptyHint={<>Use the search above to add your first artist.</>}
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-1 text-lg">Coming Soon</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Future-dated (Scheduled) releases. Drag the grip to set the order shown
+            in the home “Coming Soon” section — saves automatically.
+          </p>
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="text-muted-foreground">
+              No scheduled releases. Use “Schedule a release”, or set a release’s
+              status to “Scheduled” in the editor.
+            </p>
+          ) : (
+            <UpcomingReleasesSortableList
+              releases={rows}
+              onReorderSave={handleReorderSave}
+              onEdit={(r) => router.push(`/admin/catalog/releases/${r.id}/edit`)}
+              onUnschedule={handleUnschedule}
+              onDelete={(id) => {
+                const r = rows.find((x) => x.id === id);
+                setDeleteTarget({ id, name: r?.name ?? "this release" });
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="bg-[#141414] text-white border-white/10">
+          <DialogHeader>
+            <DialogTitle>Delete release</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Delete &quot;{deleteTarget?.name}&quot;? This removes the release and its tracks. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10" onClick={() => setDeleteTarget(null)} disabled={working}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={working}>
+              {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

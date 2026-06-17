@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { publicReleaseWhere } from "@/lib/catalog-data";
 import { SITE_URL } from "@/lib/seo";
 
 // Regenerate hourly. Lists static pages + every public artist and release so
@@ -12,6 +13,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/artists`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/releases`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE_URL}/terms`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   try {
@@ -20,7 +24,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         where: { showOnWebsite: true },
         select: { id: true, updatedAt: true },
       }),
-      prisma.release.findMany({ select: { id: true, updatedAt: true } }),
+      prisma.release.findMany({
+        where: publicReleaseWhere(),
+        select: { id: true, updatedAt: true },
+      }),
     ]);
 
     return [

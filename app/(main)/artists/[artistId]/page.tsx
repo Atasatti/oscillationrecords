@@ -1,12 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { prisma } from "@/lib/prisma";
 import { getArtistDetail } from "@/lib/catalog-data";
 import { buildArtistJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/lib/seo";
 import ArtistDetailView from "./ArtistDetailView";
 
 // ISR: cache each artist page for a minute, regenerate on demand for new artists.
 export const revalidate = 60;
+
+// Prerender every live artist at build so pages serve from cache (fast TTFB);
+// artists added later render on demand and are then cached (ISR).
+export async function generateStaticParams() {
+  try {
+    const artists = await prisma.artist.findMany({
+      where: { showOnWebsite: true },
+      select: { id: true },
+    });
+    return artists.map((a) => ({ artistId: a.id }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({
   params,

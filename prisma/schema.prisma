@@ -143,10 +143,23 @@ enum ReleaseKind {
   ALBUM
 }
 
+/// Lifecycle of a release. DRAFT = hidden (work in progress); SCHEDULED = shown
+/// in the public "Coming Soon" section until its releaseDate passes, then it
+/// auto-publishes (query-time gating); RELEASED = fully public.
+enum ReleaseStatus {
+  DRAFT
+  SCHEDULED
+  RELEASED
+}
+
 /// A release (Single, EP, or Album) — same metadata shape; `kind` distinguishes presentation.
 model Release {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   kind             ReleaseKind
+  /// Publishing lifecycle. Existing rows default to RELEASED (no behaviour change).
+  status           ReleaseStatus @default(RELEASED)
+  /// Pre-save link (e.g. Ditto) shown while SCHEDULED.
+  preSaveUrl       String?
   name             String
   coverImage       String
   primaryArtistIds String[]     @db.ObjectId
@@ -194,6 +207,8 @@ model Release {
   @@index([createdAt])
   @@index([showOnHome, homeOrder])
   @@index([kind, sortOrder])
+  @@index([status])
+  @@index([status, releaseDate])
 }
 
 /// A playable track (song file). Former `Single` fields live here.
@@ -232,24 +247,8 @@ model Track {
   @@index([releaseId])
 }
 
-model UpcomingRelease {
-  id               String    @id @default(auto()) @map("_id") @db.ObjectId
-  name             String
-  type             String // "single" | "ep" | "album"
-  image            String
-  releaseDate      DateTime
-  /// Display order on the site (lower = earlier). Admin drag-and-drop.
-  sortOrder        Int       @default(0)
-  /// Pre-smart link target (e.g. Ditto pre-save URL)
-  preSmartLinkUrl  String?
-  primaryArtist    String?
-  featureArtist    String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  @@index([releaseDate])
-  @@index([sortOrder])
-}
+// UpcomingRelease was unified into Release (status=SCHEDULED) — see the
+// migration in scripts/migrate-upcoming-to-release.mjs.
 
 // Analytics Models
 model UserProfile {
@@ -296,8 +295,13 @@ model NewsletterSubscriber {
 
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
+  // (first-party cookie) instead. One of the two identifies the listener.
+  userId      String?  @db.ObjectId
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visitorId   String?  // anonymous first-party cookie id (analytics consent only)
+  country     String?  // coarse geo snapshot from request headers (no precise location)
+  city        String?
   contentType String   // "track" (audio play), "release" (detail view), legacy: "single"|"album"|"ep"
   contentId   String   @db.ObjectId
   contentName String   // Name of the content for quick reference
@@ -305,12 +309,37 @@ model PlayEvent {
   artistName  String?  // Artist name for quick reference
   playDuration Int?    // Duration played in seconds
   completed   Boolean  @default(false) // Whether the play was completed
+  sessionId   String?  // groups events into a visit (30-min sliding window)
   createdAt   DateTime @default(now())
-  
+
   @@index([userId])
+  @@index([visitorId])
+  @@index([sessionId])
   @@index([contentType, contentId])
   @@index([createdAt])
   @@index([artistId, createdAt])
+}
+
+/// Lightweight page view (consented) — powers visits, pages-per-visit, top pages
+/// and campaign (UTM) attribution. Kept loose (no relations) like LinkClick.
+model PageView {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String?  @db.ObjectId
+  visitorId   String?
+  sessionId   String?
+  path        String
+  referrer    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  country     String?
+  city        String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([utmCampaign])
+  @@index([visitorId])
 }
 
 /// Outbound click on a streaming/social link (anonymous), for click-through analytics.
@@ -320,9 +349,12 @@ model LinkClick {
   contextId String   // id of the release/artist/track (not a relation — kept loose)
   contextName String? // name snapshot for quick reporting
   linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  visitorId String?  // consented anonymous visitor (for attribution)
+  sessionId String?  // visit grouping for campaign attribution
   createdAt DateTime @default(now())
 
   @@index([context, contextId])
   @@index([linkType])
+  @@index([sessionId])
   @@index([createdAt])
 }

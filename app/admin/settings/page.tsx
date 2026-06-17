@@ -10,7 +10,7 @@ export default function AdminSettings() {
     <div>
       <PageHeader
         title="Site settings"
-        description="Hero images and footer social links shown across the public site."
+        description="Hero images, the studio-photos carousel, and footer social links shown across the public site."
       />
       <div className="space-y-8">
         <StackedHeroImagesAdmin />

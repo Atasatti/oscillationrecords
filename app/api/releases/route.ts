@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
-import { mapReleasesToCards, releaseCardListArgs } from "@/lib/catalog-data";
+import { mapReleasesToCards, releaseCardListArgs, publicReleaseWhere } from "@/lib/catalog-data";
 import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
 import {
   apiKindToPrisma,
@@ -24,12 +24,17 @@ export async function GET(request: NextRequest) {
     // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
     // otherwise the response stays the existing bare array (public site, carousel).
     if (searchParams.has("page") || searchParams.has("pageSize")) {
+      const statusParam = searchParams.get("status");
       const result = await getReleasesPage({
         page: parseInt(searchParams.get("page") || "1", 10) || 1,
         pageSize: parseInt(searchParams.get("pageSize") || "25", 10) || 25,
         q: searchParams.get("q") || "",
         sort: (searchParams.get("sort") || "createdAt") as ReleaseSort,
         dir: (searchParams.get("dir") || "desc") as SortDir,
+        status:
+          statusParam === "DRAFT" || statusParam === "SCHEDULED" || statusParam === "RELEASED"
+            ? statusParam
+            : undefined,
       });
       return NextResponse.json(result, {
         headers: { "Cache-Control": "private, no-store" },
@@ -51,6 +56,9 @@ export async function GET(request: NextRequest) {
     // Shared with the Server Components via lib/catalog-data so the card shape
     // can't drift between the initial HTML and client fetches.
     const baseList = releaseCardListArgs;
+    // Public callers only ever see released (or now-due scheduled) releases;
+    // admins see everything. undefined `where` is ignored by Prisma.
+    const where = isAdmin ? undefined : publicReleaseWhere();
 
     let releases;
     if (carouselOnly) {
@@ -58,7 +66,7 @@ export async function GET(request: NextRequest) {
       // first in their admin (sortOrder) order, then the rest auto-fill newest
       // first. New releases therefore appear automatically without being flagged,
       // and the newest cycle to the front. Capped so it stays a highlight reel.
-      const all = await prisma.release.findMany(baseList);
+      const all = await prisma.release.findMany({ ...baseList, where });
       const pinned = all
         .filter((r) => r.showOnHome)
         .sort((a, b) => a.homeOrder - b.homeOrder);
@@ -83,7 +91,7 @@ export async function GET(request: NextRequest) {
           .map((a) => a.id)
       );
 
-      const all = await prisma.release.findMany(baseList);
+      const all = await prisma.release.findMany({ ...baseList, where });
       releases = all
         .map((r) => {
           const artistHit =
@@ -104,6 +112,7 @@ export async function GET(request: NextRequest) {
       releases = await prisma.release.findMany({
         ...(take !== undefined ? { take } : {}),
         ...baseList,
+        where,
       });
     }
 
@@ -165,6 +174,14 @@ export async function POST(request: NextRequest) {
       featureArtistIds,
       featureArtistNames: featureArtistNamesRaw,
     } = body;
+
+    const status = ["DRAFT", "SCHEDULED", "RELEASED"].includes(String(body.status))
+      ? (body.status as "DRAFT" | "SCHEDULED" | "RELEASED")
+      : "RELEASED";
+    const preSaveUrl =
+      typeof body.preSaveUrl === "string" && body.preSaveUrl.trim()
+        ? body.preSaveUrl.trim()
+        : null;
 
     if (!name || !coverImage) {
       return NextResponse.json(
@@ -240,6 +257,8 @@ export async function POST(request: NextRequest) {
         catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
         pLine: pLine ? String(pLine).trim() : null,
         cLine: cLine ? String(cLine).trim() : null,
+        status,
+        preSaveUrl,
       },
       include: { tracks: { orderBy: { sortOrder: "asc" } } },
     });

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import {
+  CONSENT_COOKIE,
+  VISITOR_COOKIE,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  hasAnalyticsConsent,
+  nextSessionId,
+} from "@/lib/consent";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,10 +48,28 @@ export async function POST(request: NextRequest) {
     const contextName =
       typeof body.contextName === "string" ? body.contextName.slice(0, 200) : null;
 
+    // Attribute to a consented visitor/session when available (for campaign CTR).
+    const consented = hasAnalyticsConsent(request.cookies.get(CONSENT_COOKIE)?.value);
+    const visitorId = consented ? request.cookies.get(VISITOR_COOKIE)?.value || null : null;
+    const sessionId = consented
+      ? nextSessionId(request.cookies.get(SESSION_COOKIE)?.value)
+      : null;
+
     await prisma.linkClick.create({
-      data: { context, contextId, linkType, contextName },
+      data: { context, contextId, linkType, contextName, visitorId, sessionId },
     });
-    return NextResponse.json({ ok: true });
+
+    const res = NextResponse.json({ ok: true });
+    if (sessionId) {
+      res.cookies.set(SESSION_COOKIE, sessionId, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: SESSION_MAX_AGE,
+      });
+    }
+    return res;
   } catch (error) {
     console.error("link-click error:", error);
     // Don't surface errors to the beacon — return ok so navigation is unaffected.
