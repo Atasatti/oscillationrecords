@@ -1,7 +1,24 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, ArrowDown, Loader2, Star, Search, Plus, X } from "lucide-react";
+import { Loader2, Star, Search, Plus, X, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
 
@@ -13,6 +30,58 @@ type OrderItem = {
 };
 
 type SearchHit = { id: string; name: string; profilePicture?: string | null; thumbnail?: string | null };
+
+/** One draggable carousel row (grip + thumbnail + name + remove). */
+function CarouselRow({
+  item,
+  index,
+  kind,
+  onRemove,
+}: {
+  item: OrderItem;
+  index: number;
+  kind: "release" | "artist";
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+    zIndex: isDragging ? 1 : 0,
+  };
+  return (
+    <li ref={setNodeRef} style={style} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+      <button
+        type="button"
+        className="shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
+        aria-label={`Drag to reorder: ${item.name}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span className="w-5 shrink-0 text-center text-sm tabular-nums text-muted-foreground">{index + 1}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={item.profilePicture || item.thumbnail || "/placeholder.svg"}
+        alt=""
+        className={`h-10 w-10 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded-lg"}`}
+      />
+      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-red-400"
+        onClick={onRemove}
+        aria-label={`Remove ${item.name} from the carousel`}
+        title="Remove from carousel"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </li>
+  );
+}
 
 /**
  * Generic "home order" manager: lists a featured set from `endpoint` (GET →
@@ -149,12 +218,17 @@ export default function HomeOrderPanel({
     }
   };
 
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= items.length) return;
-    const next = [...items];
-    [next[i], next[j]] = [next[j], next[i]];
-    persistOrder(next);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    persistOrder(arrayMove(items, oldIndex, newIndex));
   };
 
   // Search box — always available so you can add without leaving the page.
@@ -227,41 +301,18 @@ export default function HomeOrderPanel({
     <div>
       {searchBox}
       <p className="mb-3 text-sm text-muted-foreground">
-        These appear on the home page, in this order.
+        Drag to set the order shown on the home page.
         {saving ? <span className="ml-2 text-xs">Saving…</span> : null}
       </p>
-      <ol className="space-y-2">
-        {items.map((a, i) => (
-          <li key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-            <span className="w-6 shrink-0 text-center text-sm tabular-nums text-muted-foreground">{i + 1}</span>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={a.profilePicture || a.thumbnail || "/placeholder.svg"}
-              alt=""
-              className={`h-10 w-10 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded-lg"}`}
-            />
-            <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
-            <div className="flex shrink-0 gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8" disabled={i === 0 || saving} onClick={() => move(i, -1)} aria-label={`Move ${a.name} up`}>
-                <ArrowUp className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" disabled={i === items.length - 1 || saving} onClick={() => move(i, 1)} aria-label={`Move ${a.name} down`}>
-                <ArrowDown className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                onClick={() => remove(a.id)}
-                aria-label={`Remove ${a.name} from the carousel`}
-                title="Remove from carousel"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <ol className="space-y-2">
+            {items.map((a, i) => (
+              <CarouselRow key={a.id} item={a} index={i} kind={kind} onRemove={() => remove(a.id)} />
+            ))}
+          </ol>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

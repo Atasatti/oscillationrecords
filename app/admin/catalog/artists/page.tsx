@@ -47,6 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 
 const PAGE_SIZE = 25;
@@ -71,6 +72,7 @@ export default function AdminArtistsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
+  const [newReleaseFor, setNewReleaseFor] = useState<{ id: string; name: string } | null>(null);
 
   // Debounce the search box → query (and reset to page 1).
   useEffect(() => {
@@ -521,6 +523,9 @@ export default function AdminArtistsPage() {
                         <DropdownMenuItem onClick={() => router.push(`/admin/catalog/artist/${a.id}`)}>
                           <Eye className="mr-2 h-4 w-4" /> View releases
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setNewReleaseFor({ id: a.id, name: a.name })}>
+                          <Plus className="mr-2 h-4 w-4" /> New release
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
                           className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
@@ -567,6 +572,14 @@ export default function AdminArtistsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {newReleaseFor ? (
+        <NewReleaseDialog
+          open={!!newReleaseFor}
+          onOpenChange={(o) => !o && setNewReleaseFor(null)}
+          presetArtist={newReleaseFor}
+        />
+      ) : null}
 
       {/* Bulk delete dialog */}
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
