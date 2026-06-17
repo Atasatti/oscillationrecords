@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { readConsentClient } from "@/lib/consent";
 
 /**
@@ -10,6 +11,7 @@ import { readConsentClient } from "@/lib/consent";
  * via /api/consent and mirrored in a readable cookie so the banner stays hidden.
  */
 export default function CookieConsent() {
+  const pathname = usePathname();
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -17,6 +19,9 @@ export default function CookieConsent() {
     // Only show once, after mount, if no choice has been recorded yet.
     if (!readConsentClient()) setShow(true);
   }, []);
+
+  // Consent is for the public site; the signed-in admin workspace doesn't show it.
+  if (pathname?.startsWith("/admin")) return null;
 
   const choose = async (analytics: boolean) => {
     setSaving(true);
