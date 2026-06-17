@@ -295,8 +295,13 @@ model NewsletterSubscriber {
 
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
+  // (first-party cookie) instead. One of the two identifies the listener.
+  userId      String?  @db.ObjectId
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visitorId   String?  // anonymous first-party cookie id (analytics consent only)
+  country     String?  // coarse geo snapshot from request headers (no precise location)
+  city        String?
   contentType String   // "track" (audio play), "release" (detail view), legacy: "single"|"album"|"ep"
   contentId   String   @db.ObjectId
   contentName String   // Name of the content for quick reference
@@ -305,8 +310,9 @@ model PlayEvent {
   playDuration Int?    // Duration played in seconds
   completed   Boolean  @default(false) // Whether the play was completed
   createdAt   DateTime @default(now())
-  
+
   @@index([userId])
+  @@index([visitorId])
   @@index([contentType, contentId])
   @@index([createdAt])
   @@index([artistId, createdAt])

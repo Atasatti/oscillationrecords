@@ -77,10 +77,24 @@ export default function PrivacyPolicy() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-white">Cookies</h2>
           <p>
-            We use a strictly necessary cookie to keep you signed in (session
-            authentication). We do not use third-party advertising cookies. [If any
-            analytics/marketing cookies are added, update this section and add a consent
-            banner.]
+            We use a <strong className="text-white">strictly necessary</strong> cookie
+            to keep you signed in (session authentication). This is required for the
+            site to work and does not need consent.
+          </p>
+          <p>
+            With your consent, we also set a single{" "}
+            <strong className="text-white">first-party analytics cookie</strong> (a
+            random anonymous identifier — not your name, email, or precise location).
+            It lets us count plays and page views and understand which releases
+            resonate, including from visitors who aren&apos;t signed in. We never sell
+            or share this data, and we don&apos;t use third-party advertising cookies.
+          </p>
+          <p>
+            You choose when you first visit (&ldquo;Accept&rdquo; or &ldquo;Reject
+            non-essential&rdquo;). If you reject, no analytics cookie is set and we
+            don&apos;t track your anonymous activity. You can change your mind any
+            time by clearing this site&apos;s cookies in your browser; we&apos;ll ask
+            again on your next visit.
           </p>
         </section>
 
