@@ -137,9 +137,9 @@ const countryName = (code: string) => {
 
 type Metric = "plays" | "views" | "clicks";
 const METRICS: { key: Metric; label: string; color: string }[] = [
-  { key: "plays", label: "Plays", color: "var(--chart-1)" },
-  { key: "views", label: "Release views", color: "var(--chart-2)" },
-  { key: "clicks", label: "Link clicks", color: "var(--chart-3)" },
+  { key: "plays", label: "Plays", color: "var(--primary)" },
+  { key: "views", label: "Release views", color: "var(--primary)" },
+  { key: "clicks", label: "Link clicks", color: "var(--primary)" },
 ];
 
 type ListRow = { label: string; value: number | string; sub?: string };
@@ -193,16 +193,16 @@ function KpiCard({
       className="group rounded-xl border border-border bg-card p-5 text-left transition-colors enabled:cursor-pointer enabled:hover:border-white/20"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5" style={{ color }}>
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
           <Icon className="h-4 w-4" />
         </span>
         <DeltaBadge current={current} previous={previous} />
       </div>
-      <p className="flex items-center gap-1 text-sm text-muted-foreground">
+      <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
         {onClick ? <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" /> : null}
       </p>
-      <p className="mt-0.5 text-3xl font-light tabular-nums text-foreground">{value.toLocaleString()}</p>
+      <p className="mt-1 text-3xl font-light tracking-tight tabular-nums text-foreground">{value.toLocaleString()}</p>
       {series && series.length > 1 ? (
         <div className="mt-3">
           <Sparkline data={series} color={color} width={180} height={32} className="w-full" />
@@ -336,26 +336,26 @@ export default function AnalyticsDashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="var(--chart-1)" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
-        <KpiCard icon={Users} label="Unique listeners" value={s.listeners} current={s.listeners} previous={data.previous.listeners} color="var(--chart-4)" sub={`${s.reach.toLocaleString()} total reach · ${s.anonPlays.toLocaleString()} anon plays`} onClick={() => setDetail({ kind: "listeners" })} />
-        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="var(--chart-2)" onClick={() => setDetail({ kind: "series", metric: "views" })} />
-        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="var(--chart-3)" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
+        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
+        <KpiCard icon={Users} label="Unique listeners" value={s.listeners} current={s.listeners} previous={data.previous.listeners} color="var(--primary)" sub={`${s.reach.toLocaleString()} total reach · ${s.anonPlays.toLocaleString()} anon plays`} onClick={() => setDetail({ kind: "listeners" })} />
+        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "views" })} />
+        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
       </div>
 
-      {/* Secondary stat strip */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Secondary stats — de-emphasised single row (supports the KPIs, doesn't compete) */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
         {[
           { label: "Visits", value: s.visits.toLocaleString() },
           { label: "Pages / visit", value: s.pagesPerVisit.toFixed(1) },
-          { label: "Completion rate", value: `${s.completionRate.toFixed(0)}%` },
-          { label: "New listeners", value: s.newVisitors.toLocaleString() },
+          { label: "Completion", value: `${s.completionRate.toFixed(0)}%` },
+          { label: "New", value: s.newVisitors.toLocaleString() },
           { label: "Returning", value: s.returning.toLocaleString() },
           { label: "Members", value: s.totalUsers.toLocaleString() },
         ].map((x) => (
-          <div key={x.label} className="rounded-xl border border-border bg-card px-4 py-3">
-            <p className="text-xs text-muted-foreground">{x.label}</p>
-            <p className="mt-0.5 text-xl font-light tabular-nums text-foreground">{x.value}</p>
-          </div>
+          <span key={x.label} className="inline-flex items-baseline gap-1.5">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">{x.label}</span>
+            <span className="text-sm tabular-nums text-foreground">{x.value}</span>
+          </span>
         ))}
       </div>
 
@@ -379,6 +379,11 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
         <TrendArea data={metricSeries} color={activeMetric.color} valueLabel={activeMetric.label.toLowerCase()} />
+        {metricSeries.filter((d) => d.count > 0).length < 3 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Limited data so far — the trend fills in as activity grows.
+          </p>
+        ) : null}
       </div>
 
       {/* What's working */}
@@ -407,7 +412,7 @@ export default function AnalyticsDashboard() {
                     onClick={() => handleContentClick(c.id, type, c.name)}
                     className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
                   >
-                    <BarRow label={c.name} value={c.plays} max={maxContent} color="var(--chart-1)" sub={c.artistName} />
+                    <BarRow label={c.name} value={c.plays} max={maxContent} color="var(--primary)" sub={c.artistName} />
                   </button>
                 );
               })
@@ -419,7 +424,7 @@ export default function AnalyticsDashboard() {
 
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
-            <Flame className="h-4 w-4 text-amber-400" /> Rising
+            <Flame className="h-4 w-4 text-muted-foreground" /> Rising
           </h3>
           <p className="mb-4 text-xs text-muted-foreground">Biggest gains vs the previous {data.days} days.</p>
           <div className="space-y-3">
@@ -432,7 +437,7 @@ export default function AnalyticsDashboard() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm tabular-nums text-muted-foreground">{c.plays}</span>
-                    <span className="inline-flex items-center gap-0.5 text-xs text-emerald-400">
+                    <span className="inline-flex items-center gap-0.5 text-xs text-foreground">
                       <TrendingUp className="h-3 w-3" /> +{c.delta}
                     </span>
                   </div>
@@ -492,7 +497,7 @@ export default function AnalyticsDashboard() {
               <div className="space-y-3">
                 <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries</h4>
                 {data.geography.topCountries.slice(0, 8).map((c) => (
-                  <BarRow key={c.name} label={countryName(c.name)} value={c.count} max={maxCountry} color="var(--chart-2)" />
+                  <BarRow key={c.name} label={countryName(c.name)} value={c.count} max={maxCountry} color="var(--primary)" />
                 ))}
                 {data.geography.topCountries.length > 8 ? (
                   <button
@@ -508,7 +513,7 @@ export default function AnalyticsDashboard() {
                 <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cities</h4>
                 {data.geography.topCities.length > 0 ? (
                   data.geography.topCities.slice(0, 8).map((c) => (
-                    <BarRow key={c.name} label={c.name} value={c.count} max={maxCity} color="var(--chart-4)" />
+                    <BarRow key={c.name} label={c.name} value={c.count} max={maxCity} color="var(--primary)" />
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">—</p>
@@ -534,13 +539,13 @@ export default function AnalyticsDashboard() {
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Gender</h4>
               {genderEntries.map(([g, n]) => (
-                <BarRow key={g} label={g.replace(/_/g, " ")} value={n} max={maxGender} color="var(--chart-1)" />
+                <BarRow key={g} label={g.replace(/_/g, " ")} value={n} max={maxGender} color="var(--primary)" />
               ))}
             </div>
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Age</h4>
               {ageEntries.map(([a, n]) => (
-                <BarRow key={a} label={a === "unknown" ? "Unknown" : a} value={n} max={maxAge} color="var(--chart-3)" />
+                <BarRow key={a} label={a === "unknown" ? "Unknown" : a} value={n} max={maxAge} color="var(--primary)" />
               ))}
             </div>
           </div>
@@ -565,7 +570,7 @@ export default function AnalyticsDashboard() {
           {data.topPages.length > 0 ? (
             <div className="space-y-3">
               {data.topPages.slice(0, 8).map((p) => (
-                <BarRow key={p.name} label={p.name} value={p.count} max={maxPage} color="var(--chart-1)" />
+                <BarRow key={p.name} label={p.name} value={p.count} max={maxPage} color="var(--primary)" />
               ))}
             </div>
           ) : (
@@ -639,7 +644,7 @@ export default function AnalyticsDashboard() {
                   {(() => {
                     const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
                     return ctr.byLinkType.map((t) => (
-                      <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--chart-3)" />
+                      <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
                     ));
                   })()}
                 </div>
@@ -663,7 +668,7 @@ export default function AnalyticsDashboard() {
                           <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                          <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--chart-3)" }} />
+                          <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
                         </div>
                       </div>
                     ));
@@ -676,9 +681,9 @@ export default function AnalyticsDashboard() {
           </div>
 
           {leakingReleases.length > 0 ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
-                <AlertTriangle className="h-4 w-4 text-amber-400" /> Views but no clicks
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Views but no clicks
               </h3>
               <p className="mb-4 text-xs text-muted-foreground">
                 These releases got page views but zero outbound streaming-link clicks this
@@ -719,7 +724,7 @@ export default function AnalyticsDashboard() {
                           {r.ctr === null ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
-                            <span className={r.ctr >= 100 ? "text-emerald-400" : "text-amber-400"}>{r.ctr.toFixed(0)}%</span>
+                            <span className={r.ctr >= 100 ? "text-foreground" : "text-muted-foreground"}>{r.ctr.toFixed(0)}%</span>
                           )}
                         </td>
                       </tr>
