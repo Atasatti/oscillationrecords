@@ -7,7 +7,11 @@ import { buildReleaseJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/l
 // and are then cached.
 export async function generateStaticParams() {
   try {
-    const releases = await prisma.release.findMany({ select: { id: true } });
+    // Prebuild RELEASED + SCHEDULED (Coming-Soon pages are public); never DRAFT.
+    const releases = await prisma.release.findMany({
+      where: { status: { not: "DRAFT" } },
+      select: { id: true },
+    });
     return releases.map((r) => ({ releaseId: r.id }));
   } catch {
     return [];

@@ -54,6 +54,8 @@ interface Release {
   name: string;
   coverImage: string;
   type: 'single' | 'album' | 'ep';
+  status?: 'DRAFT' | 'SCHEDULED' | 'RELEASED';
+  preSaveUrl?: string | null;
   primaryArtistIds: string[];
   featureArtistIds: string[];
   featureArtistNames?: string[];
@@ -506,11 +508,44 @@ export default function ReleaseDetail() {
             </div>
           </div>
 
+          {/* Coming Soon banner for scheduled (future-dated) releases */}
+          {release.status === "SCHEDULED" &&
+          release.releaseDate &&
+          new Date(release.releaseDate) > new Date() ? (
+            <div className="mt-12 max-w-6xl xl:max-w-7xl mx-auto rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] px-6 py-8 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Coming soon
+              </p>
+              <p className="mt-2 text-2xl font-light tracking-tight">
+                Out{" "}
+                {new Date(release.releaseDate).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+              {release.preSaveUrl ? (
+                <a
+                  href={release.preSaveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-white/90 transition hover:border-white/30 hover:bg-white/[0.1]"
+                >
+                  Pre-save <span aria-hidden>→</span>
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* Songs */}
           <div className="mt-12 max-w-6xl xl:max-w-7xl mx-auto px-0">
             <h2 className="text-2xl font-light mb-6">Tracks</h2>
             {trackList.length === 0 ? (
-              <p className="text-gray-400">No tracks available.</p>
+              <p className="text-gray-400">
+                {release.status === "SCHEDULED"
+                  ? "Tracklist to be revealed."
+                  : "No tracks available."}
+              </p>
             ) : (
               <div className="rounded-2xl border border-white/10 overflow-hidden bg-gradient-to-b from-white/[0.04] to-white/[0.015]">
                 {trackList.map((song, index) => {
