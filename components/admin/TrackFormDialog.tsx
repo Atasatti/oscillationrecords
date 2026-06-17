@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Loader2, Music } from "lucide-react";
 import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
+import { readError } from "@/lib/release-editor";
 import { useToast } from "@/components/local-ui/Toast";
 
 type ArtistOpt = { id: string; name: string };
@@ -244,21 +245,6 @@ function parseStoredCredits(
     performerRows: ensured(performerRows),
     customRows,
   };
-}
-
-// Read an error message from a failed Response without crashing on an HTML
-// error page (which is what produced the cryptic "Unexpected token '<'" JSON
-// error). Falls back to the HTTP status.
-async function readError(res: Response, fallback: string): Promise<string> {
-  try {
-    if ((res.headers.get("content-type") || "").includes("application/json")) {
-      const j = await res.json();
-      return (j && j.error) || `${fallback} (HTTP ${res.status})`;
-    }
-  } catch {
-    /* fall through */
-  }
-  return `${fallback} (HTTP ${res.status})`;
 }
 
 type Props = {
