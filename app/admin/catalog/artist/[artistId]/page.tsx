@@ -18,12 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, MoreVertical, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, MoreVertical, Trash2, Pencil, Plus } from "lucide-react";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
 import { useToast } from "@/components/local-ui/Toast";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 
 interface Artist {
   id: string;
@@ -64,6 +65,7 @@ export default function AdminArtistDetail() {
   const artistId = params.artistId as string;
 
   const [artist, setArtist] = useState<Artist | null>(null);
+  const [newReleaseOpen, setNewReleaseOpen] = useState(false);
   const [allArtists, setAllArtists] = useState<ArtistSummary[]>([]);
   const [releases, setReleases] = useState<ReleaseRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,12 +190,29 @@ export default function AdminArtistDetail() {
           <div>
             <h1 className="text-4xl font-light tracking-tighter mb-2">{artist.name}</h1>
             <p className="text-gray-400 max-w-3xl mb-4">{artist.biography}</p>
-            <Link href={`/admin/catalog/artists/${artistId}/edit`}>
-              <Button variant="outline" size="sm" className="border-gray-700">
-                <Pencil className="w-4 h-4 mr-2" />
-                Edit artist
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="bg-white text-black hover:bg-gray-200"
+                onClick={() => setNewReleaseOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New release
               </Button>
-            </Link>
+              <Link href={`/admin/catalog/artists/${artistId}/edit`}>
+                <Button variant="outline" size="sm" className="border-gray-700">
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit artist
+                </Button>
+              </Link>
+            </div>
+            {artist ? (
+              <NewReleaseDialog
+                open={newReleaseOpen}
+                onOpenChange={setNewReleaseOpen}
+                presetArtist={{ id: artist.id, name: artist.name }}
+              />
+            ) : null}
           </div>
         </div>
 
