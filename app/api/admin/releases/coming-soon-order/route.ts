@@ -1,0 +1,34 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-guard";
+import { revalidatePath } from "next/cache";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+// PUT — { orderedIds: string[] } sets sortOrder = index over the SCHEDULED
+// (Coming Soon) releases, controlling their order in the home "Coming Soon"
+// section. Mirrors the New Music home-order route.
+export async function PUT(request: NextRequest) {
+  const guard = await requireAdmin(request);
+  if (!guard.ok) return guard.response;
+  try {
+    const body = await request.json();
+    const orderedIds: string[] = Array.isArray(body.orderedIds)
+      ? body.orderedIds.filter((id: unknown) => typeof id === "string")
+      : [];
+    if (orderedIds.length === 0) {
+      return NextResponse.json({ error: "orderedIds required" }, { status: 400 });
+    }
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.release.update({ where: { id }, data: { sortOrder: index } })
+      )
+    );
+    revalidatePath("/");
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Error saving coming-soon order:", error);
+    return NextResponse.json({ error: "Failed to save order" }, { status: 500 });
+  }
+}

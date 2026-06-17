@@ -477,8 +477,9 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const releases = await prisma.upcomingRelease.findMany({
-      where: { releaseDate: { gte: startOfToday } },
+    // "Upcoming" is now just SCHEDULED releases with a future date.
+    const releases = await prisma.release.findMany({
+      where: scheduledReleaseWhere(),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
@@ -504,14 +505,14 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
       return {
         id: r.id,
         name: r.name,
-        type: r.type as UpcomingReleaseDTO["type"],
-        image: r.image,
-        releaseDate: r.releaseDate.toISOString(),
-        preSmartLinkUrl: r.preSmartLinkUrl ?? null,
-        primaryArtist: r.primaryArtist ?? null,
-        featureArtist: r.featureArtist ?? null,
-        primaryArtistName: primaryNames.join(", ") || r.primaryArtist || null,
-        featureLine: featureNames.join(", ") || r.featureArtist || null,
+        type: prismaKindToApi(r.kind),
+        image: r.coverImage,
+        releaseDate: (r.releaseDate ?? new Date()).toISOString(),
+        preSmartLinkUrl: r.preSaveUrl ?? null,
+        primaryArtist: null,
+        featureArtist: null,
+        primaryArtistName: primaryNames.join(", ") || null,
+        featureLine: featureNames.join(", ") || null,
       };
     });
   } catch (e) {

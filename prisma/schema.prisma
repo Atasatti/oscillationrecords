@@ -247,29 +247,8 @@ model Track {
   @@index([releaseId])
 }
 
-model UpcomingRelease {
-  id               String    @id @default(auto()) @map("_id") @db.ObjectId
-  name             String
-  type             String // "single" | "ep" | "album"
-  image            String
-  releaseDate      DateTime
-  /// Display order on the site (lower = earlier). Admin drag-and-drop.
-  sortOrder        Int       @default(0)
-  /// Pre-smart link target (e.g. Ditto pre-save URL)
-  preSmartLinkUrl  String?
-  /// Linked catalogue artists (preferred). Legacy free-text primaryArtist /
-  /// featureArtist below are kept for older rows + non-catalogue fallback.
-  primaryArtistIds   String[] @db.ObjectId
-  featureArtistIds   String[] @db.ObjectId
-  featureArtistNames String[] @default([])
-  primaryArtist    String?
-  featureArtist    String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  @@index([releaseDate])
-  @@index([sortOrder])
-}
+// UpcomingRelease was unified into Release (status=SCHEDULED) — see the
+// migration in scripts/migrate-upcoming-to-release.mjs.
 
 // Analytics Models
 model UserProfile {

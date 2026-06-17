@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 
 interface UpcomingRelease {
@@ -188,29 +188,9 @@ type UpcomingReleasesSectionProps = {
 const UpcomingReleasesSection = ({
   initialReleases,
 }: UpcomingReleasesSectionProps) => {
-  const [releases, setReleases] = useState<UpcomingRelease[]>(
-    initialReleases ?? []
-  );
-  const [loading, setLoading] = useState(initialReleases === undefined);
-
-  useEffect(() => {
-    // Data already in the HTML from the server — don't refetch on mount.
-    if (initialReleases !== undefined) return;
-    const fetchReleases = async () => {
-      try {
-        const response = await fetch("/api/upcoming-releases");
-        if (response.ok) {
-          const data = await response.json();
-          setReleases(data);
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming releases:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReleases();
-  }, [initialReleases]);
+  // Always server-supplied (home SSRs getUpcomingReleases into initialReleases).
+  const releases = initialReleases ?? [];
+  const loading = false;
 
   const sectionChrome = (
     <>
