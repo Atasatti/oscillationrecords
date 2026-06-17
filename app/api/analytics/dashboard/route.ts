@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     const topContent = Array.from(curCounts.entries())
       .map(([id, d]) => ({ id, ...d }))
       .sort((a, b) => b.plays - a.plays)
-      .slice(0, 10);
+      .slice(0, 50);
 
     const prevCounts = new Map<string, number>();
     prevAudio.forEach((e) => {
@@ -154,10 +154,17 @@ export async function GET(request: NextRequest) {
         .filter(Boolean)
         .forEach((name) => artistMap.set(name, (artistMap.get(name) || 0) + 1));
     });
-    const topArtists = Array.from(artistMap.entries())
+    const topArtistNames = Array.from(artistMap.entries())
       .map(([name, plays]) => ({ name, plays }))
       .sort((a, b) => b.plays - a.plays)
-      .slice(0, 10);
+      .slice(0, 25);
+    // Resolve ids so the dashboard can link artist chips straight to their page.
+    const artistRecords = await prisma.artist.findMany({
+      where: { name: { in: topArtistNames.map((a) => a.name) } },
+      select: { id: true, name: true },
+    });
+    const nameToId = new Map(artistRecords.map((a) => [a.name, a.id]));
+    const topArtists = topArtistNames.map((a) => ({ ...a, id: nameToId.get(a.name) || null }));
 
     // ---- demographics (logged-in profiles) + geography (event snapshot ?? profile) ----
     const gender: Record<GenderKey, number> = { male: 0, female: 0, other: 0, prefer_not_to_say: 0, unknown: 0 };
@@ -196,7 +203,7 @@ export async function GET(request: NextRequest) {
 
     const pathMap = new Map<string, number>();
     pageViews.forEach((p) => pathMap.set(p.path, (pathMap.get(p.path) || 0) + 1));
-    const topPages = topList(pathMap, 8);
+    const topPages = topList(pathMap, 50);
 
     // Campaign attribution: a session's campaign = first UTM seen in its pageviews;
     // plays/clicks in that session are credited to the campaign.
@@ -223,7 +230,7 @@ export async function GET(request: NextRequest) {
     const campaigns = Array.from(campMap.entries())
       .map(([name, v]) => ({ name, visits: v.sessions.size, plays: v.plays, clicks: v.clicks }))
       .sort((a, b) => b.visits - a.visits)
-      .slice(0, 8);
+      .slice(0, 25);
 
     return NextResponse.json({
       days,
@@ -251,7 +258,7 @@ export async function GET(request: NextRequest) {
       topPages,
       campaigns,
       demographics: { gender, ageRange },
-      geography: { topCountries: topList(countryMap, 8), topCities: topList(cityMap, 8) },
+      geography: { topCountries: topList(countryMap, 50), topCities: topList(cityMap, 50) },
       recentPlays: events.slice(0, 60).map((e) => ({
         id: e.id,
         userName: e.user?.name || e.user?.email || "Anonymous visitor",
