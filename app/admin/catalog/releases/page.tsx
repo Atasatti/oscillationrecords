@@ -67,6 +67,7 @@ export default function AdminReleasesPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<ReleaseSort>("createdAt");
   const [dir, setDir] = useState<SortDir>("desc");
+  const [statusFilter, setStatusFilter] = useState<"all" | "DRAFT" | "SCHEDULED" | "RELEASED">("all");
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [working, setWorking] = useState(false);
@@ -117,6 +118,7 @@ export default function AdminReleasesPage() {
         dir,
       });
       if (query) params.set("q", query);
+      if (statusFilter !== "all") params.set("status", statusFilter);
       const res = await fetch(`/api/releases?${params.toString()}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -127,7 +129,7 @@ export default function AdminReleasesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, query, sort, dir, toast]);
+  }, [page, query, sort, dir, statusFilter, toast]);
 
   useEffect(() => {
     load();
@@ -237,27 +239,43 @@ export default function AdminReleasesPage() {
         />
       ) : (
         <>
-          {/* Search */}
-          <div className="relative mb-4 max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <input
-              type="text"
-              value={queryInput}
-              onChange={(e) => setQueryInput(e.target.value)}
-              placeholder="Search releases by name or artist…"
-              aria-label="Search releases"
-              className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            {queryInput ? (
-              <button
-                type="button"
-                onClick={() => setQueryInput("")}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            ) : null}
+          {/* Search + status filter */}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <input
+                type="text"
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
+                placeholder="Search releases by name or artist…"
+                aria-label="Search releases"
+                className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              {queryInput ? (
+                <button
+                  type="button"
+                  onClick={() => setQueryInput("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as typeof statusFilter);
+                setPage(1);
+              }}
+              aria-label="Filter by status"
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="all">All statuses</option>
+              <option value="RELEASED">Released</option>
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="DRAFT">Draft</option>
+            </select>
           </div>
 
           <div className="rounded-xl border border-border bg-card">
@@ -275,6 +293,7 @@ export default function AdminReleasesPage() {
                       Type {sortIcon("kind")}
                     </button>
                   </TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Latest</TableHead>
                   <TableHead>New Music</TableHead>
                   <TableHead className="w-10 text-right">Actions</TableHead>
@@ -292,6 +311,7 @@ export default function AdminReleasesPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                       <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
@@ -299,7 +319,7 @@ export default function AdminReleasesPage() {
                   ))
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                       {query ? `No releases match “${query}”.` : "No releases yet."}
                     </TableCell>
                   </TableRow>
@@ -322,6 +342,15 @@ export default function AdminReleasesPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{kindLabel(r.type)}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {r.status === "RELEASED" ? (
+                          <Badge variant="success">Released</Badge>
+                        ) : r.status === "SCHEDULED" ? (
+                          <Badge variant="warning">Scheduled</Badge>
+                        ) : (
+                          <Badge variant="muted">Draft</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <button type="button" onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)} title="Show the 'Latest' pill on home">

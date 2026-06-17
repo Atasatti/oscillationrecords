@@ -24,12 +24,17 @@ export async function GET(request: NextRequest) {
     // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
     // otherwise the response stays the existing bare array (public site, carousel).
     if (searchParams.has("page") || searchParams.has("pageSize")) {
+      const statusParam = searchParams.get("status");
       const result = await getReleasesPage({
         page: parseInt(searchParams.get("page") || "1", 10) || 1,
         pageSize: parseInt(searchParams.get("pageSize") || "25", 10) || 25,
         q: searchParams.get("q") || "",
         sort: (searchParams.get("sort") || "createdAt") as ReleaseSort,
         dir: (searchParams.get("dir") || "desc") as SortDir,
+        status:
+          statusParam === "DRAFT" || statusParam === "SCHEDULED" || statusParam === "RELEASED"
+            ? statusParam
+            : undefined,
       });
       return NextResponse.json(result, {
         headers: { "Cache-Control": "private, no-store" },
@@ -170,6 +175,14 @@ export async function POST(request: NextRequest) {
       featureArtistNames: featureArtistNamesRaw,
     } = body;
 
+    const status = ["DRAFT", "SCHEDULED", "RELEASED"].includes(String(body.status))
+      ? (body.status as "DRAFT" | "SCHEDULED" | "RELEASED")
+      : "RELEASED";
+    const preSaveUrl =
+      typeof body.preSaveUrl === "string" && body.preSaveUrl.trim()
+        ? body.preSaveUrl.trim()
+        : null;
+
     if (!name || !coverImage) {
       return NextResponse.json(
         { error: "name and coverImage are required" },
@@ -244,6 +257,8 @@ export async function POST(request: NextRequest) {
         catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
         pLine: pLine ? String(pLine).trim() : null,
         cLine: cLine ? String(cLine).trim() : null,
+        status,
+        preSaveUrl,
       },
       include: { tracks: { orderBy: { sortOrder: "asc" } } },
     });

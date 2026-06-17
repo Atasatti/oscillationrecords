@@ -56,7 +56,9 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (!isrcCode || !String(isrcCode).trim()) {
+    // ISRC is only mandatory once the release is live; a SCHEDULED/DRAFT release
+    // can have tracks whose ISRCs arrive later.
+    if (release.status === "RELEASED" && (!isrcCode || !String(isrcCode).trim())) {
       return NextResponse.json(
         { error: "isrcCode is required" },
         { status: 400 }

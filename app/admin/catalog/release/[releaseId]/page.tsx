@@ -87,6 +87,7 @@ interface ReleaseDetail {
   name: string;
   coverImage: string;
   type: "single" | "ep" | "album";
+  status?: "DRAFT" | "SCHEDULED" | "RELEASED";
   description?: string | null;
   releaseDate?: string | null;
   composer?: string | null;
@@ -735,6 +736,7 @@ export default function AdminReleaseDetail() {
           open={trackDialogOpen}
           onOpenChange={handleTrackDialogOpenChange}
           releaseId={releaseId}
+          releaseStatus={release.status}
           artists={allArtists}
           defaultPrimaryIds={release.primaryArtistIds}
           defaultFeatureArtistText={combinedFeatureDisplayNames(

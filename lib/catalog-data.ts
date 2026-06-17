@@ -42,6 +42,8 @@ export interface ReleaseCardDTO {
   showLatestOnHome: boolean;
   showOnHome: boolean;
   homeOrder: number;
+  status: "DRAFT" | "SCHEDULED" | "RELEASED";
+  preSaveUrl: string | null;
   // ISO strings (matches the API's JSON shape; safe to pass to client components).
   releaseDate: string | null;
   createdAt: string;
@@ -148,6 +150,8 @@ export async function mapReleasesToCards(
       showLatestOnHome: r.showLatestOnHome,
       showOnHome: r.showOnHome,
       homeOrder: r.homeOrder,
+      status: r.status,
+      preSaveUrl: r.preSaveUrl ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
       year: rd

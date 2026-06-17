@@ -214,6 +214,8 @@ export async function PATCH(
       catalogueNumber,
       pLine,
       cLine,
+      status,
+      preSaveUrl,
       isrcExplicit,
       credits,
       spotifyLink,
@@ -346,6 +348,12 @@ export async function PATCH(
           }),
           ...(pLine !== undefined && { pLine: pLine ? String(pLine).trim() : null }),
           ...(cLine !== undefined && { cLine: cLine ? String(cLine).trim() : null }),
+          ...(["DRAFT", "SCHEDULED", "RELEASED"].includes(String(status)) && {
+            status: status as "DRAFT" | "SCHEDULED" | "RELEASED",
+          }),
+          ...(preSaveUrl !== undefined && {
+            preSaveUrl: preSaveUrl ? String(preSaveUrl).trim() : null,
+          }),
           ...(isrcExplicit !== undefined && {
             isrcExplicit: Boolean(isrcExplicit),
           }),

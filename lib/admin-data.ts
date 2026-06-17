@@ -277,20 +277,23 @@ export async function getReleasesPage({
   q = "",
   sort = "createdAt",
   dir = "desc",
+  status,
 }: {
   page?: number;
   pageSize?: number;
   q?: string;
   sort?: ReleaseSort;
   dir?: SortDir;
+  status?: "DRAFT" | "SCHEDULED" | "RELEASED";
 }): Promise<Page<ReleaseCardDTO>> {
   const size = Math.min(Math.max(1, pageSize), 100);
   const query = q.trim();
+  const where = status ? { status } : undefined;
 
   // Search: shape all releases then fuzzy-rank by name / artist line (parity with
   // the public search), then paginate.
   if (query) {
-    const all = await prisma.release.findMany(releaseCardListArgs);
+    const all = await prisma.release.findMany({ ...releaseCardListArgs, where });
     const cards = await mapReleasesToCards(all, { isAdmin: true });
     const ranked = cards
       .map((c) => ({
@@ -319,9 +322,10 @@ export async function getReleasesPage({
         : [{ createdAt: dir }];
   // Count + page query in parallel; then resolve artist names.
   const [total, rows] = await Promise.all([
-    prisma.release.count(),
+    prisma.release.count({ where }),
     prisma.release.findMany({
       ...releaseCardListArgs,
+      where,
       orderBy,
       skip: (safePage - 1) * size,
       take: size,

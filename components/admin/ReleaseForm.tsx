@@ -51,6 +51,8 @@ export default function ReleaseForm({
     name: "",
     coverImageFile: null as File | null,
     description: "",
+    status: "RELEASED" as "DRAFT" | "SCHEDULED" | "RELEASED",
+    preSaveUrl: "",
     releaseDate: "",
     primaryGenre: "",
     secondaryGenre: "",
@@ -134,6 +136,8 @@ export default function ReleaseForm({
           ...prev,
           name: data.name || "",
           description: data.description || "",
+          status: (data.status as "DRAFT" | "SCHEDULED" | "RELEASED") || "RELEASED",
+          preSaveUrl: data.preSaveUrl || "",
           releaseDate: data.releaseDate
             ? String(data.releaseDate).slice(0, 10)
             : "",
@@ -257,12 +261,16 @@ export default function ReleaseForm({
     // Block past release dates on create. Edit is exempt so historical releases
     // (which legitimately have past dates) stay editable. Compare as YYYY-MM-DD
     // strings in local time to avoid timezone off-by-one issues.
-    if (mode === "create" && formData.releaseDate) {
+    if (mode === "create" && formData.status === "RELEASED" && formData.releaseDate) {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       if (formData.releaseDate < todayStr) {
         fieldErrors.releaseDate = "Release date can’t be in the past";
       }
+    }
+    // A scheduled (Coming Soon) release needs a date to schedule against.
+    if (formData.status === "SCHEDULED" && !formData.releaseDate) {
+      fieldErrors.releaseDate = "Scheduled releases need a release date";
     }
 
     if (formData.primaryArtistIds.length === 0) {
@@ -305,6 +313,8 @@ export default function ReleaseForm({
         youtubeLink: formData.youtubeLink || null,
         soundcloudLink: formData.soundcloudLink || null,
         isrcExplicit: formData.isrcExplicit,
+        status: formData.status,
+        preSaveUrl: formData.preSaveUrl || null,
         upcCode: formData.upcCode || null,
         catalogueNumber: formData.catalogueNumber || null,
         pLine: formData.pLine || null,
@@ -496,6 +506,44 @@ export default function ReleaseForm({
                   rows={4}
                   className="bg-black/40 border-white/10 text-white resize-none"
                 />
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-400">Status</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        status: e.target.value as "DRAFT" | "SCHEDULED" | "RELEASED",
+                      }))
+                    }
+                    className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 text-white"
+                  >
+                    <option value="RELEASED">Released (live)</option>
+                    <option value="SCHEDULED">Scheduled (Coming Soon)</option>
+                    <option value="DRAFT">Draft (hidden)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.status === "SCHEDULED"
+                      ? "Shows in “Coming Soon” until the release date, then auto-publishes."
+                      : formData.status === "DRAFT"
+                        ? "Hidden from the public site while you work on it."
+                        : "Live on the site (subject to the release date)."}
+                  </p>
+                </div>
+                {formData.status === "SCHEDULED" ? (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">Pre-save link</label>
+                    <Input
+                      name="preSaveUrl"
+                      type="url"
+                      value={formData.preSaveUrl}
+                      onChange={handleInputChange}
+                      placeholder="https://ditto.fm/..."
+                      className="bg-black/40 border-white/10 text-white"
+                    />
+                  </div>
+                ) : null}
                 <div>
                   <Input
                     name="releaseDate"

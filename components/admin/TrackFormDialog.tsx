@@ -250,6 +250,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   releaseId: string;
+  /** Parent release status — audio/ISRC are only required once RELEASED. */
+  releaseStatus?: "DRAFT" | "SCHEDULED" | "RELEASED";
   artists: ArtistOpt[];
   defaultPrimaryIds: string[];
   /** Prefill featured line when adding a track (e.g. from release-level credits). */
@@ -263,6 +265,7 @@ export default function TrackFormDialog({
   open,
   onOpenChange,
   releaseId,
+  releaseStatus = "RELEASED",
   artists,
   defaultPrimaryIds,
   defaultFeatureArtistText = "",
@@ -270,6 +273,9 @@ export default function TrackFormDialog({
   track,
   onSaved,
 }: Props) {
+  // Audio + ISRC are mandatory only once a release is live; a SCHEDULED/DRAFT
+  // release may not have them yet.
+  const requireAudioIsrc = releaseStatus === "RELEASED";
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
@@ -499,7 +505,8 @@ export default function TrackFormDialog({
     } else if (!audioFile && !track?.audioFile) {
       fieldErrors.audio = "Audio is missing";
     }
-    if (!isrcCode.trim()) fieldErrors.isrc = "ISRC is required";
+    // ISRC is only required once the release is live (it often arrives later).
+    if (requireAudioIsrc && !isrcCode.trim()) fieldErrors.isrc = "ISRC is required";
 
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
