@@ -322,6 +322,14 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
+      // "Latest" is single-select: turning it on for this release clears it on the
+      // others, so the home page only ever shows one "Latest" pill.
+      if (showLatestOnHome === true) {
+        await tx.release.updateMany({
+          where: { id: { not: releaseId }, showLatestOnHome: true },
+          data: { showLatestOnHome: false },
+        });
+      }
       await tx.release.update({
         where: { id: releaseId },
         data: {

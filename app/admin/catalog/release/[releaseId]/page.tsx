@@ -28,7 +28,12 @@ import {
   Pencil,
   Plus,
   Trash2,
+  ExternalLink,
+  Send,
+  CalendarClock,
+  EyeOff,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   DndContext,
   closestCenter,
@@ -234,6 +239,7 @@ export default function AdminReleaseDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [statusWorking, setStatusWorking] = useState(false);
   const [deleteTrackDialogOpen, setDeleteTrackDialogOpen] = useState(false);
   const [trackToDelete, setTrackToDelete] = useState<{
     id: string;
@@ -270,6 +276,7 @@ export default function AdminReleaseDetail() {
           name: data.name,
           coverImage: data.coverImage,
           type: data.type,
+          status: data.status,
           description: data.description,
           releaseDate: data.releaseDate,
           composer: data.composer,
@@ -365,6 +372,37 @@ export default function AdminReleaseDetail() {
   };
 
   const editorHref = `/admin/catalog/releases/${releaseId}/edit`;
+
+  // Quick status transitions from the detail page (no full editor round-trip).
+  const changeStatus = async (next: "DRAFT" | "SCHEDULED" | "RELEASED") => {
+    if (!release) return;
+    if (next === "RELEASED" && release.tracks.length === 0) {
+      toast.error("Add at least one track before publishing.");
+      return;
+    }
+    if (next === "SCHEDULED" && !release.releaseDate) {
+      toast.error("Set a future release date in the editor before scheduling.");
+      router.push(editorHref);
+      return;
+    }
+    setStatusWorking(true);
+    try {
+      const res = await fetch(`/api/releases/${releaseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(
+        next === "RELEASED" ? "Published" : next === "SCHEDULED" ? "Scheduled" : "Moved to draft"
+      );
+      fetchData();
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setStatusWorking(false);
+    }
+  };
 
   const handleTrackReorder = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -487,6 +525,13 @@ export default function AdminReleaseDetail() {
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
                       {release.tracks.length} track{release.tracks.length === 1 ? "" : "s"}
                     </span>
+                    {release.status === "RELEASED" ? (
+                      <Badge variant="success">Live</Badge>
+                    ) : release.status === "SCHEDULED" ? (
+                      <Badge variant="warning">Scheduled</Badge>
+                    ) : release.status === "DRAFT" ? (
+                      <Badge variant="muted">Draft</Badge>
+                    ) : null}
                   </div>
                   <h1 className="text-3xl sm:text-4xl font-light tracking-tighter flex flex-wrap items-center gap-3">
                     <span>{release.name}</span>
@@ -518,6 +563,32 @@ export default function AdminReleaseDetail() {
                         Edit release
                       </Link>
                     </DropdownMenuItem>
+                    {release.status !== "DRAFT" ? (
+                      <DropdownMenuItem asChild>
+                        <a href={`/releases/${releaseId}`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          View on site
+                        </a>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "RELEASED" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("RELEASED")}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Publish now
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "SCHEDULED" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("SCHEDULED")}>
+                        <CalendarClock className="w-4 h-4 mr-2" />
+                        Schedule (Coming Soon)
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "DRAFT" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("DRAFT")}>
+                        <EyeOff className="w-4 h-4 mr-2" />
+                        {release.status === "SCHEDULED" ? "Unschedule (to draft)" : "Unpublish (to draft)"}
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       variant="destructive"
                       onSelect={() => setDeleteDialogOpen(true)}

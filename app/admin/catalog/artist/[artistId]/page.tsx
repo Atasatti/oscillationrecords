@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, MoreVertical, Trash2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, MoreVertical, Trash2, Pencil, Plus, ExternalLink } from "lucide-react";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -205,6 +205,12 @@ export default function AdminArtistDetail() {
                   Edit artist
                 </Button>
               </Link>
+              <a href={`/artists/${artistId}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View on site
+                </Button>
+              </a>
             </div>
             {artist ? (
               <NewReleaseDialog

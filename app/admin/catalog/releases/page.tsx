@@ -182,7 +182,17 @@ function ReleasesPageInner() {
     value: boolean
   ) => {
     const prev = items;
-    setItems((list) => list.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+    // "Latest" is single-select — turning one on clears the rest (server enforces too).
+    const clearOthersLatest = key === "showLatestOnHome" && value;
+    setItems((list) =>
+      list.map((r) =>
+        r.id === id
+          ? { ...r, [key]: value }
+          : clearOthersLatest
+            ? { ...r, showLatestOnHome: false }
+            : r
+      )
+    );
     try {
       const res = await fetch(`/api/releases/${id}`, {
         method: "PATCH",

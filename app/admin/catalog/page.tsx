@@ -105,6 +105,24 @@ export default function HomepageAdmin() {
     }
   };
 
+  // Remove from Coming Soon without deleting the release — move it back to Draft.
+  const handleUnschedule = async (id: string) => {
+    const prev = rows;
+    setRows((list) => list.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`/api/releases/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DRAFT" }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Unscheduled — moved to draft");
+    } catch {
+      setRows(prev);
+      toast.error("Failed to unschedule");
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setWorking(true);
@@ -203,6 +221,7 @@ export default function HomepageAdmin() {
               releases={rows}
               onReorderSave={handleReorderSave}
               onEdit={(r) => router.push(`/admin/catalog/releases/${r.id}/edit`)}
+              onUnschedule={handleUnschedule}
               onDelete={(id) => {
                 const r = rows.find((x) => x.id === id);
                 setDeleteTarget({ id, name: r?.name ?? "this release" });
