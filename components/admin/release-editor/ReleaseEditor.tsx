@@ -61,6 +61,7 @@ export default function ReleaseEditor({
   const [errors, setErrors] = useState<ReleaseDetailsErrors>({});
   const [initialTracks, setInitialTracks] = useState<Record<string, unknown>[]>([]);
   const [tracksActive, setTracksActive] = useState(false);
+  const [trackInfo, setTrackInfo] = useState({ trackCount: 0, issueCount: 0 });
 
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -246,6 +247,20 @@ export default function ReleaseEditor({
       toast.error("Hold on — tracks are still uploading. Try again in a moment.");
       return;
     }
+    // Going live requires a complete tracklist: at least one track and every
+    // track with audio, an artist, and an ISRC. (Scheduled/Coming-Soon doesn't.)
+    if (mode === "edit" && form.status === "RELEASED") {
+      if (trackInfo.trackCount === 0) {
+        toast.error("Add at least one track before publishing.");
+        return;
+      }
+      if (trackInfo.issueCount > 0) {
+        toast.error(
+          `${trackInfo.issueCount} track${trackInfo.issueCount === 1 ? "" : "s"} need audio, an artist, or an ISRC before publishing.`
+        );
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -428,6 +443,7 @@ export default function ReleaseEditor({
               requireIsrc={form.status === "RELEASED"}
               initialTracks={initialTracks}
               onActivityChange={setTracksActive}
+              onValidityChange={setTrackInfo}
             />
           </div>
         ) : (

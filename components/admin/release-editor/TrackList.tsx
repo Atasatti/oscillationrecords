@@ -15,7 +15,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus, Loader2, CheckCircle2, UploadCloud } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  CheckCircle2,
+  UploadCloud,
+  Wand2,
+  ChevronsDownUp,
+  ChevronsUpDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
 import {
@@ -23,6 +31,7 @@ import {
   newEditorTrack,
   editorTrackFromSerialized,
   trackIsPersistable,
+  trackPublishIssues,
   buildTrackPayload,
   readAudioDuration,
   titleFromFilename,
@@ -31,6 +40,7 @@ import {
 } from "@/lib/release-editor";
 import { useUploadQueue, type UploadComplete } from "./useUploadQueue";
 import TrackRow from "./TrackRow";
+import ApplyToAllDialog, { type ApplyToAllValue } from "./ApplyToAllDialog";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -42,6 +52,7 @@ export default function TrackList({
   requireIsrc,
   initialTracks,
   onActivityChange,
+  onValidityChange,
 }: {
   releaseId: string;
   artists: ArtistOpt[];
@@ -52,6 +63,8 @@ export default function TrackList({
   initialTracks: Record<string, unknown>[];
   /** Reports whether uploads/saves are in flight (for the unsaved-changes guard). */
   onActivityChange?: (active: boolean) => void;
+  /** Reports track count + how many have publish-blocking issues. */
+  onValidityChange?: (info: { trackCount: number; issueCount: number }) => void;
 }) {
   const toast = useToast();
   const [tracks, setTracks] = useState<EditorTrack[]>(() =>
@@ -68,6 +81,7 @@ export default function TrackList({
   const savingRef = useRef(false);
   const pendingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
   const pickRef = useRef<HTMLInputElement>(null);
 
   const markDirty = useCallback(() => setSaveTick((t) => t + 1), []);
@@ -223,6 +237,13 @@ export default function TrackList({
     [queue, toast, updateRow]
   );
 
+  const uploadStems = useCallback(
+    (rowId: string, file: File) => {
+      queue.enqueue(rowId, file, "stems");
+    },
+    [queue]
+  );
+
   const removeRow = useCallback(
     (rowId: string) => {
       queue.clearRow(rowId);
@@ -231,6 +252,39 @@ export default function TrackList({
     },
     [queue, markDirty]
   );
+
+  const applyToAll = useCallback(
+    (value: ApplyToAllValue) => {
+      setTracks((prev) =>
+        prev.map((r) => ({
+          ...r,
+          ...(value.primaryArtistIds !== undefined && {
+            primaryArtistIds: value.primaryArtistIds,
+          }),
+          ...(value.featureArtistText !== undefined && {
+            featureArtistText: value.featureArtistText,
+          }),
+          ...(value.isrcExplicit !== undefined && {
+            isrcExplicit: value.isrcExplicit,
+          }),
+        }))
+      );
+      markDirty();
+    },
+    [markDirty]
+  );
+
+  const setAllExpanded = useCallback((expanded: boolean) => {
+    setTracks((prev) => prev.map((r) => ({ ...r, expanded })));
+  }, []);
+
+  // Report track count + publish-blocking issues so the editor can gate publish.
+  useEffect(() => {
+    const issueCount = tracks.filter(
+      (t) => trackPublishIssues(t, requireIsrc).length > 0
+    ).length;
+    onValidityChange?.({ trackCount: tracks.length, issueCount });
+  }, [tracks, requireIsrc, onValidityChange]);
 
   // ---- dnd ----
   const sensors = useSensors(
@@ -285,6 +339,38 @@ export default function TrackList({
           ) : null}
         </div>
       </div>
+
+      {tracks.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-white/10"
+            onClick={() => setApplyOpen(true)}
+          >
+            <Wand2 className="mr-1 h-4 w-4" /> Apply to all
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-gray-400"
+            onClick={() => setAllExpanded(true)}
+          >
+            <ChevronsUpDown className="mr-1 h-4 w-4" /> Expand all
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-gray-400"
+            onClick={() => setAllExpanded(false)}
+          >
+            <ChevronsDownUp className="mr-1 h-4 w-4" /> Collapse all
+          </Button>
+        </div>
+      ) : null}
 
       {/* Dropzone */}
       <div
@@ -341,11 +427,14 @@ export default function TrackList({
                   index={idx}
                   artists={artists}
                   audioItem={queue.items[`${track.rowId}:audio`]}
+                  stemsItem={queue.items[`${track.rowId}:stems`]}
                   requireIsrc={requireIsrc}
                   onChange={(patch) => updateRow(track.rowId, patch)}
                   onRemove={() => removeRow(track.rowId)}
                   onReplaceAudio={(file) => replaceAudio(track.rowId, file)}
                   onRetryAudio={() => queue.retry(`${track.rowId}:audio`)}
+                  onUploadStems={(file) => uploadStems(track.rowId, file)}
+                  onRetryStems={() => queue.retry(`${track.rowId}:stems`)}
                   onToggleExpand={() =>
                     updateRow(track.rowId, { expanded: !track.expanded }, false)
                   }
@@ -365,6 +454,15 @@ export default function TrackList({
       >
         <Plus className="mr-1 h-4 w-4" /> Add a track manually
       </Button>
+
+      <ApplyToAllDialog
+        open={applyOpen}
+        onOpenChange={setApplyOpen}
+        artists={artists}
+        trackCount={tracks.length}
+        defaultPrimaryArtistIds={defaultPrimaryArtistIds}
+        onApply={applyToAll}
+      />
     </div>
   );
 }

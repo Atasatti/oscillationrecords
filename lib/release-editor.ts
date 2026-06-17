@@ -373,6 +373,16 @@ export function editorTrackFromSerialized(
   };
 }
 
+/** Per-track problems that block a RELEASED publish (empty = ready). */
+export function trackPublishIssues(row: EditorTrack, requireIsrc: boolean): string[] {
+  const issues: string[] = [];
+  if (!row.name.trim()) issues.push("name");
+  if (!row.audioFile || row.duration <= 0) issues.push("audio");
+  if (row.primaryArtistIds.length === 0) issues.push("artist");
+  if (requireIsrc && !row.isrcCode.trim()) issues.push("ISRC");
+  return issues;
+}
+
 /** True once a row can be persisted as a track (new rows need audio first). */
 export function trackIsPersistable(row: EditorTrack): boolean {
   if (!row.name.trim()) return false;

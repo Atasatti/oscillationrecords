@@ -6,19 +6,23 @@ export default function UploadStatusChip({
   item,
   hasFile,
   onRetry,
+  readyLabel = "Audio ready",
+  emptyLabel = "No audio",
 }: {
   item: UploadItem | undefined;
   /** True when the row already has an uploaded file (e.g. existing track). */
   hasFile: boolean;
   onRetry?: () => void;
+  readyLabel?: string;
+  emptyLabel?: string;
 }) {
   if (!item) {
     return hasFile ? (
       <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Audio ready
+        <CheckCircle2 className="h-3.5 w-3.5" /> {readyLabel}
       </span>
     ) : (
-      <span className="text-xs text-gray-500">No audio</span>
+      <span className="text-xs text-gray-500">{emptyLabel}</span>
     );
   }
 

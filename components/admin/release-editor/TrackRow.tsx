@@ -25,27 +25,34 @@ export default function TrackRow({
   index,
   artists,
   audioItem,
+  stemsItem,
   requireIsrc,
   onChange,
   onRemove,
   onReplaceAudio,
   onRetryAudio,
+  onUploadStems,
+  onRetryStems,
   onToggleExpand,
 }: {
   track: EditorTrack;
   index: number;
   artists: ArtistOpt[];
   audioItem: UploadItem | undefined;
+  stemsItem: UploadItem | undefined;
   requireIsrc: boolean;
   onChange: (patch: Partial<EditorTrack>) => void;
   onRemove: () => void;
   onReplaceAudio: (file: File) => void;
   onRetryAudio: () => void;
+  onUploadStems: (file: File) => void;
+  onRetryStems: () => void;
   onToggleExpand: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: track.rowId });
   const audioRef = useRef<HTMLInputElement>(null);
+  const stemsRef = useRef<HTMLInputElement>(null);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -145,6 +152,39 @@ export default function TrackRow({
             <p className="mt-1 text-xs text-gray-500">
               Duration: {formatDuration(track.duration)}
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-400">
+              Stems (optional)
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10"
+              onClick={() => stemsRef.current?.click()}
+            >
+              {track.stemsFile ? "Replace stems" : "Upload stems"}
+            </Button>
+            <input
+              ref={stemsRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onUploadStems(file);
+                e.target.value = "";
+              }}
+            />
+            <div className="mt-1">
+              <UploadStatusChip
+                item={stemsItem}
+                hasFile={!!track.stemsFile}
+                onRetry={onRetryStems}
+                readyLabel="Stems ready"
+                emptyLabel="No stems"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
