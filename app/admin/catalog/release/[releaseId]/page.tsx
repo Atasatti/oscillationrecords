@@ -4,9 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
-import TrackFormDialog, {
-  type TrackFormDialogTrack,
-} from "@/components/admin/TrackFormDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -68,7 +65,7 @@ interface Track {
   leadVocal?: string | null;
   lyrics?: string | null;
   stemsFile?: string | null;
-  trackCredits?: TrackFormDialogTrack["trackCredits"];
+  trackCredits?: unknown;
   isrcCode?: string | null;
   isrcExplicit?: boolean;
   spotifyLink?: string;
@@ -118,16 +115,16 @@ function SortableTrackCard({
   coverImage,
   primaryArtistName,
   featureArtistNames,
+  editHref,
   onViewLyrics,
-  onEdit,
   onDelete,
 }: {
   track: Track;
   coverImage: string;
   primaryArtistName: string;
   featureArtistNames: string[];
+  editHref: string;
   onViewLyrics: (track: Track) => void;
-  onEdit: (track: Track) => void;
   onDelete: (track: Track) => void;
 }) {
   const {
@@ -206,9 +203,11 @@ function SortableTrackCard({
             <Download className="w-4 h-4 mr-2" />
             Download stems
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => requestAnimationFrame(() => onEdit(track))}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Edit track
+          <DropdownMenuItem asChild>
+            <Link href={editHref}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit track
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
@@ -240,13 +239,6 @@ export default function AdminReleaseDetail() {
     id: string;
     name: string;
   } | null>(null);
-  const [trackDialogOpen, setTrackDialogOpen] = useState(false);
-  const [trackDialogMode, setTrackDialogMode] = useState<"create" | "edit">(
-    "create"
-  );
-  const [editingTrack, setEditingTrack] = useState<TrackFormDialogTrack | null>(
-    null
-  );
   const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
   const [lyricsView, setLyricsView] = useState<{
     trackName: string;
@@ -372,11 +364,7 @@ export default function AdminReleaseDetail() {
     }
   };
 
-  const openAddTrack = () => {
-    setTrackDialogMode("create");
-    setEditingTrack(null);
-    setTrackDialogOpen(true);
-  };
+  const editorHref = `/admin/catalog/releases/${releaseId}/edit`;
 
   const handleTrackReorder = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -405,45 +393,6 @@ export default function AdminReleaseDetail() {
       setOrderedTracks(prev);
       toast.error("Network error — could not save track order.");
     }
-  };
-
-  const handleTrackDialogOpenChange = (next: boolean) => {
-    setTrackDialogOpen(next);
-    if (!next) {
-      setEditingTrack(null);
-    }
-  };
-
-  const openEditTrack = (t: Track) => {
-    setTrackDialogMode("edit");
-    setEditingTrack({
-      id: t.id,
-      name: t.name,
-      image: t.image,
-      audioFile: t.audioFile,
-      duration: t.duration,
-      releaseDate: t.releaseDate,
-      composer: t.composer,
-      lyricist: t.lyricist,
-      leadVocal: t.leadVocal,
-      lyrics: t.lyrics ?? null,
-      stemsFile: t.stemsFile ?? null,
-      trackCredits: Array.isArray(t.trackCredits)
-        ? (t.trackCredits as TrackFormDialogTrack["trackCredits"])
-        : null,
-      isrcCode: t.isrcCode,
-      isrcExplicit: t.isrcExplicit,
-      spotifyLink: t.spotifyLink,
-      appleMusicLink: t.appleMusicLink,
-      tidalLink: t.tidalLink,
-      amazonMusicLink: t.amazonMusicLink,
-      youtubeLink: t.youtubeLink,
-      soundcloudLink: t.soundcloudLink,
-      primaryArtistIds: t.primaryArtistIds,
-      featureArtistIds: t.featureArtistIds,
-      featureArtistNames: t.featureArtistNames,
-    });
-    setTrackDialogOpen(true);
   };
 
   const kindTitle =
@@ -667,22 +616,22 @@ export default function AdminReleaseDetail() {
               <p className="text-xs text-gray-500">Drag the grip to reorder tracks.</p>
             ) : null}
           </div>
-          <Button
-            type="button"
-            onClick={openAddTrack}
-            className="bg-white text-black hover:bg-gray-200"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add track
+          <Button asChild className="bg-white text-black hover:bg-gray-200">
+            <Link href={editorHref}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add / edit tracks
+            </Link>
           </Button>
         </div>
 
         {release.tracks.length === 0 ? (
           <div className="max-w-6xl xl:max-w-7xl mx-auto rounded-xl border border-dashed border-white/10 bg-[#141414]/50 p-12 text-center">
             <p className="text-gray-400 mb-4">No tracks yet.</p>
-            <Button type="button" onClick={openAddTrack} variant="outline" className="border-gray-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Add your first track
+            <Button asChild variant="outline" className="border-gray-600">
+              <Link href={editorHref}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add your first track
+              </Link>
             </Button>
           </div>
         ) : (
@@ -707,11 +656,11 @@ export default function AdminReleaseDetail() {
                       track.featureArtistIds,
                       track.primaryArtistIds
                     )}
+                    editHref={editorHref}
                     onViewLyrics={(t) => {
                       setLyricsView({ trackName: t.name, lyrics: t.lyrics ?? null });
                       setLyricsDialogOpen(true);
                     }}
-                    onEdit={(t) => openEditTrack(t)}
                     onDelete={(t) => {
                       setTrackToDelete({ id: t.id, name: t.name });
                       setDeleteTrackDialogOpen(true);
@@ -722,33 +671,6 @@ export default function AdminReleaseDetail() {
             </SortableContext>
           </DndContext>
         )}
-
-        <TrackFormDialog
-          key={
-            trackDialogOpen
-              ? `${trackDialogMode}-${
-                  trackDialogMode === "edit"
-                    ? editingTrack?.id ?? "unknown"
-                    : "new"
-                }`
-              : "track-form-closed"
-          }
-          open={trackDialogOpen}
-          onOpenChange={handleTrackDialogOpenChange}
-          releaseId={releaseId}
-          releaseStatus={release.status}
-          artists={allArtists}
-          defaultPrimaryIds={release.primaryArtistIds}
-          defaultFeatureArtistText={combinedFeatureDisplayNames(
-            release.featureArtistIds,
-            release.primaryArtistIds,
-            buildArtistMap(allArtists),
-            release.featureArtistNames
-          ).join(", ")}
-          mode={trackDialogMode}
-          track={editingTrack}
-          onSaved={fetchData}
-        />
 
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent className="bg-[#141414] border-white/10 text-white">

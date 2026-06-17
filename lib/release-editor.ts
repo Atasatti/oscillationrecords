@@ -1,5 +1,4 @@
-// Shared, client-safe helpers for the release/track editing surfaces
-// (TrackFormDialog + the Release Editor). No server imports.
+// Shared, client-safe helpers for the Release Editor surfaces. No server imports.
 import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 
 /**
