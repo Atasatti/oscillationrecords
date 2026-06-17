@@ -314,18 +314,23 @@ export default function AnalyticsDashboard() {
             </div>
           ) : null}
         </div>
-        <div className="flex shrink-0 gap-1">
-          {[7, 30, 90, 365].map((d) => (
-            <Button
-              key={d}
-              variant={days === d ? "default" : "outline"}
-              size="sm"
-              onClick={() => setDays(d)}
-              className={days === d ? "bg-white text-black hover:bg-gray-200" : ""}
-            >
-              {d === 365 ? "1Y" : `${d}D`}
-            </Button>
-          ))}
+        <div className="flex shrink-0 items-center gap-3">
+          <Link href="/admin/data" className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground">
+            Live &amp; raw data →
+          </Link>
+          <div className="flex gap-1">
+            {[7, 30, 90, 365].map((d) => (
+              <Button
+                key={d}
+                variant={days === d ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDays(d)}
+                className={days === d ? "bg-white text-black hover:bg-gray-200" : ""}
+              >
+                {d === 365 ? "1Y" : `${d}D`}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
