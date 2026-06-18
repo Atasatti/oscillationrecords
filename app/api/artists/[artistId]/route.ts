@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { deleteArtistCascade } from "@/lib/artist-delete";
 import { extractArtistExtras } from "@/lib/artist-input";
+import { rehostExternalImage } from "@/lib/s3";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -93,12 +94,18 @@ export async function PUT(
       );
     }
 
+    // Re-host an external photo (e.g. a Spotify i.scdn.co URL from import) onto
+    // our own S3 so the image is ours; best-effort, falls back to the original.
+    const finalPicture = profilePicture
+      ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
+      : null;
+
     const artist = await prisma.artist.update({
       where: { id: artistId },
       data: {
         name,
         biography,
-        profilePicture: profilePicture || null,
+        profilePicture: finalPicture,
         composer: composer || null,
         lyricist: lyricist || null,
         leadVocal: leadVocal || null,

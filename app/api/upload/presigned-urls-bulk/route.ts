@@ -4,6 +4,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireAdmin } from "@/lib/auth-guard";
 import {
   S3_BUCKET,
+  isAudioContentType,
+  isImageContentType,
   publicFileUrl,
   s3Client,
   s3Configured,
@@ -48,6 +50,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isImageContentType(imageFileType)) {
+      return NextResponse.json(
+        { error: "imageFileType must be an image/* content type" },
+        { status: 400 }
+      );
+    }
+
     const imageKey = sanitizeKey(imageFileName);
     if (!imageKey) {
       return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
@@ -81,6 +90,9 @@ export async function POST(request: NextRequest) {
         async ({ fileName, fileType }: { fileName: string; fileType: string }) => {
           if (!fileName || !fileType) {
             throw new Error("Each audio file must have fileName and fileType");
+          }
+          if (!isAudioContentType(fileType)) {
+            throw new Error("Each audio file must have an audio/* content type");
           }
           const key = sanitizeKey(fileName);
           if (!key) {

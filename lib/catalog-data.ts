@@ -75,6 +75,23 @@ export function scheduledReleaseWhere(): Prisma.ReleaseWhereInput {
   return { status: "SCHEDULED", releaseDate: { gt: new Date() } };
 }
 
+/**
+ * In-memory mirror of {@link publicReleaseWhere} for a single already-loaded
+ * release: true when the public may see it (RELEASED, or SCHEDULED whose date
+ * has arrived). Used to gate detail endpoints that load a row before deciding
+ * visibility.
+ */
+export function isReleasePublic(r: {
+  status: "DRAFT" | "SCHEDULED" | "RELEASED";
+  releaseDate: Date | null;
+}): boolean {
+  if (r.status === "RELEASED") return true;
+  if (r.status === "SCHEDULED" && r.releaseDate && r.releaseDate.getTime() <= Date.now()) {
+    return true;
+  }
+  return false;
+}
+
 export const releaseCardListArgs = {
   orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
   include: {

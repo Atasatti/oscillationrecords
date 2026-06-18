@@ -47,6 +47,11 @@ type ArtistLike = {
 
 type ReleaseLike = { id: string; name: string; thumbnail?: string | null };
 
+/** schema.org ImageObject — richer than a bare URL (lets us attach a caption). */
+function imageObject(url: string, caption: string) {
+  return { "@type": "ImageObject", url: absoluteUrl(url), caption };
+}
+
 /** schema.org Place from a city/country, or null if neither is set. */
 function buildPlace(city?: string | null, country?: string | null) {
   const address: Record<string, string> = {};
@@ -81,7 +86,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     url,
     "@id": url,
   };
-  if (artist.profilePicture) jsonLd.image = artist.profilePicture;
+  if (artist.profilePicture) jsonLd.image = imageObject(artist.profilePicture, artist.name);
   const desc = metaDescription(artist.biography, 5000);
   if (desc) jsonLd.description = desc;
   if (artist.genres && artist.genres.length) jsonLd.genre = artist.genres;
@@ -93,7 +98,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
       "@type": "MusicAlbum",
       name: r.name,
       url: absoluteUrl(`/releases/${r.id}`),
-      ...(r.thumbnail ? { image: r.thumbnail } : {}),
+      ...(r.thumbnail ? { image: absoluteUrl(r.thumbnail) } : {}),
     }));
   }
   jsonLd.subjectOf = { "@type": "WebPage", url };
@@ -139,7 +144,7 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     url,
     "@id": url,
   };
-  if (release.coverImage) jsonLd.image = release.coverImage;
+  if (release.coverImage) jsonLd.image = imageObject(release.coverImage, release.name);
   const desc = metaDescription(release.description, 5000);
   if (desc) jsonLd.description = desc;
   if (genres.length) jsonLd.genre = genres;

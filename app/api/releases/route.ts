@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
     // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
     // otherwise the response stays the existing bare array (public site, carousel).
     if (searchParams.has("page") || searchParams.has("pageSize")) {
+      // Admin-only data view (maps with isAdmin:true, exposes DRAFT + upcCode).
+      const guard = await requireAdmin(request);
+      if (!guard.ok) return guard.response;
       const statusParam = searchParams.get("status");
       const result = await getReleasesPage({
         page: parseInt(searchParams.get("page") || "1", 10) || 1,

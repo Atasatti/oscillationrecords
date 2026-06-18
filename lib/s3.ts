@@ -1,4 +1,4 @@
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 /**
  * Centralized S3 configuration + key/URL helpers so every upload route applies
@@ -70,5 +70,69 @@ export function isOwnBucketUrl(url: unknown): boolean {
     );
   } catch {
     return false;
+  }
+}
+
+const EXT_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+
+/** Filename-safe slug from an artist/release name (for human-readable S3 keys). */
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "image"
+  );
+}
+
+/**
+ * Copy a remote image (e.g. a Spotify `i.scdn.co` URL pulled in during artist
+ * import) into our own S3 bucket so the image file is hosted by us — which is
+ * what lets it rank/attribute to our pages in Google Images, and what we can
+ * list in the image sitemap. Returns the new public S3 URL.
+ *
+ * Best-effort and idempotent: returns the URL unchanged when it's already on our
+ * bucket, and returns null (caller keeps the original) when S3 isn't configured,
+ * the fetch fails, or the content isn't a sane-sized image. Never throws.
+ */
+export async function rehostExternalImage(
+  url: string,
+  name: string,
+  keyPrefix = "artists/images"
+): Promise<string | null> {
+  if (isOwnBucketUrl(url)) return url; // already ours — no-op
+  if (!s3Configured() || !s3Client) return null;
+  if (!/^https?:\/\//i.test(url)) return null;
+
+  try {
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) return null;
+    const contentType = (res.headers.get("content-type") || "").split(";")[0].trim();
+    if (!isImageContentType(contentType)) return null;
+
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > 15 * 1024 * 1024) return null; // 0–15MB
+
+    const ext = EXT_BY_TYPE[contentType] || "jpg";
+    const key = `${keyPrefix}/${slugify(name)}-${Date.now()}.${ext}`;
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+        CacheControl: "public, max-age=31536000, immutable",
+      })
+    );
+    return publicFileUrl(key);
+  } catch {
+    return null;
   }
 }

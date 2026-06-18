@@ -12,6 +12,7 @@ import {
   Lock,
   Link2,
   Database,
+  ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -507,7 +508,7 @@ export default function ArtistEditor({
                 setMbOpen(true);
               }}
             >
-              <Link2 className="h-4 w-4" /> Find social links
+              <Link2 className="h-4 w-4" /> Import from MusicBrainz
             </Button>
             <Button
               type="button"
@@ -740,7 +741,7 @@ export default function ArtistEditor({
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Often auto-assigned once on streaming. Use Find, or “Find social links” pulls it from MusicBrainz.
+                    Often auto-assigned once on streaming. Use Find, or “Import from MusicBrainz” pulls it in.
                   </p>
                 </div>
                 <div>
@@ -777,6 +778,36 @@ export default function ArtistEditor({
                     .
                   </p>
                 </div>
+              </div>
+              <div className="mt-4">
+                <label htmlFor="musicBrainzId" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  MusicBrainz ID
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    id="musicBrainzId"
+                    name="musicBrainzId"
+                    value={form.musicBrainzId}
+                    onChange={(e) => setField("musicBrainzId", e.target.value)}
+                    placeholder="Set by “Import from MusicBrainz”"
+                    className="font-mono text-sm"
+                  />
+                  {form.musicBrainzId ? (
+                    <Button type="button" variant="outline" asChild>
+                      <a
+                        href={`https://musicbrainz.org/artist/${form.musicBrainzId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4" /> View
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Links this artist to their MusicBrainz page — a strong SEO “sameAs”
+                  signal. Filled automatically by “Import from MusicBrainz”.
+                </p>
               </div>
               <div className="mt-4">
                 <label htmlFor="internalNotes" className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -885,11 +916,13 @@ export default function ArtistEditor({
       <Dialog open={mbOpen} onOpenChange={setMbOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Find social links</DialogTitle>
+            <DialogTitle>Import from MusicBrainz</DialogTitle>
             <DialogDescription>
-              Searches the free MusicBrainz database for social &amp; streaming
-              links. Coverage varies — review before applying. Only empty link
-              fields are filled; your existing links are never overwritten.
+              Searches the free MusicBrainz database and, when you pick a match,
+              links this artist (sets their <strong className="text-foreground">MusicBrainz ID</strong>)
+              and imports social &amp; streaming links, genres and ISNI/IPI codes.
+              Coverage varies — review before applying. Only empty fields are filled;
+              your existing values are never overwritten.
             </DialogDescription>
           </DialogHeader>
 
@@ -898,6 +931,13 @@ export default function ArtistEditor({
               <p className="text-sm text-muted-foreground">
                 Found for <span className="text-foreground">{mbPickedName}</span>:
               </p>
+              {form.musicBrainzId ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                  <span className="w-24 shrink-0 font-medium">MusicBrainz ID</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{form.musicBrainzId}</span>
+                  <span className="shrink-0 rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-400">linked</span>
+                </div>
+              ) : null}
               {(mbIsni || mbIpis.length || mbGenres.length) ? (
                 <ul className="space-y-2">
                   {mbGenres.length ? (
@@ -1032,7 +1072,7 @@ export default function ArtistEditor({
               Searches the public ISNI registry by name. It lists every kind of
               entity (companies too), so verify via the sources/links shown —
               music entries are flagged and listed first. For artists already on
-              MusicBrainz, “Find social links” returns the ISNI without guessing.
+              MusicBrainz, “Import from MusicBrainz” returns the ISNI without guessing.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">

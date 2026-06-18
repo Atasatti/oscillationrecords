@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const days = parseInt(searchParams.get("days") || "30", 10);
+    const daysRaw = parseInt(searchParams.get("days") || "30", 10);
+    const days = Math.min(Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 30), 365);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 

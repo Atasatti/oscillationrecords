@@ -5,6 +5,18 @@ import { requireAdmin } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * Escape a value for CSV: wrap in quotes (doubling internal quotes) and, when it
+ * begins with a character a spreadsheet treats as a formula (= + - @, tab, CR),
+ * prefix a single quote. Subscriber emails are public-supplied, so an address
+ * like `=HYPERLINK(...)` must not execute when the admin opens the file.
+ */
+function csvCell(value: string): string {
+  const needsFormulaGuard = /^[=+\-@\t\r]/.test(value);
+  const escaped = (needsFormulaGuard ? `'${value}` : value).replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
 // GET /api/admin/subscribers?q=&page=&pageSize=  (JSON list)
 //     /api/admin/subscribers?format=csv          (CSV download of all matches)
 export async function GET(request: NextRequest) {
@@ -23,8 +35,8 @@ export async function GET(request: NextRequest) {
     });
     const rows = [
       "email,subscribed_at",
-      ...all.map((s) => `${s.email},${s.createdAt.toISOString()}`),
-    ].join("\n");
+      ...all.map((s) => `${csvCell(s.email)},${csvCell(s.createdAt.toISOString())}`),
+    ].join("\r\n");
     return new NextResponse(rows, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",

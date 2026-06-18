@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const days = Math.max(1, parseInt(searchParams.get("days") || "30", 10));
+    const daysRaw = parseInt(searchParams.get("days") || "30", 10);
+    const days = Math.min(Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 30), 365);
     const now = new Date();
     const startDate = new Date(now.getTime() - days * 86400000);
     const prevStart = new Date(now.getTime() - 2 * days * 86400000);

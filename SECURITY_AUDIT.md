@@ -19,6 +19,41 @@ Fix the CRITICAL + the two HIGH leaks and the abuse-control MEDIUMs, and the app
 
 ---
 
+## ✅ Remediation applied (2026-06-18)
+
+All **code** findings below have been fixed and independently re-reviewed (15 adversarial reviewers, all verdicts "correct"; typecheck `tsc --noEmit` clean; ESLint clean on changed files). Two items are **operational / your action** and one is a **deliberate deferral**.
+
+**Fixed in code:**
+- **H1 / M1** — `requireAdmin` added to the `?page=` branches of `app/api/releases/route.ts` and `app/api/artists/route.ts`. The public (non-paginated) branches are unchanged.
+- **H2** — `app/api/songs/latest` now filters with `publicReleaseWhere()` (no DRAFT/future-SCHEDULED leak) and clamps `limit` to 1–50 (NaN→8).
+- **M2** — `GET /api/tracks/[trackId]` now 404s unreleased tracks for non-admins (`isReleasePublic`, new in `lib/catalog-data.ts`).
+- **M3** — `serializeTrackForPublic` now strips `stemsFile` (master stems) in addition to ISRC/ISWC/lyrics. Verified no public payload still ships stems.
+- **M4** — `track-play` is rate-limited + validates `contentType`/`contentId`/`artistId` (ObjectId), caps name lengths, clamps `playDuration`.
+- **M5** — `clientIp` prefers proxy-trusted `x-real-ip` over the spoofable left-most `X-Forwarded-For`.
+- **M6** — `user-profile` validates demographics against enum allowlists + length/age caps.
+- **M7** — subscribers CSV export escapes every cell and neutralizes `= + - @`/tab/CR formula prefixes.
+- **M8 / L6** — CSP **enforced in production** (report-only in dev so HMR isn't blocked); image optimizer scoped to the specific bucket host instead of `**.amazonaws.com`.
+- **L1 / L2** — non-admin presigned uploads are rate-limited and **server-namespaced** to `benert-remix/<userId>/…` (no cross-user overwrite / path escape); `upload-complete` confines the stored URL to the caller's own prefix and best-effort HEAD-checks size/content-type.
+- **L3** — bulk presign route validates image/audio content types.
+- **L4** — competition `start` validates `durationHours` (integer 1–8760) and refuses to start when one is already active (409).
+- **L5** — footer/hero/studio URLs are scheme-validated (`lib/url-safety.ts` — rejects `javascript:`/`data:`/`vbscript:`, protocol-relative, and the `/\host` open-redirect trick).
+- **Extra** — `days` query params on the three admin analytics routes are clamped to 1–365.
+
+**Dependencies (H3):** `npm audit fix` took **36 advisories → 4 moderate** (all 1 critical + 9 high resolved). `next`→15.5.19, `next-auth`→4.24.14, `prisma`→6.19.3, `fast-xml-parser`→5.7.3, `tar`→7.5.16. The 4 residual moderates are transitive in `next` (bundled `postcss`) and `next-auth` (`uuid`) with **no non-breaking fix** — their only `--force` "fix" downgrades to `next@9` / `next-auth@3`, which we did **not** apply. Clear them later by moving to NextAuth v5.
+
+**⚠️ Your action — not fixable in code:**
+- **C1 (CRITICAL): rotate every secret** in `.env` (Mongo password, `NEXTAUTH_SECRET`, Google + Spotify client secrets, the AWS key pair) and keep production secrets only in the Vercel secret store. This must be done in the respective consoles.
+- **Finalize deps:** run `npm install` (dedupes `@prisma/client` to 6.19.3 to match the `prisma` CLI) **with the dev server stopped**, then `npx prisma generate`. (Couldn't be run here — the running dev server holds a lock on the Prisma engine DLL.)
+
+**Deliberately deferred (documented, not a regression):**
+- **M8 residual:** `script-src` still allows `'unsafe-inline'` in production because the site relies on SSG/ISR + Next's framework inline scripts + JSON-LD; removing it requires nonce-based CSP, which would force fully dynamic rendering. The CSP is now enforced (strictly better than the prior report-only); nonce hardening is the next step. **Rollback:** set `cspHeaderKey` back to the Report-Only name in `next.config.ts`.
+- **L7 (auth model):** still an email allowlist + JWT-only sessions (no server-side revocation). Left as-is — a role model + re-enabled Prisma adapter is a larger change that risks breaking login; the current model is safe while Google verifies emails and `NEXTAUTH_SECRET` stays secret (C1).
+- **Note:** the release **detail** GET still serves future-SCHEDULED ("Coming Soon") track audio publicly (pre-existing, powers the Coming-Soon page). `songs/latest` and `tracks/[id]` no longer do. If Coming-Soon pages shouldn't expose playable audio before release, gate that endpoint too — left unchanged since it may be intended product behavior.
+
+> ⚠️ **Verify before deploy:** smoke-test locally with the dev server and watch the browser console for any **CSP violation** reports (the policy is now enforced in production builds), confirm admin upload + the Benert-Remix submit flow still work end-to-end, and confirm Coming-Soon/release pages render. Nothing here has been pushed.
+
+---
+
 ## Findings at a glance
 
 | # | Sev | Area | Issue |

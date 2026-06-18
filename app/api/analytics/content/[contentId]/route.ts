@@ -44,8 +44,9 @@ export async function GET(
       );
     }
     const contentType = searchParams.get("type") || "track";
-    const days = parseInt(searchParams.get("days") || "30", 10);
-    
+    const daysRaw = parseInt(searchParams.get("days") || "30", 10);
+    const days = Math.min(Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 30), 365);
+
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 

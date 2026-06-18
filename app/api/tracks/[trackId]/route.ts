@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
+import { isReleasePublic } from "@/lib/catalog-data";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,6 +21,11 @@ export async function GET(
       return NextResponse.json({ error: "Track not found" }, { status: 404 });
     }
     const isAdmin = await isAdminRequest(request);
+    // Don't expose tracks belonging to unreleased (DRAFT / future-scheduled)
+    // releases to the public — that would leak unreleased audio by track id.
+    if (!isAdmin && !isReleasePublic(track.release)) {
+      return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    }
     const serialized = isAdmin ? serializeTrack(track) : serializeTrackForPublic(track);
     return NextResponse.json({
       ...serialized,
