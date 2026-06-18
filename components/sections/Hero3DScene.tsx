@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
 import IconButton from "@/components/local-ui/IconButton";
 import StudioPhotosCarousel from "@/components/sections/StudioPhotosCarousel";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 interface Hero3DSceneProps {
   photos: string[];
@@ -12,6 +13,7 @@ interface Hero3DSceneProps {
 
 export default function Hero3DScene({ photos }: Hero3DSceneProps) {
   const headlineRef = useRef<HTMLDivElement>(null);
+  const { bgHero } = usePageMedia();
 
   // Mouse-driven tilt — applied ONLY to the headline block below, so the rest of
   // the hero (mission, cards, photos) renders flat.
@@ -37,7 +39,7 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
   return (
     <div
       className="bg-center bg-no-repeat w-full"
-      style={{ backgroundImage: `url('/hero-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgHero}')` }}
     >
       <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-12 md:py-14">
         {/* Headline — the only part with the 3D tilt */}

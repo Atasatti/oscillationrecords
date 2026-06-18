@@ -452,6 +452,9 @@ function ReleasesPageInner() {
               <TableHead>
                 <span className="inline-flex items-center gap-1">New Music <InfoHint text="Feature this release in the home page's New Music carousel. Set the carousel order on the Homepage screen." /></span>
               </TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-release SEO score (0–100) from the fields that drive search ranking and rich results: streaming links, description, cover image, tracklist, genres, release date and primary artist. The badge shows the highest-impact gap — click it to fill it." /></span>
+              </TableHead>
               <TableHead className="w-10 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -471,12 +474,13 @@ function ReleasesPageInner() {
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   {query ? `No releases match “${query}”.` : "No releases here yet."}
                 </TableCell>
               </TableRow>
@@ -493,7 +497,7 @@ function ReleasesPageInner() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Link href={`/admin/catalog/release/${r.id}`} className="flex items-center gap-3 group">
+                    <Link href={`/admin/catalog/releases/${r.id}/edit`} className="flex items-center gap-3 group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={r.thumbnail || "/new-music-img1.svg"}
@@ -527,6 +531,37 @@ function ReleasesPageInner() {
                     <button type="button" onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)} title="Feature in the New Music carousel">
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {r.seoScore === null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <Link
+                        href={`/admin/catalog/releases/${r.id}/edit`}
+                        title={
+                          r.seoComplete
+                            ? "All key SEO fields filled"
+                            : `To improve SEO, add: ${r.seoMissing.join(", ")} — click to edit`
+                        }
+                        className="inline-flex"
+                      >
+                        <Badge
+                          variant={
+                            r.seoGrade === "strong"
+                              ? "success"
+                              : r.seoGrade === "good"
+                                ? "warning"
+                                : "destructive"
+                          }
+                          className="cursor-pointer tabular-nums hover:opacity-80"
+                        >
+                          SEO {r.seoScore}
+                          {!r.seoComplete && r.seoMissing.length ? (
+                            <span className="font-normal opacity-80">· add {r.seoMissing[0]}</span>
+                          ) : null}
+                        </Badge>
+                      </Link>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

@@ -23,6 +23,7 @@ import {
   Wand2,
   ChevronsDownUp,
   ChevronsUpDown,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
@@ -52,6 +53,7 @@ export default function TrackList({
   requireIsrc,
   initialTracks,
   onActivityChange,
+  onUnsavedChange,
   onValidityChange,
 }: {
   releaseId: string;
@@ -61,8 +63,12 @@ export default function TrackList({
   /** ISRC required per track (release is RELEASED). */
   requireIsrc: boolean;
   initialTracks: Record<string, unknown>[];
-  /** Reports whether uploads/saves are in flight (for the unsaved-changes guard). */
+  /** Reports whether uploads/saves are in flight (used to gate publishing). */
   onActivityChange?: (active: boolean) => void;
+  /** Reports whether leaving now would lose track work — an in-flight
+   * upload/save, or a failed save still showing "Couldn't save". Lets the parent
+   * editor's unsaved-changes guard warn before in-app navigation. */
+  onUnsavedChange?: (unsaved: boolean) => void;
   /** Reports track count + how many have publish-blocking issues. */
   onValidityChange?: (info: { trackCount: number; issueCount: number }) => void;
 }) {
@@ -78,6 +84,10 @@ export default function TrackList({
   const [saveTick, setSaveTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
+  // True after a save fails — surfaces a persistent "Couldn't save — Retry" state
+  // (instead of letting a transient toast be the only signal) and arms the
+  // beforeunload guard so the admin can't lose unsaved track edits unknowingly.
+  const [saveError, setSaveError] = useState(false);
   const savingRef = useRef(false);
   const pendingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
@@ -117,7 +127,12 @@ export default function TrackList({
       const snapshot = tracksRef.current;
       const payloadTracks = snapshot
         .map((row, idx) => ({ row, idx }))
-        .filter(({ row }) => trackIsPersistable(row))
+        // Always include rows that are already persisted (have a server id), even
+        // if a field is momentarily empty mid-edit. The server treats an omitted
+        // id as an explicit deletion, so dropping an incomplete saved row here
+        // would silently delete it (and its audio/credits). New rows are only
+        // sent once persistable — they need an audio file first.
+        .filter(({ row }) => row.id || trackIsPersistable(row))
         .map(({ row, idx }) => buildTrackPayload(row, idx));
 
       const res = await fetch(`/api/releases/${releaseId}`, {
@@ -126,6 +141,7 @@ export default function TrackList({
         body: JSON.stringify({ tracks: payloadTracks }),
       });
       if (!res.ok) {
+        setSaveError(true);
         toast.error(await readError(res, "Failed to save tracks"));
         return;
       }
@@ -143,9 +159,11 @@ export default function TrackList({
           return match ? { ...row, id: String(match.id) } : row;
         })
       );
+      setSaveError(false);
       setSavedOnce(true);
     } catch (e) {
       console.error(e);
+      setSaveError(true);
       toast.error("Failed to save tracks");
     } finally {
       savingRef.current = false;
@@ -165,22 +183,30 @@ export default function TrackList({
     return () => clearTimeout(t);
   }, [saveTick, save]);
 
-  // Surface activity (uploads or in-flight save) to the parent for nav guarding.
+  // Surface activity (uploads or in-flight save) to the parent — gates publishing.
   const active = queue.hasActive || saving;
   useEffect(() => {
     onActivityChange?.(active);
   }, [active, onActivityChange]);
 
+  // Surface "leaving now loses work" to the parent's unsaved-changes guard: an
+  // in-flight upload/save, or a failed save still pending retry. Without this,
+  // in-app nav (Back/Cancel) wouldn't warn about unsaved track edits, since the
+  // tracklist autosaves separately from the release-details form.
+  useEffect(() => {
+    onUnsavedChange?.(active || saveError);
+  }, [active, saveError, onUnsavedChange]);
+
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (queue.hasActive || savingRef.current) {
+      if (queue.hasActive || savingRef.current || saveError) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [queue.hasActive]);
+  }, [queue.hasActive, saveError]);
 
   // ---- adding tracks ----
   const addFiles = useCallback(
@@ -319,7 +345,7 @@ export default function TrackList({
           </h3>
           <p className="text-xs text-gray-500">
             Drop audio files to add tracks — they upload in the background while you
-            fill in details.
+            fill in details. Track changes save automatically.
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -332,6 +358,14 @@ export default function TrackList({
             <span className="inline-flex items-center gap-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
             </span>
+          ) : saveError ? (
+            <button
+              type="button"
+              onClick={() => void save()}
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-amber-400 hover:bg-amber-400/10"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" /> Couldn’t save — Retry
+            </button>
           ) : savedOnce ? (
             <span className="inline-flex items-center gap-1.5 text-emerald-400">
               <CheckCircle2 className="h-3.5 w-3.5" /> Saved

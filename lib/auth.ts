@@ -1,4 +1,5 @@
-import NextAuth, { AuthOptions, JWT } from "next-auth";
+import NextAuth, { AuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
@@ -6,6 +7,7 @@ interface ExtendedToken extends JWT {
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: number;
+  role?: string;
   error?: string;
   [key: string]: unknown;
 }
@@ -81,10 +83,11 @@ export const authOptions: AuthOptions = {
         extendedToken.email = user.email;
       }
 
-      // On initial sign in: persist Google user to DB so APIs (e.g. upload-url) can find them
+      // On initial sign in: persist the Google user to the DB (so APIs can find
+      // them) and capture their authorization role for the session token.
       if (account && user?.email) {
         try {
-          await prisma.user.upsert({
+          const dbUser = await prisma.user.upsert({
             where: { email: user.email },
             create: {
               email: user.email,
@@ -96,6 +99,7 @@ export const authOptions: AuthOptions = {
               image: user.image ?? null,
             },
           });
+          extendedToken.role = dbUser.role ?? undefined;
         } catch (e) {
           console.error("Auth: failed to sync user to DB", e);
         }
@@ -117,6 +121,7 @@ export const authOptions: AuthOptions = {
         const extendedToken = token as ExtendedToken;
         if (session.user) {
           session.user.id = extendedToken.sub as string;
+          session.user.role = (extendedToken.role as string) ?? "user";
         }
 
         // NOTE: Google access/refresh tokens are intentionally NOT copied onto the

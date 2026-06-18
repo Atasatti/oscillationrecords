@@ -3,6 +3,7 @@ import React from "react";
 import IconInput from "../local-ui/IconInput";
 import { ArrowRight } from "lucide-react";
 import clsx from "clsx"; // optional: use clsx for cleaner conditional classes
+import { usePageMedia } from "@/hooks/use-page-media";
 
 interface MusicHeardSectionProps {
   heading: string;
@@ -15,13 +16,14 @@ const MusicHeardSection: React.FC<MusicHeardSectionProps> = ({
   subtext,
   className,
 }) => {
+  const { bgMusicHeard } = usePageMedia();
   return (
     <div
       className={clsx(
         "bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28",
         className
       )}
-      style={{ backgroundImage: `url('/music-heard-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgMusicHeard}')` }}
     >
       <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter px-4">
         {heading}

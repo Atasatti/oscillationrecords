@@ -6,9 +6,10 @@ import { revalidatePath } from "next/cache";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// PUT — { orderedIds: string[] } sets sortOrder = index over the SCHEDULED
+// PUT — { orderedIds: string[] } sets comingSoonOrder = index over the SCHEDULED
 // (Coming Soon) releases, controlling their order in the home "Coming Soon"
-// section. Mirrors the New Music home-order route.
+// section. Uses its own field (not sortOrder) so it never collides with the
+// Custom-order panel, which writes sortOrder over all releases.
 export async function PUT(request: NextRequest) {
   const guard = await requireAdmin(request);
   if (!guard.ok) return guard.response;
@@ -24,7 +25,7 @@ export async function PUT(request: NextRequest) {
     for (let index = 0; index < orderedIds.length; index++) {
       await prisma.release.update({
         where: { id: orderedIds[index] },
-        data: { sortOrder: index },
+        data: { comingSoonOrder: index },
       });
     }
     revalidatePath("/");

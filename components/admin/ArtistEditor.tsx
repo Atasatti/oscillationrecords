@@ -31,6 +31,7 @@ import type { MbArtistMatch } from "@/lib/musicbrainz";
 import type { IsniMatch } from "@/lib/isni";
 import { buildArtistSeedUrl, buildArtistEditUrl } from "@/lib/musicbrainz-seed";
 import GenrePicker from "@/components/admin/GenrePicker";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -118,6 +119,11 @@ export default function ArtistEditor({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Warns before discarding unsaved edits (Cancel/Back/leave). Set on any field
+  // change or import, cleared on a successful save and after the initial load.
+  const [dirty, setDirty] = useState(false);
+  const { confirmDiscard } = useUnsavedChangesGuard(dirty);
+  const markDirty = () => setDirty(true);
 
   // Spotify import
   const [spotifyEnabled, setSpotifyEnabled] = useState(false);
@@ -217,12 +223,15 @@ export default function ArtistEditor({
     };
   }, [imagePreview]);
 
-  const setField = (name: keyof FormState, value: string) =>
+  const setField = (name: keyof FormState, value: string) => {
+    markDirty();
     setForm((p) => ({ ...p, [name]: value }));
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    markDirty();
     setImageFile(file);
     setImageUrl(null);
     if (imagePreview && imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
@@ -246,6 +255,7 @@ export default function ArtistEditor({
   };
 
   const applyImport = (a: SpotifyArtist) => {
+    markDirty();
     setForm((p) => ({
       ...p,
       name: a.name || p.name,
@@ -293,6 +303,7 @@ export default function ArtistEditor({
       const genres = (data.genres || []) as string[];
       // Record the MB link regardless — picking the artist establishes it, even
       // if the MB page has no links/codes yet (e.g. a freshly-added artist).
+      markDirty();
       setForm((p) => ({ ...p, musicBrainzId: m.mbid }));
       if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0 && genres.length === 0) {
         toast.success("Linked to MusicBrainz. That page has no links/codes yet — nothing to import.");
@@ -314,6 +325,7 @@ export default function ArtistEditor({
   // Also fills ISNI (if empty) and merges any IPI codes found.
   const applyMbLinks = () => {
     if (!mbPreview) return;
+    markDirty();
     let applied = 0;
     let skipped = 0;
     setForm((p) => {
@@ -461,6 +473,7 @@ export default function ArtistEditor({
           body: JSON.stringify({ showOnWebsite: form.showOnWebsite }),
         }).catch(() => {});
       }
+      setDirty(false);
       toast.success(mode === "edit" ? "Artist saved" : "Artist created");
       router.push("/admin/catalog/artists");
     } catch (e) {
@@ -483,7 +496,9 @@ export default function ArtistEditor({
     <div>
       <Button
         variant="ghost"
-        onClick={() => router.push("/admin/catalog/artists")}
+        onClick={() => {
+          if (confirmDiscard()) router.push("/admin/catalog/artists");
+        }}
         className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to artists
@@ -563,6 +578,7 @@ export default function ArtistEditor({
                     variant="destructive"
                     size="sm"
                     onClick={() => {
+                      markDirty();
                       if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
                       setImageFile(null);
                       setImageUrl(null);
@@ -647,7 +663,10 @@ export default function ArtistEditor({
                   <input
                     type="checkbox"
                     checked={form.showOnWebsite}
-                    onChange={(e) => setForm((p) => ({ ...p, showOnWebsite: e.target.checked }))}
+                    onChange={(e) => {
+                      markDirty();
+                      setForm((p) => ({ ...p, showOnWebsite: e.target.checked }));
+                    }}
                     className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
                   />
                   Show on website
@@ -842,7 +861,9 @@ export default function ArtistEditor({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/admin/catalog/artists")}
+                onClick={() => {
+                  if (confirmDiscard()) router.push("/admin/catalog/artists");
+                }}
               >
                 Cancel
               </Button>

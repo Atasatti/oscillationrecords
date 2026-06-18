@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isReleasePublic } from "@/lib/catalog-data";
 import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
@@ -37,6 +38,11 @@ export async function GET(
     if (!isAdmin && release.status === "DRAFT") {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
+    // A future-dated SCHEDULED (Coming-Soon) release is public for its metadata
+    // (name, cover, date, pre-save), but its tracks' audio must NOT be served to
+    // the public before release — that's a pre-release leak. The Coming-Soon page
+    // renders "Tracklist to be revealed" when tracks is empty. Admins see all.
+    const hideTracks = !isAdmin && !isReleasePublic(release);
 
     const allArtistIds = [
       ...release.primaryArtistIds,
@@ -52,9 +58,11 @@ export async function GET(
       select: { id: true, name: true, profilePicture: true },
     });
 
-    const tracks = release.tracks.map((t) =>
-      isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
-    );
+    const tracks = hideTracks
+      ? []
+      : release.tracks.map((t) =>
+          isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
+        );
 
     return NextResponse.json({
       id: release.id,

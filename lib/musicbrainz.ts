@@ -82,6 +82,55 @@ export async function searchArtists(q: string, limit = 8): Promise<MbArtistMatch
   }));
 }
 
+export type MbReleaseMatch = {
+  mbid: string;
+  title: string;
+  artist: string | null;
+  date: string | null;
+  country: string | null;
+  score: number | null;
+};
+
+type RawArtistCredit = Array<{ name?: string; joinphrase?: string; artist?: { name?: string } }>;
+
+type RawReleaseSearch = {
+  releases?: Array<{
+    id: string;
+    title: string;
+    date?: string;
+    country?: string;
+    score?: number;
+    "artist-credit"?: RawArtistCredit;
+  }>;
+};
+
+/** Join an artist-credit array into a display name ("A feat. B"). */
+function artistCreditName(credit?: RawArtistCredit): string | null {
+  if (!credit || !credit.length) return null;
+  const s = credit
+    .map((c) => `${c.name || c.artist?.name || ""}${c.joinphrase || ""}`)
+    .join("")
+    .trim();
+  return s || null;
+}
+
+/** Search MusicBrainz releases by title (optionally "title artist"). */
+export async function searchReleases(q: string, limit = 8): Promise<MbReleaseMatch[]> {
+  const query = q.trim();
+  if (!query) return [];
+  const data = (await mbFetch(
+    `/release?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`
+  )) as RawReleaseSearch;
+  return (data.releases || []).map((r) => ({
+    mbid: r.id,
+    title: r.title,
+    artist: artistCreditName(r["artist-credit"]),
+    date: r.date || null,
+    country: r.country || null,
+    score: typeof r.score === "number" ? r.score : null,
+  }));
+}
+
 // Our internal link field keys (must match the Artist model / ArtistEditor).
 export type ArtistLinkKey =
   | "xLink"
@@ -172,4 +221,59 @@ export async function getArtistDetails(mbid: string): Promise<MbArtistDetails> {
     ipis: Array.isArray(data.ipis) ? data.ipis : [],
     genres: topGenres(data),
   };
+}
+
+// A release carries only streaming-platform links (no socials), matching the
+// Release model's six link fields.
+export type ReleaseLinkKey =
+  | "spotifyLink"
+  | "appleMusicLink"
+  | "tidalLink"
+  | "amazonMusicLink"
+  | "youtubeLink"
+  | "soundcloudLink";
+
+const RELEASE_LINK_KEYS: ReleaseLinkKey[] = [
+  "spotifyLink",
+  "appleMusicLink",
+  "tidalLink",
+  "amazonMusicLink",
+  "youtubeLink",
+  "soundcloudLink",
+];
+
+/** Reuse the host→key map, but accept only the six release streaming platforms. */
+function releaseLinkKeyForHost(host: string): ReleaseLinkKey | null {
+  const key = linkKeyForHost(host);
+  return key && (RELEASE_LINK_KEYS as string[]).includes(key)
+    ? (key as ReleaseLinkKey)
+    : null;
+}
+
+export type MbReleaseDetails = {
+  links: Partial<Record<ReleaseLinkKey, string>>;
+};
+
+/**
+ * Resolve a release's URL relationships into our streaming link fields. Returns
+ * the first URL found per platform. Throws on network/HTTP error.
+ */
+export async function getReleaseDetails(mbid: string): Promise<MbReleaseDetails> {
+  const data = (await mbFetch(
+    `/release/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`
+  )) as RawArtistRels;
+  const links: Partial<Record<ReleaseLinkKey, string>> = {};
+  for (const rel of data.relations || []) {
+    const url = rel.url?.resource;
+    if (!url) continue;
+    let host: string;
+    try {
+      host = new URL(url).host;
+    } catch {
+      continue;
+    }
+    const key = releaseLinkKeyForHost(host);
+    if (key && !links[key]) links[key] = url;
+  }
+  return { links };
 }

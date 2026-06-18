@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
-import { isConfigured, searchArtists } from "@/lib/spotify";
+import { isConfigured, searchArtists, searchAlbums } from "@/lib/spotify";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// GET /api/admin/spotify/search?q= — admin-only Spotify artist search for the
-// artist editor's "Import from Spotify" flow. 503 when credentials are absent.
+// GET /api/admin/spotify/search?q=             — Spotify artist search (artist editor)
+// GET /api/admin/spotify/search?q=&type=album  — Spotify album search (release editor)
+// Admin-only "Import from Spotify" backend. 503 when credentials are absent
+// (the editors then hide the Import button).
 export async function GET(request: NextRequest) {
   const guard = await requireAdmin(request);
   if (!guard.ok) return guard.response;
@@ -18,10 +20,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const q = new URL(request.url).searchParams.get("q") || "";
-  if (!q.trim()) return NextResponse.json({ artists: [] });
+  const params = new URL(request.url).searchParams;
+  const q = params.get("q") || "";
+  const type = params.get("type");
 
   try {
+    if (type === "album") {
+      if (!q.trim()) return NextResponse.json({ albums: [] });
+      const albums = await searchAlbums(q);
+      return NextResponse.json({ albums });
+    }
+    if (!q.trim()) return NextResponse.json({ artists: [] });
     const artists = await searchArtists(q);
     return NextResponse.json({ artists });
   } catch (error) {

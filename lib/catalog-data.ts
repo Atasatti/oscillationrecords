@@ -10,6 +10,8 @@ import {
   primaryNamesFromIds,
   prismaKindToApi,
 } from "@/lib/release-format";
+import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
+import { compareComingSoon } from "@/lib/coming-soon-order";
 
 /**
  * Server-side data helpers for the public catalog. These are the single source
@@ -42,6 +44,7 @@ export interface ReleaseCardDTO {
   showLatestOnHome: boolean;
   showOnHome: boolean;
   homeOrder: number;
+  comingSoonOrder: number | null;
   status: "DRAFT" | "SCHEDULED" | "RELEASED";
   preSaveUrl: string | null;
   // ISO strings (matches the API's JSON shape; safe to pass to client components).
@@ -49,7 +52,24 @@ export interface ReleaseCardDTO {
   createdAt: string;
   year: string;
   songCount: number;
+  // Per-release SEO score (0–100) + weight-ordered gaps, mirroring the artist
+  // roster's score. Admin-only: null/empty for the public site. See
+  // lib/seo-score.ts (computeReleaseSeo).
+  seoScore: number | null;
+  seoGrade: ReleaseSeoGrade | null;
+  seoComplete: boolean;
+  seoMissing: string[];
 }
+
+// Streaming-link fields scored as `sameAs` signals on a release.
+const RELEASE_LINK_KEYS = [
+  "spotifyLink",
+  "appleMusicLink",
+  "tidalLink",
+  "amazonMusicLink",
+  "youtubeLink",
+  "soundcloudLink",
+] as const;
 
 // Listing/search/carousel only need the first track's audio (for the card
 // player) and a track count — not every track's audio/lyrics/credits. This
@@ -144,6 +164,21 @@ export async function mapReleasesToCards(
     const rd = getOptionalDate(r.releaseDate);
     const firstAudio = r.tracks[0]?.audioFile ?? null;
 
+    // SEO score is an admin-only metric; skip the work for public callers.
+    const seo = isAdmin
+      ? computeReleaseSeo({
+          hasCover: Boolean(r.coverImage),
+          descLength: (r.description ?? "").trim().length,
+          genreCount: [r.primaryGenre, r.secondaryGenre].filter((g) => Boolean(g && g.trim()))
+            .length,
+          linkCount: RELEASE_LINK_KEYS.filter((k) => Boolean((r as Record<string, unknown>)[k]))
+            .length,
+          trackCount: r._count.tracks,
+          hasReleaseDate: Boolean(r.releaseDate),
+          hasPrimaryArtist: Boolean(primaryArtistId),
+        })
+      : null;
+
     return {
       id: r.id,
       name: r.name,
@@ -167,6 +202,7 @@ export async function mapReleasesToCards(
       showLatestOnHome: r.showLatestOnHome,
       showOnHome: r.showOnHome,
       homeOrder: r.homeOrder,
+      comingSoonOrder: r.comingSoonOrder ?? null,
       status: r.status,
       preSaveUrl: r.preSaveUrl ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
@@ -175,6 +211,10 @@ export async function mapReleasesToCards(
         ? rd.getFullYear().toString()
         : new Date(r.createdAt).getFullYear().toString(),
       songCount: r._count.tracks,
+      seoScore: seo?.score ?? null,
+      seoGrade: seo?.grade ?? null,
+      seoComplete: seo ? seo.missing.length === 0 : false,
+      seoMissing: seo?.missing ?? [],
     };
   });
 }
@@ -502,8 +542,12 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
     // "Upcoming" is now just SCHEDULED releases with a future date.
     const releases = await prisma.release.findMany({
       where: scheduledReleaseWhere(),
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
+    // Order by the dedicated comingSoonOrder (set by the admin Coming Soon tab);
+    // rows never ordered there (null) fall after the curated ones, soonest
+    // release-date first. The admin Coming Soon list applies the identical
+    // comparator so the two views always agree (see app/admin/catalog/page.tsx).
+    releases.sort(compareComingSoon);
 
     // Resolve linked artist ids → names in one query.
     const ids = [
@@ -542,3 +586,162 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
     return [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// Press items — our own summaries of external coverage. Public readers gate on
+// showOnWebsite, and resolve only PUBLIC artists/releases (hidden artists and
+// DRAFT/future-SCHEDULED releases must never be linked or named publicly).
+// ---------------------------------------------------------------------------
+
+export interface PressItemDTO {
+  id: string;
+  title: string;
+  publisher: string;
+  articleUrl: string;
+  summary: string;
+  image: string | null;
+  author: string | null;
+  publishedAt: string | null; // ISO
+  artists: { id: string; name: string }[];
+  releases: { id: string; name: string }[];
+  sortOrder: number;
+  featured: boolean;
+  createdAt: string; // ISO
+}
+
+type PressRow = {
+  id: string;
+  title: string;
+  publisher: string;
+  articleUrl: string;
+  summary: string;
+  image: string | null;
+  author: string | null;
+  publishedAt: Date | null;
+  artistIds: string[];
+  releaseIds: string[];
+  sortOrder: number;
+  featured: boolean;
+  createdAt: Date;
+};
+
+// Public list ordering: curated order first, then newest coverage.
+const pressOrderBy = [
+  { sortOrder: "asc" as const },
+  { publishedAt: "desc" as const },
+  { createdAt: "desc" as const },
+];
+
+/**
+ * Resolve linked artist/release names for a batch of press rows. For public
+ * callers (`isAdmin: false`) only live artists and public releases are resolved,
+ * so press never names or links to hidden/unreleased catalogue entries.
+ */
+async function mapPressItems(
+  rows: PressRow[],
+  { isAdmin }: { isAdmin: boolean }
+): Promise<PressItemDTO[]> {
+  const artistIds = new Set<string>();
+  const releaseIds = new Set<string>();
+  for (const r of rows) {
+    r.artistIds.forEach((id) => artistIds.add(id));
+    r.releaseIds.forEach((id) => releaseIds.add(id));
+  }
+
+  const [artists, releases] = await Promise.all([
+    artistIds.size
+      ? prisma.artist.findMany({
+          where: {
+            id: { in: Array.from(artistIds) },
+            ...(isAdmin ? {} : { showOnWebsite: true }),
+          },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([] as { id: string; name: string }[]),
+    releaseIds.size
+      ? prisma.release.findMany({
+          where: {
+            AND: [
+              { id: { in: Array.from(releaseIds) } },
+              ...(isAdmin ? [] : [publicReleaseWhere()]),
+            ],
+          },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([] as { id: string; name: string }[]),
+  ]);
+
+  const artistById = new Map(artists.map((a) => [a.id, a.name]));
+  const releaseById = new Map(releases.map((r) => [r.id, r.name]));
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    publisher: r.publisher,
+    articleUrl: r.articleUrl,
+    summary: r.summary,
+    image: r.image ?? null,
+    author: r.author ?? null,
+    publishedAt: r.publishedAt ? r.publishedAt.toISOString() : null,
+    artists: r.artistIds
+      .filter((id) => artistById.has(id))
+      .map((id) => ({ id, name: artistById.get(id)! })),
+    releases: r.releaseIds
+      .filter((id) => releaseById.has(id))
+      .map((id) => ({ id, name: releaseById.get(id)! })),
+    sortOrder: r.sortOrder,
+    featured: r.featured,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+/** All public press items for the /press page, in curated then newest order. */
+export const getAllPress = cache(async (): Promise<PressItemDTO[]> => {
+  try {
+    const rows = await prisma.pressItem.findMany({
+      where: { showOnWebsite: true },
+      orderBy: pressOrderBy,
+    });
+    return await mapPressItems(rows, { isAdmin: false });
+  } catch (e) {
+    console.error("getAllPress: DB unavailable", e);
+    return [];
+  }
+});
+
+/** Public press items linked to one artist (for the artist page section). */
+export const getPressForArtist = cache(
+  async (artistId: string): Promise<PressItemDTO[]> => {
+    try {
+      const rows = await prisma.pressItem.findMany({
+        where: { showOnWebsite: true, artistIds: { has: artistId } },
+        orderBy: pressOrderBy,
+      });
+      return await mapPressItems(rows, { isAdmin: false });
+    } catch (e) {
+      console.error("getPressForArtist: DB unavailable", e);
+      return [];
+    }
+  }
+);
+
+/** Public press items linked to one release (for the release page section). */
+export const getPressForRelease = cache(
+  async (releaseId: string): Promise<PressItemDTO[]> => {
+    try {
+      const rows = await prisma.pressItem.findMany({
+        where: { showOnWebsite: true, releaseIds: { has: releaseId } },
+        orderBy: pressOrderBy,
+      });
+      return await mapPressItems(rows, { isAdmin: false });
+    } catch (e) {
+      console.error("getPressForRelease: DB unavailable", e);
+      return [];
+    }
+  }
+);
+
+/** Internal — exposed for the admin data layer to reuse the name resolution. */
+export { mapPressItems };
+export type { PressRow };
+export { pressOrderBy };

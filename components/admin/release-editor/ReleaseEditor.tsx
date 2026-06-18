@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Loader2, Database } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Database, Eye } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { normalizeCredits, type CreditEntry } from "@/lib/credits";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
@@ -12,6 +12,7 @@ import {
   normalizeFeatureArtistNamesInput,
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import ReleaseDetailsPanel, {
   emptyReleaseDetails,
   type ArtistOption,
@@ -19,6 +20,10 @@ import ReleaseDetailsPanel, {
   type ReleaseDetailsValue,
 } from "./ReleaseDetailsPanel";
 import TrackList from "./TrackList";
+import ReleaseLinkImport, {
+  type ReleaseLinkKey,
+  type SpotifyAlbumPick,
+} from "./ReleaseLinkImport";
 
 export type ReleaseKind = "SINGLE" | "EP" | "ALBUM";
 
@@ -51,9 +56,11 @@ export default function ReleaseEditor({
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
-    // New releases default to live unless launched with an explicit status (e.g.
-    // SCHEDULED from Coming Soon). Edit loads the saved status below.
-    base.status = mode === "create" ? initialStatus ?? "RELEASED" : "DRAFT";
+    // New releases start as DRAFT so the admin saves first and adds the tracklist
+    // before going live — a RELEASED release created here would publish empty
+    // (the tracklist UI only exists in edit mode). An explicit initialStatus
+    // (e.g. SCHEDULED from Coming Soon) still wins. Edit loads the saved status.
+    base.status = mode === "create" ? initialStatus ?? "DRAFT" : "DRAFT";
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });
@@ -65,6 +72,12 @@ export default function ReleaseEditor({
   const [initialTracks, setInitialTracks] = useState<Record<string, unknown>[]>([]);
   const [tracksActive, setTracksActive] = useState(false);
   const [trackInfo, setTrackInfo] = useState({ trackCount: 0, issueCount: 0 });
+  // Tracks unsaved release-detail edits. The tracklist autosaves separately, so
+  // it reports its own "leaving loses work" state (in-flight/failed save) via
+  // onUnsavedChange — both feed the guard so Back/Cancel/leave warn either way.
+  const [dirty, setDirty] = useState(false);
+  const [tracksUnsaved, setTracksUnsaved] = useState(false);
+  const { confirmDiscard } = useUnsavedChangesGuard(dirty || tracksUnsaved);
 
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -72,6 +85,7 @@ export default function ReleaseEditor({
   const hadLinkedFeatureArtistsRef = useRef<boolean>(false);
 
   const patchForm = (patch: Partial<ReleaseDetailsValue>) => {
+    setDirty(true);
     setForm((prev) => ({ ...prev, ...patch }));
     setErrors((prev) => {
       if (!Object.keys(prev).length) return prev;
@@ -163,6 +177,7 @@ export default function ReleaseEditor({
   }, [mode, releaseId, router, toast]);
 
   const onPickImage = (file: File) => {
+    setDirty(true);
     setCoverFile(file);
     setImagePreview((prev) => {
       if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
@@ -172,6 +187,7 @@ export default function ReleaseEditor({
   };
 
   const onRemoveImage = () => {
+    setDirty(true);
     setImagePreview((prev) => {
       if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
@@ -187,6 +203,39 @@ export default function ReleaseEditor({
       }
     };
   }, [imagePreview]);
+
+  // Apply imported streaming links — only to fields that are still empty, so an
+  // import never clobbers a link the admin already entered.
+  const applyImportedLinks = (found: Partial<Record<ReleaseLinkKey, string>>) => {
+    const patch: Partial<ReleaseDetailsValue> = {};
+    (Object.keys(found) as ReleaseLinkKey[]).forEach((k) => {
+      const url = found[k];
+      if (url && !form[k].trim()) patch[k] = url;
+    });
+    if (Object.keys(patch).length) patchForm(patch);
+  };
+
+  // Apply a picked Spotify album conservatively: fill the Spotify link, name and
+  // date only if empty, and set the cover only when none has been chosen yet.
+  const applySpotifyAlbum = (album: SpotifyAlbumPick) => {
+    const patch: Partial<ReleaseDetailsValue> = {};
+    if (album.spotifyUrl && !form.spotifyLink.trim()) patch.spotifyLink = album.spotifyUrl;
+    if (album.name && !form.name.trim()) patch.name = album.name;
+    if (
+      album.releaseDate &&
+      !form.releaseDate.trim() &&
+      /^\d{4}-\d{2}-\d{2}$/.test(album.releaseDate)
+    ) {
+      patch.releaseDate = album.releaseDate;
+    }
+    if (Object.keys(patch).length) patchForm(patch);
+    if (album.coverUrl && !coverFile && !coverUrl && !imagePreview) {
+      setDirty(true);
+      setCoverUrl(album.coverUrl);
+      setImagePreview(album.coverUrl);
+      setErrors((prev) => ({ ...prev, coverImage: undefined }));
+    }
+  };
 
   const uploadCoverOnly = async (file: File): Promise<string> => {
     const timestamp = Date.now();
@@ -257,7 +306,13 @@ export default function ReleaseEditor({
     }
     // Going live requires a complete tracklist: at least one track and every
     // track with audio, an artist, and an ISRC. (Scheduled/Coming-Soon doesn't.)
-    if (mode === "edit" && form.status === "RELEASED") {
+    if (form.status === "RELEASED") {
+      if (mode === "create") {
+        // Create mode has no tracklist UI, so a RELEASED release would go live
+        // empty. Steer the admin to the draft-first path.
+        toast.error("Save as a draft first, then add the tracklist before publishing.");
+        return;
+      }
       if (trackInfo.trackCount === 0) {
         toast.error("Add at least one track before publishing.");
         return;
@@ -327,6 +382,7 @@ export default function ReleaseEditor({
           return;
         }
         const created = await res.json();
+        setDirty(false);
         if (form.status === "DRAFT") {
           // Stay in the editor so tracks can be added; refresh resumes here.
           toast.success("Draft saved");
@@ -344,6 +400,7 @@ export default function ReleaseEditor({
           toast.error(await readError(res, "Update failed"));
           return;
         }
+        setDirty(false);
         if (form.status === "DRAFT") {
           toast.success("Draft saved");
         } else {
@@ -368,6 +425,10 @@ export default function ReleaseEditor({
     urls: [form.spotifyLink, form.appleMusicLink],
   });
 
+  const primaryArtistName = artists.find(
+    (a) => a.id === form.primaryArtistIds[0]
+  )?.name;
+
   const saveLabel =
     form.status === "DRAFT"
       ? "Save draft"
@@ -388,41 +449,74 @@ export default function ReleaseEditor({
   return (
     <div>
       <div className="mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => router.push("/admin/catalog/releases")}
-          className="mb-4 text-gray-400 hover:text-white"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to releases
-        </Button>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (confirmDiscard()) router.push("/admin/catalog/releases");
+            }}
+            className="text-gray-400 hover:text-white"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to releases
+          </Button>
+          {mode === "edit" && releaseId ? (
+            <Button
+              type="button"
+              variant="outline"
+              title="View the completed release (tracklist, streaming links and all)"
+              onClick={() => {
+                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
+              }}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              View release
+            </Button>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-4xl font-light tracking-tighter">
             {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
           </h1>
-          {seedable ? (
-            <Button
-              type="button"
-              variant="outline"
-              title="Open Harmony to import this release into MusicBrainz (review & submit)"
-              onClick={() =>
-                window.open(
-                  buildHarmonyReleaseUrl({
-                    gtin: form.upcCode,
-                    urls: [form.spotifyLink, form.appleMusicLink],
-                  }),
-                  "_blank",
-                  "noopener,noreferrer"
-                )
-              }
-            >
-              <Database className="h-4 w-4" /> Add to MusicBrainz
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <ReleaseLinkImport
+              seedName={form.name}
+              seedArtist={primaryArtistName}
+              links={{
+                spotifyLink: form.spotifyLink,
+                appleMusicLink: form.appleMusicLink,
+                tidalLink: form.tidalLink,
+                amazonMusicLink: form.amazonMusicLink,
+                youtubeLink: form.youtubeLink,
+                soundcloudLink: form.soundcloudLink,
+              }}
+              onApplyLinks={applyImportedLinks}
+              onApplySpotify={applySpotifyAlbum}
+            />
+            {seedable ? (
+              <Button
+                type="button"
+                variant="outline"
+                title="Open Harmony to import this release into MusicBrainz (review & submit)"
+                onClick={() =>
+                  window.open(
+                    buildHarmonyReleaseUrl({
+                      gtin: form.upcCode,
+                      urls: [form.spotifyLink, form.appleMusicLink],
+                    }),
+                    "_blank",
+                    "noopener,noreferrer"
+                  )
+                }
+              >
+                <Database className="h-4 w-4" /> Add to MusicBrainz
+              </Button>
+            ) : null}
+          </div>
         </div>
         <p className="text-gray-400 mt-2">
           {mode === "edit"
-            ? "Edit release details. Manage tracks from the release page."
+            ? "Edit release details below. The tracklist saves automatically as you edit it."
             : "Release details. After saving you can add the tracklist."}
         </p>
       </div>
@@ -435,7 +529,10 @@ export default function ReleaseEditor({
           artists={artists}
           loadingArtists={loadingArtists}
           credits={credits}
-          onCreditsChange={setCredits}
+          onCreditsChange={(c) => {
+            setDirty(true);
+            setCredits(c);
+          }}
           imagePreview={imagePreview}
           onPickImage={onPickImage}
           onRemoveImage={onRemoveImage}
@@ -451,6 +548,7 @@ export default function ReleaseEditor({
               requireIsrc={form.status === "RELEASED"}
               initialTracks={initialTracks}
               onActivityChange={setTracksActive}
+              onUnsavedChange={setTracksUnsaved}
               onValidityChange={setTrackInfo}
             />
           </div>
@@ -482,12 +580,19 @@ export default function ReleaseEditor({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/admin/catalog/releases")}
+            onClick={() => {
+              if (confirmDiscard()) router.push("/admin/catalog/releases");
+            }}
             className="border-white/10 text-gray-300"
           >
             Cancel
           </Button>
         </div>
+        {mode === "edit" ? (
+          <p className="mt-3 text-xs text-gray-500">
+            This saves the release details. Tracks save automatically as you edit them.
+          </p>
+        ) : null}
       </div>
     </div>
   );

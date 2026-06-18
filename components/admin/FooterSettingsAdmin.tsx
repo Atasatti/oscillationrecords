@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
 type FooterForm = {
   xLink: string;
@@ -63,13 +65,13 @@ const LABELS: { key: keyof FooterForm; label: string; placeholder: string }[] =
   ];
 
 export default function FooterSettingsAdmin() {
+  const toast = useToast();
   const [form, setForm] = useState<FooterForm>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "ok" | "err";
-    text: string;
-  } | null>(null);
+  // Typed-but-unsaved link edits — guard navigation/tab switch.
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChangesGuard(dirty);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,9 +95,7 @@ export default function FooterSettingsAdmin() {
           }
         }
       } catch {
-        if (!cancelled) {
-          setMessage({ type: "err", text: "Could not load footer links." });
-        }
+        if (!cancelled) toast.error("Could not load footer links.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,11 +103,10 @@ export default function FooterSettingsAdmin() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   const handleSave = async () => {
     setSaving(true);
-    setMessage(null);
     try {
       const res = await fetch("/api/admin/site-settings/footer", {
         method: "PUT",
@@ -118,15 +117,11 @@ export default function FooterSettingsAdmin() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Save failed");
       }
-      setMessage({
-        type: "ok",
-        text: "Footer social links saved. They appear on the site footer immediately.",
-      });
+      toast.success(
+        "Footer social links saved — they'll appear on the site within a few minutes."
+      );
     } catch (e) {
-      setMessage({
-        type: "err",
-        text: e instanceof Error ? e.message : "Save failed",
-      });
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -167,24 +162,15 @@ export default function FooterSettingsAdmin() {
                   type="url"
                   placeholder={placeholder}
                   value={form[key]}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, [key]: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setDirty(true);
+                    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+                  }}
                   className="border-white/10 bg-black text-white placeholder:text-gray-600"
                 />
               </div>
             ))}
           </div>
-
-          {message ? (
-            <p
-              className={
-                message.type === "ok" ? "text-green-400 text-sm" : "text-red-400 text-sm"
-              }
-            >
-              {message.text}
-            </p>
-          ) : null}
 
           <Button
             type="button"

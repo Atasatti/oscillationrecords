@@ -48,9 +48,24 @@ All **code** findings below have been fixed and independently re-reviewed (15 ad
 **Deliberately deferred (documented, not a regression):**
 - **M8 residual:** `script-src` still allows `'unsafe-inline'` in production because the site relies on SSG/ISR + Next's framework inline scripts + JSON-LD; removing it requires nonce-based CSP, which would force fully dynamic rendering. The CSP is now enforced (strictly better than the prior report-only); nonce hardening is the next step. **Rollback:** set `cspHeaderKey` back to the Report-Only name in `next.config.ts`.
 - **L7 (auth model):** still an email allowlist + JWT-only sessions (no server-side revocation). Left as-is — a role model + re-enabled Prisma adapter is a larger change that risks breaking login; the current model is safe while Google verifies emails and `NEXTAUTH_SECRET` stays secret (C1).
-- **Note:** the release **detail** GET still serves future-SCHEDULED ("Coming Soon") track audio publicly (pre-existing, powers the Coming-Soon page). `songs/latest` and `tracks/[id]` no longer do. If Coming-Soon pages shouldn't expose playable audio before release, gate that endpoint too — left unchanged since it may be intended product behavior.
+- **Release-detail pre-release audio (now fixed):** `GET /api/releases/[releaseId]` previously served a future-SCHEDULED ("Coming Soon") release's track `audioFile` URLs to the public, so the Coming-Soon page's playable track list exposed unreleased audio. It now returns `tracks: []` for non-admins on not-yet-public releases (`isReleasePublic`), so the page shows its existing "Tracklist to be revealed" state — metadata, cover, date and pre-save still work. This brings the endpoint in line with `songs/latest` and `tracks/[id]`. (Found during the post-fix completeness pass.)
 
 > ⚠️ **Verify before deploy:** smoke-test locally with the dev server and watch the browser console for any **CSP violation** reports (the policy is now enforced in production builds), confirm admin upload + the Benert-Remix submit flow still work end-to-end, and confirm Coming-Soon/release pages render. Nothing here has been pushed.
+
+---
+
+## ✅ Round 2 — hardening (2026-06-18)
+
+Follow-up hardening. All verified: `tsc --noEmit` clean, `next build` succeeds, ESLint clean on changed files, and 6 adversarial reviewers returned correct/complete/no-regression.
+
+- **Release-detail pre-release audio leak (fixed):** see the note above — `GET /api/releases/[releaseId]` now returns `tracks: []` for non-admins on not-yet-public releases.
+- **Role-based authorization + server-side revocation (L7):** added `User.role` (optional; existing rows read back `null`). On sign-in the JWT/session carry the role; `requireAdmin` re-checks the role against the DB on every call, so demoting a (non-bootstrap) admin to `user` **revokes access on their next request**. The hardcoded email allowlist is retained as a bootstrap (never locked out, no DB hit). `isAdminToken` (role OR bootstrap email) is used by middleware/read-gating. No DB migration needed (MongoDB).
+- **Nonce-based CSP for the admin area (M8 follow-up):** all CSP now comes from `middleware.ts` (removed from `next.config.ts` to avoid duplicate headers). `/admin/*` gets a **strict** policy — `script-src 'self' 'nonce-…' 'strict-dynamic'`, **no `'unsafe-inline'`** — and `app/admin/layout.tsx` is `force-dynamic` so the per-request nonce reaches Next's scripts. Public pages keep the enforced **relaxed** CSP (`'unsafe-inline'`) so **SSG/ISR is preserved**. Report-only in dev, enforced in prod. `/benert-remix/admin` keeps its auth gate but the relaxed CSP.
+- **Open-redirect hardening:** `isSafeUrl` now also rejects the `/\host` backslash trick (browsers normalize `\`→`/`).
+
+**⚠️ NextAuth v5 — attempted, NOT shipped.** v5 (`5.0.0-beta.31`) was installed and the code migrated, but this dev environment **auto-respawns `npm run dev`**, which locks/reverts `node_modules` — the v5 install would not persist (it reverted to v4 on disk), so the migration couldn't be verified. I reverted all code to v4 (`next-auth@4.24.14`); package.json + lockfile + disk are consistently v4 (no broken-deploy risk). The transient v5 install did confirm it clears **2 of the 4** residual npm advisories (the `uuid` ones; the other 2 are `next`'s bundled `postcss`). **To do v5:** run it in a stable shell with the dev-server auto-restart disabled, then verify Google login end-to-end.
+
+> ⚠️ **Test before deploy (auth + admin CSP):** log in with Google and confirm a session works; open an `/admin` page and confirm it renders with **no CSP errors** in the browser console (strict nonce policy is enforced in prod builds — if admin scripts are blocked, the one-line rollback is to give `/admin` the relaxed CSP in `middleware.ts`); confirm a non-admin is redirected away from `/admin`.
 
 ---
 

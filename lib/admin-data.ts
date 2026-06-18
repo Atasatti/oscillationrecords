@@ -3,8 +3,11 @@ import { Prisma } from "@prisma/client";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { computeArtistSeo, type ArtistSeoGrade, type ArtistSeoSignals } from "@/lib/seo-score";
 import {
+  mapPressItems,
   mapReleasesToCards,
+  pressOrderBy,
   releaseCardListArgs,
+  type PressItemDTO,
   type ReleaseCardDTO,
 } from "@/lib/catalog-data";
 
@@ -380,4 +383,67 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
     orderBy: [{ homeOrder: "asc" }, { createdAt: "desc" }],
   });
   return mapReleasesToCards(rows, { isAdmin: true });
+}
+
+// ---------------------------------------------------------------------------
+// Press
+// ---------------------------------------------------------------------------
+
+/** Admin press row = the public DTO plus the visibility flag (admin-only). */
+export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean };
+
+/**
+ * Paginated press items for the admin manage table. Resolves linked
+ * artist/release names regardless of their public visibility (isAdmin: true).
+ * Fuzzy search ranks by title / publisher (parity with the public/other tables).
+ */
+export async function getPressPage({
+  page = 1,
+  pageSize = 25,
+  q = "",
+}: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}): Promise<Page<AdminPressRow>> {
+  const size = Math.min(Math.max(1, pageSize), 100);
+  const query = q.trim();
+
+  // Attach the admin-only showOnWebsite flag onto each mapped DTO by id.
+  const withVisibility = async (
+    rows: { id: string; showOnWebsite: boolean }[]
+  ): Promise<AdminPressRow[]> => {
+    const visById = new Map(rows.map((r) => [r.id, r.showOnWebsite]));
+    const dtos = await mapPressItems(rows as never, { isAdmin: true });
+    return dtos.map((d) => ({ ...d, showOnWebsite: visById.get(d.id) ?? true }));
+  };
+
+  if (query) {
+    const all = await prisma.pressItem.findMany({ orderBy: pressOrderBy });
+    const ranked = all
+      .map((r) => ({
+        r,
+        score: Math.max(fuzzyScore(query, r.title), fuzzyScore(query, r.publisher)),
+      }))
+      .filter((x) => x.score > 0)
+      .sort((x, y) => y.score - x.score)
+      .map((x) => x.r);
+    const total = ranked.length;
+    const safePage = clampPage(page, size, total);
+    const start = (safePage - 1) * size;
+    const items = await withVisibility(ranked.slice(start, start + size));
+    return { items, total, page: safePage, pageSize: size };
+  }
+
+  const safePage = Math.max(1, page);
+  const [total, rows] = await Promise.all([
+    prisma.pressItem.count(),
+    prisma.pressItem.findMany({
+      orderBy: pressOrderBy,
+      skip: (safePage - 1) * size,
+      take: size,
+    }),
+  ]);
+  const items = await withVisibility(rows);
+  return { items, total, page: safePage, pageSize: size };
 }

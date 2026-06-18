@@ -103,3 +103,96 @@ export function computeArtistSeo(s: ArtistSeoSignals): ArtistSeoResult {
 
   return { score: rounded, grade, missing: missing.map((m) => m.label) };
 }
+
+// ---------------------------------------------------------------------------
+// Per-release SEO score.
+//
+// Mirrors the artist score, but graded against what the public *release* page
+// emits: a schema.org MusicAlbum + OpenGraph card (see buildReleaseJsonLd in
+// lib/seo.ts). The fields that move a release's discoverability are the
+// streaming `sameAs` links, a real description (meta description / OG body), the
+// cover image (the OG image), genres, a tracklist (numTracks/track[]), a
+// release date (datePublished) and a credited primary artist (byArtist).
+// ---------------------------------------------------------------------------
+
+export interface ReleaseSeoSignals {
+  hasCover: boolean;
+  /** Length of the trimmed description (drives meta description quality). */
+  descLength: number;
+  /** Distinct genres set on the release (primary + secondary). */
+  genreCount: number;
+  /** Count of distinct streaming profile URLs set (feeds `sameAs`). */
+  linkCount: number;
+  /** Number of tracks (feeds numTracks + the track[] list). */
+  trackCount: number;
+  hasReleaseDate: boolean;
+  hasPrimaryArtist: boolean;
+}
+
+export type ReleaseSeoGrade = ArtistSeoGrade;
+
+export interface ReleaseSeoResult {
+  score: number;
+  grade: ReleaseSeoGrade;
+  missing: string[];
+}
+
+// Component weights — sum to 100.
+const RELEASE_WEIGHTS = {
+  links: 22,
+  description: 20,
+  cover: 16,
+  tracks: 14,
+  genres: 12,
+  releaseDate: 10,
+  primaryArtist: 6,
+} as const;
+
+/** Score one release's SEO from its signals. Pure — safe on server or client. */
+export function computeReleaseSeo(s: ReleaseSeoSignals): ReleaseSeoResult {
+  let score = 0;
+  const missing: Array<{ label: string; weight: number }> = [];
+
+  // sameAs richness — graded by how many streaming profiles are linked (6 max).
+  const linkPoints =
+    s.linkCount >= 4 ? RELEASE_WEIGHTS.links
+    : s.linkCount >= 2 ? Math.round(RELEASE_WEIGHTS.links * 0.8)
+    : s.linkCount >= 1 ? Math.round(RELEASE_WEIGHTS.links * 0.5)
+    : 0;
+  score += linkPoints;
+  if (s.linkCount === 0) missing.push({ label: "streaming links", weight: RELEASE_WEIGHTS.links });
+  else if (s.linkCount < 4) missing.push({ label: "more links", weight: RELEASE_WEIGHTS.links - linkPoints });
+
+  // Description — full credit once long enough to make a real meta description.
+  if (s.descLength >= BIO_FULL) {
+    score += RELEASE_WEIGHTS.description;
+  } else if (s.descLength >= BIO_MIN) {
+    score += Math.round(RELEASE_WEIGHTS.description * 0.6);
+    missing.push({ label: "fuller description", weight: Math.round(RELEASE_WEIGHTS.description * 0.4) });
+  } else {
+    missing.push({ label: "description", weight: RELEASE_WEIGHTS.description });
+  }
+
+  if (s.hasCover) score += RELEASE_WEIGHTS.cover;
+  else missing.push({ label: "cover image", weight: RELEASE_WEIGHTS.cover });
+
+  if (s.trackCount > 0) score += RELEASE_WEIGHTS.tracks;
+  else missing.push({ label: "tracks", weight: RELEASE_WEIGHTS.tracks });
+
+  if (s.genreCount > 0) score += RELEASE_WEIGHTS.genres;
+  else missing.push({ label: "genres", weight: RELEASE_WEIGHTS.genres });
+
+  if (s.hasReleaseDate) score += RELEASE_WEIGHTS.releaseDate;
+  else missing.push({ label: "release date", weight: RELEASE_WEIGHTS.releaseDate });
+
+  if (s.hasPrimaryArtist) score += RELEASE_WEIGHTS.primaryArtist;
+  else missing.push({ label: "primary artist", weight: RELEASE_WEIGHTS.primaryArtist });
+
+  missing.sort((a, b) => b.weight - a.weight);
+
+  const rounded = Math.max(0, Math.min(100, Math.round(score)));
+  const grade: ReleaseSeoGrade =
+    rounded >= GRADE_STRONG ? "strong" : rounded >= GRADE_GOOD ? "good" : "weak";
+
+  return { score: rounded, grade, missing: missing.map((m) => m.label) };
+}

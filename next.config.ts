@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-const isDev = process.env.NODE_ENV !== "production";
-
 // S3 bucket host the app actually serves images from (mirrors lib/s3.ts). Used to
 // scope the image optimizer to our bucket instead of all of *.amazonaws.com.
 const S3_BUCKET =
@@ -9,34 +7,9 @@ const S3_BUCKET =
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 const S3_IMAGE_HOST = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
 
-// Content-Security-Policy. ENFORCED in production; REPORT-ONLY in development so
-// it never blocks the dev server's HMR (which uses eval). 'unsafe-inline' is
-// retained because the site relies on SSG/ISR + Next's framework inline scripts
-// and our JSON-LD <script> tags — dropping it requires nonce-based CSP, which
-// would force fully dynamic rendering (loss of SSG/ISR). That hardening is the
-// documented next step. ROLLBACK: set `cspHeaderKey` to the Report-Only name.
-// 'unsafe-eval' is added in dev ONLY (HMR); never in production.
-const csp = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  // Artwork is admin-provided and can live on many https hosts (S3, scdn, etc.).
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' blob: https:",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
-  "connect-src 'self' https:",
-  "form-action 'self'",
-  "frame-src 'self' https://accounts.google.com",
-  "upgrade-insecure-requests",
-].join("; ");
-
-const cspHeaderKey = isDev
-  ? "Content-Security-Policy-Report-Only"
-  : "Content-Security-Policy";
-
+// NOTE: Content-Security-Policy is set in middleware.ts (not here), because the
+// /admin area uses a per-request nonce. These are the static security headers;
+// the CSP header is attached per-response by the middleware.
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -49,7 +22,6 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
   },
-  { key: cspHeaderKey, value: csp },
 ];
 
 const nextConfig: NextConfig = {

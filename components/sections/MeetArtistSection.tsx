@@ -8,6 +8,7 @@ import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube }
 import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 interface Artist {
   id: string;
@@ -41,6 +42,7 @@ const MeetArtistSection = ({
   initialArtists,
 }: MeetArtistSectionProps) => {
   const router = useRouter();
+  const { bgHero } = usePageMedia();
   const [artists, setArtists] = useState<Artist[]>(initialArtists ?? []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(initialArtists === undefined);
@@ -87,7 +89,7 @@ const MeetArtistSection = ({
   if (isLoading) {
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-        style={{ backgroundImage: `url('/hero-bg.svg')` }}>
+        style={{ backgroundImage: `url('${bgHero}')` }}>
         <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
           Meet the Artists.
         </p>
@@ -102,7 +104,7 @@ const MeetArtistSection = ({
   if (artists.length === 0) {
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-        style={{ backgroundImage: `url('/hero-bg.svg')` }}>
+        style={{ backgroundImage: `url('${bgHero}')` }}>
         <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
           Meet the Artists.
         </p>
@@ -120,7 +122,7 @@ const MeetArtistSection = ({
 
   return (
     <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-      style={{ backgroundImage: `url('/hero-bg.svg')` }}>
+      style={{ backgroundImage: `url('${bgHero}')` }}>
       <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
         Meet the Artists.
       </p>

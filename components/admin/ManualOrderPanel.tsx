@@ -30,7 +30,7 @@ type OrderItem = {
   status?: "DRAFT" | "SCHEDULED" | "RELEASED";
 };
 
-function Row({ item, index, kind }: { item: OrderItem; index: number; kind: "release" | "artist" }) {
+function Row({ item, index, kind }: { item: OrderItem; index: number; kind: "release" | "artist" | "press" }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -78,7 +78,7 @@ export default function ManualOrderPanel({
 }: {
   loadEndpoint: string;
   saveEndpoint: string;
-  kind: "release" | "artist";
+  kind: "release" | "artist" | "press";
 }) {
   const toast = useToast();
   const [items, setItems] = useState<OrderItem[]>([]);
