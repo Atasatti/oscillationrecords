@@ -215,6 +215,8 @@ export interface ArtistDetailDTO {
   genres: string[];
   isni: string | null;
   musicBrainzId: string | null;
+  country: string | null;
+  city: string | null;
   xLink: string | null;
   tiktokLink: string | null;
   spotifyLink: string | null;
@@ -268,6 +270,8 @@ export const getArtistDetail = cache(async (
         genres: artist.genres ?? [],
         isni: artist.isni ?? null,
         musicBrainzId: artist.musicBrainzId ?? null,
+        country: artist.country ?? null,
+        city: artist.city ?? null,
         xLink: artist.xLink ?? null,
         tiktokLink: artist.tiktokLink ?? null,
         spotifyLink: artist.spotifyLink ?? null,

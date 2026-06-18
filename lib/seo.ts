@@ -41,9 +41,20 @@ type ArtistLike = {
   tidalLink?: string | null;
   amazonMusicLink?: string | null;
   soundcloudLink?: string | null;
+  country?: string | null;
+  city?: string | null;
 };
 
 type ReleaseLike = { id: string; name: string; thumbnail?: string | null };
+
+/** schema.org Place from a city/country, or null if neither is set. */
+function buildPlace(city?: string | null, country?: string | null) {
+  const address: Record<string, string> = {};
+  if (city && city.trim()) address.addressLocality = city.trim();
+  if (country && country.trim()) address.addressCountry = country.trim();
+  if (!Object.keys(address).length) return null;
+  return { "@type": "Place", address: { "@type": "PostalAddress", ...address } };
+}
 
 /** schema.org MusicGroup for an artist page (works for solo acts and bands). */
 export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = []) {
@@ -74,6 +85,8 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
   const desc = metaDescription(artist.biography, 5000);
   if (desc) jsonLd.description = desc;
   if (artist.genres && artist.genres.length) jsonLd.genre = artist.genres;
+  const place = buildPlace(artist.city, artist.country);
+  if (place) jsonLd.foundingLocation = place;
   if (sameAs.length) jsonLd.sameAs = sameAs;
   if (releases.length) {
     jsonLd.album = releases.map((r) => ({
@@ -151,6 +164,24 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
   }
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
+}
+
+/**
+ * schema.org BreadcrumbList — a recognised rich-result that shows the page's
+ * place in the site hierarchy (Home › Artists › Name) in search listings.
+ * `items` are ordered root → current; each `url` may be relative or absolute.
+ */
+export function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((it, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: it.name,
+      item: absoluteUrl(it.url),
+    })),
+  };
 }
 
 /** schema.org Organization for the label itself (site-wide entity). */

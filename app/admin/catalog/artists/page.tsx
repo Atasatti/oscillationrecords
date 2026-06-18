@@ -410,7 +410,7 @@ export default function AdminArtistsPage() {
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
               <TableHead className="hidden sm:table-cell">
-                <span className="inline-flex items-center gap-1">Profile <InfoHint text="Profile completeness. Each badge shows the details still missing (photo, bio, links, genres) — click it to add them." /></span>
+                <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-artist SEO score (0–100) from the fields that drive search ranking: streaming/social links, MusicBrainz ID, ISNI, bio, photo, genres and releases. The badge shows the highest-impact gaps — click it to fill them." /></span>
               </TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
@@ -507,20 +507,31 @@ export default function AdminArtistsPage() {
                       : "—"}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {a.complete ? (
-                      <Badge variant="success">Complete</Badge>
-                    ) : (
-                      <Link
-                        href={`/admin/catalog/artists/${a.id}/edit`}
-                        title={`Missing ${a.missing.join(", ")} — click to add`}
-                        className="inline-flex"
+                    <Link
+                      href={`/admin/catalog/artists/${a.id}/edit`}
+                      title={
+                        a.complete
+                          ? "All key SEO fields filled"
+                          : `To improve SEO, add: ${a.missing.join(", ")} — click to edit`
+                      }
+                      className="inline-flex"
+                    >
+                      <Badge
+                        variant={
+                          a.seoGrade === "strong"
+                            ? "success"
+                            : a.seoGrade === "good"
+                              ? "warning"
+                              : "destructive"
+                        }
+                        className="cursor-pointer tabular-nums hover:opacity-80"
                       >
-                        <Badge variant="warning" className="cursor-pointer hover:opacity-80">
-                          Add {a.missing.slice(0, 2).join(", ")}
-                          {a.missing.length > 2 ? ` +${a.missing.length - 2}` : ""}
-                        </Badge>
-                      </Link>
-                    )}
+                        SEO {a.seoScore}
+                        {!a.complete && a.missing.length ? (
+                          <span className="font-normal opacity-80">· add {a.missing[0]}</span>
+                        ) : null}
+                      </Badge>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <button

@@ -5,8 +5,10 @@ import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSor
 import PageHeader from "@/components/admin/shell/PageHeader";
 import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import StackedHeroImagesAdmin from "@/components/admin/StackedHeroImagesAdmin";
+import StudioPhotosAdmin from "@/components/admin/StudioPhotosAdmin";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Disc3, Users, CalendarClock } from "lucide-react";
+import { Plus, Loader2, Disc3, Users, CalendarClock, Image as ImageIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,9 +34,10 @@ type Row = {
   updatedAt: string;
 };
 
-type Tab = "new-music" | "artists" | "coming-soon";
+type Tab = "new-music" | "artists" | "coming-soon" | "hero";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "hero", label: "Hero & Photos", icon: ImageIcon },
   { key: "new-music", label: "New Music", icon: Disc3 },
   { key: "artists", label: "Featured Artists", icon: Users },
   { key: "coming-soon", label: "Coming Soon", icon: CalendarClock },
@@ -43,7 +46,7 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 export default function HomepageAdmin() {
   const router = useRouter();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("new-music");
+  const [tab, setTab] = useState<Tab>("hero");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -142,7 +145,7 @@ export default function HomepageAdmin() {
     <div>
       <PageHeader
         title="Homepage"
-        description="Curate what appears on the public home page — the New Music and Featured Artists carousels, and the Coming Soon strip."
+        description="Everything shown on the public home page — the hero images & studio-photos carousel, the New Music and Featured Artists carousels, and the Coming Soon strip."
         actions={
           tab === "coming-soon" ? (
             <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
@@ -200,7 +203,7 @@ export default function HomepageAdmin() {
             emptyHint={<>Use the search above to add your first artist.</>}
           />
         </div>
-      ) : (
+      ) : tab === "coming-soon" ? (
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="mb-1 text-lg">Coming Soon</h3>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -228,6 +231,15 @@ export default function HomepageAdmin() {
               }}
             />
           )}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <p className="text-xs text-muted-foreground">
+            The hero is the big stacked images at the top of the home page; if you add
+            studio photos below, they replace the hero with a slow-scrolling carousel.
+          </p>
+          <StackedHeroImagesAdmin />
+          <StudioPhotosAdmin />
         </div>
       )}
 

@@ -3,7 +3,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { getArtistDetail } from "@/lib/catalog-data";
-import { buildArtistJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/lib/seo";
+import {
+  buildArtistJsonLd,
+  buildBreadcrumbJsonLd,
+  metaDescription,
+  absoluteUrl,
+  SITE_NAME,
+} from "@/lib/seo";
 import ArtistDetailView from "./ArtistDetailView";
 
 // ISR: cache each artist page for a minute, regenerate on demand for new artists.
@@ -86,12 +92,21 @@ export default async function ArtistDetail({
   }
 
   const jsonLd = buildArtistJsonLd(data.artist, data.releases);
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Home", url: "/" },
+    { name: "Artists", url: "/artists" },
+    { name: data.artist.name, url: `/artists/${data.artist.id}` },
+  ]);
 
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <ArtistDetailView artist={data.artist} releases={data.releases} />
     </>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { computeArtistSeo, type ArtistSeoGrade, type ArtistSeoSignals } from "@/lib/seo-score";
 import {
   mapReleasesToCards,
   releaseCardListArgs,
@@ -28,9 +29,14 @@ export interface AdminArtistRow {
   releaseCount: number;
   playsLast90d: number;
   lastReleaseDate: string | null; // ISO
-  // Profile completeness, for spotting gaps across a big roster.
+  // Per-artist SEO score (0–100) + weight-ordered gaps, for maximising each
+  // artist's discoverability across a big roster. See lib/seo-score.ts.
+  seoScore: number;
+  seoGrade: ArtistSeoGrade;
+  // `missing` lists the outstanding SEO gaps, highest-impact first (e.g.
+  // "streaming links", "MusicBrainz ID", "fuller bio"). `complete` = nothing left.
   complete: boolean;
-  missing: string[]; // any of: "photo" | "bio" | "links" | "genres"
+  missing: string[];
 }
 
 export interface Page<T> {
@@ -85,6 +91,9 @@ const ROW_SELECT = {
   createdAt: true,
   genres: true,
   biography: true,
+  // Entity identifiers — strongest `sameAs` signals; scored in the SEO grade.
+  musicBrainzId: true,
+  isni: true,
   xLink: true,
   tiktokLink: true,
   instagramLink: true,
@@ -113,16 +122,23 @@ function buildWhere(filters: ArtistFilters): Prisma.ArtistWhereInput {
   return where;
 }
 
-function toRow(a: ArtistSelectRow): AdminArtistRow {
-  const hasPhoto = Boolean(a.profilePicture);
-  const hasBio = (a.biography ?? "").trim().length >= 30;
-  const hasAnyLink = LINK_KEYS.some((k) => Boolean((a as Record<string, unknown>)[k]));
-  const hasGenres = (a.genres ?? []).length > 0;
-  const missing: string[] = [];
-  if (!hasPhoto) missing.push("photo");
-  if (!hasBio) missing.push("bio");
-  if (!hasAnyLink) missing.push("links");
-  if (!hasGenres) missing.push("genres");
+// Roster row carrying the raw SEO signals (minus release count, not yet known)
+// so attachStats can finalise the score. The `_sig` field is internal and is
+// dropped before the row leaves attachStats.
+type RowWithSignals = AdminArtistRow & { _sig: Omit<ArtistSeoSignals, "releaseCount"> };
+
+function toRow(a: ArtistSelectRow): RowWithSignals {
+  const sig: Omit<ArtistSeoSignals, "releaseCount"> = {
+    hasPhoto: Boolean(a.profilePicture),
+    bioLength: (a.biography ?? "").trim().length,
+    genreCount: (a.genres ?? []).length,
+    linkCount: LINK_KEYS.filter((k) => Boolean((a as Record<string, unknown>)[k])).length,
+    hasMusicBrainz: Boolean(a.musicBrainzId),
+    hasIsni: Boolean(a.isni),
+  };
+  // Provisional score with releaseCount=0; attachStats refines it. This keeps
+  // rows valid for callers that skip attachStats (e.g. getFeaturedArtists).
+  const seo = computeArtistSeo({ ...sig, releaseCount: 0 });
 
   return {
     id: a.id,
@@ -138,15 +154,19 @@ function toRow(a: ArtistSelectRow): AdminArtistRow {
     releaseCount: 0,
     playsLast90d: 0,
     lastReleaseDate: null,
-    complete: missing.length === 0,
-    missing,
+    seoScore: seo.score,
+    seoGrade: seo.grade,
+    complete: seo.missing.length === 0,
+    missing: seo.missing,
+    _sig: sig,
   };
 }
 
 // Attach per-page roster stats with exactly TWO extra queries (no N+1):
 // one over Releases touching these artists, one PlayEvent groupBy (last 90d).
-async function attachStats(rows: AdminArtistRow[]): Promise<AdminArtistRow[]> {
-  if (rows.length === 0) return rows;
+// Also finalises each row's SEO score now that the release count is known.
+async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
+  if (rows.length === 0) return rows.map(stripSignals);
   const ids = rows.map((r) => r.id);
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
@@ -180,12 +200,27 @@ async function attachStats(rows: AdminArtistRow[]): Promise<AdminArtistRow[]> {
     if (p.artistId) playsById.set(p.artistId, p._count._all);
   }
 
-  return rows.map((r) => ({
-    ...r,
-    releaseCount: countById.get(r.id) ?? 0,
-    playsLast90d: playsById.get(r.id) ?? 0,
-    lastReleaseDate: lastById.get(r.id)?.toISOString() ?? null,
-  }));
+  return rows.map((r) => {
+    const releaseCount = countById.get(r.id) ?? 0;
+    const seo = computeArtistSeo({ ...r._sig, releaseCount });
+    return stripSignals({
+      ...r,
+      releaseCount,
+      playsLast90d: playsById.get(r.id) ?? 0,
+      lastReleaseDate: lastById.get(r.id)?.toISOString() ?? null,
+      seoScore: seo.score,
+      seoGrade: seo.grade,
+      complete: seo.missing.length === 0,
+      missing: seo.missing,
+    });
+  });
+}
+
+/** Drop the internal `_sig` field so it never ships to the client. */
+function stripSignals(r: RowWithSignals): AdminArtistRow {
+  const { _sig, ...row } = r;
+  void _sig;
+  return row;
 }
 
 export async function getArtistsPage({
@@ -262,7 +297,7 @@ export async function getFeaturedArtists(): Promise<AdminArtistRow[]> {
     select: ROW_SELECT,
     orderBy: [{ homeOrder: "asc" }, { name: "asc" }],
   });
-  return items.map(toRow);
+  return items.map((a) => stripSignals(toRow(a)));
 }
 
 // ---------------------------------------------------------------------------

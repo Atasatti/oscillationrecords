@@ -1,7 +1,5 @@
 "use client";
 import React from "react";
-import StackedHeroImagesAdmin from "@/components/admin/StackedHeroImagesAdmin";
-import StudioPhotosAdmin from "@/components/admin/StudioPhotosAdmin";
 import FooterSettingsAdmin from "@/components/admin/FooterSettingsAdmin";
 import PageHeader from "@/components/admin/shell/PageHeader";
 
@@ -10,11 +8,9 @@ export default function AdminSettings() {
     <div>
       <PageHeader
         title="Site settings"
-        description="Hero images, the studio-photos carousel, and footer social links shown across the public site."
+        description="Site-wide settings that apply across every page. Home-page content (hero, photos, carousels) lives under Homepage."
       />
       <div className="space-y-8">
-        <StackedHeroImagesAdmin />
-        <StudioPhotosAdmin />
         <FooterSettingsAdmin />
       </div>
     </div>
