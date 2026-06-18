@@ -6,7 +6,10 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// HTML5/WHATWG email pattern — requires valid labels and a dotted domain, so it
+// rejects malformed/incomplete addresses while accepting all real ones.
+const EMAIL_RE =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,10 +23,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+
+    // Honeypot — a hidden field real users never fill. If a bot fills it, pretend
+    // success (don't tip it off) but save nothing.
+    if (typeof body.company === "string" && body.company.trim() !== "") {
+      return NextResponse.json({ ok: true, created: false });
+    }
+
     const raw = typeof body.email === "string" ? body.email.trim() : "";
     const email = raw.toLowerCase();
 
-    if (!email || !EMAIL_RE.test(email)) {
+    if (!email || email.length > 254 || !EMAIL_RE.test(email)) {
       return NextResponse.json(
         { error: "Please enter a valid email address." },
         { status: 400 }

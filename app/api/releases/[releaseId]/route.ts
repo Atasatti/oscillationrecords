@@ -233,6 +233,22 @@ export async function PATCH(
       tracks: tracksRaw,
     } = body;
 
+    // No past-dated Coming Soon: enforce a future date when the admin is actively
+    // scheduling this release, or changing the date of an already-scheduled one.
+    // (Unrelated PATCHes — e.g. toggling "New Music" — aren't blocked.)
+    const settingScheduled = status === "SCHEDULED";
+    const changingDateWhileScheduled = existing.status === "SCHEDULED" && releaseDate !== undefined;
+    if (settingScheduled || changingDateWhileScheduled) {
+      const effective = releaseDate !== undefined ? releaseDate : existing.releaseDate;
+      const d = effective ? new Date(effective) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
+    }
+
     const releaseFeatureNamesPatch =
       releaseFeatureNamesRaw !== undefined
         ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)

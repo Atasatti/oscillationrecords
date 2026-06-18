@@ -190,6 +190,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // A scheduled (Coming Soon) release must be dated in the future.
+    if (status === "SCHEDULED") {
+      const d = releaseDate ? new Date(releaseDate) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
+    }
+
     if (
       !primaryArtistIds ||
       !Array.isArray(primaryArtistIds) ||

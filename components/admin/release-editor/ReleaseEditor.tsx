@@ -217,15 +217,20 @@ export default function ReleaseEditor({
       fieldErrors.coverImage = "Please add a cover image";
     }
 
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     if (mode === "create" && form.status === "RELEASED" && form.releaseDate) {
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       if (form.releaseDate < todayStr) {
         fieldErrors.releaseDate = "Release date can’t be in the past";
       }
     }
-    if (form.status === "SCHEDULED" && !form.releaseDate) {
-      fieldErrors.releaseDate = "Scheduled releases need a release date";
+    if (form.status === "SCHEDULED") {
+      // Coming Soon must be in the future, never a past (or today) date.
+      if (!form.releaseDate) {
+        fieldErrors.releaseDate = "Scheduled releases need a future release date";
+      } else if (form.releaseDate <= todayStr) {
+        fieldErrors.releaseDate = "Scheduled releases must use a future date";
+      }
     }
     if (form.primaryArtistIds.length === 0) {
       fieldErrors.primaryArtists = "Select at least one primary artist";

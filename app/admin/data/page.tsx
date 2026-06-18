@@ -153,7 +153,11 @@ export default function RawDataPage() {
           {/* Recent page views */}
           <Section title="Recent page views">
             {data.recentPageViews.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No page views yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No page views recorded yet. Page views are only tracked for visitors who
+                <strong className="text-foreground"> accept analytics cookies</strong> — open the
+                public site, accept the banner, and browse a couple of pages to see them here.
+              </p>
             ) : (
               <Table head={["When", "Who", "Path", "Location", "Referrer", "Campaign", "Session"]}>
                 {data.recentPageViews.map((r) => (

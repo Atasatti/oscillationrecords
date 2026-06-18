@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { readConsentClient, OPEN_CONSENT_EVENT } from "@/lib/consent";
+import { readConsentClient, OPEN_CONSENT_EVENT, CONSENT_GRANTED_EVENT } from "@/lib/consent";
 
 /**
  * Opt-in cookie consent banner (UK GDPR / PECR). Shows until the visitor makes a
@@ -38,6 +38,9 @@ export default function CookieConsent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analytics }),
       });
+      // Let trackers start immediately (e.g. record the page they accepted on),
+      // rather than waiting for the next navigation.
+      if (analytics) window.dispatchEvent(new Event(CONSENT_GRANTED_EVENT));
     } catch {
       /* even on failure, hide — a missing consent cookie just re-prompts later */
     } finally {

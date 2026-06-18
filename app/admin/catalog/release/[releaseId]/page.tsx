@@ -380,10 +380,13 @@ export default function AdminReleaseDetail() {
       toast.error("Add at least one track before publishing.");
       return;
     }
-    if (next === "SCHEDULED" && !release.releaseDate) {
-      toast.error("Set a future release date in the editor before scheduling.");
-      router.push(editorHref);
-      return;
+    if (next === "SCHEDULED") {
+      const d = release.releaseDate ? new Date(release.releaseDate) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        toast.error("Set a future release date in the editor before scheduling.");
+        router.push(editorHref);
+        return;
+      }
     }
     setStatusWorking(true);
     try {

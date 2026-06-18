@@ -20,11 +20,13 @@ export async function PUT(request: NextRequest) {
     if (orderedIds.length === 0) {
       return NextResponse.json({ error: "orderedIds required" }, { status: 400 });
     }
-    await prisma.$transaction(
-      orderedIds.map((id, index) =>
-        prisma.release.update({ where: { id }, data: { sortOrder: index } })
-      )
-    );
+    // Sequential updates — a multi-document $transaction deadlocks on MongoDB.
+    for (let index = 0; index < orderedIds.length; index++) {
+      await prisma.release.update({
+        where: { id: orderedIds[index] },
+        data: { sortOrder: index },
+      });
+    }
     revalidatePath("/");
     return NextResponse.json({ ok: true });
   } catch (error) {

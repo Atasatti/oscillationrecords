@@ -35,6 +35,7 @@ const Footer = () => {
   const [links, setLinks] = useState<FooterSocialLinks>(EMPTY_LINKS);
   const [linksLoaded, setLinksLoaded] = useState(false);
   const [email, setEmail] = useState("");
+  const [company, setCompany] = useState(""); // honeypot — must stay empty
   const [subStatus, setSubStatus] = useState<
     "idle" | "loading" | "ok" | "err"
   >("idle");
@@ -88,7 +89,7 @@ const Footer = () => {
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, company }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -138,6 +139,17 @@ const Footer = () => {
             onSubmit={handleNewsletter}
             className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch"
           >
+            {/* Honeypot: hidden from users, catches naive bots. */}
+            <input
+              type="text"
+              name="company"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              className="hidden"
+            />
             <Input
               type="email"
               name="email"
