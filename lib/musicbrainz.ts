@@ -112,6 +112,7 @@ function linkKeyForHost(host: string): ArtistLinkKey | null {
   return null;
 }
 
+type RawTag = { name?: string; count?: number };
 type RawArtistRels = {
   relations?: Array<{
     url?: { resource?: string };
@@ -119,6 +120,8 @@ type RawArtistRels = {
   }>;
   isnis?: string[];
   ipis?: string[];
+  genres?: RawTag[];
+  tags?: RawTag[];
 };
 
 export type MbArtistDetails = {
@@ -127,7 +130,19 @@ export type MbArtistDetails = {
   isnis: string[];
   /** IPI name numbers MusicBrainz holds for this artist. */
   ipis: string[];
+  /** Genres (curated genre list, falling back to community tags), most-used first. */
+  genres: string[];
 };
+
+/** Pick the strongest genre/tag names (curated genres preferred over folk tags). */
+function topGenres(data: RawArtistRels, limit = 6): string[] {
+  const source = data.genres && data.genres.length ? data.genres : data.tags || [];
+  return source
+    .filter((g): g is RawTag & { name: string } => Boolean(g && g.name))
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
+    .slice(0, limit)
+    .map((g) => g.name);
+}
 
 /**
  * Resolve an artist's URL relationships into our link fields, plus any ISNI/IPI
@@ -136,7 +151,7 @@ export type MbArtistDetails = {
  */
 export async function getArtistDetails(mbid: string): Promise<MbArtistDetails> {
   const data = (await mbFetch(
-    `/artist/${encodeURIComponent(mbid)}?inc=url-rels&fmt=json`
+    `/artist/${encodeURIComponent(mbid)}?inc=url-rels+genres+tags&fmt=json`
   )) as RawArtistRels;
   const links: Partial<Record<ArtistLinkKey, string>> = {};
   for (const rel of data.relations || []) {
@@ -155,5 +170,6 @@ export async function getArtistDetails(mbid: string): Promise<MbArtistDetails> {
     links,
     isnis: Array.isArray(data.isnis) ? data.isnis : [],
     ipis: Array.isArray(data.ipis) ? data.ipis : [],
+    genres: topGenres(data),
   };
 }

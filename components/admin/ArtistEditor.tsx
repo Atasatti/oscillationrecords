@@ -29,6 +29,7 @@ import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
 import type { IsniMatch } from "@/lib/isni";
 import { buildArtistSeedUrl, buildArtistEditUrl } from "@/lib/musicbrainz-seed";
+import GenrePicker from "@/components/admin/GenrePicker";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -135,6 +136,7 @@ export default function ArtistEditor({
   const [mbPickedName, setMbPickedName] = useState("");
   const [mbIsni, setMbIsni] = useState<string | null>(null);
   const [mbIpis, setMbIpis] = useState<string[]>([]);
+  const [mbGenres, setMbGenres] = useState<string[]>([]);
 
   // ISNI name lookup (public OCLC SRU)
   const [isniOpen, setIsniOpen] = useState(false);
@@ -287,10 +289,11 @@ export default function ArtistEditor({
       const links = (data.links || {}) as Partial<Record<LinkKey, string>>;
       const isnis = (data.isnis || []) as string[];
       const ipis = (data.ipis || []) as string[];
+      const genres = (data.genres || []) as string[];
       // Record the MB link regardless — picking the artist establishes it, even
       // if the MB page has no links/codes yet (e.g. a freshly-added artist).
       setForm((p) => ({ ...p, musicBrainzId: m.mbid }));
-      if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0) {
+      if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0 && genres.length === 0) {
         toast.success("Linked to MusicBrainz. That page has no links/codes yet — nothing to import.");
         setMbOpen(false);
         return;
@@ -298,6 +301,7 @@ export default function ArtistEditor({
       setMbPreview(links);
       setMbIsni(isnis[0] || null);
       setMbIpis(ipis);
+      setMbGenres(genres);
     } catch {
       toast.error("Couldn't load data from MusicBrainz");
     } finally {
@@ -333,12 +337,18 @@ export default function ArtistEditor({
           applied += add.length;
         }
       }
+      // Fill genres only if empty (don't clobber what the admin typed).
+      if (mbGenres.length && !next.genres.trim()) {
+        next.genres = mbGenres.join(", ");
+        applied += mbGenres.length;
+      }
       return next;
     });
     setMbOpen(false);
     setMbPreview(null);
     setMbIsni(null);
     setMbIpis([]);
+    setMbGenres([]);
     toast.success(
       `Added ${applied} item${applied === 1 ? "" : "s"}${skipped ? `, kept ${skipped} existing` : ""} — review and save.`
     );
@@ -620,15 +630,15 @@ export default function ArtistEditor({
                 <label htmlFor="genres" className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Genres
                 </label>
-                <Input
+                <GenrePicker
                   id="genres"
-                  name="genres"
                   value={form.genres}
-                  onChange={(e) => setField("genres", e.target.value)}
+                  onChange={(v) => setField("genres", v)}
                   placeholder="e.g. House, Techno, Melodic"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Comma-separated. Auto-filled from Spotify on import; editable.
+                  Comma-separated. Use “Browse” to pick from real Spotify genres, or
+                  import from MusicBrainz (Spotify no longer provides genres via its API).
                 </p>
               </div>
               {mode === "edit" ? (
@@ -888,8 +898,21 @@ export default function ArtistEditor({
               <p className="text-sm text-muted-foreground">
                 Found for <span className="text-foreground">{mbPickedName}</span>:
               </p>
-              {(mbIsni || mbIpis.length) ? (
+              {(mbIsni || mbIpis.length || mbGenres.length) ? (
                 <ul className="space-y-2">
+                  {mbGenres.length ? (
+                    <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                      <span className="w-24 shrink-0 font-medium">Genres</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{mbGenres.join(", ")}</span>
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-xs ${
+                          form.genres.trim() ? "bg-muted text-muted-foreground" : "bg-green-500/15 text-green-400"
+                        }`}
+                      >
+                        {form.genres.trim() ? "keep existing" : "will add"}
+                      </span>
+                    </li>
+                  ) : null}
                   {mbIsni ? (
                     <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
                       <span className="w-24 shrink-0 font-medium">ISNI</span>
