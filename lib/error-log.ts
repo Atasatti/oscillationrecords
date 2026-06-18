@@ -68,19 +68,18 @@ export async function recordError(input: RecordErrorInput): Promise<void> {
       resolved: false, // a recurrence re-opens a resolved error
     };
 
-    // Race-safe increment-or-create (Prisma's Mongo upsert is find-then-write,
-    // so a burst of identical errors could otherwise double-create and lose a
-    // count). Try to bump an existing row first; on "not found" create a new
-    // distinct row (respecting the cap); if a concurrent caller created it first
-    // (unique-fingerprint violation), bump instead — so no occurrence is lost.
-    try {
+    // Increment if the fingerprint already exists; create otherwise.
+    // findUnique first so update is never called on a missing row (avoids Prisma
+    // logging the expected P2025 to stderr). The create path still catches P2002
+    // for the rare case of a concurrent identical error winning the race.
+    const existing = await prisma.errorLog.findUnique({
+      where: { fingerprint },
+      select: { id: true },
+    });
+
+    if (existing) {
       await prisma.errorLog.update({ where: { fingerprint }, data: incrementData });
       return;
-    } catch (e) {
-      if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== "P2025") {
-        throw e; // unexpected — surfaced to the outer catch (logged, not thrown)
-      }
-      // P2025 = record not found → fall through to create.
     }
 
     const distinct = await prisma.errorLog.count();

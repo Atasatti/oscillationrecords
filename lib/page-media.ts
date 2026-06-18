@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_PAGE_MEDIA,
@@ -42,10 +43,10 @@ export async function getPageMedia(): Promise<PageMedia> {
  */
 export async function savePageMedia(patch: Partial<PageMedia>): Promise<PageMedia> {
   const current = await readStored();
-  const next: Record<string, unknown> = { ...current, ...patch };
+  const next = { ...current, ...patch };
   await prisma.$runCommandRaw({
     update: COLLECTION,
-    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next } } }],
+    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next as unknown as Prisma.InputJsonValue } } }],
   });
-  return mergePageMedia(next as Partial<PageMedia>);
+  return mergePageMedia(next);
 }
