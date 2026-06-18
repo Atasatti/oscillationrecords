@@ -16,6 +16,8 @@ import {
   Loader2,
   Star,
   Database,
+  Send,
+  EyeOff,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
@@ -253,6 +255,48 @@ function ReleasesPageInner() {
     }
   };
 
+  // Bulk publish / unpublish the selected releases. Publishing skips any with no
+  // tracks (they'd otherwise go live empty); moving to draft is always safe.
+  const bulkSetStatus = async (status: "RELEASED" | "DRAFT") => {
+    const targets = items.filter((r) => selected.has(r.id));
+    if (targets.length === 0) return;
+    const actionable = status === "RELEASED" ? targets.filter((r) => r.songCount > 0) : targets;
+    const skipped = targets.length - actionable.length;
+    if (actionable.length === 0) {
+      toast.error("None of the selected releases have tracks to publish.");
+      return;
+    }
+    setWorking(true);
+    try {
+      const results = await Promise.allSettled(
+        actionable.map((r) =>
+          fetch(`/api/releases/${r.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          })
+        )
+      );
+      const failed = results.filter(
+        (x) => x.status === "rejected" || (x.status === "fulfilled" && !x.value.ok)
+      ).length;
+      const ok = actionable.length - failed;
+      const verb = status === "RELEASED" ? "Published" : "Moved to draft";
+      let msg = `${verb} ${ok}`;
+      if (failed) msg += `, ${failed} failed`;
+      if (skipped) msg += `, skipped ${skipped} with no tracks`;
+      if (failed) toast.error(msg);
+      else toast.success(msg);
+      setSelected(new Set());
+      load();
+      loadCounts();
+    } catch {
+      toast.error("Bulk update failed");
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const selectedCount = selected.size;
 
   return (
@@ -357,6 +401,12 @@ function ReleasesPageInner() {
       {selectedCount > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
           <span className="text-sm text-muted-foreground">{selectedCount} selected</span>
+          <Button variant="outline" size="sm" disabled={working} onClick={() => bulkSetStatus("RELEASED")}>
+            <Send className="mr-1 h-4 w-4" /> Publish
+          </Button>
+          <Button variant="outline" size="sm" disabled={working} onClick={() => bulkSetStatus("DRAFT")}>
+            <EyeOff className="mr-1 h-4 w-4" /> Move to draft
+          </Button>
           <Button
             variant="outline"
             size="sm"
