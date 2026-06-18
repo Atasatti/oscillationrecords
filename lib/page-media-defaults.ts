@@ -137,7 +137,7 @@ export function mergePageMedia(stored: Partial<PageMedia> | null | undefined): P
       continue;
     }
     if (typeof v === "string" && v.trim()) {
-      (out as Record<string, unknown>)[k] = v;
+      (out as unknown as Record<string, unknown>)[k] = v;
     }
   }
   return out;
