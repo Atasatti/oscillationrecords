@@ -410,7 +410,7 @@ export default function AdminArtistsPage() {
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
               <TableHead className="hidden sm:table-cell">
-                <span className="inline-flex items-center gap-1">Profile <InfoHint text="Profile completeness — “Needs N” means N fields are still missing (bio, image, links, etc.). Hover the badge to see which." /></span>
+                <span className="inline-flex items-center gap-1">Profile <InfoHint text="Profile completeness. Each badge shows the details still missing (photo, bio, links, genres) — click it to add them." /></span>
               </TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
@@ -510,9 +510,16 @@ export default function AdminArtistsPage() {
                     {a.complete ? (
                       <Badge variant="success">Complete</Badge>
                     ) : (
-                      <Badge variant="warning" title={`Missing: ${a.missing.join(", ")}`}>
-                        Needs {a.missing.length}
-                      </Badge>
+                      <Link
+                        href={`/admin/catalog/artists/${a.id}/edit`}
+                        title={`Missing ${a.missing.join(", ")} — click to add`}
+                        className="inline-flex"
+                      >
+                        <Badge variant="warning" className="cursor-pointer hover:opacity-80">
+                          Add {a.missing.slice(0, 2).join(", ")}
+                          {a.missing.length > 2 ? ` +${a.missing.length - 2}` : ""}
+                        </Badge>
+                      </Link>
                     )}
                   </TableCell>
                   <TableCell>
