@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
-import { getAllPress } from "@/lib/catalog-data";
+import { getAllPress, getPressForArtist, getPressForRelease } from "@/lib/catalog-data";
 import { getPressPage } from "@/lib/admin-data";
 
 // AWS SDK + getToken need the Node runtime; never statically cache.
@@ -33,7 +33,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const items = await getAllPress();
+    const releaseId = searchParams.get("releaseId");
+    const artistId = searchParams.get("artistId");
+    const items = releaseId
+      ? await getPressForRelease(releaseId)
+      : artistId
+        ? await getPressForArtist(artistId)
+        : await getAllPress();
     return NextResponse.json(items, {
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",

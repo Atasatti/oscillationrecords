@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
+import ReleasePressSection from "@/components/local-ui/ReleasePressSection";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -712,6 +713,9 @@ export default function ReleaseDetail() {
               </div>
             </div>
           ) : null}
+          <div className="max-w-6xl xl:max-w-7xl mx-auto px-0 pb-10">
+            <ReleasePressSection releaseId={releaseId} />
+          </div>
         </div>
       </div>
       <Dialog

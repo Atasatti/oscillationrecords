@@ -203,3 +203,79 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
 }
+
+type PressItemLike = {
+  id: string;
+  title: string;
+  publisher: string;
+  articleUrl: string;
+  summary?: string | null;
+  image?: string | null;
+  author?: string | null;
+  publishedAt?: string | null;
+  artists?: { id: string; name: string }[];
+  releases?: { id: string; name: string }[];
+};
+
+/**
+ * One press item as a schema.org BlogPosting (a node for the /press CollectionPage,
+ * so no own @context). We are the AUTHOR/PUBLISHER of the summary only — the
+ * external article is modelled as a separate Article node (its real outlet as
+ * publisher, the journalist as author) and linked via isBasedOn/citation. We
+ * deliberately emit NO Review/AggregateRating (citing third-party reviews as our
+ * own machine-readable ratings violates Google's review-snippet rules).
+ */
+function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
+  const node: Record<string, unknown> = {
+    "@type": "BlogPosting",
+    headline: item.title,
+    author: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+    publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+    mainEntityOfPage: pageUrl,
+  };
+  const desc = metaDescription(item.summary, 5000);
+  if (desc) node.description = desc;
+  if (item.image) node.image = absoluteUrl(item.image);
+  if (item.publishedAt) {
+    const d = new Date(item.publishedAt);
+    if (!isNaN(d.getTime())) node.datePublished = d.toISOString().slice(0, 10);
+  }
+
+  const article: Record<string, unknown> = {
+    "@type": "Article",
+    headline: item.title,
+    url: item.articleUrl,
+    publisher: { "@type": "Organization", name: item.publisher },
+  };
+  if (item.author) article.author = { "@type": "Person", name: item.author };
+  node.isBasedOn = article;
+  node.citation = article;
+
+  const mentions = [
+    ...(item.artists ?? []).map((a) => ({
+      "@type": "MusicGroup",
+      name: a.name,
+      url: absoluteUrl(`/artists/${a.id}`),
+    })),
+    ...(item.releases ?? []).map((r) => ({
+      "@type": "MusicAlbum",
+      name: r.name,
+      url: absoluteUrl(`/releases/${r.id}`),
+    })),
+  ];
+  if (mentions.length) node.mentions = mentions;
+  return node;
+}
+
+/** schema.org CollectionPage for the /press index, with each item as a BlogPosting. */
+export function buildPressListJsonLd(items: PressItemLike[]) {
+  const url = absoluteUrl("/press");
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: `Press & Features — ${SITE_NAME}`,
+    url,
+    "@id": url,
+    hasPart: items.map((it) => buildPressBlogPosting(it, url)),
+  };
+}

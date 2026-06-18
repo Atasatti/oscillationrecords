@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
-import { getArtistDetail } from "@/lib/catalog-data";
+import { getArtistDetail, getPressForArtist } from "@/lib/catalog-data";
+import PressCard from "@/components/local-ui/PressCard";
 import {
   buildArtistJsonLd,
   buildBreadcrumbJsonLd,
@@ -97,6 +98,7 @@ export default async function ArtistDetail({
     { name: "Artists", url: "/artists" },
     { name: data.artist.name, url: `/artists/${data.artist.id}` },
   ]);
+  const press = await getPressForArtist(artistId);
 
   return (
     <>
@@ -109,6 +111,16 @@ export default async function ArtistDetail({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <ArtistDetailView artist={data.artist} releases={data.releases} />
+      {press.length > 0 ? (
+        <section className="px-[10%] py-14 text-white">
+          <h2 className="mb-6 text-2xl font-light tracking-tighter">Press &amp; Features</h2>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {press.map((item) => (
+              <PressCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }
