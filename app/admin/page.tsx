@@ -9,7 +9,7 @@ export default function Admin() {
     <div>
       <PageHeader
         title="Dashboard"
-        description="Release performance and audience engagement."
+        description="How your music and site are doing for the selected period — plays, listeners, link click-through, and audience. Click any card or “View all” for the full breakdown. Figures cover everyone who accepted analytics cookies, plus signed-in members."
       />
       <NeedsAttention />
       <AnalyticsDashboard />

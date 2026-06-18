@@ -20,6 +20,7 @@ import {
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
+import InfoHint from "@/components/admin/InfoHint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -258,7 +259,7 @@ function ReleasesPageInner() {
     <div>
       <PageHeader
         title="Releases"
-        description="Search, manage, and curate your catalog. Tracks are edited from a release."
+        description="Every release in your catalog. Create new ones, edit details and tracks, set status (Draft / Scheduled / Live), feature them on the home page, and set the order shown on the site."
         actions={
           <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
             <Plus className="h-4 w-4" /> New release
@@ -284,6 +285,11 @@ function ReleasesPageInner() {
           </button>
         ))}
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        {view === "order"
+          ? "Drag releases into the order they should appear on the site (and in this list)."
+          : "Browse, search and edit releases. Use the tabs to filter by status; switch to “Custom order” to set their order on the site."}
+      </p>
 
       {view === "order" ? (
         <ManualOrderPanel
@@ -387,9 +393,15 @@ function ReleasesPageInner() {
                   Type {sortIcon("kind")}
                 </button>
               </TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Latest</TableHead>
-              <TableHead>New Music</TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Status <InfoHint text="Draft = hidden. Scheduled = future-dated, shows in Coming Soon. Live = public." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Latest <InfoHint text="Shows a 'Latest' badge on the home page. Only one release can be Latest at a time — turning it on clears the others." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">New Music <InfoHint text="Feature this release in the home page's New Music carousel. Set the carousel order on the Homepage screen." /></span>
+              </TableHead>
               <TableHead className="w-10 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

@@ -49,6 +49,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
+import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 
 const PAGE_SIZE = 25;
@@ -231,7 +232,7 @@ export default function AdminArtistsPage() {
     <div>
       <PageHeader
         title="Artists"
-        description="Search, manage visibility, and edit your roster."
+        description="Your artist roster. Add and edit artists, control whether each shows on the public site, feature them on the home page, and set the order shown on the site."
         actions={
           <Button asChild className="bg-white text-black hover:bg-gray-200">
             <Link href="/admin/catalog/artists/new">
@@ -260,6 +261,11 @@ export default function AdminArtistsPage() {
           </button>
         ))}
       </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        {view === "order"
+          ? "Drag artists into the order they should appear on the site (and in this list)."
+          : "Browse, search and edit artists. Switch to “Custom order” to set the order they appear on the site."}
+      </p>
 
       {view === "order" ? (
         <ManualOrderPanel
@@ -403,9 +409,15 @@ export default function AdminArtistsPage() {
               <TableHead className="hidden xl:table-cell">
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">Profile</TableHead>
-              <TableHead>Visibility</TableHead>
-              <TableHead>Featured</TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1">Profile <InfoHint text="Profile completeness — “Needs N” means N fields are still missing (bio, image, links, etc.). Hover the badge to see which." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Featured <InfoHint text="Feature this artist in the home page carousel. Set the carousel order on the Homepage screen." /></span>
+              </TableHead>
               <TableHead className="hidden xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}

@@ -147,7 +147,8 @@ export default function ManualOrderPanel({
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <p className="mb-3 text-sm text-muted-foreground">
-        Drag to set the order shown across the site. Saves automatically.
+        Drag to set the order — this is the order shown on the public site and in the
+        Manage list. Saves automatically.
         {saving ? <span className="ml-2 text-xs">Saving…</span> : null}
       </p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
