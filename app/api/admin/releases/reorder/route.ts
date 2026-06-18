@@ -5,6 +5,31 @@ import { requireAdmin } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// GET — all releases in their current custom (sortOrder) order, for the admin
+// "Custom order" drag view. Ties fall back to newest-first (matches the public grid).
+export async function GET(request: NextRequest) {
+  const guard = await requireAdmin(request);
+  if (!guard.ok) return guard.response;
+  try {
+    const releases = await prisma.release.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      select: { id: true, name: true, coverImage: true, kind: true, status: true },
+    });
+    return NextResponse.json({
+      items: releases.map((r) => ({
+        id: r.id,
+        name: r.name,
+        thumbnail: r.coverImage,
+        kind: r.kind,
+        status: r.status,
+      })),
+    });
+  } catch (error) {
+    console.error("Error loading release order:", error);
+    return NextResponse.json({ error: "Failed to load" }, { status: 500 });
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const guard = await requireAdmin(request);

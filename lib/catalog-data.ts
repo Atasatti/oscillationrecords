@@ -352,7 +352,8 @@ export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   try {
     const artists = await prisma.artist.findMany({
       where: { showOnWebsite: true },
-      orderBy: [{ name: "asc" }],
+      // Honour the admin's custom order; fall back to name for unplaced ties.
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
     return artists.map(toPublicArtist);
   } catch (e) {

@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 
 const PAGE_SIZE = 25;
@@ -73,6 +74,7 @@ export default function AdminArtistsPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [newReleaseFor, setNewReleaseFor] = useState<{ id: string; name: string } | null>(null);
+  const [view, setView] = useState<"manage" | "order">("manage");
 
   // Debounce the search box → query (and reset to page 1).
   useEffect(() => {
@@ -240,6 +242,30 @@ export default function AdminArtistsPage() {
         }
       />
 
+      {/* View toggle: filtered table vs manual custom order */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        {([["manage", "Manage"], ["order", "Custom order"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setView(k)}
+            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === "order" ? (
+        <ManualOrderPanel
+          loadEndpoint="/api/admin/artists/reorder"
+          saveEndpoint="/api/admin/artists/reorder"
+          kind="artist"
+        />
+      ) : (
+      <>
       {/* Search + filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:max-w-xs">
@@ -550,6 +576,8 @@ export default function AdminArtistsPage() {
           />
         </div>
       </div>
+      </>
+      )}
 
       {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

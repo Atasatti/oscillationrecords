@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,6 +96,7 @@ function ReleasesPageInner() {
     SCHEDULED: 0,
   });
   const [newOpen, setNewOpen] = useState(false);
+  const [view, setView] = useState<"manage" | "order">("manage");
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -264,6 +266,30 @@ function ReleasesPageInner() {
         }
       />
 
+      {/* View toggle: filtered table vs manual custom order */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        {([["manage", "Manage"], ["order", "Custom order"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setView(k)}
+            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === "order" ? (
+        <ManualOrderPanel
+          loadEndpoint="/api/admin/releases/reorder"
+          saveEndpoint="/api/admin/releases/reorder"
+          kind="release"
+        />
+      ) : (
+      <>
       {/* Status tabs */}
       <div className="mb-5 flex gap-1 border-b border-border">
         {STATUS_TABS.map(({ key, label }) => {
@@ -486,6 +512,8 @@ function ReleasesPageInner() {
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       </div>
+      </>
+      )}
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent>
