@@ -914,20 +914,19 @@ export default function ArtistEditor({
 
       {/* MusicBrainz social-link import dialog */}
       <Dialog open={mbOpen} onOpenChange={setMbOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="min-w-0">
             <DialogTitle>Import from MusicBrainz</DialogTitle>
-            <DialogDescription>
-              Searches the free MusicBrainz database and, when you pick a match,
-              links this artist (sets their <strong className="text-foreground">MusicBrainz ID</strong>)
-              and imports social &amp; streaming links, genres and ISNI/IPI codes.
-              Coverage varies — review before applying. Only empty fields are filled;
-              your existing values are never overwritten.
+            <DialogDescription className="break-words">
+              Picking a match links the artist (sets their{" "}
+              <strong className="text-foreground">MusicBrainz ID</strong>) and imports
+              social/streaming links, genres and ISNI/IPI — filling only empty fields.
+              Coverage varies; review before applying.
             </DialogDescription>
           </DialogHeader>
 
           {mbPreview ? (
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <p className="text-sm text-muted-foreground">
                 Found for <span className="text-foreground">{mbPickedName}</span>:
               </p>
