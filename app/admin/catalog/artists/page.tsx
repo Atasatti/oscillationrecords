@@ -248,7 +248,10 @@ export default function AdminArtistsPage() {
           <button
             key={k}
             type="button"
-            onClick={() => setView(k)}
+            onClick={() => {
+              setView(k);
+              if (k === "manage") load(); // reflect any reordering just made
+            }}
             className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
               view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}

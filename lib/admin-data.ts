@@ -230,7 +230,7 @@ export async function getArtistsPage({
       ? [{ name: dir }]
       : sortField === "createdAt"
         ? [{ createdAt: dir }]
-        : [{ sortOrder: dir }, { createdAt: "desc" as const }];
+        : [{ sortOrder: dir }, { name: "asc" as const }];
   // Run the count and the page query in parallel to halve the DB round-trips.
   const [total, rows] = await Promise.all([
     prisma.artist.count({ where }),
@@ -269,14 +269,14 @@ export async function getFeaturedArtists(): Promise<AdminArtistRow[]> {
 // Releases
 // ---------------------------------------------------------------------------
 
-export type ReleaseSort = "name" | "createdAt" | "kind";
+export type ReleaseSort = "name" | "createdAt" | "kind" | "sortOrder";
 
 export async function getReleasesPage({
   page = 1,
   pageSize = 25,
   q = "",
-  sort = "createdAt",
-  dir = "desc",
+  sort = "sortOrder",
+  dir = "asc",
   status,
 }: {
   page?: number;
@@ -319,7 +319,9 @@ export async function getReleasesPage({
       ? [{ name: dir }]
       : sort === "kind"
         ? [{ kind: dir }, { createdAt: "desc" as const }]
-        : [{ createdAt: dir }];
+        : sort === "sortOrder"
+          ? [{ sortOrder: dir }, { createdAt: "desc" as const }]
+          : [{ createdAt: dir }];
   // Count + page query in parallel; then resolve artist names.
   const [total, rows] = await Promise.all([
     prisma.release.count({ where }),

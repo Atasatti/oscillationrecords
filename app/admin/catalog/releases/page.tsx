@@ -81,8 +81,8 @@ function ReleasesPageInner() {
   const [page, setPage] = useState(1);
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<ReleaseSort>("createdAt");
-  const [dir, setDir] = useState<SortDir>("desc");
+  const [sort, setSort] = useState<ReleaseSort>("sortOrder");
+  const [dir, setDir] = useState<SortDir>("asc");
   const [statusFilter, setStatusFilter] = useState<StatusTab>(
     toStatusTab(searchParams.get("status"))
   );
@@ -272,7 +272,10 @@ function ReleasesPageInner() {
           <button
             key={k}
             type="button"
-            onClick={() => setView(k)}
+            onClick={() => {
+              setView(k);
+              if (k === "manage") load(); // reflect any reordering just made
+            }}
             className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
               view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
