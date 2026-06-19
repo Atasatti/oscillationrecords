@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -72,98 +71,57 @@ const Footer = () => {
 
   const year = new Date().getFullYear();
 
-  return (
-    <div className="border-t border-border pt-10 px-4 sm:px-6 md:px-[10%]">
-      <div className="flex flex-col lg:flex-row justify-between gap-10 lg:gap-12">
-        <div className="max-w-md">
-          <Link
-            href="/"
-            className="inline-block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-            aria-label="Oscillation Records — Home"
-          >
-            <Image width={80} height={50} alt="" src="/logo-icon.svg" />
-            <Image
-              width={80}
-              height={30}
-              alt=""
-              src="/logo-name.svg"
-              className="mt-2"
-            />
-          </Link>
-          {/* Subtle newsletter signup. Full management lives in account settings,
-              so it's hidden there to avoid showing the same toggle twice. */}
-          {pathname !== "/account" ? (
-            <div className="mt-4 max-w-xs">
-              <NewsletterToggle compact />
-            </div>
-          ) : null}
-        </div>
+  const navLinkCls =
+    "text-muted-foreground hover:text-foreground transition-colors";
 
-        <div>
-          <p className="text-xs text-muted-foreground">Explore</p>
-          <div className="flex flex-wrap items-center gap-6 mt-5 text-sm">
-            <Link href="/" className="hover:text-foreground transition-colors">
-              Home
-            </Link>
-            <Link href="/about" className="hover:text-foreground transition-colors">
-              About
-            </Link>
-            <Link href="/artists" className="hover:text-foreground transition-colors">
-              Artists
-            </Link>
-            <Link href="/releases" className="hover:text-foreground transition-colors">
-              Releases
-            </Link>
-            <Link href="/contact" className="hover:text-foreground transition-colors">
-              Contact Us
-            </Link>
+  return (
+    <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-12">
+        {/* Subtle newsletter signup. Full management lives in account settings,
+            so it's hidden there to avoid showing the same toggle twice. */}
+        {pathname !== "/account" ? (
+          <div className="max-w-xs">
+            <NewsletterToggle compact />
           </div>
-        </div>
+        ) : null}
+
+        {/* Social links, pinned right (and the only top-row item on /account). */}
+        {linksLoaded && socialItems.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-5 sm:ml-auto">
+            {socialItems.map(({ href, Icon, label }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={label}
+                className="text-muted-foreground hover:text-white transition-colors"
+              >
+                <Icon className="h-5 w-5" aria-hidden />
+              </a>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      {linksLoaded && socialItems.length > 0 ? (
-        <div className="flex flex-wrap justify-center items-center gap-6 sm:gap-8 mt-14">
-          {socialItems.map(({ href, Icon, label }) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={label}
-              className="text-muted-foreground hover:text-white transition-colors"
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-            </a>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="border-t border-border mt-10 sm:mt-12 mb-4" />
-
-      <div className="flex flex-col-reverse items-center justify-between gap-3 pb-5 sm:flex-row">
+      <div className="mt-10 flex flex-col-reverse items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
         <p className="text-xs text-muted-foreground">
-          © Copyright {year} All Rights Reserved by Oscillation Records.
+          © {year} Oscillation Records. All rights reserved.
         </p>
         <div className="flex items-center gap-5 text-xs">
-          <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
-            Privacy
-          </Link>
-          <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
-            Terms
-          </Link>
-          <Link href="/account" className="text-muted-foreground hover:text-foreground transition-colors">
-            Account
-          </Link>
+          <Link href="/privacy" className={navLinkCls}>Privacy</Link>
+          <Link href="/terms" className={navLinkCls}>Terms</Link>
+          <Link href="/account" className={navLinkCls}>Account</Link>
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className={navLinkCls}
           >
             Cookies
           </button>
         </div>
       </div>
-    </div>
+    </footer>
   );
 };
 
