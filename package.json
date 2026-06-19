@@ -8,7 +8,8 @@
     "start": "node --use-system-ca ./node_modules/next/dist/bin/next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:deploy": "node scripts/deploy-db.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
