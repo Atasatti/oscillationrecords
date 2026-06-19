@@ -63,7 +63,7 @@ export async function savePageMedia(patch: Partial<PageMedia>): Promise<PageMedi
 
   await prisma.$runCommandRaw({
     update: COLLECTION,
-    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next as Prisma.InputJsonObject } } }],
+    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next as unknown as Prisma.InputJsonValue } } }],
   });
   return mergePageMedia(next);
 }

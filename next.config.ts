@@ -26,6 +26,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   images: {
+    // Skip the optimizer in dev: it fetches images server-side from S3, which
+    // can timeout on slower local networks. Production still runs the optimizer.
+    ...(process.env.NODE_ENV === "development" && { unoptimized: true }),
     // Image optimizer is ON, with a curated allowlist (not an open proxy) of the
     // hosts our images actually come from: our own S3 bucket, Spotify artwork
     // (scdn.co, from artist import), and Google avatars. Scoped to the specific
