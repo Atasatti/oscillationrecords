@@ -4,6 +4,9 @@
 
 import { isSafeUrl } from "@/lib/url-safety";
 
+/** Max length for a press summary — enforced here, mirrored by the editor's maxLength. */
+export const PRESS_SUMMARY_MAX = 300;
+
 export type PressInput = {
   title: string;
   publisher: string;
@@ -73,7 +76,9 @@ export function extractPressInput(body: Record<string, unknown>): PressInput | n
     title,
     publisher,
     articleUrl,
-    summary,
+    // Hard cap so an over-length summary (e.g. a direct API call bypassing the
+    // editor's maxLength) can never be stored beyond the limit.
+    summary: summary.slice(0, PRESS_SUMMARY_MAX),
     image: cleanImage(body.image),
     author: cleanStr(body.author),
     publishedAt: parseDate(body.publishedAt),

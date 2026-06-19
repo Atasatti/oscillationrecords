@@ -45,6 +45,9 @@ const emptyForm: FormState = {
 
 type Option = { value: string; label: string };
 
+// Mirrors PRESS_SUMMARY_MAX in lib/press-input.ts (the server caps to this too).
+const SUMMARY_MAX = 300;
+
 export default function PressEditor({
   mode,
   pressId,
@@ -428,9 +431,18 @@ export default function PressEditor({
                 </div>
               </div>
               <div>
-                <label htmlFor="summary" className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Summary * <span className="font-normal">(our own words — do not paste the article)</span>
-                </label>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="summary" className="block text-xs font-medium text-muted-foreground">
+                    Summary * <span className="font-normal">(our own words — do not paste the article)</span>
+                  </label>
+                  <span
+                    className={`shrink-0 text-xs tabular-nums ${
+                      form.summary.length >= SUMMARY_MAX ? "text-amber-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {form.summary.length}/{SUMMARY_MAX}
+                  </span>
+                </div>
                 <Textarea
                   id="summary"
                   value={form.summary}
@@ -438,6 +450,7 @@ export default function PressEditor({
                     setField("summary", e.target.value);
                     if (errors.summary) setErrors((p) => ({ ...p, summary: undefined }));
                   }}
+                  maxLength={SUMMARY_MAX}
                   placeholder="A short, original summary of what the coverage said and why it matters…"
                   rows={5}
                   className={`resize-none ${errors.summary ? "border-red-500/70" : ""}`}
