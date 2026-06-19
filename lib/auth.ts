@@ -50,6 +50,12 @@ export const authOptions: AuthOptions = {
       // a credential-leak risk. Login uses the identity (email/role) only.
       if (account && user?.email) {
         try {
+          // Did this email already have an account? Determines a brand-new signup,
+          // which triggers the one-time newsletter prompt.
+          const existing = await prisma.user.findUnique({
+            where: { email: user.email },
+            select: { id: true },
+          });
           const dbUser = await prisma.user.upsert({
             where: { email: user.email },
             create: {
@@ -63,6 +69,25 @@ export const authOptions: AuthOptions = {
             },
           });
           extendedToken.role = dbUser.role ?? undefined;
+
+          // Brand-new account → flag it so the client shows a one-time newsletter
+          // prompt after signup. Stored as a raw field (no schema change — mirrors
+          // lib/page-media) and best-effort: it must never block sign-in.
+          if (!existing) {
+            try {
+              await prisma.$runCommandRaw({
+                update: "User",
+                updates: [
+                  {
+                    q: { email: user.email },
+                    u: { $set: { newsletterPromptPending: true } },
+                  },
+                ],
+              });
+            } catch (e) {
+              console.error("Auth: failed to set newsletter prompt flag", e);
+            }
+          }
         } catch (e) {
           console.error("Auth: failed to sync user to DB", e);
         }
