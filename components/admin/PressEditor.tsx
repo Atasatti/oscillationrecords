@@ -2,12 +2,20 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Image as ImageIcon, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, Image as ImageIcon, Loader2, ExternalLink, Trash2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
@@ -61,6 +69,8 @@ export default function PressEditor({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [errors, setErrors] = useState<{ title?: string; publisher?: string; articleUrl?: string; summary?: string }>({});
 
   const [dirty, setDirty] = useState(false);
@@ -239,6 +249,23 @@ export default function PressEditor({
     } finally {
       setSaving(false);
       setUploading(false);
+    }
+  };
+
+  // Delete the press item (edit mode only), then return to the list.
+  const handleDelete = async () => {
+    if (mode !== "edit" || !pressId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/press/${pressId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setDirty(false);
+      toast.success("Press item deleted");
+      router.push("/admin/catalog/press");
+    } catch {
+      toast.error("Failed to delete press item");
+      setDeleting(false);
+      setConfirmDeleteOpen(false);
     }
   };
 
@@ -495,10 +522,40 @@ export default function PressEditor({
               >
                 Cancel
               </Button>
+              {mode === "edit" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  className="ml-auto border-red-500/30 text-red-400 hover:bg-red-950/20 hover:text-red-300"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              ) : null}
             </div>
           </div>
         </div>
       </form>
+
+      <Dialog open={confirmDeleteOpen} onOpenChange={(o) => !deleting && setConfirmDeleteOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete press item</DialogTitle>
+            <DialogDescription>
+              Delete &quot;{form.title || "this press item"}&quot;? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
