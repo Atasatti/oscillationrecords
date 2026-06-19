@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FaBandcamp,
   FaFacebookF,
@@ -15,8 +15,7 @@ import { SiBeatport } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useSession } from "next-auth/react";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
 
 const EMPTY_LINKS: FooterSocialLinks = {
@@ -34,11 +33,12 @@ const EMPTY_LINKS: FooterSocialLinks = {
 const Footer = () => {
   const [links, setLinks] = useState<FooterSocialLinks>(EMPTY_LINKS);
   const [linksLoaded, setLinksLoaded] = useState(false);
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState(""); // honeypot — must stay empty
-  const [subStatus, setSubStatus] = useState<
-    "idle" | "loading" | "ok" | "err"
-  >("idle");
+  const { data: session, status: authStatus } = useSession();
+  const signedIn = authStatus === "authenticated" && Boolean(session?.user?.email);
+  // null = unknown/not-loaded (and the signed-out state). The checkbox stays
+  // unticked by default and only ticks once we confirm the account is subscribed.
+  const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [subBusy, setSubBusy] = useState(false);
   const [subMessage, setSubMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,40 +75,52 @@ const Footer = () => {
     (item): item is typeof item & { href: string } => Boolean(item.href?.trim())
   );
 
-  const handleNewsletter = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubMessage(null);
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setSubStatus("err");
-      setSubMessage("Enter your email.");
+  // Load the signed-in user's current subscription so the checkbox reflects it.
+  // Signed-out users keep the default unticked (and disabled) checkbox.
+  useEffect(() => {
+    if (!signedIn) {
+      setSubscribed(null);
       return;
     }
-    setSubStatus("loading");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/newsletter");
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setSubscribed(Boolean(data.subscribed));
+        }
+      } catch {
+        /* leave as unknown */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
+
+  // Tick = subscribe the account email; untick = unsubscribe it. The email comes
+  // from the signed-in session (verified at sign-in) — never typed in here.
+  const toggleNewsletter = async (next: boolean) => {
+    if (!signedIn || subBusy) return;
+    setSubBusy(true);
+    setSubMessage(null);
+    setSubscribed(next); // optimistic
     try {
       const res = await fetch("/api/newsletter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, company }),
+        method: next ? "POST" : "DELETE",
       });
+      if (!res.ok) throw new Error();
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSubStatus("err");
-        setSubMessage(
-          typeof data.error === "string" ? data.error : "Something went wrong."
-        );
-        return;
-      }
-      setSubStatus("ok");
+      setSubscribed(Boolean(data.subscribed));
       setSubMessage(
-        data.created
-          ? "Thanks — you're on the list."
-          : "You're already subscribed. Thanks for staying in touch."
+        next ? "You're subscribed — thanks for joining." : "You've been unsubscribed."
       );
-      setEmail("");
     } catch {
-      setSubStatus("err");
-      setSubMessage("Something went wrong. Try again later.");
+      setSubscribed(!next); // revert on failure
+      setSubMessage("Something went wrong. Please try again.");
+    } finally {
+      setSubBusy(false);
     }
   };
 
@@ -132,58 +144,31 @@ const Footer = () => {
               className="mt-2"
             />
           </Link>
-          <p className="text-sm text-muted-foreground mt-4">
-            Get release news and updates in your inbox.
-          </p>
-          <form
-            onSubmit={handleNewsletter}
-            className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch"
-          >
-            {/* Honeypot: hidden from users, catches naive bots. */}
-            <input
-              type="text"
-              name="company"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              tabIndex={-1}
-              autoComplete="off"
-              aria-hidden="true"
-              className="hidden"
-            />
-            <Input
-              type="email"
-              name="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (subMessage) setSubMessage(null);
-                if (subStatus !== "idle") setSubStatus("idle");
-              }}
-              className="bg-background border-border text-foreground sm:max-w-xs"
-              disabled={subStatus === "loading"}
-            />
-            <Button
-              type="submit"
-              disabled={subStatus === "loading"}
-              variant="secondary"
-              className="shrink-0"
-            >
-              {subStatus === "loading" ? "Sending…" : "Subscribe"}
-            </Button>
-          </form>
-          {subMessage ? (
-            <p
-              className={
-                subStatus === "ok"
-                  ? "text-sm text-green-500/90 mt-2"
-                  : "text-sm text-red-400 mt-2"
-              }
-            >
-              {subMessage}
-            </p>
-          ) : null}
+          <div className="mt-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={subscribed === true}
+                disabled={!signedIn || subBusy || subscribed === null}
+                onChange={(e) => toggleNewsletter(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border border-border bg-background accent-white disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <span className="text-sm text-muted-foreground">
+                Subscribe to receive updates, new releases, artist news, and
+                announcements from Oscillation Records.
+              </span>
+            </label>
+            {authStatus === "unauthenticated" ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                <Link href="/login" className="text-foreground underline">
+                  Sign in
+                </Link>{" "}
+                to subscribe with your account email.
+              </p>
+            ) : subMessage ? (
+              <p className="mt-2 text-sm text-muted-foreground">{subMessage}</p>
+            ) : null}
+          </div>
         </div>
 
         <div>
