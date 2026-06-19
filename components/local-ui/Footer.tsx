@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   FaBandcamp,
@@ -15,8 +16,8 @@ import { SiBeatport } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
-import { useSession } from "next-auth/react";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
+import NewsletterToggle from "@/components/local-ui/NewsletterToggle";
 
 const EMPTY_LINKS: FooterSocialLinks = {
   xLink: null,
@@ -33,13 +34,7 @@ const EMPTY_LINKS: FooterSocialLinks = {
 const Footer = () => {
   const [links, setLinks] = useState<FooterSocialLinks>(EMPTY_LINKS);
   const [linksLoaded, setLinksLoaded] = useState(false);
-  const { data: session, status: authStatus } = useSession();
-  const signedIn = authStatus === "authenticated" && Boolean(session?.user?.email);
-  // null = unknown/not-loaded (and the signed-out state). The checkbox stays
-  // unticked by default and only ticks once we confirm the account is subscribed.
-  const [subscribed, setSubscribed] = useState<boolean | null>(null);
-  const [subBusy, setSubBusy] = useState(false);
-  const [subMessage, setSubMessage] = useState<string | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
@@ -75,55 +70,6 @@ const Footer = () => {
     (item): item is typeof item & { href: string } => Boolean(item.href?.trim())
   );
 
-  // Load the signed-in user's current subscription so the checkbox reflects it.
-  // Signed-out users keep the default unticked (and disabled) checkbox.
-  useEffect(() => {
-    if (!signedIn) {
-      setSubscribed(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/newsletter");
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setSubscribed(Boolean(data.subscribed));
-        }
-      } catch {
-        /* leave as unknown */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn]);
-
-  // Tick = subscribe the account email; untick = unsubscribe it. The email comes
-  // from the signed-in session (verified at sign-in) — never typed in here.
-  const toggleNewsletter = async (next: boolean) => {
-    if (!signedIn || subBusy) return;
-    setSubBusy(true);
-    setSubMessage(null);
-    setSubscribed(next); // optimistic
-    try {
-      const res = await fetch("/api/newsletter", {
-        method: next ? "POST" : "DELETE",
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json().catch(() => ({}));
-      setSubscribed(Boolean(data.subscribed));
-      setSubMessage(
-        next ? "You're subscribed — thanks for joining." : "You've been unsubscribed."
-      );
-    } catch {
-      setSubscribed(!next); // revert on failure
-      setSubMessage("Something went wrong. Please try again.");
-    } finally {
-      setSubBusy(false);
-    }
-  };
-
   const year = new Date().getFullYear();
 
   return (
@@ -144,31 +90,13 @@ const Footer = () => {
               className="mt-2"
             />
           </Link>
-          <div className="mt-4">
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={subscribed === true}
-                disabled={!signedIn || subBusy || subscribed === null}
-                onChange={(e) => toggleNewsletter(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border border-border bg-background accent-white disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <span className="text-sm text-muted-foreground">
-                Subscribe to receive updates, new releases, artist news, and
-                announcements from Oscillation Records.
-              </span>
-            </label>
-            {authStatus === "unauthenticated" ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                <Link href="/login" className="text-foreground underline">
-                  Sign in
-                </Link>{" "}
-                to subscribe with your account email.
-              </p>
-            ) : subMessage ? (
-              <p className="mt-2 text-sm text-muted-foreground">{subMessage}</p>
-            ) : null}
-          </div>
+          {/* Subtle newsletter signup. Full management lives in account settings,
+              so it's hidden there to avoid showing the same toggle twice. */}
+          {pathname !== "/account" ? (
+            <div className="mt-4 max-w-xs">
+              <NewsletterToggle compact />
+            </div>
+          ) : null}
         </div>
 
         <div>
@@ -224,7 +152,7 @@ const Footer = () => {
             Terms
           </Link>
           <Link href="/account" className="text-muted-foreground hover:text-foreground transition-colors">
-            Your data
+            Account
           </Link>
           <button
             type="button"

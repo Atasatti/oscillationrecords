@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import NavbarSearch from "./NavbarSearch";
-import { LogOut, User, Menu, X } from "lucide-react";
+import { LogOut, User, Menu, X, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -164,6 +164,12 @@ const Navbar = () => {
                       <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
                     </div>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/account">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Account settings</span>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Sign out</span>
@@ -181,6 +187,33 @@ const Navbar = () => {
                 </div>
               )}
             </div>
+
+            {/* Auth avatar — mobile/tablet. The desktop dropdown above is 2xl-only,
+                so without this a signed-in user has no account indicator next to the
+                hamburger. Tapping it opens the menu (account + sign out live there). */}
+            {isAuthenticated && session?.user ? (
+              <button
+                onClick={toggleMobileMenu}
+                className="2xl:hidden shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                aria-label="Open account menu"
+              >
+                {session.user.image ? (
+                  <Image
+                    src={session.user.image}
+                    alt="User Avatar"
+                    width={32}
+                    height={32}
+                    className="rounded-full w-8 h-8 shrink-0 object-cover"
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+                    <User size={16} />
+                  </div>
+                )}
+              </button>
+            ) : null}
 
             {/* Hamburger — mobile */}
             <button
@@ -260,6 +293,14 @@ const Navbar = () => {
                     <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
                   </div>
                 </div>
+                <Link
+                  href="/account"
+                  onClick={closeMobileMenu}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Account settings</span>
+                </Link>
                 <button
                   onClick={() => { handleSignOut(); closeMobileMenu(); }}
                   className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-destructive hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
