@@ -37,6 +37,18 @@ export interface ReleaseEditorProps {
   initialStatus?: ReleaseDetailsValue["status"];
 }
 
+/** True when a release is publicly visible together with its tracklist:
+ * RELEASED, or a SCHEDULED release whose date has already passed. Used to keep
+ * the tracklist autosave from ever leaving a live release empty/partial. */
+function releaseIsLiveFrom(
+  status: string | null | undefined,
+  releaseDate: string | null | undefined
+): boolean {
+  if (status === "RELEASED") return true;
+  if (status === "SCHEDULED" && releaseDate) return new Date(releaseDate) <= new Date();
+  return false;
+}
+
 export default function ReleaseEditor({
   mode,
   releaseKind,
@@ -53,6 +65,10 @@ export default function ReleaseEditor({
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loadedKind, setLoadedKind] = useState<ReleaseKind | null>(null);
+  // Whether the release is currently live IN THE DB (not the unsaved form), so an
+  // unsaved status change can't trick the tracklist autosave into exposing an
+  // empty live release. Set on load and after each successful save.
+  const [dbReleaseIsLive, setDbReleaseIsLive] = useState(false);
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
@@ -163,6 +179,12 @@ export default function ReleaseEditor({
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
         setInitialTracks(Array.isArray(data.tracks) ? data.tracks : []);
+        setDbReleaseIsLive(
+          releaseIsLiveFrom(
+            data.status,
+            data.releaseDate ? String(data.releaseDate).slice(0, 10) : null
+          )
+        );
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -401,6 +423,9 @@ export default function ReleaseEditor({
           return;
         }
         setDirty(false);
+        // Keep the live-tracklist guard in sync with what we just persisted (e.g.
+        // demoting RELEASED -> DRAFT must release the hold on tracklist autosave).
+        setDbReleaseIsLive(releaseIsLiveFrom(form.status, form.releaseDate || null));
         if (form.status === "DRAFT") {
           toast.success("Draft saved");
         } else {
@@ -546,6 +571,7 @@ export default function ReleaseEditor({
               defaultPrimaryArtistIds={form.primaryArtistIds}
               defaultFeatureArtistText={form.featureArtistText}
               requireIsrc={form.status === "RELEASED"}
+              releaseIsLive={dbReleaseIsLive}
               initialTracks={initialTracks}
               onActivityChange={setTracksActive}
               onUnsavedChange={setTracksUnsaved}

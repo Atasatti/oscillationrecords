@@ -51,6 +51,7 @@ export default function TrackList({
   defaultPrimaryArtistIds,
   defaultFeatureArtistText = "",
   requireIsrc,
+  releaseIsLive,
   initialTracks,
   onActivityChange,
   onUnsavedChange,
@@ -62,6 +63,10 @@ export default function TrackList({
   defaultFeatureArtistText?: string;
   /** ISRC required per track (release is RELEASED). */
   requireIsrc: boolean;
+  /** Release is publicly visible with its tracklist (RELEASED, or past-dated
+   * SCHEDULED). Gates autosave so a live release is never persisted empty or
+   * mid-upload — which would briefly show the public an empty/broken release. */
+  releaseIsLive: boolean;
   initialTracks: Record<string, unknown>[];
   /** Reports whether uploads/saves are in flight (used to gate publishing). */
   onActivityChange?: (active: boolean) => void;
@@ -88,6 +93,9 @@ export default function TrackList({
   // (instead of letting a transient toast be the only signal) and arms the
   // beforeunload guard so the admin can't lose unsaved track edits unknowingly.
   const [saveError, setSaveError] = useState(false);
+  // True when autosave is intentionally paused: the release is live and the
+  // tracklist would be saved empty or while new tracks are still uploading.
+  const [heldForLive, setHeldForLive] = useState(false);
   const savingRef = useRef(false);
   const pendingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
@@ -121,20 +129,34 @@ export default function TrackList({
       pendingRef.current = true;
       return;
     }
+
+    const snapshot = tracksRef.current;
+    const payloadTracks = snapshot
+      .map((row, idx) => ({ row, idx }))
+      // Always include rows that are already persisted (have a server id), even
+      // if a field is momentarily empty mid-edit. The server treats an omitted
+      // id as an explicit deletion, so dropping an incomplete saved row here
+      // would silently delete it (and its audio/credits). New rows are only
+      // sent once persistable — they need an audio file first.
+      .filter(({ row }) => row.id || trackIsPersistable(row))
+      .map(({ row, idx }) => buildTrackPayload(row, idx));
+
+    // Live-release safety: never autosave a tracklist that is empty, or that's
+    // missing tracks still uploading. On a public release that would briefly
+    // leave the page with zero/partial tracks — the window between removing the
+    // old audio and the new uploads finishing. Hold the save until the list is
+    // complete; the upload-complete handler bumps saveTick and re-fires this,
+    // persisting the full new tracklist in one PATCH. Drafts and future-dated
+    // Coming-Soon releases aren't publicly visible, so they save freely.
+    if (releaseIsLive && (queue.hasActive || payloadTracks.length === 0)) {
+      setHeldForLive(true);
+      return;
+    }
+    setHeldForLive(false);
+
     savingRef.current = true;
     setSaving(true);
     try {
-      const snapshot = tracksRef.current;
-      const payloadTracks = snapshot
-        .map((row, idx) => ({ row, idx }))
-        // Always include rows that are already persisted (have a server id), even
-        // if a field is momentarily empty mid-edit. The server treats an omitted
-        // id as an explicit deletion, so dropping an incomplete saved row here
-        // would silently delete it (and its audio/credits). New rows are only
-        // sent once persistable — they need an audio file first.
-        .filter(({ row }) => row.id || trackIsPersistable(row))
-        .map(({ row, idx }) => buildTrackPayload(row, idx));
-
       const res = await fetch(`/api/releases/${releaseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -173,7 +195,7 @@ export default function TrackList({
         void save();
       }
     }
-  }, [releaseId, toast]);
+  }, [releaseId, toast, releaseIsLive, queue.hasActive]);
 
   // Debounced autosave — only after a real mutation (saveTick > 0), never on mount
   // (which would send an empty snapshot and wipe existing tracks).
@@ -194,19 +216,19 @@ export default function TrackList({
   // in-app nav (Back/Cancel) wouldn't warn about unsaved track edits, since the
   // tracklist autosaves separately from the release-details form.
   useEffect(() => {
-    onUnsavedChange?.(active || saveError);
-  }, [active, saveError, onUnsavedChange]);
+    onUnsavedChange?.(active || saveError || heldForLive);
+  }, [active, saveError, heldForLive, onUnsavedChange]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (queue.hasActive || savingRef.current || saveError) {
+      if (queue.hasActive || savingRef.current || saveError || heldForLive) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [queue.hasActive, saveError]);
+  }, [queue.hasActive, saveError, heldForLive]);
 
   // ---- adding tracks ----
   const addFiles = useCallback(
@@ -366,6 +388,10 @@ export default function TrackList({
             >
               <AlertTriangle className="h-3.5 w-3.5" /> Couldn’t save — Retry
             </button>
+          ) : heldForLive ? (
+            <span className="inline-flex items-center gap-1.5 text-amber-400">
+              <UploadCloud className="h-3.5 w-3.5" /> Live release — saves once the tracklist is complete
+            </span>
           ) : savedOnce ? (
             <span className="inline-flex items-center gap-1.5 text-emerald-400">
               <CheckCircle2 className="h-3.5 w-3.5" /> Saved
