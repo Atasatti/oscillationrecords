@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   FaBandcamp,
@@ -16,7 +16,6 @@ import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
-import NewsletterToggle from "@/components/local-ui/NewsletterToggle";
 
 const EMPTY_LINKS: FooterSocialLinks = {
   xLink: null,
@@ -33,7 +32,6 @@ const EMPTY_LINKS: FooterSocialLinks = {
 const Footer = () => {
   const [links, setLinks] = useState<FooterSocialLinks>(EMPTY_LINKS);
   const [linksLoaded, setLinksLoaded] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
@@ -77,15 +75,13 @@ const Footer = () => {
   return (
     <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-12">
-        {/* Subtle newsletter signup. Full management lives in account settings,
-            so it's hidden there to avoid showing the same toggle twice. */}
-        {pathname !== "/account" ? (
-          <div className="max-w-xs">
-            <NewsletterToggle compact />
-          </div>
-        ) : null}
+        {/* Logo, pinned left — links home like the navbar. */}
+        <Link href="/" aria-label="Oscillation Records — home" className="flex items-center gap-2.5">
+          <Image width={40} height={40} className="w-9 h-9" alt="" src="/logo-icon.svg" />
+          <Image width={80} height={24} className="w-24 h-7" alt="Oscillation Records" src="/logo-name.svg" />
+        </Link>
 
-        {/* Social links, pinned right (and the only top-row item on /account). */}
+        {/* Social links, pinned right. */}
         {linksLoaded && socialItems.length > 0 ? (
           <div className="flex flex-wrap items-center gap-5 sm:ml-auto">
             {socialItems.map(({ href, Icon, label }) => (
