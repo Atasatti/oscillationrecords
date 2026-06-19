@@ -29,12 +29,17 @@ export interface RecordErrorInput {
 // collection without bound (recurring errors just bump an existing row's count).
 const MAX_DISTINCT = 2000;
 
-/** Collapse volatile bits (ids, numbers, hex) so similar errors share a fingerprint. */
+/** Collapse volatile bits (urls, emails, ids, numbers, quoted values) so similar
+ *  errors share a fingerprint instead of exploding into thousands of distinct rows. */
 function normalizeMessage(msg: string): string {
   return msg
     .toLowerCase()
+    .replace(/https?:\/\/[^\s"')]+/g, "#url") // URLs incl. query strings
+    .replace(/[^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"')<>]+/g, "#email")
+    .replace(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/g, "#") // uuid
     .replace(/0x[0-9a-f]+/g, "#")
-    .replace(/\b[0-9a-f]{8,}\b/g, "#") // ObjectIds, hashes, uuids
+    .replace(/\b[0-9a-f]{8,}\b/g, "#") // ObjectIds, hashes
+    .replace(/"[^"]*"/g, '"#"') // quoted literals (names, values)
     .replace(/\d+/g, "#")
     .slice(0, 300);
 }
@@ -84,7 +89,19 @@ export async function recordError(input: RecordErrorInput): Promise<void> {
     }
 
     const distinct = await prisma.errorLog.count();
-    if (distinct >= MAX_DISTINCT) return; // soft cap on distinct fingerprints
+    if (distinct >= MAX_DISTINCT) {
+      // At capacity — evict the least-recently-seen rows (resolved ones first)
+      // to make room, so a genuinely new error type is still recorded rather
+      // than silently dropped (which would blind the admin to new issues).
+      const stale = await prisma.errorLog.findMany({
+        orderBy: [{ resolved: "desc" }, { lastSeen: "asc" }],
+        take: distinct - MAX_DISTINCT + 1,
+        select: { id: true },
+      });
+      if (stale.length > 0) {
+        await prisma.errorLog.deleteMany({ where: { id: { in: stale.map((s) => s.id) } } });
+      }
+    }
 
     try {
       await prisma.errorLog.create({ data: { ...sample, fingerprint } });

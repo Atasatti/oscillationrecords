@@ -56,7 +56,8 @@ export default function ErrorsPage() {
   const [showResolved, setShowResolved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState(false); // clear-all (affects the whole table)
+  const [busyId, setBusyId] = useState<string | null>(null); // per-row resolve/delete
   const [clearAllOpen, setClearAllOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -71,6 +72,9 @@ export default function ErrorsPage() {
       setItems(data.items);
       setTotal(data.total);
       setUnresolved(data.unresolved);
+      // Clamp back if a delete/clear emptied the current page.
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
     } catch {
       toast.error("Failed to load errors");
     } finally {
@@ -83,7 +87,7 @@ export default function ErrorsPage() {
   }, [load]);
 
   const setResolved = async (row: ErrorRow, resolved: boolean) => {
-    setWorking(true);
+    setBusyId(row.id);
     try {
       const res = await fetch("/api/admin/error-log", {
         method: "PATCH",
@@ -96,12 +100,12 @@ export default function ErrorsPage() {
     } catch {
       toast.error("Failed to update error");
     } finally {
-      setWorking(false);
+      setBusyId(null);
     }
   };
 
   const remove = async (row: ErrorRow) => {
-    setWorking(true);
+    setBusyId(row.id);
     try {
       const res = await fetch(`/api/admin/error-log?id=${row.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
@@ -110,7 +114,7 @@ export default function ErrorsPage() {
     } catch {
       toast.error("Failed to delete error");
     } finally {
-      setWorking(false);
+      setBusyId(null);
     }
   };
 
@@ -272,7 +276,7 @@ export default function ErrorsPage() {
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-emerald-400"
                             onClick={() => setResolved(row, !row.resolved)}
-                            disabled={working}
+                            disabled={busyId === row.id}
                             aria-label={row.resolved ? "Reopen" : "Mark resolved"}
                             title={row.resolved ? "Reopen" : "Mark resolved"}
                           >
@@ -283,7 +287,7 @@ export default function ErrorsPage() {
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-red-400"
                             onClick={() => remove(row)}
-                            disabled={working}
+                            disabled={busyId === row.id}
                             aria-label="Delete"
                             title="Delete"
                           >

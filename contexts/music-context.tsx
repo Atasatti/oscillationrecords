@@ -46,7 +46,11 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contentType: song.releaseType || "track",
+          // Audio plays are always a track play (contentId is the track id).
+          // The release *kind* (single/ep/album) is NOT the content type — using
+          // it split one track across rows and made the content drill-down
+          // (which queries type=track) report zero plays.
+          contentType: "track",
           contentId: song.id,
           contentName: song.title,
           artistId: null,
@@ -164,22 +168,23 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         try {
           await audioRef.current.play();
           setIsPlaying(true);
-        } catch (error) {
-          // If play fails, wait for audio to be ready
+        } catch {
+          // If immediate play fails (buffering / autoplay policy), play once the
+          // audio is ready. Guard with a flag so that canplay AND canplaythrough
+          // firing don't both call play() — that triggers "play() interrupted by
+          // a new load request" errors and play/pause flicker.
+          let started = false;
           const playWhenReady = () => {
-            if (audioRef.current) {
-              audioRef.current.play()
-                .then(() => {
-                  setIsPlaying(true);
-                })
-                .catch((err) => {
-                  console.error("Error playing audio:", err);
-                  setIsPlaying(false);
-                });
-            }
+            if (started || !audioRef.current) return;
+            started = true;
+            audioRef.current
+              .play()
+              .then(() => setIsPlaying(true))
+              .catch((err) => {
+                console.error("Error playing audio:", err);
+                setIsPlaying(false);
+              });
           };
-
-          // Add listeners to play when ready
           audioRef.current.addEventListener("canplay", playWhenReady, { once: true });
           audioRef.current.addEventListener("canplaythrough", playWhenReady, { once: true });
         }
@@ -199,8 +204,15 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
 
   const resumeSong = () => {
     if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => {
+          // Don't show "playing" if the play() promise rejects (e.g. autoplay
+          // policy after a reload) — that left the UI silent with a pause icon.
+          console.error("Error resuming audio:", error);
+          setIsPlaying(false);
+        });
     }
   };
 

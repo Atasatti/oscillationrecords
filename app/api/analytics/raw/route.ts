@@ -57,9 +57,11 @@ export async function GET(request: NextRequest) {
       }),
       prisma.pageView.findMany({
         orderBy: { createdAt: "desc" },
-        take: 40,
+        // Fetch a wider window than we display: we collapse these into one row
+        // per visit (session) below, so this feeds grouping, not the row count.
+        take: 200,
         select: {
-          id: true, path: true, referrer: true, utmSource: true, utmMedium: true, utmCampaign: true,
+          id: true, path: true,
           country: true, city: true, sessionId: true, visitorId: true, userId: true, createdAt: true,
         },
       }),
@@ -112,16 +114,37 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.when.getTime() - a.when.getTime())
       .map((l) => ({ ...l, secondsAgo: Math.round((now.getTime() - l.when.getTime()) / 1000) }));
 
+    // Recent visits: collapse raw page views into one row per visit (session,
+    // else user/visitor), showing the LATEST page and how many pages they saw.
+    // This keeps the list short and makes "where each visitor is now" obvious,
+    // instead of a long firehose of every individual page view.
+    type Visit = {
+      key: string; who: string; lastPath: string; pages: number;
+      country: string | null; city: string | null; lastAt: Date;
+    };
+    const visitMap = new Map<string, Visit>();
+    for (const r of recentPageViews) {
+      // recentPageViews is newest-first, so the first row per key is the latest.
+      const key = r.sessionId || (r.userId ? `u:${r.userId}` : r.visitorId ? `v:${r.visitorId}` : `pv:${r.id}`);
+      const existing = visitMap.get(key);
+      if (!existing) {
+        visitMap.set(key, {
+          key: short(key)!, who: who(r), lastPath: r.path, pages: 1,
+          country: r.country, city: r.city, lastAt: r.createdAt,
+        });
+      } else {
+        existing.pages += 1;
+      }
+    }
+    const recentVisits = Array.from(visitMap.values())
+      .sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime())
+      .slice(0, 25);
+
     return NextResponse.json({
       now: now.toISOString(),
       counts: { users, profiles, artists, releases, tracks, playEvents, pageViews, linkClicks, subscribers },
       live: { activeSessions: live.length, items: live },
-      recentPageViews: recentPageViews.map((r) => ({
-        id: r.id, path: r.path, referrer: r.referrer,
-        utm: [r.utmSource, r.utmMedium, r.utmCampaign].filter(Boolean).join(" / ") || null,
-        country: r.country, city: r.city, session: short(r.sessionId), visitor: short(r.visitorId),
-        who: who(r), createdAt: r.createdAt,
-      })),
+      recentVisits,
       recentPlays: recentPlays.map((r) => ({
         id: r.id, contentType: r.contentType, contentName: r.contentName, artistName: r.artistName,
         completed: r.completed, country: r.country, city: r.city, session: short(r.sessionId),

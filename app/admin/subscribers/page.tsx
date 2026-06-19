@@ -46,6 +46,9 @@ export default function SubscribersPage() {
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
+      // Clamp back if a delete emptied the current page (avoid a stuck empty table).
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
     } catch {
       toast.error("Failed to load subscribers");
     } finally {

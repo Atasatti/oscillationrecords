@@ -47,6 +47,13 @@ const MeetArtistSection = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(initialArtists === undefined);
 
+  // Keep the carousel index in range when the artist list changes (e.g. a client
+  // refetch returns fewer artists) — otherwise artists[currentIndex] is undefined
+  // and the spotlight crashes on .name / .profilePicture.
+  useEffect(() => {
+    setCurrentIndex((i) => (artists.length === 0 ? 0 : Math.min(i, artists.length - 1)));
+  }, [artists.length]);
+
   useEffect(() => {
     // Data already in the HTML from the server — don't refetch on mount.
     if (initialArtists !== undefined) return;

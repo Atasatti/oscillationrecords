@@ -126,6 +126,10 @@ function ReleasesPageInner() {
       setItems(data.items);
       setTotal(data.total);
       setSelected(new Set());
+      // If a delete emptied the current page (e.g. the last row on the last
+      // page), clamp back to the last valid page instead of a stuck empty table.
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
     } catch {
       toast.error("Failed to load releases");
     } finally {
@@ -502,7 +506,7 @@ function ReleasesPageInner() {
                       <img
                         src={r.thumbnail || "/new-music-img1.svg"}
                         alt=""
-                        className="h-12 w-12 shrink-0 rounded object-cover"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{r.name}</span>
                     </Link>

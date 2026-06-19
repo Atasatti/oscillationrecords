@@ -27,21 +27,29 @@ async function rateLimited<T>(fn: () => Promise<T>): Promise<T> {
   const run = gate.then(async () => {
     const wait = MIN_INTERVAL_MS - (Date.now() - lastCall);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastCall = Date.now();
+    try {
+      return await fn();
+    } finally {
+      // Space from completion, not request-start — otherwise a slow request lets
+      // the next one fire right on top of it, exceeding MusicBrainz's ~1 req/sec.
+      lastCall = Date.now();
+    }
   });
   // Advance the gate regardless of this call's outcome.
   gate = run.then(
     () => undefined,
     () => undefined
   );
-  await run;
-  return fn();
+  return run;
 }
 
 async function mbFetch(path: string): Promise<unknown> {
   return rateLimited(async () => {
     const res = await fetch(`${MB_BASE}${path}`, {
       headers: { "User-Agent": userAgent(), Accept: "application/json" },
+      // Bound the request so a hung upstream can't stall the serialized gate
+      // (which would block every subsequent MusicBrainz lookup process-wide).
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`MusicBrainz ${res.status}`);
     return res.json();

@@ -81,7 +81,7 @@ function SortableRow({
         <img
           src={release.image}
           alt=""
-          className="w-14 h-14 rounded object-cover shrink-0"
+          className="w-14 h-14 rounded-lg object-cover shrink-0"
         />
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{release.name}</p>

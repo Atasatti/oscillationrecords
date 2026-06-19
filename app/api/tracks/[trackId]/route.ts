@@ -126,7 +126,10 @@ export async function PATCH(
         ...(name !== undefined && { name: String(name) }),
         ...(image !== undefined && { image: image ? String(image) : null }),
         ...(audioFile !== undefined && { audioFile: String(audioFile) }),
-        ...(duration !== undefined && { duration: parseInt(String(duration), 10) }),
+        ...(duration !== undefined &&
+          Number.isFinite(parseInt(String(duration), 10)) && {
+            duration: parseInt(String(duration), 10),
+          }),
         ...(releaseDate !== undefined && {
           releaseDate: releaseDate ? new Date(releaseDate) : null,
         }),

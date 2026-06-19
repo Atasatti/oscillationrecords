@@ -340,7 +340,15 @@ export default function AdminReleaseDetail() {
       const res = await fetch(`/api/releases/${releaseId}`, { method: "DELETE" });
       if (res.ok) {
         setDeleteDialogOpen(false);
-        router.push("/admin/catalog");
+        toast.success("Release deleted");
+        // Back to the releases list (this release no longer exists).
+        router.push("/admin/catalog/releases");
+        // Radix can leave <body style="pointer-events:none"> when its dialog
+        // unmounts mid-navigation, which freezes the whole admin (sidebar
+        // included) until a manual refresh. Restore it once the route settles.
+        setTimeout(() => {
+          if (typeof document !== "undefined") document.body.style.pointerEvents = "";
+        }, 300);
       } else {
         const err = await res.json();
         toast.error(err.error || "Failed to delete");

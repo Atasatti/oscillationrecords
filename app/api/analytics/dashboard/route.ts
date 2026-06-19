@@ -95,13 +95,16 @@ export async function GET(request: NextRequest) {
     // ---- daily series (zero-filled) ----
     const dayKeys: string[] = [];
     {
+      // Use UTC day boundaries so the bucket keys match the UTC date keys used
+      // by bump() (toISOString). Mixing local setHours with UTC keys dropped
+      // events near the day boundary on non-UTC servers.
       const cursor = new Date(startDate);
-      cursor.setHours(0, 0, 0, 0);
+      cursor.setUTCHours(0, 0, 0, 0);
       const end = new Date(now);
-      end.setHours(0, 0, 0, 0);
+      end.setUTCHours(0, 0, 0, 0);
       while (cursor <= end) {
         dayKeys.push(cursor.toISOString().split("T")[0]);
-        cursor.setDate(cursor.getDate() + 1);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
     const zero = () => new Map(dayKeys.map((d) => [d, 0]));

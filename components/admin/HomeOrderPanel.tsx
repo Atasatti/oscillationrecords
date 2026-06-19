@@ -264,7 +264,7 @@ export default function HomeOrderPanel({
                 <img
                   src={r.profilePicture || r.thumbnail || "/placeholder.svg"}
                   alt=""
-                  className={`h-8 w-8 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded"}`}
+                  className={`h-8 w-8 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded-lg"}`}
                 />
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{r.name}</span>
                 <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />

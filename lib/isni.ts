@@ -146,6 +146,8 @@ export async function searchIsni(name: string, max = 8): Promise<IsniMatch[]> {
           process.env.MUSICBRAINZ_USER_AGENT ||
           "OscillationRecords/1.0 ( admin@oscillationrecords.com )",
       },
+      // Bound the request so a hung ISNI/OCLC upstream can't stall the route.
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
     const xml = await res.text();

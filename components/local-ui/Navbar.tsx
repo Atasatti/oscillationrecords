@@ -22,6 +22,7 @@ const navLinks = [
   { href: "/about", label: "About" },
   { href: "/artists", label: "Artists" },
   { href: "/releases", label: "Releases" },
+  { href: "/press", label: "Press" },
   { href: "/contact", label: "Contact Us" },
 ];
 

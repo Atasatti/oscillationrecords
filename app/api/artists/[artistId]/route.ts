@@ -96,6 +96,9 @@ export async function PUT(
 
     // Re-host an external photo (e.g. a Spotify i.scdn.co URL from import) onto
     // our own S3 so the image is ours; best-effort, falls back to the original.
+    // Only touch the photo when the field is actually provided, so a PUT that
+    // omits profilePicture doesn't silently wipe the existing one.
+    const pictureInBody = Object.prototype.hasOwnProperty.call(body, "profilePicture");
     const finalPicture = profilePicture
       ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
       : null;
@@ -105,7 +108,7 @@ export async function PUT(
       data: {
         name,
         biography,
-        profilePicture: finalPicture,
+        ...(pictureInBody && { profilePicture: finalPicture }),
         composer: composer || null,
         lyricist: lyricist || null,
         leadVocal: leadVocal || null,

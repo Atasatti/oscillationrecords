@@ -18,7 +18,7 @@ export interface SpotifyArtist {
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 export function isConfigured(): boolean {
-  return Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);
+  return Boolean(process.env.SPOTIFY_CLIENT_ID?.trim() && process.env.SPOTIFY_CLIENT_SECRET?.trim());
 }
 
 async function getToken(): Promise<string> {
@@ -38,6 +38,7 @@ async function getToken(): Promise<string> {
     },
     body: "grant_type=client_credentials",
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     throw new Error(`Spotify token request failed: ${res.status}`);
@@ -80,6 +81,7 @@ export async function searchArtists(q: string, limit = 8): Promise<SpotifyArtist
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
   const data = (await res.json()) as { artists?: { items?: RawArtist[] } };
@@ -125,6 +127,7 @@ export async function searchAlbums(q: string, limit = 8): Promise<SpotifyAlbum[]
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
   const data = (await res.json()) as { albums?: { items?: RawAlbum[] } };
@@ -136,6 +139,7 @@ export async function getArtist(id: string): Promise<SpotifyArtist | null> {
   const res = await fetch(`https://api.spotify.com/v1/artists/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Spotify artist fetch failed: ${res.status}`);

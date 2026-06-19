@@ -1,4 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_STACKED_HERO_IMAGES } from "@/lib/site-settings-defaults";
 import {
   DEFAULT_PAGE_MEDIA,
   mergePageMedia,
@@ -42,10 +44,26 @@ export async function getPageMedia(): Promise<PageMedia> {
  */
 export async function savePageMedia(patch: Partial<PageMedia>): Promise<PageMedia> {
   const current = await readStored();
-  const next: Record<string, unknown> = { ...current, ...patch };
+  const next = { ...current, ...patch };
+
+  // Ensure the singleton SiteSettings row exists (with its required non-null
+  // fields) BEFORE the raw $set. A raw Mongo `update` without `upsert` matches
+  // zero docs on a fresh row, so the first-ever page-media save would otherwise
+  // be silently lost while the UI reports success.
+  await prisma.siteSettings.upsert({
+    where: { id: DOC_ID },
+    create: {
+      id: DOC_ID,
+      stackedHeroImage1: DEFAULT_STACKED_HERO_IMAGES.image1,
+      stackedHeroImage2: DEFAULT_STACKED_HERO_IMAGES.image2,
+      stackedHeroImage3: DEFAULT_STACKED_HERO_IMAGES.image3,
+    },
+    update: {},
+  });
+
   await prisma.$runCommandRaw({
     update: COLLECTION,
-    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next } } }],
+    updates: [{ q: { _id: DOC_ID }, u: { $set: { pageMedia: next as Prisma.InputJsonObject } } }],
   });
-  return mergePageMedia(next as Partial<PageMedia>);
+  return mergePageMedia(next);
 }

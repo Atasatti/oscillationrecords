@@ -12,7 +12,7 @@ interface RawData {
     activeSessions: number;
     items: Array<{ key: string; who: string; lastPath: string | null; country: string | null; city: string | null; secondsAgo: number }>;
   };
-  recentPageViews: Array<{ id: string; path: string; referrer: string | null; utm: string | null; country: string | null; city: string | null; session: string | null; visitor: string | null; who: string; createdAt: string }>;
+  recentVisits: Array<{ key: string; who: string; lastPath: string; pages: number; country: string | null; city: string | null; lastAt: string }>;
   recentPlays: Array<{ id: string; contentType: string; contentName: string; artistName: string | null; completed: boolean; country: string | null; city: string | null; session: string | null; who: string; createdAt: string }>;
   recentClicks: Array<{ id: string; context: string; contextName: string | null; linkType: string; session: string | null; visitor: string | null; createdAt: string }>;
   recentSignups: Array<{ id: string; name: string | null; email: string; createdAt: string }>;
@@ -74,7 +74,20 @@ export default function RawDataPage() {
     try {
       const res = await fetch("/api/analytics/raw", { cache: "no-store" });
       if (!res.ok) throw new Error();
-      setData(await res.json());
+      const json = await res.json();
+      // Defensive: guarantee every array/object the UI reads exists, so a partial
+      // or unexpected response can never white-screen the page (`.length`/`.map`
+      // on undefined — this surfaced in the error log as a /admin/data TypeError).
+      setData({
+        now: json.now,
+        counts: json.counts ?? {},
+        live: { activeSessions: json.live?.activeSessions ?? 0, items: json.live?.items ?? [] },
+        recentVisits: json.recentVisits ?? [],
+        recentPlays: json.recentPlays ?? [],
+        recentClicks: json.recentClicks ?? [],
+        recentSignups: json.recentSignups ?? [],
+        recentSubscribers: json.recentSubscribers ?? [],
+      });
       setError(false);
     } catch {
       setError(true);
@@ -150,25 +163,27 @@ export default function RawDataPage() {
             </div>
           </Section>
 
-          {/* Recent page views */}
-          <Section title="Recent page views">
-            {data.recentPageViews.length === 0 ? (
+          {/* Recent visits — one row per session (latest page + pages seen) */}
+          <Section
+            title="Recent visits"
+            hint="One row per visit, newest first — each visitor's latest page and how many pages they viewed (not every individual page view). Only visitors who accepted analytics cookies are tracked."
+          >
+            {data.recentVisits.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No page views recorded yet. Page views are only tracked for visitors who
+                No visits recorded yet. Page views are only tracked for visitors who
                 <strong className="text-foreground"> accept analytics cookies</strong> — open the
                 public site, accept the banner, and browse a couple of pages to see them here.
               </p>
             ) : (
-              <Table head={["When", "Who", "Path", "Location", "Referrer", "Campaign", "Session"]}>
-                {data.recentPageViews.map((r) => (
-                  <tr key={r.id} className="border-b border-border">
-                    <td className={tdm}>{when(r.createdAt)}</td>
-                    <td className={td}>{r.who}</td>
-                    <td className={tdm}>{r.path}</td>
-                    <td className={tdm}>{loc(r.country, r.city)}</td>
-                    <td className={`${tdm} max-w-[14rem] truncate`} title={r.referrer || undefined}>{r.referrer || "—"}</td>
-                    <td className={tdm}>{r.utm || "—"}</td>
-                    <td className={`${tdm} font-mono text-xs`}>{r.session || "—"}</td>
+              <Table head={["Last active", "Who", "Latest page", "Pages", "Location", "Session"]}>
+                {data.recentVisits.map((v) => (
+                  <tr key={v.key} className="border-b border-border">
+                    <td className={tdm}>{when(v.lastAt)}</td>
+                    <td className={td}>{v.who}</td>
+                    <td className={tdm}>{v.lastPath}</td>
+                    <td className={`${td} tabular-nums`}>{v.pages}</td>
+                    <td className={tdm}>{loc(v.country, v.city)}</td>
+                    <td className={`${tdm} font-mono text-xs`}>{v.key}</td>
                   </tr>
                 ))}
               </Table>

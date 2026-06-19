@@ -10,13 +10,10 @@ declare module "next-auth" {
   }
 }
 
-// Google OAuth tokens + role live only in the server-side JWT, never on the
-// client session. (In v4 the JWT interface is in the next-auth/jwt module.)
+// Authorization role lives in the server-side JWT (set in the jwt callback),
+// never on the client session. (In v4 the JWT interface is in next-auth/jwt.)
 declare module "next-auth/jwt" {
   interface JWT {
-    accessToken?: string;
-    refreshToken?: string;
-    expiresAt?: number;
     role?: string;
   }
 }

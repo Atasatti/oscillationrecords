@@ -263,12 +263,15 @@ export async function getArtistsPage({
   }
 
   const safePage = Math.max(1, page);
+  // Clamp dir: the route casts a raw query string to SortDir, so guard it —
+  // Prisma's orderBy only accepts "asc"/"desc" and throws otherwise.
+  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
   const orderBy =
     sortField === "name"
-      ? [{ name: dir }]
+      ? [{ name: safeDir }]
       : sortField === "createdAt"
-        ? [{ createdAt: dir }]
-        : [{ sortOrder: dir }, { name: "asc" as const }];
+        ? [{ createdAt: safeDir }]
+        : [{ sortOrder: safeDir }, { name: "asc" as const }];
   // Run the count and the page query in parallel to halve the DB round-trips.
   const [total, rows] = await Promise.all([
     prisma.artist.count({ where }),
@@ -352,14 +355,16 @@ export async function getReleasesPage({
   }
 
   const safePage = Math.max(1, page);
+  // Clamp dir (route casts a raw query string to SortDir; Prisma only accepts asc/desc).
+  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
   const orderBy =
     sort === "name"
-      ? [{ name: dir }]
+      ? [{ name: safeDir }]
       : sort === "kind"
-        ? [{ kind: dir }, { createdAt: "desc" as const }]
+        ? [{ kind: safeDir }, { createdAt: "desc" as const }]
         : sort === "sortOrder"
-          ? [{ sortOrder: dir }, { createdAt: "desc" as const }]
-          : [{ createdAt: dir }];
+          ? [{ sortOrder: safeDir }, { createdAt: "desc" as const }]
+          : [{ createdAt: safeDir }];
   // Count + page query in parallel; then resolve artist names.
   const [total, rows] = await Promise.all([
     prisma.release.count({ where }),

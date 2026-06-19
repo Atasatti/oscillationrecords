@@ -2,14 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { validateNewsletterEmail } from "@/lib/newsletter-validation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-// HTML5/WHATWG email pattern — requires valid labels and a dotted domain, so it
-// rejects malformed/incomplete addresses while accepting all real ones.
-const EMAIL_RE =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,15 +26,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, created: false });
     }
 
-    const raw = typeof body.email === "string" ? body.email.trim() : "";
-    const email = raw.toLowerCase();
-
-    if (!email || email.length > 254 || !EMAIL_RE.test(email)) {
-      return NextResponse.json(
-        { error: "Please enter a valid email address." },
-        { status: 400 }
-      );
+    // Syntax + disposable/fake-domain blocklist + fake-pattern + DNS deliverability.
+    const check = await validateNewsletterEmail(body.email);
+    if (!check.ok) {
+      return NextResponse.json({ error: check.reason }, { status: 400 });
     }
+    const email = check.email;
 
     try {
       await prisma.newsletterSubscriber.create({
