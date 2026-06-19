@@ -47,12 +47,12 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 
 function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="max-h-[26rem] overflow-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
             {head.map((h) => (
-              <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
+              <th key={h} className="sticky top-0 bg-card px-2 py-2 text-left font-medium">{h}</th>
             ))}
           </tr>
         </thead>
@@ -133,7 +133,14 @@ export default function RawDataPage() {
           </div>
 
           {/* Live now */}
-          <Section title={`Live now — ${data.live.activeSessions} active`} hint="Sessions with activity in the last 5 minutes. Auto-refreshes every 15s.">
+          <Section
+            title={`Live now — ${data.live.activeSessions} active`}
+            hint={`Sessions with activity in the last 5 minutes. Auto-refreshes every 15s.${
+              data.live.activeSessions > data.live.items.length
+                ? ` Showing the ${data.live.items.length} most recent.`
+                : ""
+            }`}
+          >
             {data.live.items.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nobody active right now.</p>
             ) : (
