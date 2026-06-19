@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getArtistDetail, getPressForArtist } from "@/lib/catalog-data";
 import PressCard from "@/components/local-ui/PressCard";
@@ -73,24 +72,7 @@ export default async function ArtistDetail({
   // the page ships fully rendered — no client waterfall or loading spinner.
   const data = await getArtistDetail(artistId);
 
-  if (!data) {
-    return (
-      <div>
-        <div className="min-h-screen text-white">
-          <div className="px-[10%] py-14">
-            <div className="text-center py-20">
-              <p className="text-red-400 mb-4">Artist not found</p>
-              <Link href="/artists">
-                <Button variant="outline" className="border-gray-700">
-                  Go Back
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!data) notFound();
 
   const jsonLd = buildArtistJsonLd(data.artist, data.releases);
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([

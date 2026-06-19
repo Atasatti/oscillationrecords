@@ -9,6 +9,7 @@ import {
   getOptionalDate,
   primaryNamesFromIds,
   prismaKindToApi,
+  serializeTrackForPublic,
 } from "@/lib/release-format";
 import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
 import { compareComingSoon } from "@/lib/coming-soon-order";
@@ -498,6 +499,110 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     return null;
   }
 });
+
+/** Public track shape served to the release page (no ISRC/ISWC/lyrics/stems). */
+export type ReleaseDetailTrackDTO = ReturnType<typeof serializeTrackForPublic>;
+
+export interface ReleaseDetailDTO {
+  id: string;
+  name: string;
+  status: "DRAFT" | "SCHEDULED" | "RELEASED";
+  preSaveUrl: string | null;
+  coverImage: string;
+  type: "single" | "ep" | "album";
+  primaryArtistIds: string[];
+  featureArtistIds: string[];
+  featureArtistNames: string[];
+  description: string | null;
+  releaseDate: string | null; // ISO
+  primaryGenre: string | null;
+  secondaryGenre: string | null;
+  composer: string | null;
+  lyricist: string | null;
+  leadVocal: string | null;
+  credits: { role: string; people: string[] }[] | null;
+  isrcExplicit: boolean;
+  spotifyLink: string | null;
+  appleMusicLink: string | null;
+  tidalLink: string | null;
+  amazonMusicLink: string | null;
+  youtubeLink: string | null;
+  soundcloudLink: string | null;
+  artists: { id: string; name: string; profilePicture: string | null }[];
+  tracks: ReleaseDetailTrackDTO[];
+  songs: ReleaseDetailTrackDTO[];
+}
+
+/**
+ * Full public release detail for the server-rendered release page (so the
+ * tracklist/description/credits ship in the initial HTML, not a client fetch).
+ * Mirrors GET /api/releases/[id] for non-admins: returns null for missing or
+ * DRAFT releases, and hides track audio for future-dated SCHEDULED (Coming Soon)
+ * releases — pre-release audio must never leak. Degrades to null on DB error.
+ */
+export const getReleaseDetail = cache(
+  async (releaseId: string): Promise<ReleaseDetailDTO | null> => {
+    try {
+      const release = await prisma.release.findUnique({
+        where: { id: releaseId },
+        include: { tracks: { orderBy: { sortOrder: "asc" } } },
+      });
+      // DRAFT is admin-only; SCHEDULED + RELEASED are public.
+      if (!release || release.status === "DRAFT") return null;
+
+      // Future-dated SCHEDULED: public metadata, but tracks (audio) stay hidden
+      // until the date arrives. The page shows "Tracklist to be revealed".
+      const hideTracks = !isReleasePublic(release);
+
+      const allArtistIds = [...release.primaryArtistIds, ...release.featureArtistIds];
+      release.tracks.forEach((t) => {
+        t.primaryArtistIds.forEach((id) => allArtistIds.push(id));
+        t.featureArtistIds.forEach((id) => allArtistIds.push(id));
+      });
+      const artists = await prisma.artist.findMany({
+        where: { id: { in: [...new Set(allArtistIds.map(String))] } },
+        select: { id: true, name: true, profilePicture: true },
+      });
+
+      const tracks = hideTracks ? [] : release.tracks.map(serializeTrackForPublic);
+
+      return {
+        id: release.id,
+        name: release.name,
+        status: release.status,
+        preSaveUrl: release.preSaveUrl ?? null,
+        coverImage: release.coverImage ?? "",
+        type: prismaKindToApi(release.kind),
+        primaryArtistIds: release.primaryArtistIds.map(String),
+        featureArtistIds: release.featureArtistIds.map(String),
+        featureArtistNames: release.featureArtistNames ?? [],
+        description: release.description ?? null,
+        releaseDate: release.releaseDate ? release.releaseDate.toISOString() : null,
+        primaryGenre: release.primaryGenre ?? null,
+        secondaryGenre: release.secondaryGenre ?? null,
+        composer: release.composer ?? null,
+        lyricist: release.lyricist ?? null,
+        leadVocal: release.leadVocal ?? null,
+        credits: (Array.isArray(release.credits)
+          ? release.credits
+          : null) as unknown as ReleaseDetailDTO["credits"],
+        isrcExplicit: release.isrcExplicit,
+        spotifyLink: release.spotifyLink ?? null,
+        appleMusicLink: release.appleMusicLink ?? null,
+        tidalLink: release.tidalLink ?? null,
+        amazonMusicLink: release.amazonMusicLink ?? null,
+        youtubeLink: release.youtubeLink ?? null,
+        soundcloudLink: release.soundcloudLink ?? null,
+        artists,
+        tracks,
+        songs: tracks,
+      };
+    } catch (e) {
+      console.error("getReleaseDetail: DB unavailable", e);
+      return null;
+    }
+  }
+);
 
 /**
  * Curated artists for the home "Meet the Artists" carousel: those flagged
