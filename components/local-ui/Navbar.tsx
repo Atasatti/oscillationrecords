@@ -107,14 +107,19 @@ const Navbar = () => {
             className="hidden 2xl:flex items-center gap-8 xl:gap-10 font-[family-name:var(--font-inter)] backdrop-blur-sm shadow-[5px_5px_30px_rgba(0,0,0,0.25)] px-4 xl:px-6 py-2.5 xl:py-3 rounded-xl"
           >
             {navLinks.map((link) => (
-              <motion.div key={link.href} variants={navLinkVariants}>
+              <motion.div key={link.href} variants={navLinkVariants} whileHover="hover">
+                {/* Hover target is this stationary wrapper; only the child text
+                    lifts (a transform), so the hit-region never shifts out from
+                    under the cursor — fixes the hover jitter near the link's edge. */}
                 <Link href={link.href}>
                   <motion.p
                     className="uppercase text-muted-foreground text-xs xl:text-sm tracking-wider whitespace-nowrap"
-                    whileHover={{
-                      y: -3,
-                      color: "#ffffff",
-                      textShadow: "0 0 14px rgba(255,255,255,0.35)",
+                    variants={{
+                      hover: {
+                        y: -3,
+                        color: "#ffffff",
+                        textShadow: "0 0 14px rgba(255,255,255,0.35)",
+                      },
                     }}
                     transition={{ type: "spring", stiffness: 400, damping: 22 }}
                   >
