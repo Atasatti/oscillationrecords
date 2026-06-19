@@ -25,10 +25,10 @@ const MusicHeardSection: React.FC<MusicHeardSectionProps> = ({
       )}
       style={{ backgroundImage: `url('${bgMusicHeard}')` }}
     >
-      <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter px-4">
+      <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter px-4">
         {heading}
       </p>
-      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">
+      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">
         {subtext}
       </p>
       <div className="flex justify-center mt-8 sm:mt-12 md:mt-16 px-4">
