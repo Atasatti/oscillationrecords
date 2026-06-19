@@ -47,7 +47,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 
 function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
   return (
-    <div className="max-h-[26rem] overflow-auto">
+    <div className="max-h-[26rem] overflow-auto scroll-themed">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
