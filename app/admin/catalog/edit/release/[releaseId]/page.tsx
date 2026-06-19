@@ -1,12 +1,11 @@
-"use client";
-import { useParams } from "next/navigation";
-import ReleaseForm from "@/components/admin/ReleaseForm";
+import { redirect } from "next/navigation";
 
-export default function EditReleasePage() {
-  const params = useParams();
-  const releaseId = params.releaseId as string;
-
-  return (
-    <ReleaseForm mode="edit" releaseKind="SINGLE" releaseId={releaseId} />
-  );
+// Legacy release-edit route — superseded by the unified Release Editor.
+export default async function LegacyEditReleaseRedirect({
+  params,
+}: {
+  params: Promise<{ releaseId: string }>;
+}) {
+  const { releaseId } = await params;
+  redirect(`/admin/catalog/releases/${releaseId}/edit`);
 }

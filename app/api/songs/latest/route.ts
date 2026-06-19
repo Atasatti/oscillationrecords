@@ -6,6 +6,7 @@ import {
   combinedFeatureDisplayNames,
   serializeTrackForPublic,
 } from "@/lib/release-format";
+import { publicReleaseWhere } from "@/lib/catalog-data";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,9 +15,16 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "8", 10);
+    // Clamp: NaN/huge values must not turn this into a full-catalog dump.
+    const parsedLimit = parseInt(searchParams.get("limit") || "8", 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 50)
+      : 8;
 
+    // Public endpoint: only released (or now-due scheduled) releases — never
+    // DRAFT / future-dated, so unreleased audio doesn't leak. (See catalog-data.)
     const releases = await prisma.release.findMany({
+      where: publicReleaseWhere(),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       include: {
         tracks: { orderBy: { sortOrder: "asc" } },

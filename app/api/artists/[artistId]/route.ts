@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { deleteArtistCascade } from "@/lib/artist-delete";
+import { extractArtistExtras } from "@/lib/artist-input";
+import { rehostExternalImage } from "@/lib/s3";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/artists/[artistId] - Get a single artist by ID
+// GET /api/artists/[artistId] - Get a single artist by ID.
+// Admin-only: returns the FULL row including internal fields (realName, contact,
+// managerName, internalNotes). Every caller is the admin editor — the public
+// artist page is server-rendered via getArtistDetail in lib/catalog-data.ts.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
+    const guard = await requireAdmin(request);
+    if (!guard.ok) return guard.response;
+
     const { artistId } = await params;
 
     const artist = await prisma.artist.findUnique({
@@ -85,12 +94,21 @@ export async function PUT(
       );
     }
 
+    // Re-host an external photo (e.g. a Spotify i.scdn.co URL from import) onto
+    // our own S3 so the image is ours; best-effort, falls back to the original.
+    // Only touch the photo when the field is actually provided, so a PUT that
+    // omits profilePicture doesn't silently wipe the existing one.
+    const pictureInBody = Object.prototype.hasOwnProperty.call(body, "profilePicture");
+    const finalPicture = profilePicture
+      ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
+      : null;
+
     const artist = await prisma.artist.update({
       where: { id: artistId },
       data: {
         name,
         biography,
-        profilePicture: profilePicture || null,
+        ...(pictureInBody && { profilePicture: finalPicture }),
         composer: composer || null,
         lyricist: lyricist || null,
         leadVocal: leadVocal || null,
@@ -104,6 +122,7 @@ export async function PUT(
         tidalLink: tidalLink || null,
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
+        ...extractArtistExtras(body),
       },
     });
 
@@ -117,7 +136,9 @@ export async function PUT(
   }
 }
 
-// PATCH /api/artists/[artistId] - Partial update (currently the "Show on website" toggle)
+// PATCH /api/artists/[artistId] - Partial update: "Show on website" and/or
+// "Featured on home" toggles. Enabling featuredOnHome appends the artist to the
+// end of the home-carousel order.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ artistId: string }> }
@@ -128,34 +149,36 @@ export async function PATCH(
 
     const { artistId } = await params;
     const body = await request.json();
-    const { showOnWebsite } = body;
 
-    if (typeof showOnWebsite !== "boolean") {
+    const data: { showOnWebsite?: boolean; featuredOnHome?: boolean; homeOrder?: number } = {};
+    if (typeof body.showOnWebsite === "boolean") data.showOnWebsite = body.showOnWebsite;
+    if (typeof body.featuredOnHome === "boolean") data.featuredOnHome = body.featuredOnHome;
+
+    if (data.showOnWebsite === undefined && data.featuredOnHome === undefined) {
       return NextResponse.json(
-        { error: "showOnWebsite must be a boolean" },
+        { error: "Provide showOnWebsite and/or featuredOnHome (boolean)" },
         { status: 400 }
       );
     }
 
-    const existing = await prisma.artist.findUnique({
-      where: { id: artistId },
-    });
-
+    const existing = await prisma.artist.findUnique({ where: { id: artistId } });
     if (!existing) {
-      return NextResponse.json(
-        { error: "Artist not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
 
-    const artist = await prisma.artist.update({
-      where: { id: artistId },
-      data: { showOnWebsite },
-    });
+    // When newly featuring, append to the end of the home order.
+    if (data.featuredOnHome === true && !existing.featuredOnHome) {
+      const max = await prisma.artist.aggregate({
+        where: { featuredOnHome: true },
+        _max: { homeOrder: true },
+      });
+      data.homeOrder = (max._max.homeOrder ?? -1) + 1;
+    }
 
+    const artist = await prisma.artist.update({ where: { id: artistId }, data });
     return NextResponse.json(artist);
   } catch (error) {
-    console.error("Error updating artist visibility:", error);
+    console.error("Error updating artist:", error);
     return NextResponse.json(
       { error: "Failed to update artist" },
       { status: 500 }
@@ -174,85 +197,10 @@ export async function DELETE(
 
     const { artistId } = await params;
 
-    // Check if artist exists
-    const artist = await prisma.artist.findUnique({
-      where: { id: artistId },
-    });
-
-    if (!artist) {
-      return NextResponse.json(
-        { error: "Artist not found" },
-        { status: 404 }
-      );
+    const deleted = await deleteArtistCascade(artistId);
+    if (!deleted) {
+      return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
-
-    const tracks = await prisma.track.findMany({
-      where: {
-        OR: [
-          { primaryArtistIds: { has: artistId } },
-          { featureArtistIds: { has: artistId } },
-        ],
-      },
-    });
-
-    for (const track of tracks) {
-      const updatedPrimary = track.primaryArtistIds.filter((id) => id !== artistId);
-      const updatedFeature = track.featureArtistIds.filter((id) => id !== artistId);
-      if (updatedPrimary.length === 0) {
-        const count = await prisma.track.count({
-          where: { releaseId: track.releaseId },
-        });
-        if (count <= 1) {
-          await prisma.release.delete({ where: { id: track.releaseId } });
-        } else {
-          await prisma.track.delete({ where: { id: track.id } });
-        }
-      } else {
-        await prisma.track.update({
-          where: { id: track.id },
-          data: {
-            primaryArtistIds: updatedPrimary,
-            featureArtistIds: updatedFeature,
-          },
-        });
-      }
-    }
-
-    const releases = await prisma.release.findMany({
-      where: {
-        OR: [
-          { primaryArtistIds: { has: artistId } },
-          { featureArtistIds: { has: artistId } },
-        ],
-      },
-    });
-
-    for (const release of releases) {
-      const stillThere = await prisma.release.findUnique({
-        where: { id: release.id },
-      });
-      if (!stillThere) continue;
-
-      const updatedPrimary = release.primaryArtistIds.filter((id) => id !== artistId);
-      const updatedFeature = release.featureArtistIds.filter((id) => id !== artistId);
-
-      if (updatedPrimary.length === 0) {
-        await prisma.release.delete({ where: { id: release.id } });
-      } else {
-        await prisma.release.update({
-          where: { id: release.id },
-          data: {
-            primaryArtistIds: updatedPrimary,
-            featureArtistIds: updatedFeature,
-          },
-        });
-      }
-    }
-
-    // Now delete the artist
-    await prisma.artist.delete({
-      where: { id: artistId },
-    });
 
     return NextResponse.json({ message: "Artist deleted successfully" });
   } catch (error) {

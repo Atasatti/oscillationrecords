@@ -2,15 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { mapReleasesToCards, releaseCardListArgs, publicReleaseWhere } from "@/lib/catalog-data";
+import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
 import {
   apiKindToPrisma,
-  buildArtistMap,
-  combinedFeatureDisplayNames,
-  featureIdsExcludingPrimary,
-  formatArtistLine,
-  getOptionalDate,
   normalizeFeatureArtistNamesInput,
-  primaryNamesFromIds,
   prismaKindToApi,
 } from "@/lib/release-format";
 
@@ -23,6 +19,31 @@ export async function GET(request: NextRequest) {
     const isAdmin = await isAdminRequest(request);
 
     const { searchParams } = new URL(request.url);
+
+    // Opt-in pagination (admin table). Backward-compatible: only when `page`/
+    // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
+    // otherwise the response stays the existing bare array (public site, carousel).
+    if (searchParams.has("page") || searchParams.has("pageSize")) {
+      // Admin-only data view (maps with isAdmin:true, exposes DRAFT + upcCode).
+      const guard = await requireAdmin(request);
+      if (!guard.ok) return guard.response;
+      const statusParam = searchParams.get("status");
+      const result = await getReleasesPage({
+        page: parseInt(searchParams.get("page") || "1", 10) || 1,
+        pageSize: parseInt(searchParams.get("pageSize") || "25", 10) || 25,
+        q: searchParams.get("q") || "",
+        sort: (searchParams.get("sort") || "createdAt") as ReleaseSort,
+        dir: (searchParams.get("dir") || "desc") as SortDir,
+        status:
+          statusParam === "DRAFT" || statusParam === "SCHEDULED" || statusParam === "RELEASED"
+            ? statusParam
+            : undefined,
+      });
+      return NextResponse.json(result, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
+
     const limitRaw = searchParams.get("limit");
     let take: number | undefined;
     if (limitRaw !== null && limitRaw !== "") {
@@ -35,31 +56,31 @@ export async function GET(request: NextRequest) {
     const carouselOnly = searchParams.get("carousel") === "1";
     const qParam = (searchParams.get("q") || "").trim();
 
-    const baseList = {
-      orderBy: [{ sortOrder: "asc" as const }, { createdAt: "desc" as const }],
-      include: {
-        // Listing/search/carousel only need the first track's audio (for the card
-        // player) and a track count — not every track's audio/lyrics/credits.
-        // This keeps the payload small even as the catalog grows.
-        tracks: {
-          orderBy: { sortOrder: "asc" as const },
-          take: 1,
-          select: { audioFile: true },
-        },
-        _count: { select: { tracks: true } },
-      },
-    };
+    // Shared with the Server Components via lib/catalog-data so the card shape
+    // can't drift between the initial HTML and client fetches.
+    const baseList = releaseCardListArgs;
+    // Public callers only ever see released (or now-due scheduled) releases;
+    // admins see everything. undefined `where` is ignored by Prisma.
+    const where = isAdmin ? undefined : publicReleaseWhere();
 
     let releases;
     if (carouselOnly) {
-      const featured = await prisma.release.findMany({
-        where: { showOnHome: true },
-        ...baseList,
-      });
-      releases =
-        featured.length > 0
-          ? featured
-          : await prisma.release.findMany(baseList);
+      // Pin + auto-fill: releases flagged "New Music carousel" (showOnHome) come
+      // first in their admin (sortOrder) order, then the rest auto-fill newest
+      // first. New releases therefore appear automatically without being flagged,
+      // and the newest cycle to the front. Capped so it stays a highlight reel.
+      const all = await prisma.release.findMany({ ...baseList, where });
+      const pinned = all
+        .filter((r) => r.showOnHome)
+        .sort((a, b) => a.homeOrder - b.homeOrder);
+      const rest = all
+        .filter((r) => !r.showOnHome)
+        .sort((a, b) => {
+          const ta = (a.releaseDate ? new Date(a.releaseDate) : new Date(a.createdAt)).getTime();
+          const tb = (b.releaseDate ? new Date(b.releaseDate) : new Date(b.createdAt)).getTime();
+          return tb - ta;
+        });
+      releases = [...pinned, ...rest].slice(0, 12);
     } else if (qParam.length > 0) {
       // Fuzzy match in JS (catalog is small) so "bigheck" still finds
       // releases by "Big Heck" — against release name, linked artists, and
@@ -73,7 +94,7 @@ export async function GET(request: NextRequest) {
           .map((a) => a.id)
       );
 
-      const all = await prisma.release.findMany(baseList);
+      const all = await prisma.release.findMany({ ...baseList, where });
       releases = all
         .map((r) => {
           const artistHit =
@@ -94,67 +115,11 @@ export async function GET(request: NextRequest) {
       releases = await prisma.release.findMany({
         ...(take !== undefined ? { take } : {}),
         ...baseList,
+        where,
       });
     }
 
-    const allArtistIds = new Set<string>();
-    releases.forEach((r) => {
-      r.primaryArtistIds.forEach((id) => allArtistIds.add(String(id)));
-      r.featureArtistIds.forEach((id) => allArtistIds.add(String(id)));
-    });
-
-    const artists = await prisma.artist.findMany({
-      where: { id: { in: Array.from(allArtistIds) } },
-      select: { id: true, name: true },
-    });
-    const artistMap = buildArtistMap(artists);
-
-    const out = releases.map((r) => {
-      const primaryIds = r.primaryArtistIds || [];
-      const primaryArtistId = primaryIds[0];
-      const rawFeatureIds = r.featureArtistIds || [];
-      const featureArtistIds = featureIdsExcludingPrimary(rawFeatureIds, primaryIds);
-      const featureArtistNames = combinedFeatureDisplayNames(
-        rawFeatureIds,
-        primaryIds,
-        artistMap,
-        r.featureArtistNames
-      );
-      const primaryName = primaryNamesFromIds(primaryIds, artistMap);
-      const rd = getOptionalDate(r.releaseDate);
-
-      const firstAudio = r.tracks[0]?.audioFile ?? null;
-
-      return {
-        id: r.id,
-        name: r.name,
-        thumbnail: r.coverImage,
-        audio: firstAudio,
-        type: prismaKindToApi(r.kind),
-        primaryArtistName: primaryName,
-        artist: formatArtistLine(primaryName, featureArtistNames),
-        artistId: primaryArtistId ? String(primaryArtistId) : "",
-        featureArtistIds,
-        featureArtistNames,
-        releaseDate: r.releaseDate,
-        upcCode: isAdmin ? r.upcCode : null,
-        spotifyLink: r.spotifyLink || null,
-        appleMusicLink: r.appleMusicLink || null,
-        tidalLink: r.tidalLink || null,
-        amazonMusicLink: r.amazonMusicLink || null,
-        youtubeLink: r.youtubeLink || null,
-        soundcloudLink: r.soundcloudLink || null,
-        isrcExplicit: r.isrcExplicit,
-        sortOrder: r.sortOrder,
-        showLatestOnHome: r.showLatestOnHome,
-        showOnHome: r.showOnHome,
-        createdAt: r.createdAt,
-        year: rd
-          ? rd.getFullYear().toString()
-          : new Date(r.createdAt).getFullYear().toString(),
-        songCount: r._count.tracks,
-      };
-    });
+    const out = await mapReleasesToCards(releases, { isAdmin });
 
     // Cache the public response at the CDN (results vary by query string, which
     // is part of the cache key). Admin responses include private fields, so they
@@ -205,16 +170,38 @@ export async function POST(request: NextRequest) {
       soundcloudLink,
       isrcExplicit,
       upcCode,
+      catalogueNumber,
+      pLine,
+      cLine,
       primaryArtistIds,
       featureArtistIds,
       featureArtistNames: featureArtistNamesRaw,
     } = body;
+
+    const status = ["DRAFT", "SCHEDULED", "RELEASED"].includes(String(body.status))
+      ? (body.status as "DRAFT" | "SCHEDULED" | "RELEASED")
+      : "RELEASED";
+    const preSaveUrl =
+      typeof body.preSaveUrl === "string" && body.preSaveUrl.trim()
+        ? body.preSaveUrl.trim()
+        : null;
 
     if (!name || !coverImage) {
       return NextResponse.json(
         { error: "name and coverImage are required" },
         { status: 400 }
       );
+    }
+
+    // A scheduled (Coming Soon) release must be dated in the future.
+    if (status === "SCHEDULED") {
+      const d = releaseDate ? new Date(releaseDate) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
     }
 
     if (
@@ -281,6 +268,11 @@ export async function POST(request: NextRequest) {
           upcCode != null && String(upcCode).trim() !== ""
             ? String(upcCode).trim()
             : null,
+        catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
+        pLine: pLine ? String(pLine).trim() : null,
+        cLine: cLine ? String(cLine).trim() : null,
+        status,
+        preSaveUrl,
       },
       include: { tracks: { orderBy: { sortOrder: "asc" } } },
     });

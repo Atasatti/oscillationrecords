@@ -2,15 +2,30 @@ import AlbumLayout from "@/components/local-ui/AlbumLayout";
 import ContactFormSection from "@/components/sections/ContactFormSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
+import { getPageMedia } from "@/lib/page-media";
+import type { Metadata } from "next";
 import React from "react";
 
-const ContactPage = () => {
+export const metadata: Metadata = {
+  title: "Contact",
+  description:
+    "Get in touch with Oscillation Records — for artists, collaborations, and enquiries.",
+  alternates: { canonical: "/contact" },
+  openGraph: {
+    title: "Contact | Oscillation Records",
+    description: "Get in touch with Oscillation Records.",
+    url: "/contact",
+  },
+};
+
+const ContactPage = async () => {
+  const media = await getPageMedia();
   return (
     <div>
       <ScrollReveal3D>
         <div
           className="bg-center bg-no-repeat bg-contain flex justify-between px-[10%] w-full mx-auto"
-          style={{ backgroundImage: `url('/profit-bg.svg')` }}
+          style={{ backgroundImage: `url('${media.bgProfit}')` }}
         >
           <ContactFormSection />
           <AlbumLayout />

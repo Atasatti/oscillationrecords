@@ -5,6 +5,11 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import { MusicProvider } from "@/contexts/music-context";
 import { MusicPlayer } from "@/components/local-ui/MusicPlayer";
 import UserDemographicsCollector from "@/components/user/UserDemographicsCollector";
+import CookieConsent from "@/components/local-ui/CookieConsent";
+import PageViewTracker from "@/components/local-ui/PageViewTracker";
+import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
+import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
+import { SITE_URL, SITE_NAME } from "@/lib/seo";
 
 // Load all weights by omitting `weight`
 const inter = Inter({
@@ -21,8 +26,25 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "Oscillation Records",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
   description: "A Record Label That Puts Artists First",
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: "A Record Label That Puts Artists First",
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: "A Record Label That Puts Artists First",
+  },
 };
 
 export default function RootLayout({
@@ -38,6 +60,10 @@ export default function RootLayout({
             {children}
             <MusicPlayer />
             <UserDemographicsCollector />
+            <CookieConsent />
+            <PageViewTracker />
+            <ClientErrorLogger />
+            <NewsletterPrompt />
           </MusicProvider>
         </SessionProvider>
       </body>

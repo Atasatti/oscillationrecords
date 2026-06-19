@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { publicReleaseWhere } from "@/lib/catalog-data";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,9 +15,14 @@ export async function GET(
 
     const releases = await prisma.release.findMany({
       where: {
-        OR: [
-          { primaryArtistIds: { has: artistId } },
-          { featureArtistIds: { has: artistId } },
+        AND: [
+          {
+            OR: [
+              { primaryArtistIds: { has: artistId } },
+              { featureArtistIds: { has: artistId } },
+            ],
+          },
+          publicReleaseWhere(),
         ],
       },
       orderBy: { createdAt: "desc" },

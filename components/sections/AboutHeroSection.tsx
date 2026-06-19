@@ -3,12 +3,14 @@
 import Image from "next/image";
 import React from "react";
 import { motion } from "motion/react";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 const AboutHeroSection = () => {
+  const { aboutHero, bgHero } = usePageMedia();
   return (
     <div
       className="bg-background bg-center bg-no-repeat px-[10%] w-full mx-auto py-14"
-      style={{ backgroundImage: `url('/hero-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgHero}')` }}
     >
       <p className="text-center uppercase text-muted-foreground text-xl tracking-widest font-light">
         About Us
@@ -66,11 +68,12 @@ const AboutHeroSection = () => {
           }}
         >
           <Image
-            src={"about-hero-img.svg"}
+            src={aboutHero}
             alt="hero"
             width={300}
             height={200}
             className="drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
+            unoptimized={aboutHero.startsWith("/")}
           />
         </motion.div>
       </div>

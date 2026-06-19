@@ -28,17 +28,45 @@ interface HomeRelease {
 
 const SCROLL_GAP_PX = 16; // matches gap-4
 
-const NewMusicSection = () => {
+type NewMusicSectionProps = {
+  /** Server-rendered releases. When provided, the section skips the client
+   * fetch and renders from the initial HTML (no spinner / hydration waterfall). */
+  initialReleases?: HomeRelease[];
+};
+
+const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   const pathname = usePathname();
   const router = useRouter();
   const isReleasesListingPage =
     pathname === "/releases" || pathname === "/releases/";
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [releases, setReleases] = useState<HomeRelease[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [releases, setReleases] = useState<HomeRelease[]>(initialReleases ?? []);
+  const [isLoading, setIsLoading] = useState(initialReleases === undefined);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  // Auto-advance only once the carousel is actually on screen, so the pinned and
+  // latest releases stay in view until a visitor scrolls down to the section
+  // (previously it started scrolling immediately on page load).
+  const [isInView, setIsInView] = useState(false);
+  // Pause auto-advance while the user is interacting (touch swipe / pointer drag)
+  // and for a few seconds after, so it never fights a manual scroll on mobile.
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pauseForInteraction = useCallback(() => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    setIsPaused(true);
+  }, []);
+
+  const resumeAfterDelay = useCallback(() => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    resumeTimer.current = setTimeout(() => setIsPaused(false), 4000);
+  }, []);
+
+  useEffect(() => () => {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+  }, []);
 
   const updateScrollArrows = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -80,6 +108,43 @@ const NewMusicSection = () => {
     };
   }, [releases, updateScrollArrows]);
 
+  // Track whether the carousel is on screen; auto-advance is gated on this.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || releases.length === 0) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsInView(entry.isIntersecting),
+      { threshold: 0.4 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [releases]);
+
+  // Gentle auto-advance: step one card every few seconds, loop at the end.
+  // Starts only once the section is in view; pauses on hover and is disabled for
+  // users who prefer reduced motion.
+  useEffect(() => {
+    if (releases.length <= 1 || isPaused || !isInView) return;
+    const prefersReduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+
+    const id = setInterval(() => {
+      const node = scrollContainerRef.current;
+      if (!node) return;
+      const first = node.firstElementChild as HTMLElement | null;
+      const delta = first ? first.offsetWidth + SCROLL_GAP_PX : node.clientWidth;
+      const atEnd = node.scrollLeft + node.clientWidth >= node.scrollWidth - 4;
+      node.scrollTo({
+        left: atEnd ? 0 : node.scrollLeft + delta,
+        behavior: "smooth",
+      });
+    }, 4500);
+
+    return () => clearInterval(id);
+  }, [releases, isPaused, isInView]);
+
   const fetchReleases = useCallback(async () => {
     try {
       const response = await fetch("/api/releases?carousel=1");
@@ -95,8 +160,10 @@ const NewMusicSection = () => {
   }, []);
 
   useEffect(() => {
+    // Data already in the HTML from the server — don't refetch on mount.
+    if (initialReleases !== undefined) return;
     fetchReleases();
-  }, [fetchReleases]);
+  }, [fetchReleases, initialReleases]);
 
   const handleReleaseClick = (release: HomeRelease) => {
     router.push(`/releases/${release.id}`);
@@ -122,7 +189,14 @@ const NewMusicSection = () => {
         ) : releases.length === 0 ? (
           <p className="text-center text-muted-foreground mt-10">No releases available yet.</p>
         ) : (
-          <div className="flex items-center gap-2 sm:gap-3 mt-8 sm:mt-10 min-w-0">
+          <div
+            className="flex items-center gap-2 sm:gap-3 mt-8 sm:mt-10 min-w-0"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            onTouchStart={pauseForInteraction}
+            onTouchEnd={resumeAfterDelay}
+            onTouchCancel={resumeAfterDelay}
+          >
             {canScrollLeft ? (
               <button
                 type="button"

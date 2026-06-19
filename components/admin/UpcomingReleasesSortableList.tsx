@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2, CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type UpcomingReleaseRow = {
@@ -39,10 +39,12 @@ function SortableRow({
   release,
   onEdit,
   onDelete,
+  onUnschedule,
 }: {
   release: UpcomingReleaseRow;
   onEdit: (r: UpcomingReleaseRow) => void;
   onDelete: (id: string) => void;
+  onUnschedule?: (id: string) => void;
 }) {
   const {
     attributes,
@@ -79,7 +81,7 @@ function SortableRow({
         <img
           src={release.image}
           alt=""
-          className="w-14 h-14 rounded object-cover shrink-0"
+          className="w-14 h-14 rounded-lg object-cover shrink-0"
         />
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{release.name}</p>
@@ -105,6 +107,18 @@ function SortableRow({
           <Pencil className="w-4 h-4 mr-1" />
           Edit
         </Button>
+        {onUnschedule ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onUnschedule(release.id)}
+            className="border-gray-600"
+            title="Remove from Coming Soon (move to draft) — keeps the release"
+          >
+            <CalendarOff className="w-4 h-4 mr-1" />
+            Unschedule
+          </Button>
+        ) : null}
         <Button
           variant="destructive"
           size="sm"
@@ -123,11 +137,13 @@ export default function UpcomingReleasesSortableList({
   onReorderSave,
   onEdit,
   onDelete,
+  onUnschedule,
 }: {
   releases: UpcomingReleaseRow[];
   onReorderSave: (ordered: UpcomingReleaseRow[]) => Promise<void>;
   onEdit: (r: UpcomingReleaseRow) => void;
   onDelete: (id: string) => void;
+  onUnschedule?: (id: string) => void;
 }) {
   const [local, setLocal] = useState(releases);
   const [saving, setSaving] = useState(false);
@@ -184,6 +200,7 @@ export default function UpcomingReleasesSortableList({
                 release={release}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onUnschedule={onUnschedule}
               />
             ))}
           </div>

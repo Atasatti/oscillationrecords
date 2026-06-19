@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, MoreVertical, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, MoreVertical, Trash2, Pencil, Plus, ExternalLink } from "lucide-react";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
+import { useToast } from "@/components/local-ui/Toast";
+import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 
 interface Artist {
   id: string;
@@ -60,9 +61,11 @@ interface ReleaseRow {
 export default function AdminArtistDetail() {
   const params = useParams();
   const router = useRouter();
+  const toast = useToast();
   const artistId = params.artistId as string;
 
   const [artist, setArtist] = useState<Artist | null>(null);
+  const [newReleaseOpen, setNewReleaseOpen] = useState(false);
   const [allArtists, setAllArtists] = useState<ArtistSummary[]>([]);
   const [releases, setReleases] = useState<ReleaseRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,19 +136,18 @@ export default function AdminArtistDetail() {
         setReleases((prev) => prev.filter((r) => r.id !== toDelete.id));
       } else {
         const err = await res.json();
-        alert(err.error || "Failed");
+        toast.error(err.error || "Failed");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to delete");
+      toast.error("Failed to delete");
     }
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center py-20">
+                <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
         </div>
       </div>
@@ -155,8 +157,7 @@ export default function AdminArtistDetail() {
   if (error || !artist) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="px-[10%] py-14 text-center">
+                <div className="px-[10%] py-14 text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <Button variant="outline" className="border-gray-700" onClick={() => router.back()}>
             Back
@@ -168,15 +169,14 @@ export default function AdminArtistDetail() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-[10%] py-14">
+            <div className="px-[10%] py-14">
         <Button
           variant="ghost"
-          onClick={() => router.push("/admin/catalog")}
+          onClick={() => router.push("/admin/catalog/artists")}
           className="mb-6 text-gray-400 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Catalog
+          Artists
         </Button>
 
         <div className="flex flex-col md:flex-row gap-8 mb-12">
@@ -190,12 +190,35 @@ export default function AdminArtistDetail() {
           <div>
             <h1 className="text-4xl font-light tracking-tighter mb-2">{artist.name}</h1>
             <p className="text-gray-400 max-w-3xl mb-4">{artist.biography}</p>
-            <Link href={`/admin/catalog/edit/artist/${artistId}`}>
-              <Button variant="outline" size="sm" className="border-gray-700">
-                <Pencil className="w-4 h-4 mr-2" />
-                Edit artist
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="bg-white text-black hover:bg-gray-200"
+                onClick={() => setNewReleaseOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New release
               </Button>
-            </Link>
+              <Link href={`/admin/catalog/artists/${artistId}/edit`}>
+                <Button variant="outline" size="sm" className="border-gray-700">
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit artist
+                </Button>
+              </Link>
+              <a href={`/artists/${artistId}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View on site
+                </Button>
+              </a>
+            </div>
+            {artist ? (
+              <NewReleaseDialog
+                open={newReleaseOpen}
+                onOpenChange={setNewReleaseOpen}
+                presetArtist={{ id: artist.id, name: artist.name }}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -250,7 +273,7 @@ export default function AdminArtistDetail() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-[#0F0F0F] border-gray-800">
                       <DropdownMenuItem asChild>
-                        <Link href={`/admin/catalog/edit/release/${rel.id}`}>
+                        <Link href={`/admin/catalog/releases/${rel.id}/edit`}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
                         </Link>

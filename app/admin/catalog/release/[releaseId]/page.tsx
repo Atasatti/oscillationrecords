@@ -1,13 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import AdminNavbar from "@/components/local-ui/AdminNavbar";
 import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
-import TrackFormDialog, {
-  type TrackFormDialogTrack,
-} from "@/components/admin/TrackFormDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,7 +28,12 @@ import {
   Pencil,
   Plus,
   Trash2,
+  ExternalLink,
+  Send,
+  CalendarClock,
+  EyeOff,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   DndContext,
   closestCenter,
@@ -51,6 +52,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
+import { useToast } from "@/components/local-ui/Toast";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -68,7 +70,7 @@ interface Track {
   leadVocal?: string | null;
   lyrics?: string | null;
   stemsFile?: string | null;
-  trackCredits?: TrackFormDialogTrack["trackCredits"];
+  trackCredits?: unknown;
   isrcCode?: string | null;
   isrcExplicit?: boolean;
   spotifyLink?: string;
@@ -87,6 +89,7 @@ interface ReleaseDetail {
   name: string;
   coverImage: string;
   type: "single" | "ep" | "album";
+  status?: "DRAFT" | "SCHEDULED" | "RELEASED";
   description?: string | null;
   releaseDate?: string | null;
   composer?: string | null;
@@ -117,16 +120,16 @@ function SortableTrackCard({
   coverImage,
   primaryArtistName,
   featureArtistNames,
+  editHref,
   onViewLyrics,
-  onEdit,
   onDelete,
 }: {
   track: Track;
   coverImage: string;
   primaryArtistName: string;
   featureArtistNames: string[];
+  editHref: string;
   onViewLyrics: (track: Track) => void;
-  onEdit: (track: Track) => void;
   onDelete: (track: Track) => void;
 }) {
   const {
@@ -189,7 +192,7 @@ function SortableTrackCard({
             <MoreVertical className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+        <DropdownMenuContent align="end" className="bg-[#141414] border-white/10">
           <DropdownMenuItem onSelect={() => onViewLyrics(track)}>
             <FileText className="w-4 h-4 mr-2" />
             View lyrics
@@ -205,9 +208,11 @@ function SortableTrackCard({
             <Download className="w-4 h-4 mr-2" />
             Download stems
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => requestAnimationFrame(() => onEdit(track))}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Edit track
+          <DropdownMenuItem asChild>
+            <Link href={editHref}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit track
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
@@ -227,24 +232,19 @@ export default function AdminReleaseDetail() {
   const params = useParams();
   const router = useRouter();
   const releaseId = params.releaseId as string;
+  const toast = useToast();
 
   const [release, setRelease] = useState<ReleaseDetail | null>(null);
   const [allArtists, setAllArtists] = useState<ArtistSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [statusWorking, setStatusWorking] = useState(false);
   const [deleteTrackDialogOpen, setDeleteTrackDialogOpen] = useState(false);
   const [trackToDelete, setTrackToDelete] = useState<{
     id: string;
     name: string;
   } | null>(null);
-  const [trackDialogOpen, setTrackDialogOpen] = useState(false);
-  const [trackDialogMode, setTrackDialogMode] = useState<"create" | "edit">(
-    "create"
-  );
-  const [editingTrack, setEditingTrack] = useState<TrackFormDialogTrack | null>(
-    null
-  );
   const [lyricsDialogOpen, setLyricsDialogOpen] = useState(false);
   const [lyricsView, setLyricsView] = useState<{
     trackName: string;
@@ -276,6 +276,7 @@ export default function AdminReleaseDetail() {
           name: data.name,
           coverImage: data.coverImage,
           type: data.type,
+          status: data.status,
           description: data.description,
           releaseDate: data.releaseDate,
           composer: data.composer,
@@ -339,14 +340,22 @@ export default function AdminReleaseDetail() {
       const res = await fetch(`/api/releases/${releaseId}`, { method: "DELETE" });
       if (res.ok) {
         setDeleteDialogOpen(false);
-        router.push("/admin/catalog");
+        toast.success("Release deleted");
+        // Back to the releases list (this release no longer exists).
+        router.push("/admin/catalog/releases");
+        // Radix can leave <body style="pointer-events:none"> when its dialog
+        // unmounts mid-navigation, which freezes the whole admin (sidebar
+        // included) until a manual refresh. Restore it once the route settles.
+        setTimeout(() => {
+          if (typeof document !== "undefined") document.body.style.pointerEvents = "";
+        }, 300);
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to delete");
+        toast.error(err.error || "Failed to delete");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to delete release");
+      toast.error("Failed to delete release");
     }
   };
 
@@ -362,18 +371,48 @@ export default function AdminReleaseDetail() {
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to delete track");
+        toast.error(err.error || "Failed to delete track");
       }
     } catch (e) {
       console.error(e);
-      alert("Failed to delete track");
+      toast.error("Failed to delete track");
     }
   };
 
-  const openAddTrack = () => {
-    setTrackDialogMode("create");
-    setEditingTrack(null);
-    setTrackDialogOpen(true);
+  const editorHref = `/admin/catalog/releases/${releaseId}/edit`;
+
+  // Quick status transitions from the detail page (no full editor round-trip).
+  const changeStatus = async (next: "DRAFT" | "SCHEDULED" | "RELEASED") => {
+    if (!release) return;
+    if (next === "RELEASED" && release.tracks.length === 0) {
+      toast.error("Add at least one track before publishing.");
+      return;
+    }
+    if (next === "SCHEDULED") {
+      const d = release.releaseDate ? new Date(release.releaseDate) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        toast.error("Set a future release date in the editor before scheduling.");
+        router.push(editorHref);
+        return;
+      }
+    }
+    setStatusWorking(true);
+    try {
+      const res = await fetch(`/api/releases/${releaseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(
+        next === "RELEASED" ? "Published" : next === "SCHEDULED" ? "Scheduled" : "Moved to draft"
+      );
+      fetchData();
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setStatusWorking(false);
+    }
   };
 
   const handleTrackReorder = async (event: DragEndEvent) => {
@@ -394,54 +433,15 @@ export default function AdminReleaseDetail() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(
+        toast.error(
           typeof err.error === "string" ? err.error : "Failed to save track order"
         );
         setOrderedTracks(prev);
       }
     } catch {
       setOrderedTracks(prev);
-      alert("Network error — could not save track order.");
+      toast.error("Network error — could not save track order.");
     }
-  };
-
-  const handleTrackDialogOpenChange = (next: boolean) => {
-    setTrackDialogOpen(next);
-    if (!next) {
-      setEditingTrack(null);
-    }
-  };
-
-  const openEditTrack = (t: Track) => {
-    setTrackDialogMode("edit");
-    setEditingTrack({
-      id: t.id,
-      name: t.name,
-      image: t.image,
-      audioFile: t.audioFile,
-      duration: t.duration,
-      releaseDate: t.releaseDate,
-      composer: t.composer,
-      lyricist: t.lyricist,
-      leadVocal: t.leadVocal,
-      lyrics: t.lyrics ?? null,
-      stemsFile: t.stemsFile ?? null,
-      trackCredits: Array.isArray(t.trackCredits)
-        ? (t.trackCredits as TrackFormDialogTrack["trackCredits"])
-        : null,
-      isrcCode: t.isrcCode,
-      isrcExplicit: t.isrcExplicit,
-      spotifyLink: t.spotifyLink,
-      appleMusicLink: t.appleMusicLink,
-      tidalLink: t.tidalLink,
-      amazonMusicLink: t.amazonMusicLink,
-      youtubeLink: t.youtubeLink,
-      soundcloudLink: t.soundcloudLink,
-      primaryArtistIds: t.primaryArtistIds,
-      featureArtistIds: t.featureArtistIds,
-      featureArtistNames: t.featureArtistNames,
-    });
-    setTrackDialogOpen(true);
   };
 
   const kindTitle =
@@ -465,8 +465,7 @@ export default function AdminReleaseDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="flex justify-center items-center py-20">
+                <div className="flex justify-center items-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white" />
         </div>
       </div>
@@ -476,10 +475,9 @@ export default function AdminReleaseDetail() {
   if (error || !release) {
     return (
       <div className="min-h-screen text-white">
-        <AdminNavbar />
-        <div className="px-[10%] py-14 text-center">
+                <div className="px-[10%] py-14 text-center">
           <p className="text-red-400 mb-4">{error || "Not found"}</p>
-          <Button variant="outline" className="border-gray-700" onClick={() => router.back()}>
+          <Button variant="outline" className="border-white/10" onClick={() => router.back()}>
             Go back
           </Button>
         </div>
@@ -506,8 +504,7 @@ export default function AdminReleaseDetail() {
 
   return (
     <div className="min-h-screen text-white">
-      <AdminNavbar />
-      <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
+            <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
         <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
           <Button
             variant="ghost"
@@ -539,6 +536,13 @@ export default function AdminReleaseDetail() {
                     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
                       {release.tracks.length} track{release.tracks.length === 1 ? "" : "s"}
                     </span>
+                    {release.status === "RELEASED" ? (
+                      <Badge variant="success">Live</Badge>
+                    ) : release.status === "SCHEDULED" ? (
+                      <Badge variant="warning">Scheduled</Badge>
+                    ) : release.status === "DRAFT" ? (
+                      <Badge variant="muted">Draft</Badge>
+                    ) : null}
                   </div>
                   <h1 className="text-3xl sm:text-4xl font-light tracking-tighter flex flex-wrap items-center gap-3">
                     <span>{release.name}</span>
@@ -563,13 +567,39 @@ export default function AdminReleaseDetail() {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-gray-800">
+                  <DropdownMenuContent align="end" className="bg-[#141414] border-white/10">
                     <DropdownMenuItem asChild>
-                      <Link href={`/admin/catalog/edit/release/${releaseId}`}>
+                      <Link href={`/admin/catalog/releases/${releaseId}/edit`}>
                         <Pencil className="w-4 h-4 mr-2" />
                         Edit release
                       </Link>
                     </DropdownMenuItem>
+                    {release.status !== "DRAFT" ? (
+                      <DropdownMenuItem asChild>
+                        <a href={`/releases/${releaseId}`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          View on site
+                        </a>
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "RELEASED" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("RELEASED")}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Publish now
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "SCHEDULED" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("SCHEDULED")}>
+                        <CalendarClock className="w-4 h-4 mr-2" />
+                        Schedule (Coming Soon)
+                      </DropdownMenuItem>
+                    ) : null}
+                    {release.status !== "DRAFT" ? (
+                      <DropdownMenuItem disabled={statusWorking} onSelect={() => changeStatus("DRAFT")}>
+                        <EyeOff className="w-4 h-4 mr-2" />
+                        {release.status === "SCHEDULED" ? "Unschedule (to draft)" : "Unpublish (to draft)"}
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       variant="destructive"
                       onSelect={() => setDeleteDialogOpen(true)}
@@ -587,7 +617,7 @@ export default function AdminReleaseDetail() {
                   className={`grid gap-4 lg:gap-5 ${showAbout && hasCredits ? "md:grid-cols-2" : ""}`}
                 >
                   {showAbout ? (
-                    <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                         About
                       </h2>
@@ -612,7 +642,7 @@ export default function AdminReleaseDetail() {
                   ) : null}
 
                   {hasCredits ? (
-                    <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
+                    <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 sm:p-6">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
                         Credits
                       </h2>
@@ -650,7 +680,7 @@ export default function AdminReleaseDetail() {
               )}
 
               {showStream ? (
-                <div className="rounded-2xl border border-gray-800 bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 shrink-0">
                     Stream
                   </h2>
@@ -668,22 +698,22 @@ export default function AdminReleaseDetail() {
               <p className="text-xs text-gray-500">Drag the grip to reorder tracks.</p>
             ) : null}
           </div>
-          <Button
-            type="button"
-            onClick={openAddTrack}
-            className="bg-white text-black hover:bg-gray-200"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add track
+          <Button asChild className="bg-white text-black hover:bg-gray-200">
+            <Link href={editorHref}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add / edit tracks
+            </Link>
           </Button>
         </div>
 
         {release.tracks.length === 0 ? (
-          <div className="max-w-6xl xl:max-w-7xl mx-auto rounded-xl border border-dashed border-gray-700 bg-[#0F0F0F]/50 p-12 text-center">
+          <div className="max-w-6xl xl:max-w-7xl mx-auto rounded-xl border border-dashed border-white/10 bg-[#141414]/50 p-12 text-center">
             <p className="text-gray-400 mb-4">No tracks yet.</p>
-            <Button type="button" onClick={openAddTrack} variant="outline" className="border-gray-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Add your first track
+            <Button asChild variant="outline" className="border-gray-600">
+              <Link href={editorHref}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add your first track
+              </Link>
             </Button>
           </div>
         ) : (
@@ -708,11 +738,11 @@ export default function AdminReleaseDetail() {
                       track.featureArtistIds,
                       track.primaryArtistIds
                     )}
+                    editHref={editorHref}
                     onViewLyrics={(t) => {
                       setLyricsView({ trackName: t.name, lyrics: t.lyrics ?? null });
                       setLyricsDialogOpen(true);
                     }}
-                    onEdit={(t) => openEditTrack(t)}
                     onDelete={(t) => {
                       setTrackToDelete({ id: t.id, name: t.name });
                       setDeleteTrackDialogOpen(true);
@@ -724,34 +754,8 @@ export default function AdminReleaseDetail() {
           </DndContext>
         )}
 
-        <TrackFormDialog
-          key={
-            trackDialogOpen
-              ? `${trackDialogMode}-${
-                  trackDialogMode === "edit"
-                    ? editingTrack?.id ?? "unknown"
-                    : "new"
-                }`
-              : "track-form-closed"
-          }
-          open={trackDialogOpen}
-          onOpenChange={handleTrackDialogOpenChange}
-          releaseId={releaseId}
-          artists={allArtists}
-          defaultPrimaryIds={release.primaryArtistIds}
-          defaultFeatureArtistText={combinedFeatureDisplayNames(
-            release.featureArtistIds,
-            release.primaryArtistIds,
-            buildArtistMap(allArtists),
-            release.featureArtistNames
-          ).join(", ")}
-          mode={trackDialogMode}
-          track={editingTrack}
-          onSaved={fetchData}
-        />
-
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete release</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -759,7 +763,7 @@ export default function AdminReleaseDetail() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" className="border-gray-700" onClick={() => setDeleteDialogOpen(false)}>
+              <Button variant="outline" className="border-white/10" onClick={() => setDeleteDialogOpen(false)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteRelease}>
@@ -770,7 +774,7 @@ export default function AdminReleaseDetail() {
         </Dialog>
 
         <Dialog open={deleteTrackDialogOpen} onOpenChange={setDeleteTrackDialogOpen}>
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
+          <DialogContent className="bg-[#141414] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle>Delete track</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -780,7 +784,7 @@ export default function AdminReleaseDetail() {
             <DialogFooter>
               <Button
                 variant="outline"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() => {
                   setDeleteTrackDialogOpen(false);
                   setTrackToDelete(null);
@@ -802,7 +806,7 @@ export default function AdminReleaseDetail() {
             if (!open) setLyricsView(null);
           }}
         >
-          <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white max-h-[85vh] flex flex-col sm:max-w-lg">
+          <DialogContent className="bg-[#141414] border-white/10 text-white max-h-[85vh] flex flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Lyrics</DialogTitle>
               <DialogDescription className="text-gray-400 truncate">
@@ -817,7 +821,7 @@ export default function AdminReleaseDetail() {
             <DialogFooter>
               <Button
                 variant="outline"
-                className="border-gray-700"
+                className="border-white/10"
                 onClick={() => {
                   setLyricsDialogOpen(false);
                   setLyricsView(null);

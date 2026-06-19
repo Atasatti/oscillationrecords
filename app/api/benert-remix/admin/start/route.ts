@@ -13,12 +13,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const durationHours =
-      typeof body.durationHours === "number" ? body.durationHours : 24;
+      body.durationHours === undefined ? 24 : body.durationHours;
 
-    if (durationHours < 1) {
+    // Whole hours, 1..8760 (a year). Rejects floats (Int column), Infinity, and
+    // absurd values that would overflow Date into a permanently-active comp.
+    if (!Number.isInteger(durationHours) || durationHours < 1 || durationHours > 8760) {
       return NextResponse.json(
-        { error: "Duration must be at least 1 hour" },
+        { error: "Duration must be a whole number of hours between 1 and 8760" },
         { status: 400 }
+      );
+    }
+
+    // Don't allow overlapping competitions — readers pick the newest row, which
+    // would orphan an earlier still-active one. Refuse if one is still running.
+    const current = await prisma.benertRemixCompetition.findFirst({
+      orderBy: { startedAt: "desc" },
+    });
+    if (current && current.endsAt > new Date()) {
+      return NextResponse.json(
+        { error: "A competition is already active" },
+        { status: 409 }
       );
     }
 

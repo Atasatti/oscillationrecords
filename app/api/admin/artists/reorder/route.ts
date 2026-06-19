@@ -5,6 +5,23 @@ import { requireAdmin } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// GET — all artists in current custom (sortOrder) order, for the admin
+// "Custom order" drag view. Ties fall back to name (matches the public list).
+export async function GET(request: NextRequest) {
+  const guard = await requireAdmin(request);
+  if (!guard.ok) return guard.response;
+  try {
+    const artists = await prisma.artist.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, profilePicture: true },
+    });
+    return NextResponse.json({ items: artists });
+  } catch (error) {
+    console.error("Error loading artist order:", error);
+    return NextResponse.json({ error: "Failed to load" }, { status: 500 });
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const guard = await requireAdmin(request);
@@ -40,14 +57,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await prisma.$transaction(
-      ids.map((id, index) =>
-        prisma.artist.update({
-          where: { id },
-          data: { sortOrder: index },
-        })
-      )
-    );
+    // Sequential updates — a multi-document $transaction deadlocks on MongoDB.
+    for (let index = 0; index < ids.length; index++) {
+      await prisma.artist.update({ where: { id: ids[index] }, data: { sortOrder: index } });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -1,0 +1,128 @@
+// Build "one-click" MusicBrainz submission links from our own data.
+//
+// MusicBrainz has no silent write API for full entities — contributions go
+// through its editor, which can be SEEDED (pre-filled) via URL params and then
+// reviewed + submitted by a logged-in editor. These helpers produce those seed
+// links so an admin can add an artist/release in one click + a confirm.
+//
+// - Artists  → MusicBrainz "Add Artist" form (we seed name, area, and the
+//   social/streaming URLs; MB auto-detects each relationship type by domain).
+// - Releases → Harmony (harmony.pulsewidth.org.uk), which takes a streaming URL
+//   and/or barcode, fetches the full tracklist, and builds the MB release seed.
+//
+// Pure + client-safe (no secrets, no server deps).
+
+const MB_BASE = "https://musicbrainz.org";
+const HARMONY_BASE = "https://harmony.pulsewidth.org.uk";
+
+export type ArtistSeedInput = {
+  name: string;
+  country?: string | null;
+  city?: string | null;
+  genres?: string[];
+  /** Disambiguation comment; if omitted, one is suggested from genre + location. */
+  disambiguation?: string | null;
+  isni?: string | null;
+  ipis?: string[];
+  /** Social / streaming profile URLs (empty/falsey entries are dropped). */
+  urls?: Array<string | null | undefined>;
+};
+
+/**
+ * Suggest a MusicBrainz disambiguation comment — a short phrase distinguishing
+ * same-named artists, e.g. "house producer from London". Built from genre +
+ * location; returns "" when there's nothing useful to say.
+ */
+export function suggestDisambiguation(input: {
+  genres?: string[];
+  city?: string | null;
+  country?: string | null;
+}): string {
+  const genre = (input.genres ?? []).map((g) => g.trim()).filter(Boolean)[0];
+  const location = (input.city || input.country || "").trim();
+  if (genre && location) return `${genre.toLowerCase()} artist from ${location}`;
+  if (genre) return `${genre.toLowerCase()} artist`;
+  if (location) return `artist from ${location}`;
+  return "";
+}
+
+function seedParams(input: ArtistSeedInput): URLSearchParams {
+  const params = new URLSearchParams();
+  const name = input.name.trim();
+  params.set("edit-artist.name", name);
+  params.set("edit-artist.sort_name", name);
+  if (input.country && input.country.trim()) {
+    params.set("edit-artist.area.name", input.country.trim());
+  }
+
+  const comment =
+    (input.disambiguation && input.disambiguation.trim()) ||
+    suggestDisambiguation(input);
+  if (comment) params.set("edit-artist.comment", comment);
+
+  const isni = (input.isni ?? "").replace(/[^0-9]/g, "");
+  if (isni) params.set("edit-artist.isni_codes.0", isni);
+
+  (input.ipis ?? [])
+    .map((x) => (x ?? "").replace(/[^0-9]/g, ""))
+    .filter(Boolean)
+    .forEach((ipi, i) => params.set(`edit-artist.ipi_codes.${i}`, ipi));
+
+  (input.urls ?? [])
+    .map((u) => (u ?? "").trim())
+    .filter((u) => u.length > 0)
+    .forEach((url, i) => params.set(`edit-artist.url.${i}.text`, url));
+
+  return params;
+}
+
+/**
+ * Link to MusicBrainz's "Add Artist" form, pre-seeded. We seed only the URL
+ * text per relationship; MusicBrainz's external-link editor auto-selects the
+ * relationship type from the domain for known sites (Spotify, Instagram, etc.).
+ * ISNI/IPI and a disambiguation comment are seeded when available.
+ */
+export function buildArtistSeedUrl(input: ArtistSeedInput): string {
+  return `${MB_BASE}/artist/create?${seedParams(input).toString()}`;
+}
+
+/**
+ * Link to an EXISTING MusicBrainz artist's edit form, pre-seeded with our data
+ * (used once we know the MBID, e.g. after picking the artist in "Find social
+ * links"). Opens the real entity — no duplicate — with our links/ISNI/IPI
+ * pre-filled for the admin to add. Seeds are best-effort: if MB ignores any,
+ * the edit page still opens for manual entry.
+ */
+export function buildArtistEditUrl(mbid: string, input: ArtistSeedInput): string {
+  return `${MB_BASE}/artist/${encodeURIComponent(mbid)}/edit?${seedParams(input).toString()}`;
+}
+
+export type ReleaseSeedInput = {
+  /** Barcode / UPC (preferred — most reliable lookup). */
+  gtin?: string | null;
+  /** Streaming URLs (Spotify/Apple/etc.) Harmony can resolve the tracklist from. */
+  urls?: Array<string | null | undefined>;
+};
+
+/** True when there's enough to look a release up on Harmony (a barcode or a URL). */
+export function canSeedRelease(input: ReleaseSeedInput): boolean {
+  const hasGtin = Boolean(input.gtin && input.gtin.trim());
+  const hasUrl = (input.urls ?? []).some((u) => (u ?? "").trim().length > 0);
+  return hasGtin || hasUrl;
+}
+
+/**
+ * Link to Harmony's release lookup, pre-filled with the barcode and/or streaming
+ * URLs. Harmony aggregates the metadata and produces the MusicBrainz release
+ * seed for the admin to review and submit.
+ */
+export function buildHarmonyReleaseUrl(input: ReleaseSeedInput): string {
+  const params = new URLSearchParams();
+  if (input.gtin && input.gtin.trim()) params.set("gtin", input.gtin.trim());
+  (input.urls ?? [])
+    .map((u) => (u ?? "").trim())
+    .filter((u) => u.length > 0)
+    .forEach((url) => params.append("url", url));
+  params.set("category", "all");
+  return `${HARMONY_BASE}/release?${params.toString()}`;
+}

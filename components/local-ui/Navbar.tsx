@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import NavbarSearch from "./NavbarSearch";
-import { LogOut, User, Menu, X } from "lucide-react";
+import { LogOut, User, Menu, X, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ const navLinks = [
   { href: "/about", label: "About" },
   { href: "/artists", label: "Artists" },
   { href: "/releases", label: "Releases" },
+  { href: "/press", label: "Press" },
   { href: "/contact", label: "Contact Us" },
 ];
 
@@ -106,14 +107,19 @@ const Navbar = () => {
             className="hidden 2xl:flex items-center gap-8 xl:gap-10 font-[family-name:var(--font-inter)] backdrop-blur-sm shadow-[5px_5px_30px_rgba(0,0,0,0.25)] px-4 xl:px-6 py-2.5 xl:py-3 rounded-xl"
           >
             {navLinks.map((link) => (
-              <motion.div key={link.href} variants={navLinkVariants}>
+              <motion.div key={link.href} variants={navLinkVariants} whileHover="hover">
+                {/* Hover target is this stationary wrapper; only the child text
+                    lifts (a transform), so the hit-region never shifts out from
+                    under the cursor — fixes the hover jitter near the link's edge. */}
                 <Link href={link.href}>
                   <motion.p
                     className="uppercase text-muted-foreground text-xs xl:text-sm tracking-wider whitespace-nowrap"
-                    whileHover={{
-                      y: -3,
-                      color: "#ffffff",
-                      textShadow: "0 0 14px rgba(255,255,255,0.35)",
+                    variants={{
+                      hover: {
+                        y: -3,
+                        color: "#ffffff",
+                        textShadow: "0 0 14px rgba(255,255,255,0.35)",
+                      },
                     }}
                     transition={{ type: "spring", stiffness: 400, damping: 22 }}
                   >
@@ -124,27 +130,29 @@ const Navbar = () => {
             ))}
           </motion.div>
 
-          {/* Right side — Search, Auth, Hamburger */}
+          {/* Right side — Search, Auth, Hamburger. These share the 2xl breakpoint
+              with the desktop nav + hamburger so they never appear in both the
+              navbar and the mobile menu at the same time (incl. when zoomed). */}
           <div className="flex items-center gap-2 md:gap-4">
-            <div className="hidden md:block w-full max-w-[200px] lg:max-w-[280px]">
+            <div className="hidden 2xl:block w-full max-w-[200px] lg:max-w-[280px]">
               <NavbarSearch className="w-full" />
             </div>
 
             {/* Auth — Desktop */}
-            <div className="hidden md:flex items-center">
+            <div className="hidden 2xl:flex items-center">
               {isLoading ? (
                 <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
               ) : isAuthenticated && session?.user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    <button className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
                       {session.user.image ? (
                         <Image
                           src={session.user.image}
                           alt="User Avatar"
                           width={36}
                           height={36}
-                          className="rounded-full cursor-pointer w-9 h-9"
+                          className="rounded-full cursor-pointer w-9 h-9 shrink-0 object-cover"
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
                         />
@@ -161,6 +169,12 @@ const Navbar = () => {
                       <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
                     </div>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/account">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Account settings</span>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Sign out</span>
@@ -178,6 +192,33 @@ const Navbar = () => {
                 </div>
               )}
             </div>
+
+            {/* Auth avatar — mobile/tablet. The desktop dropdown above is 2xl-only,
+                so without this a signed-in user has no account indicator next to the
+                hamburger. Tapping it opens the menu (account + sign out live there). */}
+            {isAuthenticated && session?.user ? (
+              <button
+                onClick={toggleMobileMenu}
+                className="2xl:hidden shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                aria-label="Open account menu"
+              >
+                {session.user.image ? (
+                  <Image
+                    src={session.user.image}
+                    alt="User Avatar"
+                    width={32}
+                    height={32}
+                    className="rounded-full w-8 h-8 shrink-0 object-cover"
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+                    <User size={16} />
+                  </div>
+                )}
+              </button>
+            ) : null}
 
             {/* Hamburger — mobile */}
             <button
@@ -243,7 +284,7 @@ const Navbar = () => {
                       alt="User Avatar"
                       width={40}
                       height={40}
-                      className="rounded-full"
+                      className="rounded-full w-10 h-10 shrink-0 object-cover"
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
                     />
@@ -257,6 +298,14 @@ const Navbar = () => {
                     <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
                   </div>
                 </div>
+                <Link
+                  href="/account"
+                  onClick={closeMobileMenu}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Account settings</span>
+                </Link>
                 <button
                   onClick={() => { handleSignOut(); closeMobileMenu(); }}
                   className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-destructive hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

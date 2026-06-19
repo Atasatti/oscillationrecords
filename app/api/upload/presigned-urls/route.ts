@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireUser, tokenIsAdmin } from "@/lib/auth-guard";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
   isAudioContentType,
@@ -45,15 +46,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const audioKey = sanitizeKey(audioFileName);
-    if (!audioKey) {
+    const sanitizedAudio = sanitizeKey(audioFileName);
+    if (!sanitizedAudio) {
       return NextResponse.json({ error: "Invalid audioFileName" }, { status: 400 });
     }
 
-    // Untrusted (non-admin) users may only upload audio into the competition prefix.
+    let audioKey = sanitizedAudio;
+
+    // Untrusted (non-admin) users may only upload audio, and the SERVER owns the
+    // key: we discard the client's path and force `benert-remix/<userId>/<name>`.
+    // This stops an entrant from overwriting another's submission or writing
+    // outside the competition prefix (the client just uses the returned fileURL).
     if (!isAdmin) {
-      if (!audioKey.startsWith(PUBLIC_UPLOAD_PREFIX)) {
-        return NextResponse.json({ error: "Forbidden upload path" }, { status: 403 });
+      // Rate-limit presign issuance per user to curb storage/cost abuse.
+      const rl = rateLimit(`presign:${guard.token.sub}`, 20, 60_000);
+      if (!rl.ok) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
       }
       if (!isAudioContentType(audioFileType)) {
         return NextResponse.json(
@@ -61,6 +69,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const base = sanitizeKey(sanitizedAudio.split("/").pop() || "");
+      const safeSub = String(guard.token.sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
+      if (!base || !safeSub) {
+        return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
+      }
+      audioKey = `${PUBLIC_UPLOAD_PREFIX}${safeSub}/${base}`;
     }
 
     const results: {

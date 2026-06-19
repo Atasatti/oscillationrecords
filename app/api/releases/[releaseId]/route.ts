@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isReleasePublic } from "@/lib/catalog-data";
+import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -31,6 +33,17 @@ export async function GET(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
 
+    const isAdmin = await isAdminRequest(request);
+    // DRAFT releases are admin-only; SCHEDULED is public (Coming-Soon page).
+    if (!isAdmin && release.status === "DRAFT") {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
+    // A future-dated SCHEDULED (Coming-Soon) release is public for its metadata
+    // (name, cover, date, pre-save), but its tracks' audio must NOT be served to
+    // the public before release — that's a pre-release leak. The Coming-Soon page
+    // renders "Tracklist to be revealed" when tracks is empty. Admins see all.
+    const hideTracks = !isAdmin && !isReleasePublic(release);
+
     const allArtistIds = [
       ...release.primaryArtistIds,
       ...release.featureArtistIds,
@@ -45,14 +58,17 @@ export async function GET(
       select: { id: true, name: true, profilePicture: true },
     });
 
-    const isAdmin = await isAdminRequest(request);
-    const tracks = release.tracks.map((t) =>
-      isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
-    );
+    const tracks = hideTracks
+      ? []
+      : release.tracks.map((t) =>
+          isAdmin ? serializeTrack(t) : serializeTrackForPublic(t)
+        );
 
     return NextResponse.json({
       id: release.id,
       name: release.name,
+      status: release.status,
+      preSaveUrl: release.preSaveUrl,
       coverImage: release.coverImage,
       kind: release.kind,
       type: prismaKindToApi(release.kind),
@@ -63,7 +79,11 @@ export async function GET(
       releaseDate: release.releaseDate,
       primaryGenre: release.primaryGenre,
       secondaryGenre: release.secondaryGenre,
+      credits: release.credits ?? [],
       upcCode: isAdmin ? release.upcCode : null,
+      catalogueNumber: isAdmin ? release.catalogueNumber : null,
+      pLine: isAdmin ? release.pLine : null,
+      cLine: isAdmin ? release.cLine : null,
       isrcExplicit: release.isrcExplicit,
       spotifyLink: release.spotifyLink,
       appleMusicLink: release.appleMusicLink,
@@ -107,6 +127,7 @@ function parseTrackInput(
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
   isrcCode: string | null;
+  iswc: string | null;
   isrcExplicit: boolean;
   spotifyLink: string | null;
   appleMusicLink: string | null;
@@ -154,6 +175,7 @@ function parseTrackInput(
         ? (t.trackCredits as Prisma.InputJsonValue)
         : null,
     isrcCode: t.isrcCode ? String(t.isrcCode) : null,
+    iswc: t.iswc ? String(t.iswc).trim() : null,
     isrcExplicit: Boolean(t.isrcExplicit),
     spotifyLink: t.spotifyLink ? String(t.spotifyLink) : null,
     appleMusicLink: t.appleMusicLink ? String(t.appleMusicLink) : null,
@@ -197,7 +219,13 @@ export async function PATCH(
       primaryGenre,
       secondaryGenre,
       upcCode,
+      catalogueNumber,
+      pLine,
+      cLine,
+      status,
+      preSaveUrl,
       isrcExplicit,
+      credits,
       spotifyLink,
       appleMusicLink,
       tidalLink,
@@ -213,10 +241,37 @@ export async function PATCH(
       tracks: tracksRaw,
     } = body;
 
+    // No past-dated Coming Soon: enforce a future date when the admin is actively
+    // scheduling this release, or changing the date of an already-scheduled one.
+    // (Unrelated PATCHes — e.g. toggling "New Music" — aren't blocked.)
+    const settingScheduled = status === "SCHEDULED";
+    const changingDateWhileScheduled = existing.status === "SCHEDULED" && releaseDate !== undefined;
+    if (settingScheduled || changingDateWhileScheduled) {
+      const effective = releaseDate !== undefined ? releaseDate : existing.releaseDate;
+      const d = effective ? new Date(effective) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
+    }
+
     const releaseFeatureNamesPatch =
       releaseFeatureNamesRaw !== undefined
         ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)
         : undefined;
+
+    // When newly featuring for the New Music carousel, append to the end of the
+    // home order so it doesn't collide with existing featured releases.
+    let homeOrderPatch: number | undefined;
+    if (showOnHome === true && !existing.showOnHome) {
+      const max = await prisma.release.aggregate({
+        where: { showOnHome: true },
+        _max: { homeOrder: true },
+      });
+      homeOrderPatch = (max._max.homeOrder ?? -1) + 1;
+    }
 
     if (primaryArtistIds !== undefined) {
       if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
@@ -291,6 +346,14 @@ export async function PATCH(
     }
 
     await prisma.$transaction(async (tx) => {
+      // "Latest" is single-select: turning it on for this release clears it on the
+      // others, so the home page only ever shows one "Latest" pill.
+      if (showLatestOnHome === true) {
+        await tx.release.updateMany({
+          where: { id: { not: releaseId }, showLatestOnHome: true },
+          data: { showLatestOnHome: false },
+        });
+      }
       await tx.release.update({
         where: { id: releaseId },
         data: {
@@ -308,8 +371,20 @@ export async function PATCH(
           ...(secondaryGenre !== undefined && {
             secondaryGenre: secondaryGenre ? String(secondaryGenre) : null,
           }),
+          ...(credits !== undefined && { credits: normalizeCredits(credits) }),
           ...(upcCode !== undefined && {
             upcCode: upcCode ? String(upcCode) : null,
+          }),
+          ...(catalogueNumber !== undefined && {
+            catalogueNumber: catalogueNumber ? String(catalogueNumber).trim() : null,
+          }),
+          ...(pLine !== undefined && { pLine: pLine ? String(pLine).trim() : null }),
+          ...(cLine !== undefined && { cLine: cLine ? String(cLine).trim() : null }),
+          ...(["DRAFT", "SCHEDULED", "RELEASED"].includes(String(status)) && {
+            status: status as "DRAFT" | "SCHEDULED" | "RELEASED",
+          }),
+          ...(preSaveUrl !== undefined && {
+            preSaveUrl: preSaveUrl ? String(preSaveUrl).trim() : null,
           }),
           ...(isrcExplicit !== undefined && {
             isrcExplicit: Boolean(isrcExplicit),
@@ -338,6 +413,7 @@ export async function PATCH(
           ...(showOnHome !== undefined && {
             showOnHome: Boolean(showOnHome),
           }),
+          ...(homeOrderPatch !== undefined && { homeOrder: homeOrderPatch }),
           ...(primaryArtistIds !== undefined && { primaryArtistIds }),
           ...(featIds !== undefined && { featureArtistIds: featIds }),
           ...(releaseFeatureNamesPatch !== undefined && {
@@ -381,6 +457,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,
@@ -410,6 +487,7 @@ export async function PATCH(
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
+                iswc: t.iswc,
                 isrcExplicit: t.isrcExplicit,
                 spotifyLink: t.spotifyLink,
                 appleMusicLink: t.appleMusicLink,

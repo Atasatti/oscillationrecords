@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import Image from "next/image";
 import {
   motion,
   useMotionValue,
@@ -24,17 +25,17 @@ interface Artist {
   id: string;
   name: string;
   biography: string;
-  profilePicture?: string;
-  xLink?: string;
-  tiktokLink?: string;
-  spotifyLink?: string;
-  instagramLink?: string;
-  youtubeLink?: string;
-  facebookLink?: string;
-  appleMusicLink?: string;
-  tidalLink?: string;
-  amazonMusicLink?: string;
-  soundcloudLink?: string;
+  profilePicture?: string | null;
+  xLink?: string | null;
+  tiktokLink?: string | null;
+  spotifyLink?: string | null;
+  instagramLink?: string | null;
+  youtubeLink?: string | null;
+  facebookLink?: string | null;
+  appleMusicLink?: string | null;
+  tidalLink?: string | null;
+  amazonMusicLink?: string | null;
+  soundcloudLink?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,7 +81,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
     setIsHovered(false);
   };
 
-  const handleSocialClick = (url: string | undefined, e: React.MouseEvent) => {
+  const handleSocialClick = (url: string | null | undefined, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (url) window.open(url, "_blank", "noopener,noreferrer");
@@ -108,10 +109,21 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           rotateY,
           boxShadow,
           transformStyle: "preserve-3d",
-          backgroundImage: `url(${artist.profilePicture})`,
         }}
-        className="w-full h-full rounded-lg flex flex-col justify-end bg-no-repeat bg-cover bg-center p-6 relative"
+        className="w-full h-full rounded-lg flex flex-col justify-end p-6 relative overflow-hidden"
       >
+        {/* Real <img> (via next/image) instead of a CSS background so the photo
+            is crawlable by Google Images and carries alt text. Sits behind the
+            shimmer (z-1), gradient (z-2) and content (z-3). */}
+        <Image
+          src={artist.profilePicture || "/meet-artist-img.svg"}
+          alt={artist.name}
+          fill
+          sizes="288px"
+          className="object-cover rounded-lg"
+          style={{ zIndex: 0 }}
+        />
+
         {/* Moving gloss shimmer — follows cursor like real light on a photo */}
         <motion.div
           className="absolute inset-0 rounded-lg pointer-events-none"

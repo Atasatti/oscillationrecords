@@ -44,8 +44,9 @@ export async function GET(
       );
     }
     const contentType = searchParams.get("type") || "track";
-    const days = parseInt(searchParams.get("days") || "30", 10);
-    
+    const daysRaw = parseInt(searchParams.get("days") || "30", 10);
+    const days = Math.min(Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 30), 365);
+
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -70,9 +71,11 @@ export async function GET(
       },
     });
 
-    // Calculate statistics
+    // Calculate statistics. Identity = logged-in userId, else anonymous visitor id.
+    const idOf = (e: { userId: string | null; visitorId: string | null }) =>
+      e.userId || (e.visitorId ? `v:${e.visitorId}` : null);
     const totalPlays = playEvents.length;
-    const uniqueUsers = new Set(playEvents.map(e => e.userId)).size;
+    const uniqueUsers = new Set(playEvents.map(idOf).filter(Boolean)).size;
     const completedPlays = playEvents.filter(e => e.completed).length;
     const averagePlayDuration = playEvents
       .filter(e => e.playDuration)
@@ -101,33 +104,24 @@ export async function GET(
     const cityStats = new Map<string, number>();
 
     playEvents.forEach(event => {
-      const profile = event.user.profile;
-      if (profile) {
-        if (profile.gender) {
-          genderStats[profile.gender as keyof typeof genderStats] = 
-            (genderStats[profile.gender as keyof typeof genderStats] || 0) + 1;
-        } else {
-          genderStats.unknown++;
-        }
-
-        if (profile.ageRange) {
-          ageRangeStats[profile.ageRange as keyof typeof ageRangeStats] = 
-            (ageRangeStats[profile.ageRange as keyof typeof ageRangeStats] || 0) + 1;
-        } else {
-          ageRangeStats.unknown++;
-        }
-
-        if (profile.country) {
-          countryStats.set(profile.country, (countryStats.get(profile.country) || 0) + 1);
-        }
-
-        if (profile.city) {
-          cityStats.set(profile.city, (cityStats.get(profile.city) || 0) + 1);
-        }
+      const profile = event.user?.profile ?? null;
+      if (profile?.gender) {
+        genderStats[profile.gender as keyof typeof genderStats] =
+          (genderStats[profile.gender as keyof typeof genderStats] || 0) + 1;
       } else {
         genderStats.unknown++;
+      }
+      if (profile?.ageRange) {
+        ageRangeStats[profile.ageRange as keyof typeof ageRangeStats] =
+          (ageRangeStats[profile.ageRange as keyof typeof ageRangeStats] || 0) + 1;
+      } else {
         ageRangeStats.unknown++;
       }
+      // Geography prefers the per-event snapshot (covers anonymous), else profile.
+      const country = event.country || profile?.country || null;
+      if (country) countryStats.set(country, (countryStats.get(country) || 0) + 1);
+      const city = event.city || profile?.city || null;
+      if (city) cityStats.set(city, (cityStats.get(city) || 0) + 1);
     });
 
     // Plays over time
@@ -144,12 +138,12 @@ export async function GET(
     // User engagement details
     const userEngagement = playEvents.map(event => ({
       userId: event.userId,
-      userName: event.user.name || event.user.email,
-      userEmail: event.user.email,
-      gender: event.user.profile?.gender || null,
-      ageRange: event.user.profile?.ageRange || null,
-      country: event.user.profile?.country || null,
-      city: event.user.profile?.city || null,
+      userName: event.user?.name || event.user?.email || "Anonymous visitor",
+      userEmail: event.user?.email || "",
+      gender: event.user?.profile?.gender || null,
+      ageRange: event.user?.profile?.ageRange || null,
+      country: event.country || event.user?.profile?.country || null,
+      city: event.city || event.user?.profile?.city || null,
       playDuration: event.playDuration,
       completed: event.completed,
       createdAt: event.createdAt,
@@ -158,20 +152,19 @@ export async function GET(
     // Top users by play count
     const userPlayCounts = new Map<string, number>();
     playEvents.forEach(event => {
-      userPlayCounts.set(
-        event.userId,
-        (userPlayCounts.get(event.userId) || 0) + 1
-      );
+      const id = idOf(event);
+      if (!id) return;
+      userPlayCounts.set(id, (userPlayCounts.get(id) || 0) + 1);
     });
 
     const topUsers = Array.from(userPlayCounts.entries())
-      .map(([userId, count]) => {
-        const userEvent = playEvents.find(e => e.userId === userId);
+      .map(([id, count]) => {
+        const userEvent = playEvents.find(e => idOf(e) === id);
         return {
-          userId,
-          userName: userEvent?.user.name || userEvent?.user.email,
+          userId: id,
+          userName: userEvent?.user?.name || userEvent?.user?.email || "Anonymous visitor",
           playCount: count,
-          profile: userEvent?.user.profile,
+          profile: userEvent?.user?.profile ?? undefined,
         };
       })
       .sort((a, b) => b.playCount - a.playCount)

@@ -42,6 +42,13 @@ model User {
   email             String?            @unique
   emailVerified     DateTime?
   image             String?
+  /// Authorization role. "admin" grants admin access (in addition to the
+  /// hardcoded bootstrap allowlist in lib/auth-session.ts). Optional so existing
+  /// User documents (created before this field) read back as null rather than
+  /// erroring; new users default to "user". Setting a (non-bootstrap) admin back
+  /// to "user"/null revokes access on their next admin request, since requireAdmin
+  /// re-checks this field server-side.
+  role              String?            @default("user")
   accounts          Account[]
   sessions          Session[]
   profile           UserProfile?
@@ -84,6 +91,28 @@ model Artist {
   name          String
   biography     String
   profilePicture String?
+  /// Genre tags (auto-filled from Spotify on import, editable). Public.
+  genres        String[] @default([])
+  /// Spotify artist id (not just the URL) — enables re-sync / dedupe on import.
+  spotifyId     String?
+  /// MusicBrainz artist MBID — links our record to the MB entity to avoid
+  /// duplicate submissions and enable re-syncing ISNI/links later.
+  musicBrainzId String?
+  /// Legal/real name — internal, never shown publicly.
+  realName      String?
+  country       String?
+  city          String?
+  /// Manager name — internal.
+  managerName   String?
+  /// Contact email — internal.
+  contactEmail  String?
+  /// Free-form admin notes — internal.
+  internalNotes String?
+  /// IPI (Interested Parties Information) name numbers — a writer/publisher may
+  /// have several. Rights/PRO admin; also seeded to MusicBrainz.
+  ipis          String[] @default([])
+  /// ISNI (International Standard Name Identifier) — one per artist identity.
+  isni          String?
   composer      String?
   lyricist      String?
   leadVocal     String?
@@ -98,12 +127,21 @@ model Artist {
   amazonMusicLink  String?
   soundcloudLink   String?
   sortOrder     Int      @default(0)
-  /// When true, artist appears on the public site (home Meet the Artists carousel and /artists page).
+  /// When true, artist appears on the public /artists page (listed alphabetically).
   showOnWebsite Boolean  @default(true)
+  /// When true, artist is featured in the home "Meet the Artists" carousel (curated subset).
+  featuredOnHome Boolean @default(false)
+  /// Order within the home carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([sortOrder])
+  @@index([name])
+  @@index([showOnWebsite, name])
+  @@index([featuredOnHome, homeOrder])
+  @@index([spotifyId])
+  @@index([musicBrainzId])
 }
 
 enum ReleaseKind {
@@ -112,10 +150,23 @@ enum ReleaseKind {
   ALBUM
 }
 
+/// Lifecycle of a release. DRAFT = hidden (work in progress); SCHEDULED = shown
+/// in the public "Coming Soon" section until its releaseDate passes, then it
+/// auto-publishes (query-time gating); RELEASED = fully public.
+enum ReleaseStatus {
+  DRAFT
+  SCHEDULED
+  RELEASED
+}
+
 /// A release (Single, EP, or Album) — same metadata shape; `kind` distinguishes presentation.
 model Release {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   kind             ReleaseKind
+  /// Publishing lifecycle. Existing rows default to RELEASED (no behaviour change).
+  status           ReleaseStatus @default(RELEASED)
+  /// Pre-save link (e.g. Ditto) shown while SCHEDULED.
+  preSaveUrl       String?
   name             String
   coverImage       String
   primaryArtistIds String[]     @db.ObjectId
@@ -128,10 +179,18 @@ model Release {
   lyricist         String?
   leadVocal        String?
   upcCode          String?
+  /// Label-assigned catalogue number for this release (e.g. "OSC001"). Internal.
+  catalogueNumber  String?
+  /// ℗ (phonogram) line, e.g. "2024 Oscillation Records". Stored for future use.
+  pLine            String?
+  /// © (copyright) line, e.g. "2024 Oscillation Records". Stored for future use.
+  cLine            String?
   isrcCode         String?
   isrcExplicit     Boolean      @default(false)
   primaryGenre     String?
   secondaryGenre   String?
+  /// Flexible credits: array of { role, people[] } (producers, songwriters, etc.).
+  credits          Json?
   spotifyLink      String?
   appleMusicLink   String?
   tidalLink        String?
@@ -142,14 +201,67 @@ model Release {
   sortOrder        Int          @default(0)
   /// When true, home New Music carousel shows a Latest pill on this release's featured track.
   showLatestOnHome Boolean      @default(false)
-  /// When true, release is eligible for the "New Music" horizontal carousel on home and /releases (up to API limit; order follows catalog sort). If none are selected, all releases are considered (fallback).
+  /// When true, release is featured in the "New Music" carousel on home and /releases. If none are featured, all releases are considered (fallback).
   showOnHome       Boolean      @default(false)
+  /// Order within the New Music carousel (lower = earlier); managed in the admin "Home order" tab.
+  homeOrder        Int          @default(0)
+  /// Order within the home "Coming Soon" strip (lower = earlier). Kept separate
+  /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
+  /// each other. Optional: rows never ordered there are treated as last (+∞).
+  comingSoonOrder  Int?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   @@index([kind])
   @@index([sortOrder])
+  @@index([createdAt])
+  @@index([showOnHome, homeOrder])
+  @@index([kind, sortOrder])
+  @@index([status])
+  @@index([status, releaseDate])
+}
+
+/// A press item — our own short, original summary of EXTERNAL coverage (a blog
+/// post, review, interview or feature) about an artist/release, linking out to
+/// the original article. We store OUR copy only; the external article body is
+/// never stored or rendered (copyright/ToS). Links to artists/releases use the
+/// same loose `String[] @db.ObjectId` convention as Release (no Prisma relation).
+model PressItem {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// Headline of our summary post.
+  title       String
+  /// Outlet/blog name, e.g. "Stereogum". Shown on the card and used as the
+  /// `publisher` of the nested external-article node in JSON-LD.
+  publisher   String
+  /// Canonical external link ("Read full article"). Always link out; never embed.
+  articleUrl  String
+  /// OUR original blurb about the coverage — NOT the article body.
+  summary     String
+  /// Rehosted OG image (S3 url). Optional; falls back to original on rehost failure.
+  image       String?
+  /// Article publish date (for display + the nested Article node's datePublished).
+  publishedAt DateTime?
+  /// Journalist/author of the external piece, for honest attribution in JSON-LD.
+  author      String?
+  /// Linked catalogue artists (loose ObjectId ids; queried with { has }/{ hasSome }).
+  artistIds   String[]  @db.ObjectId
+  /// Linked releases (loose ObjectId ids).
+  releaseIds  String[]  @db.ObjectId
+  /// When true, the item appears on the public site (/press + artist/release sections).
+  showOnWebsite Boolean @default(true)
+  /// Membership in a curated/featured press list (distinct from sortOrder).
+  featured    Boolean   @default(false)
+  /// Manage-list + public list order (set by the reorder route; lower = earlier).
+  sortOrder   Int       @default(0)
+  /// Order within the featured list (kept separate so reorder/feature don't clobber).
+  homeOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([sortOrder])
+  @@index([showOnWebsite, sortOrder])
+  @@index([featured, homeOrder])
 }
 
 /// A playable track (song file). Former `Single` fields live here.
@@ -170,6 +282,8 @@ model Track {
   stemsFile        String?
   trackCredits     Json?
   isrcCode         String?
+  /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
+  iswc             String?
   isrcExplicit     Boolean  @default(false)
   spotifyLink      String?
   appleMusicLink   String?
@@ -186,24 +300,8 @@ model Track {
   @@index([releaseId])
 }
 
-model UpcomingRelease {
-  id               String    @id @default(auto()) @map("_id") @db.ObjectId
-  name             String
-  type             String // "single" | "ep" | "album"
-  image            String
-  releaseDate      DateTime
-  /// Display order on the site (lower = earlier). Admin drag-and-drop.
-  sortOrder        Int       @default(0)
-  /// Pre-smart link target (e.g. Ditto pre-save URL)
-  preSmartLinkUrl  String?
-  primaryArtist    String?
-  featureArtist    String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  @@index([releaseDate])
-  @@index([sortOrder])
-}
+// UpcomingRelease was unified into Release (status=SCHEDULED) — see the
+// migration in scripts/migrate-upcoming-to-release.mjs.
 
 // Analytics Models
 model UserProfile {
@@ -225,6 +323,8 @@ model SiteSettings {
   stackedHeroImage1 String
   stackedHeroImage2 String
   stackedHeroImage3 String
+  // Home "studio photos" carousel — admin-managed, ordered list of image URLs.
+  studioPhotos      String[] @default([])
   footerXLink          String?
   footerTiktokLink     String?
   footerYoutubeLink    String?
@@ -246,10 +346,30 @@ model NewsletterSubscriber {
   @@index([createdAt])
 }
 
+/// Public "Contact Us" form submissions (name, email, message). Anyone can
+/// submit; surfaced to admins for follow-up. `handled` lets an admin mark a
+/// message as dealt with.
+model ContactMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([handled, createdAt])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
+  // (first-party cookie) instead. One of the two identifies the listener.
+  userId      String?  @db.ObjectId
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visitorId   String?  // anonymous first-party cookie id (analytics consent only)
+  country     String?  // coarse geo snapshot from request headers (no precise location)
+  city        String?
   contentType String   // "track" (audio play), "release" (detail view), legacy: "single"|"album"|"ep"
   contentId   String   @db.ObjectId
   contentName String   // Name of the content for quick reference
@@ -257,9 +377,79 @@ model PlayEvent {
   artistName  String?  // Artist name for quick reference
   playDuration Int?    // Duration played in seconds
   completed   Boolean  @default(false) // Whether the play was completed
+  sessionId   String?  // groups events into a visit (30-min sliding window)
   createdAt   DateTime @default(now())
-  
+
   @@index([userId])
+  @@index([visitorId])
+  @@index([sessionId])
   @@index([contentType, contentId])
   @@index([createdAt])
+  @@index([artistId, createdAt])
+}
+
+/// Lightweight page view (consented) — powers visits, pages-per-visit, top pages
+/// and campaign (UTM) attribution. Kept loose (no relations) like LinkClick.
+model PageView {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String?  @db.ObjectId
+  visitorId   String?
+  sessionId   String?
+  path        String
+  referrer    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  country     String?
+  city        String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([utmCampaign])
+  @@index([visitorId])
+}
+
+/// Outbound click on a streaming/social link (anonymous), for click-through analytics.
+model LinkClick {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  context   String   // "release" | "artist" | "track"
+  contextId String   // id of the release/artist/track (not a relation — kept loose)
+  contextName String? // name snapshot for quick reporting
+  linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  visitorId String?  // consented anonymous visitor (for attribution)
+  sessionId String?  // visit grouping for campaign attribution
+  createdAt DateTime @default(now())
+
+  @@index([context, contextId])
+  @@index([linkType])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+/// Site-wide error tracking (server + client), surfaced in the admin "Errors"
+/// page. Identical errors are de-duplicated by `fingerprint` (a hash of
+/// source/level/normalized-message/path) and counted, so the table stays small
+/// and recurring issues bubble up by `count`/`lastSeen` instead of flooding.
+model ErrorLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  fingerprint String   @unique
+  level       String   @default("error") // "error" | "warn"
+  source      String                      // "server" | "client"
+  message     String
+  stack       String?
+  path        String?  // URL path / route where it occurred
+  method      String?  // HTTP method (server requests)
+  statusCode  Int?
+  digest      String?  // Next.js error digest (server)
+  userEmail   String?  // attributed when the caller is signed in
+  userAgent   String?
+  count       Int      @default(1)
+  resolved    Boolean  @default(false)
+  firstSeen   DateTime @default(now())
+  lastSeen    DateTime @default(now())
+
+  @@index([resolved, lastSeen])
+  @@index([lastSeen])
+  @@index([source])
 }

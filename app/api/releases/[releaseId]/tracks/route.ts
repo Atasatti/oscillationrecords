@@ -37,6 +37,7 @@ export async function POST(
       stemsFile,
       trackCredits,
       isrcCode,
+      iswc,
       isrcExplicit,
       spotifyLink,
       appleMusicLink,
@@ -55,7 +56,9 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (!isrcCode || !String(isrcCode).trim()) {
+    // ISRC is only mandatory once the release is live; a SCHEDULED/DRAFT release
+    // can have tracks whose ISRCs arrive later.
+    if (release.status === "RELEASED" && (!isrcCode || !String(isrcCode).trim())) {
       return NextResponse.json(
         { error: "isrcCode is required" },
         { status: 400 }
@@ -127,6 +130,7 @@ export async function POST(
             ? trackCredits
             : null,
         isrcCode: isrcCode ? String(isrcCode) : null,
+        iswc: iswc ? String(iswc).trim() : null,
         isrcExplicit: Boolean(isrcExplicit),
         spotifyLink: spotifyLink || null,
         appleMusicLink: appleMusicLink || null,

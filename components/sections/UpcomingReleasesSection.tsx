@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 interface UpcomingRelease {
   id: string;
@@ -13,6 +14,9 @@ interface UpcomingRelease {
   preSmartLinkUrl?: string | null;
   primaryArtist?: string | null;
   featureArtist?: string | null;
+  /** Resolved from linked catalogue artists (preferred over the legacy text). */
+  primaryArtistName?: string | null;
+  featureLine?: string | null;
 }
 
 function kindLabel(type: UpcomingRelease["type"]) {
@@ -61,7 +65,6 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none group-hover:scale-[1.045]"
-          unoptimized
         />
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:transition-none"
@@ -87,23 +90,21 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
           {release.name}
         </p>
         <div className="min-h-[2.75rem] text-sm leading-snug">
-          {release.primaryArtist?.trim() || release.featureArtist?.trim() ? (
-            <p className="break-words hyphens-auto text-muted-foreground">
-              {release.primaryArtist?.trim() ? (
-                <span className="text-foreground/88">{release.primaryArtist.trim()}</span>
-              ) : null}
-              {release.primaryArtist?.trim() && release.featureArtist?.trim() ? (
-                <span className="text-muted-foreground/75"> · </span>
-              ) : null}
-              {release.featureArtist?.trim() ? (
-                <span>feat. {release.featureArtist.trim()}</span>
-              ) : null}
-            </p>
-          ) : (
-            <span className="invisible select-none" aria-hidden>
-              .
-            </span>
-          )}
+          {(() => {
+            const primary = (release.primaryArtistName ?? release.primaryArtist)?.trim();
+            const feature = (release.featureLine ?? release.featureArtist)?.trim();
+            return primary || feature ? (
+              <p className="break-words hyphens-auto text-muted-foreground">
+                {primary ? <span className="text-foreground/88">{primary}</span> : null}
+                {primary && feature ? <span className="text-muted-foreground/75"> · </span> : null}
+                {feature ? <span>feat. {feature}</span> : null}
+              </p>
+            ) : (
+              <span className="invisible select-none" aria-hidden>
+                .
+              </span>
+            );
+          })()}
         </div>
         <p className="mt-auto text-sm text-muted-foreground">Releases {dateStr}</p>
         {href ? (
@@ -179,26 +180,19 @@ function LoadingCards() {
   );
 }
 
-const UpcomingReleasesSection = () => {
-  const [releases, setReleases] = useState<UpcomingRelease[]>([]);
-  const [loading, setLoading] = useState(true);
+type UpcomingReleasesSectionProps = {
+  /** Server-rendered releases. When provided, the section renders from the
+   * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
+  initialReleases?: UpcomingRelease[];
+};
 
-  useEffect(() => {
-    const fetchReleases = async () => {
-      try {
-        const response = await fetch("/api/upcoming-releases");
-        if (response.ok) {
-          const data = await response.json();
-          setReleases(data);
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming releases:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReleases();
-  }, []);
+const UpcomingReleasesSection = ({
+  initialReleases,
+}: UpcomingReleasesSectionProps) => {
+  // Always server-supplied (home SSRs getUpcomingReleases into initialReleases).
+  const releases = initialReleases ?? [];
+  const loading = false;
+  const { bgHero } = usePageMedia();
 
   const sectionChrome = (
     <>
@@ -212,7 +206,8 @@ const UpcomingReleasesSection = () => {
       />
       {/* hero-bg.svg is 2126×290 — scale to full section width so waves read complete along the x-axis; sits under copy (z-10) */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[min(420px,52vw)] w-full bg-[url('/hero-bg.svg')] bg-no-repeat bg-[length:100%_auto] bg-[position:center_40%] opacity-[0.17] invert [mask-image:linear-gradient(to_bottom,black_6%,black_58%,transparent_94%)] motion-reduce:opacity-[0.1]"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[min(420px,52vw)] w-full bg-no-repeat bg-[length:100%_auto] bg-[position:center_40%] opacity-[0.17] invert [mask-image:linear-gradient(to_bottom,black_6%,black_58%,transparent_94%)] motion-reduce:opacity-[0.1]"
+        style={{ backgroundImage: `url('${bgHero}')` }}
         aria-hidden
       />
       <div
