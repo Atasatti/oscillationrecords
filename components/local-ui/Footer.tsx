@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -73,23 +74,31 @@ const Footer = () => {
 
   return (
     <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
-      {/* Social links */}
-      {linksLoaded && socialItems.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-5">
-          {socialItems.map(({ href, Icon, label }) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={label}
-              className="text-muted-foreground hover:text-white transition-colors"
-            >
-              <Icon className="h-5 w-5" aria-hidden />
-            </a>
-          ))}
-        </div>
-      ) : null}
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-12">
+        {/* Logo, pinned left — links home like the navbar. */}
+        <Link href="/" aria-label="Oscillation Records — home" className="flex items-center gap-2.5">
+          <Image width={40} height={40} className="w-9 h-9" alt="" src="/logo-icon.svg" />
+          <Image width={80} height={24} className="w-24 h-7" alt="Oscillation Records" src="/logo-name.svg" />
+        </Link>
+
+        {/* Social links, pinned right. */}
+        {linksLoaded && socialItems.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-5 sm:ml-auto">
+            {socialItems.map(({ href, Icon, label }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={label}
+                className="text-muted-foreground hover:text-white transition-colors"
+              >
+                <Icon className="h-5 w-5" aria-hidden />
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-10 flex flex-col-reverse items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
         <p className="text-xs text-muted-foreground">

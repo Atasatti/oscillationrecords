@@ -346,6 +346,21 @@ model NewsletterSubscriber {
   @@index([createdAt])
 }
 
+/// Public "Contact Us" form submissions (name, email, message). Anyone can
+/// submit; surfaced to admins for follow-up. `handled` lets an admin mark a
+/// message as dealt with.
+model ContactMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([handled, createdAt])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
