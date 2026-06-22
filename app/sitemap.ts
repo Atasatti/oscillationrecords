@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }),
       prisma.release.findMany({
         where: publicReleaseWhere(),
-        select: { id: true, updatedAt: true, coverImage: true },
+        select: { id: true, name: true, updatedAt: true, coverImage: true },
       }),
     ]);
 
@@ -46,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ...(a.profilePicture ? { images: [absoluteUrl(a.profilePicture)] } : {}),
       })),
       ...releases.map((r) => ({
-        url: `${SITE_URL}/releases/${r.id}`,
+        url: `${SITE_URL}/releases/${slugify(r.name)}`,
         lastModified: r.updatedAt,
         changeFrequency: "monthly" as const,
         priority: 0.6,

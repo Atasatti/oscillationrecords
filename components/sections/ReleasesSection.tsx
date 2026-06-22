@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import ReleaseCardSm from "../local-ui/ReleaseCardSm";
+import { slugify } from "@/lib/slug";
 
 interface Release {
   id: string;
@@ -42,7 +43,7 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
   const [selectedFilter, setSelectedFilter] = useState("All");
 
   const handleReleaseClick = (release: Release) => {
-    router.push(`/releases/${release.id}`);
+    router.push(`/releases/${slugify(release.name)}`);
   };
 
   useEffect(() => {

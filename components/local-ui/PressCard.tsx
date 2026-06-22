@@ -50,7 +50,7 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
             {item.releases.map((r) => (
               <Link
                 key={`r-${r.id}`}
-                href={`/releases/${r.id}`}
+                href={`/releases/${slugify(r.name)}`}
                 className="rounded-full border border-white/10 px-2.5 py-0.5 text-xs text-gray-300 hover:border-white/30 hover:text-white"
               >
                 {r.name}

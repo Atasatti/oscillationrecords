@@ -107,7 +107,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     jsonLd.album = releases.map((r) => ({
       "@type": "MusicAlbum",
       name: r.name,
-      url: absoluteUrl(`/releases/${r.id}`),
+      url: absoluteUrl(`/releases/${slugify(r.name)}`),
       ...(r.thumbnail ? { image: absoluteUrl(r.thumbnail) } : {}),
     }));
   }
@@ -134,7 +134,7 @@ type ReleaseDetailLike = {
 
 /** schema.org MusicAlbum for a release page. */
 export function buildReleaseJsonLd(release: ReleaseDetailLike) {
-  const url = absoluteUrl(`/releases/${release.id}`);
+  const url = absoluteUrl(`/releases/${slugify(release.name)}`);
   const genres = (release.genres ?? [])
     .map((g) => (g || "").trim())
     .filter((g): g is string => g.length > 0);
@@ -270,7 +270,7 @@ function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
     ...(item.releases ?? []).map((r) => ({
       "@type": "MusicAlbum",
       name: r.name,
-      url: absoluteUrl(`/releases/${r.id}`),
+      url: absoluteUrl(`/releases/${slugify(r.name)}`),
     })),
   ];
   if (mentions.length) node.mentions = mentions;

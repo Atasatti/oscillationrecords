@@ -438,6 +438,34 @@ export const resolveArtistIdBySlug = cache(
   }
 );
 
+/**
+ * Every public (non-DRAFT) release's slug → id (slug derived from the title).
+ * Powers pretty `/releases/<slug>` URLs, the static params, and the sitemap —
+ * mirrors the artist slug index. Cached per request.
+ */
+export const getReleaseSlugIndex = cache(
+  async (): Promise<{ id: string; name: string; slug: string }[]> => {
+    try {
+      const releases = await prisma.release.findMany({
+        where: { status: { not: "DRAFT" } },
+        select: { id: true, name: true },
+      });
+      return releases.map((r) => ({ id: r.id, name: r.name, slug: slugify(r.name) }));
+    } catch (e) {
+      console.error("getReleaseSlugIndex: DB unavailable", e);
+      return [];
+    }
+  }
+);
+
+/** Resolve a pretty `/releases/<slug>` to its release id, or null if no match. */
+export const resolveReleaseIdBySlug = cache(
+  async (slug: string): Promise<string | null> => {
+    const index = await getReleaseSlugIndex();
+    return index.find((r) => r.slug === slug)?.id ?? null;
+  }
+);
+
 /** All live artists for the public /artists page, listed alphabetically. */
 export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   try {

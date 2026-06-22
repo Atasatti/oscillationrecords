@@ -7,6 +7,7 @@ import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
 import { useSession } from "next-auth/react";
 import { useMusic } from "@/contexts/music-context";
+import { slugify } from "@/lib/slug";
 import {
   Dialog,
   DialogContent,
@@ -562,7 +563,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   {otherReleases.map((r) => (
                     <div
                       key={r.id}
-                      onClick={() => router.push(`/releases/${r.id}`)}
+                      onClick={() => router.push(`/releases/${slugify(r.name)}`)}
                       className="cursor-pointer relative group w-72 h-84 shrink-0"
                     >
                       <ReleaseCardSm

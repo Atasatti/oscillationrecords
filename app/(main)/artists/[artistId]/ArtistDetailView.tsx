@@ -11,6 +11,7 @@ import { RiTiktokFill } from "react-icons/ri";
 import type { ArtistDetailDTO, ReleaseCardDTO } from "@/lib/catalog-data";
 import { SITE_NAME } from "@/lib/seo";
 import { trackLinkClick } from "@/lib/track-link-click";
+import { slugify } from "@/lib/slug";
 
 type ArtistDetailViewProps = {
   artist: ArtistDetailDTO;
@@ -164,7 +165,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                 {releases.map((rel) => (
                   <div
                     key={rel.id}
-                    onClick={() => router.push(`/releases/${rel.id}`)}
+                    onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
                     className="cursor-pointer w-72 h-84"
                   >
                     <ReleaseCardSm
