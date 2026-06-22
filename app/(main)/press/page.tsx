@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import PressCard from "@/components/local-ui/PressCard";
 import { getAllPress } from "@/lib/catalog-data";
@@ -49,13 +48,6 @@ export default async function PressPage() {
             </div>
           )}
         </section>
-      </ScrollReveal3D>
-
-      <ScrollReveal3D>
-        <MusicHeardSection
-          heading="Let's get your music heard."
-          subtext="Artist, visionary, or just someone with big ideas? We're here to listen. Let's talk."
-        />
       </ScrollReveal3D>
     </div>
   );
