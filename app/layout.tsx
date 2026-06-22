@@ -39,11 +39,13 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: "A Record Label That Puts Artists First",
     url: SITE_URL,
+    images: [{ url: "/og-default.png", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: "A Record Label That Puts Artists First",
+    images: ["/og-default.png"],
   },
 };
 

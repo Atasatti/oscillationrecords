@@ -165,7 +165,7 @@ export default function AboutSection2() {
       </div>
 
       <div className="mx-auto max-w-lg mt-22">
-        <p className="font-light text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-5xl text-center tracking-tighter">
           The Future of Music Starts Here.
         </p>
         <p className="text-muted-foreground text-center font-light mt-6">

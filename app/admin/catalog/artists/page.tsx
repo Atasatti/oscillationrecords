@@ -433,7 +433,7 @@ export default function AdminArtistsPage() {
                   <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <Skeleton className="h-10 w-10 rounded-lg" />
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
@@ -472,7 +472,7 @@ export default function AdminArtistsPage() {
                       <img
                         src={a.profilePicture || "/placeholder.svg"}
                         alt=""
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
                     </Link>

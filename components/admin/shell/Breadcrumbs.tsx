@@ -41,7 +41,17 @@ export default function Breadcrumbs() {
 
   const kept = raw
     .map((seg, i) => ({ seg, i }))
-    .filter(({ seg, i }) => !(seg === "catalog" && i !== raw.length - 1));
+    .filter(({ seg, i }) => {
+      // "catalog" is a routing group, not a place users navigate to (except when
+      // it IS the leaf — the Homepage hub). Drop it otherwise.
+      if (seg === "catalog" && i !== raw.length - 1) return false;
+      // An id segment immediately before "edit" is redundant: the bare-id URL only
+      // redirects into the editor, so the crumb would link back to the same Edit
+      // page. Drop it so the trail reads "Admin › Releases › Edit" instead of the
+      // confusing "Admin › Releases › Details › Edit".
+      if (isId(seg) && raw[i + 1] === "edit") return false;
+      return true;
+    });
 
   const crumbs = kept.map(({ seg, i }, idx) => ({
     label: labelFor(seg),

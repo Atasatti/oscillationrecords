@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import type { PressItemDTO } from "@/lib/catalog-data";
+import { slugify } from "@/lib/slug";
 
 /** A single press/coverage card: our summary + link out to the original article. */
 export default function PressCard({ item }: { item: PressItemDTO }) {
@@ -40,7 +41,7 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
             {item.artists.map((a) => (
               <Link
                 key={`a-${a.id}`}
-                href={`/artists/${a.id}`}
+                href={`/artists/${slugify(a.name)}`}
                 className="rounded-full border border-white/10 px-2.5 py-0.5 text-xs text-gray-300 hover:border-white/30 hover:text-white"
               >
                 {a.name}

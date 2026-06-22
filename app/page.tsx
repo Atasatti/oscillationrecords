@@ -13,6 +13,7 @@ import {
   getUpcomingReleases,
 } from "@/lib/catalog-data";
 import { buildOrganizationJsonLd } from "@/lib/seo";
+import { getFooterSocialLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -28,18 +29,34 @@ export const revalidate = 60;
 export default async function Home() {
   // Fetch the page's data on the server, in parallel, so it ships in the initial
   // HTML — no client hydrate-then-fetch waterfall or loading spinners.
-  const [upcomingReleases, carouselReleases, artists] = await Promise.all([
+  const [upcomingReleases, carouselReleases, artists, footerLinks] = await Promise.all([
     getUpcomingReleases(),
     getCarouselReleases(),
     getHomeArtists(),
+    getFooterSocialLinks(),
   ]);
+
+  // The label's own social profiles → schema.org `sameAs`, so Google can reconcile
+  // "Oscillation Records" to its Spotify/Instagram/etc. (stronger entity + better
+  // shot at a knowledge panel).
+  const labelSameAs = [
+    footerLinks.xLink,
+    footerLinks.tiktokLink,
+    footerLinks.youtubeLink,
+    footerLinks.instagramLink,
+    footerLinks.facebookLink,
+    footerLinks.spotifyLink,
+    footerLinks.soundcloudLink,
+    footerLinks.bandcampLink,
+    footerLinks.beatportLink,
+  ].filter((u): u is string => Boolean(u && u.trim()));
 
   return (
     <div>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(buildOrganizationJsonLd()),
+          __html: JSON.stringify(buildOrganizationJsonLd({ sameAs: labelSameAs })),
         }}
       />
       <Navbar />
