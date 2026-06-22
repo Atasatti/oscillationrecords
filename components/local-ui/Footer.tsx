@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   FaBandcamp,
@@ -16,7 +15,6 @@ import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
 import { OPEN_CONSENT_EVENT } from "@/lib/consent";
-import NewsletterToggle from "@/components/local-ui/NewsletterToggle";
 
 const EMPTY_LINKS: FooterSocialLinks = {
   xLink: null,
@@ -33,7 +31,6 @@ const EMPTY_LINKS: FooterSocialLinks = {
 const Footer = () => {
   const [links, setLinks] = useState<FooterSocialLinks>(EMPTY_LINKS);
   const [linksLoaded, setLinksLoaded] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
@@ -76,33 +73,23 @@ const Footer = () => {
 
   return (
     <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-12">
-        {/* Subtle newsletter signup. Full management lives in account settings,
-            so it's hidden there to avoid showing the same toggle twice. */}
-        {pathname !== "/account" ? (
-          <div className="max-w-xs">
-            <NewsletterToggle compact />
-          </div>
-        ) : null}
-
-        {/* Social links, pinned right (and the only top-row item on /account). */}
-        {linksLoaded && socialItems.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-5 sm:ml-auto">
-            {socialItems.map(({ href, Icon, label }) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={label}
-                className="text-muted-foreground hover:text-white transition-colors"
-              >
-                <Icon className="h-5 w-5" aria-hidden />
-              </a>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {/* Social links */}
+      {linksLoaded && socialItems.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-5">
+          {socialItems.map(({ href, Icon, label }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={label}
+              className="text-muted-foreground hover:text-white transition-colors"
+            >
+              <Icon className="h-5 w-5" aria-hidden />
+            </a>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-10 flex flex-col-reverse items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
         <p className="text-xs text-muted-foreground">

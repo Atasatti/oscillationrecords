@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
-import IconInput from "../local-ui/IconInput";
-import { ArrowRight } from "lucide-react";
+import NewsletterToggle from "../local-ui/NewsletterToggle";
 import clsx from "clsx"; // optional: use clsx for cleaner conditional classes
 import { usePageMedia } from "@/hooks/use-page-media";
 
@@ -32,11 +31,9 @@ const MusicHeardSection: React.FC<MusicHeardSectionProps> = ({
         {subtext}
       </p>
       <div className="flex justify-center mt-8 sm:mt-12 md:mt-16 px-4">
-        <IconInput
-          placeholder="enter your email"
-          icon={ArrowRight}
-          className="max-w-80 w-full"
-        />
+        <div className="max-w-md w-full">
+          <NewsletterToggle />
+        </div>
       </div>
     </div>
   );
