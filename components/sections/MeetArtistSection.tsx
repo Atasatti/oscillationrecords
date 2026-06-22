@@ -9,6 +9,7 @@ import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import { usePageMedia } from "@/hooks/use-page-media";
+import { slugify } from "@/lib/slug";
 
 interface Artist {
   id: string;
@@ -87,7 +88,7 @@ const MeetArtistSection = ({
   const handleViewDetails = () => {
     if (variant === "artists") {
       const a = artists[currentIndex];
-      if (a?.id) router.push(`/artists/${a.id}`);
+      if (a?.id) router.push(`/artists/${slugify(a.name)}`);
       return;
     }
     router.push("/artists");
@@ -97,10 +98,10 @@ const MeetArtistSection = ({
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
         style={{ backgroundImage: `url('${bgHero}')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
         </p>
-        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
@@ -112,10 +113,10 @@ const MeetArtistSection = ({
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
         style={{ backgroundImage: `url('${bgHero}')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
         </p>
-        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center mt-6 sm:mt-8">
           <IconButton text="See Who's Here"/>
         </div>
@@ -130,10 +131,10 @@ const MeetArtistSection = ({
   return (
     <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-10 md:py-12"
       style={{ backgroundImage: `url('${bgHero}')` }}>
-      <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+      <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
         Meet the Artists.
       </p>
-      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
       <div className="flex justify-center mt-5 sm:mt-6">
         <IconButton text="See Who's Here" onClick={() => router.push("/artists")}/>
       </div>

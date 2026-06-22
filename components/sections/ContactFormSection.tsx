@@ -6,10 +6,10 @@ import { Textarea } from "../ui/textarea";
 const ContactFormSection = () => {
   return (
     <div className=" py-24">
-      <p className="font-light text-5xl opacity-90 tracking-tighter">
+      <p className="font-light text-5xl tracking-tighter">
         Let’s get your music heard.
       </p>
-      <p className="text-muted-foreground text-lg mt-3 opacity-50 font-light">
+      <p className="text-muted-foreground text-lg mt-3 font-light">
         Artist, visionary, or just someone with big ideas? We’re here to listen.
         Let’s talk.
       </p>

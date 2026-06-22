@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { publicReleaseWhere } from "@/lib/catalog-data";
 import { SITE_URL, absoluteUrl } from "@/lib/seo";
+import { slugify } from "@/lib/slug";
 
 // Regenerate hourly. Lists static pages + every public artist and release so
 // search engines can discover and crawl them all.
@@ -23,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const [artists, releases] = await Promise.all([
       prisma.artist.findMany({
         where: { showOnWebsite: true },
-        select: { id: true, updatedAt: true, profilePicture: true },
+        select: { id: true, name: true, updatedAt: true, profilePicture: true },
       }),
       prisma.release.findMany({
         where: publicReleaseWhere(),
@@ -38,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // absoluteUrl is a no-op on the already-absolute S3 URLs but guards
       // against any relative path.
       ...artists.map((a) => ({
-        url: `${SITE_URL}/artists/${a.id}`,
+        url: `${SITE_URL}/artists/${slugify(a.name)}`,
         lastModified: a.updatedAt,
         changeFrequency: "weekly" as const,
         priority: 0.7,

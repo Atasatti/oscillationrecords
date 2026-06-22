@@ -5,6 +5,8 @@
 // just prose. The `sameAs` links (Spotify, socials, MusicBrainz, ISNI) are how
 // search engines reconcile the page to a real-world entity / knowledge panel.
 
+import { slugify } from "@/lib/slug";
+
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL || "https://oscillationrecords.com"
 ).replace(/\/$/, "");
@@ -63,7 +65,7 @@ function buildPlace(city?: string | null, country?: string | null) {
 
 /** schema.org MusicGroup for an artist page (works for solo acts and bands). */
 export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = []) {
-  const url = absoluteUrl(`/artists/${artist.id}`);
+  const url = absoluteUrl(`/artists/${slugify(artist.name)}`);
   const sameAs = [
     artist.xLink,
     artist.tiktokLink,
@@ -85,6 +87,14 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     name: artist.name,
     url,
     "@id": url,
+    // Ties each artist to the label entity — directly reinforces
+    // "Oscillation Records <artist>" searches and the label knowledge graph.
+    recordLabel: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      "@id": `${SITE_URL}/#organization`,
+    },
   };
   if (artist.profilePicture) jsonLd.image = imageObject(artist.profilePicture, artist.name);
   const desc = metaDescription(artist.biography, 5000);
@@ -156,7 +166,7 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     jsonLd.byArtist = {
       "@type": "MusicGroup",
       name: release.primaryArtist.name,
-      url: absoluteUrl(`/artists/${release.primaryArtist.id}`),
+      url: absoluteUrl(`/artists/${slugify(release.primaryArtist.name)}`),
     };
   }
   if (release.tracks && release.tracks.length) {
@@ -255,7 +265,7 @@ function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
     ...(item.artists ?? []).map((a) => ({
       "@type": "MusicGroup",
       name: a.name,
-      url: absoluteUrl(`/artists/${a.id}`),
+      url: absoluteUrl(`/artists/${slugify(a.name)}`),
     })),
     ...(item.releases ?? []).map((r) => ({
       "@type": "MusicAlbum",

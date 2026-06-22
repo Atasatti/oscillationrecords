@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ArtistCard from "../local-ui/ArtistCard";
+import { slugify } from "@/lib/slug";
 
 interface Artist {
   id: string;
@@ -127,7 +128,7 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
       ) : (
         <div className="flex gap-5 items-center flex-wrap mt-14">
           {filteredArtists.map((artist) => (
-            <Link key={artist.id} href={`/artists/${artist.id}`}>
+            <Link key={artist.id} href={`/artists/${slugify(artist.name)}`}>
               <ArtistCard artist={artist} />
             </Link>
           ))}

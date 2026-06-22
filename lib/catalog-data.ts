@@ -13,6 +13,7 @@ import {
 } from "@/lib/release-format";
 import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
 import { compareComingSoon } from "@/lib/coming-soon-order";
+import { slugify } from "@/lib/slug";
 
 /**
  * Server-side data helpers for the public catalog. These are the single source
@@ -408,6 +409,34 @@ function toPublicArtist(a: ArtistRecord): PublicArtistDTO {
     updatedAt: a.updatedAt.toISOString(),
   };
 }
+
+/**
+ * Every public artist's slug → id (slug derived from the name). Powers the
+ * pretty `/artists/<slug>` URLs, the static params, and the sitemap. Cached per
+ * request so resolving a slug never costs more than one query.
+ */
+export const getArtistSlugIndex = cache(
+  async (): Promise<{ id: string; name: string; slug: string }[]> => {
+    try {
+      const artists = await prisma.artist.findMany({
+        where: { showOnWebsite: true },
+        select: { id: true, name: true },
+      });
+      return artists.map((a) => ({ id: a.id, name: a.name, slug: slugify(a.name) }));
+    } catch (e) {
+      console.error("getArtistSlugIndex: DB unavailable", e);
+      return [];
+    }
+  }
+);
+
+/** Resolve a pretty `/artists/<slug>` to its artist id, or null if no match. */
+export const resolveArtistIdBySlug = cache(
+  async (slug: string): Promise<string | null> => {
+    const index = await getArtistSlugIndex();
+    return index.find((a) => a.slug === slug)?.id ?? null;
+  }
+);
 
 /** All live artists for the public /artists page, listed alphabetically. */
 export async function getPublicArtists(): Promise<PublicArtistDTO[]> {

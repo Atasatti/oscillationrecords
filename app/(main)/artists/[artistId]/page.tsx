@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { getArtistDetail, getPressForArtist } from "@/lib/catalog-data";
+import { notFound, permanentRedirect } from "next/navigation";
+import {
+  getArtistDetail,
+  getArtistSlugIndex,
+  getPressForArtist,
+  resolveArtistIdBySlug,
+} from "@/lib/catalog-data";
+import { ARTIST_ID_RE, slugify } from "@/lib/slug";
 import PressCard from "@/components/local-ui/PressCard";
 import {
   buildArtistJsonLd,
@@ -15,15 +20,16 @@ import ArtistDetailView from "./ArtistDetailView";
 // ISR: cache each artist page for a minute, regenerate on demand for new artists.
 export const revalidate = 60;
 
-// Prerender every live artist at build so pages serve from cache (fast TTFB);
-// artists added later render on demand and are then cached (ISR).
+// Prerender every live artist at build (by slug) so pages serve from cache (fast
+// TTFB); artists added later render on demand and are then cached (ISR). The
+// `[artistId]` segment now holds a name-slug; legacy id URLs 308-redirect below.
 export async function generateStaticParams() {
   try {
-    const artists = await prisma.artist.findMany({
-      where: { showOnWebsite: true },
-      select: { id: true },
-    });
-    return artists.map((a) => ({ artistId: a.id }));
+    const index = await getArtistSlugIndex();
+    // Dedupe in case two names slugify to the same string (rare for a curated roster).
+    return Array.from(new Set(index.map((a) => a.slug))).map((slug) => ({
+      artistId: slug,
+    }));
   } catch {
     return [];
   }
@@ -34,11 +40,12 @@ export async function generateMetadata({
 }: {
   params: Promise<{ artistId: string }>;
 }): Promise<Metadata> {
-  const { artistId } = await params;
-  const data = await getArtistDetail(artistId);
+  const { artistId: param } = await params;
+  const id = ARTIST_ID_RE.test(param) ? param : await resolveArtistIdBySlug(param);
+  const data = id ? await getArtistDetail(id) : null;
   if (!data) return { title: "Artist not found" };
   const a = data.artist;
-  const url = absoluteUrl(`/artists/${a.id}`);
+  const url = absoluteUrl(`/artists/${slugify(a.name)}`);
   const description = metaDescription(a.biography) || `${a.name} on ${SITE_NAME}.`;
   return {
     title: a.name,
@@ -67,20 +74,30 @@ export default async function ArtistDetail({
 }: {
   params: Promise<{ artistId: string }>;
 }) {
-  const { artistId } = await params;
-  // Artist + releases fetched on the server (in parallel inside the helper), so
-  // the page ships fully rendered — no client waterfall or loading spinner.
-  const data = await getArtistDetail(artistId);
+  const { artistId: param } = await params;
 
-  if (!data) notFound();
+  // Legacy `/artists/<id>` links 308-redirect to the canonical name-slug URL, so
+  // old bookmarks/shares keep working and Google consolidates onto the slug.
+  if (ARTIST_ID_RE.test(param)) {
+    const legacy = await getArtistDetail(param);
+    if (!legacy) notFound();
+    permanentRedirect(`/artists/${slugify(legacy.artist.name)}`);
+  }
+
+  // Slug path: resolve to an id, then load the artist + releases on the server
+  // (in parallel inside the helper) so the page ships fully rendered.
+  const id = await resolveArtistIdBySlug(param);
+  const data = id ? await getArtistDetail(id) : null;
+
+  if (!id || !data) notFound();
 
   const jsonLd = buildArtistJsonLd(data.artist, data.releases);
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: "Home", url: "/" },
     { name: "Artists", url: "/artists" },
-    { name: data.artist.name, url: `/artists/${data.artist.id}` },
+    { name: data.artist.name, url: `/artists/${slugify(data.artist.name)}` },
   ]);
-  const press = await getPressForArtist(artistId);
+  const press = await getPressForArtist(id);
 
   return (
     <>

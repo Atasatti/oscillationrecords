@@ -18,7 +18,7 @@ const NoProfitSection = () => {
       />
 
       <div className="relative z-[2]">
-        <p className="font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-center tracking-tighter">
           Oscillation Records: Built for
           <br /> <span className="font-normal opacity-35">Artists</span>, Not
           Profit.
