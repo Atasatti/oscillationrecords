@@ -118,7 +118,7 @@ const MeetArtistSection = ({
         </p>
         <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center mt-6 sm:mt-8">
-          <IconButton text="See Who's Here"/>
+          <IconButton text="See Who's Here" href="/artists"/>
         </div>
         <p className="text-center text-muted-foreground mt-12 sm:mt-16">No artists available yet.</p>
       </div>
@@ -136,7 +136,7 @@ const MeetArtistSection = ({
       </p>
       <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
       <div className="flex justify-center mt-5 sm:mt-6">
-        <IconButton text="See Who's Here" onClick={() => router.push("/artists")}/>
+        <IconButton text="See Who's Here" href="/artists"/>
       </div>
       <div className="mt-6 sm:mt-8 flex flex-col lg:flex-row justify-between items-center gap-6 lg:gap-6">
         {/* Previous button - hidden on mobile, shown on desktop */}
