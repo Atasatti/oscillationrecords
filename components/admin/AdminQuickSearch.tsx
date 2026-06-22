@@ -106,7 +106,7 @@ export default function AdminQuickSearch() {
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                      <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
                       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.name}</span>
                     </button>
                   ))}

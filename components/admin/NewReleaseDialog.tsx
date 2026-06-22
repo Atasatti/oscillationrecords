@@ -154,7 +154,7 @@ export default function NewReleaseDialog({
                     <img
                       src={a.profilePicture || "/placeholder.svg"}
                       alt=""
-                      className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      className="h-9 w-9 shrink-0 rounded-lg object-cover"
                     />
                     <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
                     <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />

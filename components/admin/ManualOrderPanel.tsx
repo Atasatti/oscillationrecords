@@ -54,7 +54,7 @@ function Row({ item, index, kind }: { item: OrderItem; index: number; kind: "rel
       <img
         src={item.profilePicture || item.thumbnail || (kind === "artist" ? "/placeholder.svg" : "/new-music-img1.svg")}
         alt=""
-        className={`h-10 w-10 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded-lg"}`}
+        className="h-10 w-10 shrink-0 rounded-lg object-cover"
       />
       <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
       {item.status === "DRAFT" ? (
