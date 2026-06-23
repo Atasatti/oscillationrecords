@@ -29,7 +29,7 @@ type OrderItem = {
   thumbnail?: string | null;
 };
 
-type SearchHit = { id: string; name: string; profilePicture?: string | null; thumbnail?: string | null; status?: "DRAFT" | "SCHEDULED" | "RELEASED" };
+type SearchHit = { id: string; name: string; profilePicture?: string | null; thumbnail?: string | null; status?: "DRAFT" | "SCHEDULED" | "RELEASED"; showOnWebsite?: boolean };
 
 /** One draggable carousel row (grip + thumbnail + name + remove). */
 function CarouselRow({
@@ -147,11 +147,13 @@ export default function HomeOrderPanel({
         const res = await fetch(`${searchUrl}?pageSize=8&q=${encodeURIComponent(term)}`);
         const data = res.ok ? await res.json() : { items: [] };
         const featured = new Set(items.map((i) => i.id));
-        // Exclude already-featured items and any DRAFT release — only published/
-        // live releases may be added to the New Music carousel.
+        // Exclude already-featured items, any DRAFT release (only published
+        // releases in New Music), and any hidden artist (only visible artists as
+        // Featured Artists).
         setResults(
           (data.items || []).filter(
-            (r: SearchHit) => !featured.has(r.id) && r.status !== "DRAFT"
+            (r: SearchHit) =>
+              !featured.has(r.id) && r.status !== "DRAFT" && r.showOnWebsite !== false
           )
         );
       } finally {

@@ -166,6 +166,27 @@ export async function PATCH(
       return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
 
+    // A hidden artist (not shown on the website) must not be a Featured Artist.
+    // Effective visibility = this PATCH's value if present, otherwise the current.
+    const nextVisible =
+      data.showOnWebsite !== undefined ? data.showOnWebsite : existing.showOnWebsite;
+    // Reject NEWLY featuring a hidden artist (e.g. the home-order "add"); a stale
+    // flag carried by an unrelated save is coerced off below instead (self-healing).
+    if (data.featuredOnHome === true && !existing.featuredOnHome && !nextVisible) {
+      return NextResponse.json(
+        {
+          error:
+            "Only visible artists can be Featured Artists — set this artist to show on the website first.",
+        },
+        { status: 400 }
+      );
+    }
+    // Hiding an artist drops it from the Featured set, so it never lingers as
+    // "hidden but featured".
+    if (data.showOnWebsite === false) {
+      data.featuredOnHome = false;
+    }
+
     // When newly featuring, append to the end of the home order.
     if (data.featuredOnHome === true && !existing.featuredOnHome) {
       const max = await prisma.artist.aggregate({
