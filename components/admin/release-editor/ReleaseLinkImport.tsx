@@ -111,7 +111,8 @@ export default function ReleaseLinkImport({
     (async () => {
       try {
         const res = await fetch("/api/admin/spotify/search?type=album");
-        if (!cancelled) setSpotifyEnabled(res.ok);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setSpotifyEnabled(res.ok && data.configured !== false);
       } catch {
         if (!cancelled) setSpotifyEnabled(false);
       }
