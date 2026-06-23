@@ -5,13 +5,15 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Loader2, Save, Upload } from "lucide-react";
 import { DEFAULT_STACKED_HERO_IMAGES } from "@/lib/site-settings-defaults";
+import { useToast } from "@/components/local-ui/Toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
 type Slot = "image1" | "image2" | "image3";
 
 const LABELS: Record<Slot, string> = {
-  image1: "Image 1 (front)",
+  image1: "Image 1",
   image2: "Image 2",
-  image3: "Image 3 (back)",
+  image3: "Image 3",
 };
 
 export default function StackedHeroImagesAdmin() {
@@ -20,10 +22,13 @@ export default function StackedHeroImagesAdmin() {
     image2: DEFAULT_STACKED_HERO_IMAGES.image2,
     image3: DEFAULT_STACKED_HERO_IMAGES.image3,
   });
+  const toast = useToast();
+  // Uploaded-but-not-saved images are unsaved work — guard navigation/tab switch.
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChangesGuard(dirty);
   const [uploadingSlot, setUploadingSlot] = useState<Slot | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const inputRefs = useRef<Record<Slot, HTMLInputElement | null>>({
     image1: null,
     image2: null,
@@ -46,7 +51,7 @@ export default function StackedHeroImagesAdmin() {
           }
         }
       } catch {
-        if (!cancelled) setMessage({ type: "err", text: "Could not load current images." });
+        if (!cancelled) toast.error("Could not load current images.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -54,7 +59,7 @@ export default function StackedHeroImagesAdmin() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   const getPresignedUrl = async (imageFile: File) => {
     const timestamp = Date.now();
@@ -87,21 +92,20 @@ export default function StackedHeroImagesAdmin() {
 
   const handlePickFile = async (slot: Slot, file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) {
-      setMessage({ type: "err", text: "Please choose an image file." });
+      toast.error("Please choose an image file.");
       return;
     }
-    setMessage(null);
     setUploadingSlot(slot);
     try {
       const { uploadURL, fileURL } = await getPresignedUrl(file);
       await uploadFileToS3(file, uploadURL);
       setUrls((prev) => ({ ...prev, [slot]: fileURL }));
-      setMessage({ type: "ok", text: `${LABELS[slot]} uploaded. Save to apply on the home page.` });
+      setDirty(true);
+      toast.success(`${LABELS[slot]} uploaded. Save to apply on the home page.`);
     } catch (e) {
-      setMessage({
-        type: "err",
-        text: e instanceof Error ? e.message : "Upload failed. Check AWS configuration.",
-      });
+      toast.error(
+        e instanceof Error ? e.message : "Upload failed. Check AWS configuration."
+      );
     } finally {
       setUploadingSlot(null);
     }
@@ -110,11 +114,10 @@ export default function StackedHeroImagesAdmin() {
   const handleSave = async () => {
     const { image1, image2, image3 } = urls;
     if (!image1?.trim() || !image2?.trim() || !image3?.trim()) {
-      setMessage({ type: "err", text: "All three images are required." });
+      toast.error("All three images are required.");
       return;
     }
     setSaving(true);
-    setMessage(null);
     try {
       const res = await fetch("/api/admin/site-settings/stacked-hero", {
         method: "PUT",
@@ -125,12 +128,10 @@ export default function StackedHeroImagesAdmin() {
       if (!res.ok) {
         throw new Error(data.error || "Save failed");
       }
-      setMessage({ type: "ok", text: "Home hero images saved." });
+      setDirty(false);
+      toast.success("Home hero images saved.");
     } catch (e) {
-      setMessage({
-        type: "err",
-        text: e instanceof Error ? e.message : "Save failed",
-      });
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -147,10 +148,13 @@ export default function StackedHeroImagesAdmin() {
   return (
     <section className="mt-14 md:mt-16 border-t border-white/10 pt-10 md:pt-12">
       <div className="mb-6 text-center md:text-left">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Home page</p>
-        <h2 className="font-light text-2xl md:text-3xl tracking-tighter mt-1">Stacked hero images</h2>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Home page · top carousel</p>
+        <h2 className="font-light text-2xl md:text-3xl tracking-tighter mt-1">Default top images</h2>
         <p className="text-gray-400 text-sm mt-2 max-w-2xl mx-auto md:mx-0">
-          Three images used in the hero stack (front, middle, back). Defaults are the built-in SVGs until you upload and save. All three are required.
+          These three images are the default content of the photo carousel at the
+          very top of the home page — the first thing visitors see. They show
+          until you add your own studio photos below. Until you upload your own,
+          the built-in Oscillation artwork is used. All three are required.
         </p>
       </div>
 
@@ -225,11 +229,6 @@ export default function StackedHeroImagesAdmin() {
             </>
           )}
         </Button>
-        {message && (
-          <p className={message.type === "ok" ? "text-green-400 text-sm" : "text-red-400 text-sm"}>
-            {message.text}
-          </p>
-        )}
       </div>
     </section>
   );

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "motion/react";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 const floatTransition = (duration: number) => ({
   duration,
@@ -12,10 +13,11 @@ const floatTransition = (duration: number) => ({
 });
 
 export default function AboutSection2() {
+  const { aboutMain, aboutSide1, aboutSide2, aboutSide3, bgAboutSection2 } = usePageMedia();
   return (
     <section
       className="relative bg-no-repeat bg-cover pt-24 pb-50"
-      style={{ backgroundImage: `url('/about-section2-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgAboutSection2}')` }}
     >
 
       {/* Top right image */}
@@ -34,11 +36,12 @@ export default function AboutSection2() {
           style={{ transformStyle: "preserve-3d" }}
         >
           <Image
-            src="/about-section2-side2.svg?height=200&width=200"
+            src={aboutSide2}
             alt="Music album cover"
             width={200}
             height={300}
             className="rounded-lg shadow-2xl w-32 h-32 md:w-48 md:h-48 object-cover"
+            unoptimized={aboutSide2.startsWith("/")}
           />
         </motion.div>
       </div>
@@ -59,11 +62,12 @@ export default function AboutSection2() {
           style={{ transformStyle: "preserve-3d" }}
         >
           <Image
-            src="/about-section2-side1.svg?height=200&width=200"
+            src={aboutSide1}
             alt="Music album cover"
             width={200}
             height={300}
             className="rounded-lg shadow-2xl w-28 h-28 md:w-40 md:h-40 object-cover"
+            unoptimized={aboutSide1.startsWith("/")}
           />
         </motion.div>
       </div>
@@ -84,11 +88,12 @@ export default function AboutSection2() {
           style={{ transformStyle: "preserve-3d" }}
         >
           <Image
-            src="/about-section2-side1.svg?height=200&width=200"
+            src={aboutSide1}
             alt="Music album cover"
             width={200}
             height={300}
             className="rounded-lg shadow-2xl w-32 h-32 md:w-48 md:h-48 object-cover"
+            unoptimized={aboutSide1.startsWith("/")}
           />
         </motion.div>
       </div>
@@ -109,11 +114,12 @@ export default function AboutSection2() {
           style={{ transformStyle: "preserve-3d" }}
         >
           <Image
-            src="/about-section2-side3.svg?height=200&width=200"
+            src={aboutSide3}
             alt="Music album cover"
             width={200}
             height={300}
             className="rounded-lg shadow-2xl w-28 h-28 md:w-40 md:h-40 object-cover"
+            unoptimized={aboutSide3.startsWith("/")}
           />
         </motion.div>
       </div>
@@ -148,12 +154,18 @@ export default function AboutSection2() {
           style={{ transformStyle: "preserve-3d" }}
           className="drop-shadow-[0_24px_40px_rgba(0,0,0,0.55)]"
         >
-          <Image src="/about-section2-img.svg" width={300} height={200} alt="section2" />
+          <Image
+            src={aboutMain}
+            width={300}
+            height={200}
+            alt="section2"
+            unoptimized={aboutMain.startsWith("/")}
+          />
         </motion.div>
       </div>
 
       <div className="mx-auto max-w-lg mt-22">
-        <p className="font-light text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-5xl text-center tracking-tighter">
           The Future of Music Starts Here.
         </p>
         <p className="text-muted-foreground text-center font-light mt-6">

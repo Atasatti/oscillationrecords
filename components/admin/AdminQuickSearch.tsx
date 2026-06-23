@@ -23,6 +23,7 @@ export default function AdminQuickSearch() {
       setReleases([]);
       return;
     }
+    let cancelled = false;
     const t = setTimeout(async () => {
       setLoading(true);
       try {
@@ -30,13 +31,17 @@ export default function AdminQuickSearch() {
           fetch(`/api/artists?pageSize=5&q=${encodeURIComponent(term)}`).then((x) => (x.ok ? x.json() : { items: [] })),
           fetch(`/api/releases?pageSize=5&q=${encodeURIComponent(term)}`).then((x) => (x.ok ? x.json() : { items: [] })),
         ]);
+        if (cancelled) return; // a newer query superseded this one
         setArtists(a.items || []);
         setReleases(r.items || []);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [q]);
 
   useEffect(() => {
@@ -101,7 +106,7 @@ export default function AdminQuickSearch() {
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                      <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
                       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.name}</span>
                     </button>
                   ))}
@@ -118,7 +123,7 @@ export default function AdminQuickSearch() {
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={r.thumbnail || "/new-music-img1.svg"} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+                      <img src={r.thumbnail || "/new-music-img1.svg"} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-foreground">{r.name}</span>
                         {r.primaryArtistName ? <span className="block truncate text-xs text-muted-foreground">{r.primaryArtistName}</span> : null}

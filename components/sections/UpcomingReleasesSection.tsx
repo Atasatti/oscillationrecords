@@ -3,6 +3,7 @@
 import Image from "next/image";
 import React from "react";
 import { cn } from "@/lib/utils";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 interface UpcomingRelease {
   id: string;
@@ -191,6 +192,7 @@ const UpcomingReleasesSection = ({
   // Always server-supplied (home SSRs getUpcomingReleases into initialReleases).
   const releases = initialReleases ?? [];
   const loading = false;
+  const { bgHero } = usePageMedia();
 
   const sectionChrome = (
     <>
@@ -204,7 +206,8 @@ const UpcomingReleasesSection = ({
       />
       {/* hero-bg.svg is 2126×290 — scale to full section width so waves read complete along the x-axis; sits under copy (z-10) */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[min(420px,52vw)] w-full bg-[url('/hero-bg.svg')] bg-no-repeat bg-[length:100%_auto] bg-[position:center_40%] opacity-[0.17] invert [mask-image:linear-gradient(to_bottom,black_6%,black_58%,transparent_94%)] motion-reduce:opacity-[0.1]"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[min(420px,52vw)] w-full bg-no-repeat bg-[length:100%_auto] bg-[position:center_40%] opacity-[0.17] invert [mask-image:linear-gradient(to_bottom,black_6%,black_58%,transparent_94%)] motion-reduce:opacity-[0.1]"
+        style={{ backgroundImage: `url('${bgHero}')` }}
         aria-hidden
       />
       <div

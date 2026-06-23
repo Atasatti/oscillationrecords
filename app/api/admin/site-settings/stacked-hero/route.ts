@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { isSafeUrl } from "@/lib/url-safety";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +20,13 @@ export async function PUT(request: NextRequest) {
     if (!image1 || !image2 || !image3) {
       return NextResponse.json(
         { error: "image1, image2, and image3 are required" },
+        { status: 400 }
+      );
+    }
+
+    if (![image1, image2, image3].every(isSafeUrl)) {
+      return NextResponse.json(
+        { error: "Image URLs must be http(s) or site-relative paths" },
         { status: 400 }
       );
     }

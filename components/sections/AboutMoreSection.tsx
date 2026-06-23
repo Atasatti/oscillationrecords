@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { getPageMedia } from "@/lib/page-media";
 
-export default function AboutMoreSection() {
+export default async function AboutMoreSection() {
+  const { bgHero } = await getPageMedia();
   return (
     <section
       className="bg-background bg-center bg-no-repeat px-4 py-14 sm:px-6 sm:py-16 md:px-[10%] md:py-20"
-      style={{ backgroundImage: `url('/hero-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgHero}')` }}
     >
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">

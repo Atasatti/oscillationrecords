@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { readConsentClient, OPEN_CONSENT_EVENT } from "@/lib/consent";
+import { readConsentClient, OPEN_CONSENT_EVENT, CONSENT_GRANTED_EVENT } from "@/lib/consent";
 
 /**
  * Opt-in cookie consent banner (UK GDPR / PECR). Shows until the visitor makes a
@@ -38,6 +38,9 @@ export default function CookieConsent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analytics }),
       });
+      // Let trackers start immediately (e.g. record the page they accepted on),
+      // rather than waiting for the next navigation.
+      if (analytics) window.dispatchEvent(new Event(CONSENT_GRANTED_EVENT));
     } catch {
       /* even on failure, hide — a missing consent cookie just re-prompts later */
     } finally {
@@ -52,8 +55,9 @@ export default function CookieConsent() {
       <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-xl border border-white/10 bg-[#141414]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur sm:flex-row sm:items-center sm:gap-4">
         <p className="flex-1 text-sm text-gray-300">
           We use a strictly-necessary cookie to keep you signed in. With your
-          consent we also use a first-party analytics cookie to understand which
-          releases resonate — never sold, never shared.{" "}
+          consent we also use analytics cookies — our own and Google Analytics —
+          to understand which releases resonate. We never sell your data, and
+          nothing non-essential loads unless you accept.{" "}
           <Link href="/privacy" className="underline hover:text-white">
             Privacy policy
           </Link>

@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { computeArtistSeo, type ArtistSeoGrade, type ArtistSeoSignals } from "@/lib/seo-score";
 import {
+  mapPressItems,
   mapReleasesToCards,
+  pressOrderBy,
   releaseCardListArgs,
+  type PressItemDTO,
   type ReleaseCardDTO,
 } from "@/lib/catalog-data";
 
@@ -28,9 +32,14 @@ export interface AdminArtistRow {
   releaseCount: number;
   playsLast90d: number;
   lastReleaseDate: string | null; // ISO
-  // Profile completeness, for spotting gaps across a big roster.
+  // Per-artist SEO score (0–100) + weight-ordered gaps, for maximising each
+  // artist's discoverability across a big roster. See lib/seo-score.ts.
+  seoScore: number;
+  seoGrade: ArtistSeoGrade;
+  // `missing` lists the outstanding SEO gaps, highest-impact first (e.g.
+  // "streaming links", "MusicBrainz ID", "fuller bio"). `complete` = nothing left.
   complete: boolean;
-  missing: string[]; // any of: "photo" | "bio" | "links" | "genres"
+  missing: string[];
 }
 
 export interface Page<T> {
@@ -85,6 +94,9 @@ const ROW_SELECT = {
   createdAt: true,
   genres: true,
   biography: true,
+  // Entity identifiers — strongest `sameAs` signals; scored in the SEO grade.
+  musicBrainzId: true,
+  isni: true,
   xLink: true,
   tiktokLink: true,
   instagramLink: true,
@@ -113,16 +125,23 @@ function buildWhere(filters: ArtistFilters): Prisma.ArtistWhereInput {
   return where;
 }
 
-function toRow(a: ArtistSelectRow): AdminArtistRow {
-  const hasPhoto = Boolean(a.profilePicture);
-  const hasBio = (a.biography ?? "").trim().length >= 30;
-  const hasAnyLink = LINK_KEYS.some((k) => Boolean((a as Record<string, unknown>)[k]));
-  const hasGenres = (a.genres ?? []).length > 0;
-  const missing: string[] = [];
-  if (!hasPhoto) missing.push("photo");
-  if (!hasBio) missing.push("bio");
-  if (!hasAnyLink) missing.push("links");
-  if (!hasGenres) missing.push("genres");
+// Roster row carrying the raw SEO signals (minus release count, not yet known)
+// so attachStats can finalise the score. The `_sig` field is internal and is
+// dropped before the row leaves attachStats.
+type RowWithSignals = AdminArtistRow & { _sig: Omit<ArtistSeoSignals, "releaseCount"> };
+
+function toRow(a: ArtistSelectRow): RowWithSignals {
+  const sig: Omit<ArtistSeoSignals, "releaseCount"> = {
+    hasPhoto: Boolean(a.profilePicture),
+    bioLength: (a.biography ?? "").trim().length,
+    genreCount: (a.genres ?? []).length,
+    linkCount: LINK_KEYS.filter((k) => Boolean((a as Record<string, unknown>)[k])).length,
+    hasMusicBrainz: Boolean(a.musicBrainzId),
+    hasIsni: Boolean(a.isni),
+  };
+  // Provisional score with releaseCount=0; attachStats refines it. This keeps
+  // rows valid for callers that skip attachStats (e.g. getFeaturedArtists).
+  const seo = computeArtistSeo({ ...sig, releaseCount: 0 });
 
   return {
     id: a.id,
@@ -138,15 +157,19 @@ function toRow(a: ArtistSelectRow): AdminArtistRow {
     releaseCount: 0,
     playsLast90d: 0,
     lastReleaseDate: null,
-    complete: missing.length === 0,
-    missing,
+    seoScore: seo.score,
+    seoGrade: seo.grade,
+    complete: seo.missing.length === 0,
+    missing: seo.missing,
+    _sig: sig,
   };
 }
 
 // Attach per-page roster stats with exactly TWO extra queries (no N+1):
 // one over Releases touching these artists, one PlayEvent groupBy (last 90d).
-async function attachStats(rows: AdminArtistRow[]): Promise<AdminArtistRow[]> {
-  if (rows.length === 0) return rows;
+// Also finalises each row's SEO score now that the release count is known.
+async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
+  if (rows.length === 0) return rows.map(stripSignals);
   const ids = rows.map((r) => r.id);
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
@@ -180,12 +203,27 @@ async function attachStats(rows: AdminArtistRow[]): Promise<AdminArtistRow[]> {
     if (p.artistId) playsById.set(p.artistId, p._count._all);
   }
 
-  return rows.map((r) => ({
-    ...r,
-    releaseCount: countById.get(r.id) ?? 0,
-    playsLast90d: playsById.get(r.id) ?? 0,
-    lastReleaseDate: lastById.get(r.id)?.toISOString() ?? null,
-  }));
+  return rows.map((r) => {
+    const releaseCount = countById.get(r.id) ?? 0;
+    const seo = computeArtistSeo({ ...r._sig, releaseCount });
+    return stripSignals({
+      ...r,
+      releaseCount,
+      playsLast90d: playsById.get(r.id) ?? 0,
+      lastReleaseDate: lastById.get(r.id)?.toISOString() ?? null,
+      seoScore: seo.score,
+      seoGrade: seo.grade,
+      complete: seo.missing.length === 0,
+      missing: seo.missing,
+    });
+  });
+}
+
+/** Drop the internal `_sig` field so it never ships to the client. */
+function stripSignals(r: RowWithSignals): AdminArtistRow {
+  const { _sig, ...row } = r;
+  void _sig;
+  return row;
 }
 
 export async function getArtistsPage({
@@ -225,12 +263,15 @@ export async function getArtistsPage({
   }
 
   const safePage = Math.max(1, page);
+  // Clamp dir: the route casts a raw query string to SortDir, so guard it —
+  // Prisma's orderBy only accepts "asc"/"desc" and throws otherwise.
+  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
   const orderBy =
     sortField === "name"
-      ? [{ name: dir }]
+      ? [{ name: safeDir }]
       : sortField === "createdAt"
-        ? [{ createdAt: dir }]
-        : [{ sortOrder: dir }, { createdAt: "desc" as const }];
+        ? [{ createdAt: safeDir }]
+        : [{ sortOrder: safeDir }, { name: "asc" as const }];
   // Run the count and the page query in parallel to halve the DB round-trips.
   const [total, rows] = await Promise.all([
     prisma.artist.count({ where }),
@@ -262,21 +303,21 @@ export async function getFeaturedArtists(): Promise<AdminArtistRow[]> {
     select: ROW_SELECT,
     orderBy: [{ homeOrder: "asc" }, { name: "asc" }],
   });
-  return items.map(toRow);
+  return items.map((a) => stripSignals(toRow(a)));
 }
 
 // ---------------------------------------------------------------------------
 // Releases
 // ---------------------------------------------------------------------------
 
-export type ReleaseSort = "name" | "createdAt" | "kind";
+export type ReleaseSort = "name" | "createdAt" | "kind" | "sortOrder";
 
 export async function getReleasesPage({
   page = 1,
   pageSize = 25,
   q = "",
-  sort = "createdAt",
-  dir = "desc",
+  sort = "sortOrder",
+  dir = "asc",
   status,
 }: {
   page?: number;
@@ -314,12 +355,16 @@ export async function getReleasesPage({
   }
 
   const safePage = Math.max(1, page);
+  // Clamp dir (route casts a raw query string to SortDir; Prisma only accepts asc/desc).
+  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
   const orderBy =
     sort === "name"
-      ? [{ name: dir }]
+      ? [{ name: safeDir }]
       : sort === "kind"
-        ? [{ kind: dir }, { createdAt: "desc" as const }]
-        : [{ createdAt: dir }];
+        ? [{ kind: safeDir }, { createdAt: "desc" as const }]
+        : sort === "sortOrder"
+          ? [{ sortOrder: safeDir }, { createdAt: "desc" as const }]
+          : [{ createdAt: safeDir }];
   // Count + page query in parallel; then resolve artist names.
   const [total, rows] = await Promise.all([
     prisma.release.count({ where }),
@@ -343,4 +388,67 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
     orderBy: [{ homeOrder: "asc" }, { createdAt: "desc" }],
   });
   return mapReleasesToCards(rows, { isAdmin: true });
+}
+
+// ---------------------------------------------------------------------------
+// Press
+// ---------------------------------------------------------------------------
+
+/** Admin press row = the public DTO plus the visibility flag (admin-only). */
+export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean };
+
+/**
+ * Paginated press items for the admin manage table. Resolves linked
+ * artist/release names regardless of their public visibility (isAdmin: true).
+ * Fuzzy search ranks by title / publisher (parity with the public/other tables).
+ */
+export async function getPressPage({
+  page = 1,
+  pageSize = 25,
+  q = "",
+}: {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+}): Promise<Page<AdminPressRow>> {
+  const size = Math.min(Math.max(1, pageSize), 100);
+  const query = q.trim();
+
+  // Attach the admin-only showOnWebsite flag onto each mapped DTO by id.
+  const withVisibility = async (
+    rows: { id: string; showOnWebsite: boolean }[]
+  ): Promise<AdminPressRow[]> => {
+    const visById = new Map(rows.map((r) => [r.id, r.showOnWebsite]));
+    const dtos = await mapPressItems(rows as never, { isAdmin: true });
+    return dtos.map((d) => ({ ...d, showOnWebsite: visById.get(d.id) ?? true }));
+  };
+
+  if (query) {
+    const all = await prisma.pressItem.findMany({ orderBy: pressOrderBy });
+    const ranked = all
+      .map((r) => ({
+        r,
+        score: Math.max(fuzzyScore(query, r.title), fuzzyScore(query, r.publisher)),
+      }))
+      .filter((x) => x.score > 0)
+      .sort((x, y) => y.score - x.score)
+      .map((x) => x.r);
+    const total = ranked.length;
+    const safePage = clampPage(page, size, total);
+    const start = (safePage - 1) * size;
+    const items = await withVisibility(ranked.slice(start, start + size));
+    return { items, total, page: safePage, pageSize: size };
+  }
+
+  const safePage = Math.max(1, page);
+  const [total, rows] = await Promise.all([
+    prisma.pressItem.count(),
+    prisma.pressItem.findMany({
+      orderBy: pressOrderBy,
+      skip: (safePage - 1) * size,
+      take: size,
+    }),
+  ]);
+  const items = await withVisibility(rows);
+  return { items, total, page: safePage, pageSize: size };
 }

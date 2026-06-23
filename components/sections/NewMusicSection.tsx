@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import IconButton from "../local-ui/IconButton";
 import ReleaseCardSm from "../local-ui/ReleaseCardSm";
+import { slugify } from "@/lib/slug";
 
 interface HomeRelease {
   id: string;
@@ -166,7 +167,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   }, [fetchReleases, initialReleases]);
 
   const handleReleaseClick = (release: HomeRelease) => {
-    router.push(`/releases/${release.id}`);
+    router.push(`/releases/${slugify(release.name)}`);
   };
 
   return (

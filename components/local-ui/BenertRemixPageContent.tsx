@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
@@ -88,8 +88,10 @@ export default function BenertRemixPageContent({
 
   // When the competition is over, everyone (including people who already submitted) goes to
   // /benert-remix/result. While the competition is still running, submitters only see the message on this page.
+  const redirectedRef = useRef(false);
   useEffect(() => {
-    if (!competition?.endsAt || competition.active) return;
+    if (!competition?.endsAt || competition.active || redirectedRef.current) return;
+    redirectedRef.current = true; // redirect once, not on every 2s poll tick
     router.replace(BENERT_REMIX_ENDED_PATH);
   }, [competition, router]);
 
@@ -276,6 +278,8 @@ export default function BenertRemixPageContent({
                       <p className="text-xs text-white/50 mt-1">Name your remix after the Benert EP track you remixed.</p>
                     </div>
                     <Input
+                      id="remix-file"
+                      name="remix-file"
                       type="file"
                       accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp3,audio/m4a,audio/x-m4a,.mp3,.wav,.m4a"
                       onChange={(e) => {

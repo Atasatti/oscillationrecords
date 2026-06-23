@@ -3,12 +3,14 @@
 import Image from "next/image";
 import React from "react";
 import { motion } from "motion/react";
+import { usePageMedia } from "@/hooks/use-page-media";
 
 const NoProfitSection = () => {
+  const { homeNoProfit, bgProfit } = usePageMedia();
   return (
     <div
       className="relative overflow-hidden bg-background bg-center bg-contain bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto mt-0 pt-12 sm:pt-16 md:pt-20 pb-20 sm:pb-32 md:pb-40"
-      style={{ backgroundImage: `url('/profit-bg.svg')` }}
+      style={{ backgroundImage: `url('${bgProfit}')` }}
     >
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-28 bg-gradient-to-b from-transparent via-background/75 to-background sm:h-36 md:h-44"
@@ -16,7 +18,7 @@ const NoProfitSection = () => {
       />
 
       <div className="relative z-[2]">
-        <p className="font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl opacity-90 text-center tracking-tighter">
+        <p className="font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-center tracking-tighter">
           Oscillation Records: Built for
           <br /> <span className="font-normal opacity-35">Artists</span>, Not
           Profit.
@@ -65,11 +67,12 @@ const NoProfitSection = () => {
                 }}
               >
                 <Image
-                  src="/profit-img.svg"
+                  src={homeNoProfit}
                   alt="No Profit Image"
                   width={230}
                   height={230}
                   className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-[230px] lg:h-[230px] drop-shadow-[0_20px_30px_rgba(0,0,0,0.5)]"
+                  unoptimized={homeNoProfit.startsWith("/")}
                 />
               </motion.div>
             </div>

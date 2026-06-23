@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { X, ChevronDown, Check } from "lucide-react";
+import { X, ChevronDown, Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MultiSelectOption {
@@ -26,7 +26,9 @@ export function MultiSelect({
   className,
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -38,6 +40,15 @@ export function MultiSelect({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Focus the search box when the menu opens; reset the query when it closes.
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => searchRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+    setQuery("");
+  }, [isOpen]);
 
   const toggleOption = (value: string) => {
     if (disabled) return;
@@ -57,6 +68,11 @@ export function MultiSelect({
   const selectedLabels = selected
     .map((val) => options.find((opt) => opt.value === val)?.label)
     .filter(Boolean);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = normalizedQuery
+    ? options.filter((opt) => opt.label.toLowerCase().includes(normalizedQuery))
+    : options;
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
@@ -120,39 +136,70 @@ export function MultiSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-[#0F0F0F] border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
-          {options.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-400">No options available</div>
-          ) : (
-            options.map((option) => {
-              const isSelected = selected.includes(option.value);
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => toggleOption(option.value)}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-800 transition-colors",
-                    isSelected && "bg-gray-800"
-                  )}
-                >
-                  <div
+        <div className="absolute z-50 w-full mt-1 bg-[#0F0F0F] border border-gray-700 rounded-md shadow-lg overflow-hidden">
+          {/* Search — filters the list by label (so long catalogs stay usable). */}
+          <div className="border-b border-gray-700 p-2">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                aria-hidden
+              />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setIsOpen(false);
+                  }
+                }}
+                placeholder="Search…"
+                aria-label="Search options"
+                className="w-full rounded border border-gray-700 bg-[#0F0F0F] py-1.5 pl-8 pr-2 text-sm text-white placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-60 overflow-auto">
+            {options.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-400">No options available</div>
+            ) : filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-400">
+                No matches for &ldquo;{query.trim()}&rdquo;.
+              </div>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = selected.includes(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleOption(option.value)}
                     className={cn(
-                      "w-4 h-4 border rounded flex items-center justify-center",
-                      isSelected
-                        ? "bg-white border-white"
-                        : "border-gray-600"
+                      "w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-800 transition-colors",
+                      isSelected && "bg-gray-800"
                     )}
                   >
-                    {isSelected && <Check className="w-3 h-3 text-black" />}
-                  </div>
-                  <span className={cn("text-gray-300", isSelected && "text-white")}>
-                    {option.label}
-                  </span>
-                </button>
-              );
-            })
-          )}
+                    <div
+                      className={cn(
+                        "w-4 h-4 border rounded flex items-center justify-center",
+                        isSelected
+                          ? "bg-white border-white"
+                          : "border-gray-600"
+                      )}
+                    >
+                      {isSelected && <Check className="w-3 h-3 text-black" />}
+                    </div>
+                    <span className={cn("text-gray-300", isSelected && "text-white")}>
+                      {option.label}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
     </div>

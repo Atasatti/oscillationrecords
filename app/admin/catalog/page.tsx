@@ -5,8 +5,22 @@ import UpcomingReleasesSortableList from "@/components/admin/UpcomingReleasesSor
 import PageHeader from "@/components/admin/shell/PageHeader";
 import HomeOrderPanel from "@/components/admin/HomeOrderPanel";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import StudioPhotosAdmin from "@/components/admin/StudioPhotosAdmin";
+import PageImagesPanel from "@/components/admin/PageImagesPanel";
+import ContactArtworkPanel from "@/components/admin/ContactArtworkPanel";
+import { compareComingSoon } from "@/lib/coming-soon-order";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Disc3, Users, CalendarClock } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Disc3,
+  Users,
+  CalendarClock,
+  Image as ImageIcon,
+  Mail,
+  FileText,
+  Layers,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
 // The Homepage hub: one place to curate everything shown on the public home page
 // — the New Music carousel, the Featured Artists carousel, and the Coming Soon
@@ -32,9 +47,20 @@ type Row = {
   updatedAt: string;
 };
 
-type Tab = "new-music" | "artists" | "coming-soon";
+type Tab =
+  | "new-music"
+  | "artists"
+  | "coming-soon"
+  | "hero"
+  | "contact"
+  | "about"
+  | "backgrounds";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "hero", label: "Home", icon: ImageIcon },
+  { key: "contact", label: "Contact", icon: Mail },
+  { key: "about", label: "About", icon: FileText },
+  { key: "backgrounds", label: "Backgrounds", icon: Layers },
   { key: "new-music", label: "New Music", icon: Disc3 },
   { key: "artists", label: "Featured Artists", icon: Users },
   { key: "coming-soon", label: "Coming Soon", icon: CalendarClock },
@@ -43,7 +69,8 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
 export default function HomepageAdmin() {
   const router = useRouter();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("new-music");
+  const guard = useUnsavedChangesContext();
+  const [tab, setTab] = useState<Tab>("hero");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -56,17 +83,23 @@ export default function HomepageAdmin() {
       const res = await fetch("/api/releases?status=SCHEDULED&pageSize=100");
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const mapped: Row[] = (data.items || []).map(
-        (r: {
-          id: string;
-          name: string;
-          type: "single" | "ep" | "album";
-          thumbnail: string | null;
-          releaseDate: string | null;
-          primaryArtistName: string | null;
-          preSaveUrl: string | null;
-          createdAt: string;
-        }) => ({
+      type SchedItem = {
+        id: string;
+        name: string;
+        type: "single" | "ep" | "album";
+        thumbnail: string | null;
+        releaseDate: string | null;
+        primaryArtistName: string | null;
+        preSaveUrl: string | null;
+        createdAt: string;
+        comingSoonOrder: number | null;
+      };
+      // Same comparator as the public Coming Soon strip, so the admin list and
+      // the live strip always agree (curated order first, then unordered rows by
+      // soonest release date).
+      const ordered = ((data.items || []) as SchedItem[]).slice().sort(compareComingSoon);
+      const mapped: Row[] = ordered.map(
+        (r) => ({
           id: r.id,
           name: r.name,
           type: r.type,
@@ -141,8 +174,8 @@ export default function HomepageAdmin() {
   return (
     <div>
       <PageHeader
-        title="Homepage"
-        description="Curate what appears on the public home page — the New Music and Featured Artists carousels, and the Coming Soon strip."
+        title="Site content"
+        description="Everything shown on the public pages — the home page carousels and Coming Soon strip, plus the editable images on the home, contact and about pages."
         actions={
           tab === "coming-soon" ? (
             <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
@@ -160,7 +193,10 @@ export default function HomepageAdmin() {
           <button
             key={key}
             type="button"
-            onClick={() => setTab(key)}
+            onClick={() => {
+              if (key !== tab && guard && !guard.confirmNavigation()) return;
+              setTab(key);
+            }}
             className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
               tab === key
                 ? "border-white text-foreground"
@@ -200,7 +236,7 @@ export default function HomepageAdmin() {
             emptyHint={<>Use the search above to add your first artist.</>}
           />
         </div>
-      ) : (
+      ) : tab === "coming-soon" ? (
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="mb-1 text-lg">Coming Soon</h3>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -228,6 +264,29 @@ export default function HomepageAdmin() {
               }}
             />
           )}
+        </div>
+      ) : tab === "contact" ? (
+        <ContactArtworkPanel />
+      ) : tab === "about" ? (
+        <PageImagesPanel
+          group="about"
+          title="About page art"
+          description="The hero image and decorative floating images on the About page. Upload your own, or reset any back to the built-in artwork."
+        />
+      ) : tab === "backgrounds" ? (
+        <PageImagesPanel
+          group="backgrounds"
+          title="Section background patterns"
+          description="The subtle wave/pattern images sitting behind sections across the site. These are shared, so changing one updates every section that uses it."
+        />
+      ) : (
+        <div className="space-y-8">
+          <StudioPhotosAdmin />
+          <PageImagesPanel
+            group="home"
+            title="Home page art"
+            description="Other editable images on the home page."
+          />
         </div>
       )}
 

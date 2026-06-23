@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import {
   VISITOR_COOKIE,
   CONSENT_COOKIE,
@@ -11,6 +12,11 @@ import {
   nextSessionId,
 } from "@/lib/consent";
 
+// "track"/"release" are current; single/album/ep are legacy contentType values.
+const VALID_CONTENT_TYPES = new Set(["track", "release", "single", "album", "ep"]);
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+const MAX_NAME = 300;
+
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +26,11 @@ export const runtime = 'nodejs';
 // first-party visitor cookie. Visitors with no consent are skipped silently.
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit this write-heavy public beacon (one PlayEvent per call) to
+    // curb row-flooding / play-count inflation. Mirrors pageview/link-click.
+    const rl = rateLimit(`trackplay:${clientIp(request)}`, 120, 60_000);
+    if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
     if (!process.env.NEXTAUTH_SECRET) {
       console.error("NEXTAUTH_SECRET is not configured");
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
@@ -35,7 +46,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Resolve the listener: a logged-in user, else a consented anonymous visitor.
+    // Validate shapes so a script can't poison analytics or trigger DB errors.
+    if (typeof contentType !== "string" || !VALID_CONTENT_TYPES.has(contentType)) {
+      return NextResponse.json({ error: "Invalid contentType" }, { status: 400 });
+    }
+    if (typeof contentId !== "string" || !OBJECT_ID.test(contentId)) {
+      return NextResponse.json({ error: "Invalid contentId" }, { status: 400 });
+    }
+    if (artistId != null && (typeof artistId !== "string" || !OBJECT_ID.test(artistId))) {
+      return NextResponse.json({ error: "Invalid artistId" }, { status: 400 });
+    }
+    const safeContentName = String(contentName).slice(0, MAX_NAME);
+    const safeArtistName =
+      artistName != null ? String(artistName).slice(0, MAX_NAME) : null;
+    // Clamp duration to a sane range (0..24h) so it can't be set to junk.
+    const rawDuration = Number(playDuration);
+    const safeDuration = Number.isFinite(rawDuration)
+      ? Math.min(Math.max(Math.trunc(rawDuration), 0), 86_400)
+      : null;
+
+    // Analytics is consent-gated for EVERYONE — logged-in or anonymous. A user
+    // who rejected non-essential cookies must not be tracked, matching the cookie
+    // banner and the admin panel's "only visitors who accepted analytics" wording.
+    if (!hasAnalyticsConsent(consent)) {
+      return NextResponse.json({ success: false, skipped: true });
+    }
+
+    // Resolve the listener: a logged-in user, else the first-party visitor cookie.
     let userId: string | null = null;
     if (token?.email) {
       let user = await prisma.user.findUnique({ where: { email: token.email as string } });
@@ -51,20 +88,14 @@ export async function POST(request: NextRequest) {
       userId = user.id;
     }
 
-    const anonAllowed = hasAnalyticsConsent(consent) && Boolean(vid);
-    if (!userId && !anonAllowed) {
-      // No identity and no analytics consent — don't track, but don't error.
+    // Consented, but nothing to attribute the event to (no logged-in user and no
+    // first-party visitor cookie) — skip rather than record an orphan row.
+    if (!userId && !vid) {
       return NextResponse.json({ success: false, skipped: true });
     }
 
     const { country, city } = geoFromHeaders(request.headers);
-
-    // Sessions are an analytics cookie → only with consent. Logged-in users who
-    // haven't consented are still tracked, just without a session/visit grouping.
-    const consented = hasAnalyticsConsent(consent);
-    const sessionId = consented
-      ? nextSessionId(request.cookies.get(SESSION_COOKIE)?.value)
-      : null;
+    const sessionId = nextSessionId(request.cookies.get(SESSION_COOKIE)?.value);
 
     const playEvent = await prisma.playEvent.create({
       data: {
@@ -75,11 +106,11 @@ export async function POST(request: NextRequest) {
         city,
         contentType,
         contentId,
-        contentName,
+        contentName: safeContentName,
         artistId: artistId || null,
-        artistName: artistName || null,
-        playDuration: playDuration || null,
-        completed: completed || false,
+        artistName: safeArtistName,
+        playDuration: safeDuration,
+        completed: completed === true,
       },
     });
 

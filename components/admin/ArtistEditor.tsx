@@ -12,6 +12,7 @@ import {
   Lock,
   Link2,
   Database,
+  ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
 import type { IsniMatch } from "@/lib/isni";
 import { buildArtistSeedUrl, buildArtistEditUrl } from "@/lib/musicbrainz-seed";
+import GenrePicker from "@/components/admin/GenrePicker";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
 const LINK_FIELDS = [
   ["xLink", "X (Twitter)", "https://x.com/username"],
@@ -116,6 +119,11 @@ export default function ArtistEditor({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Warns before discarding unsaved edits (Cancel/Back/leave). Set on any field
+  // change or import, cleared on a successful save and after the initial load.
+  const [dirty, setDirty] = useState(false);
+  const { confirmDiscard } = useUnsavedChangesGuard(dirty);
+  const markDirty = () => setDirty(true);
 
   // Spotify import
   const [spotifyEnabled, setSpotifyEnabled] = useState(false);
@@ -135,6 +143,7 @@ export default function ArtistEditor({
   const [mbPickedName, setMbPickedName] = useState("");
   const [mbIsni, setMbIsni] = useState<string | null>(null);
   const [mbIpis, setMbIpis] = useState<string[]>([]);
+  const [mbGenres, setMbGenres] = useState<string[]>([]);
 
   // ISNI name lookup (public OCLC SRU)
   const [isniOpen, setIsniOpen] = useState(false);
@@ -148,7 +157,8 @@ export default function ArtistEditor({
     (async () => {
       try {
         const res = await fetch("/api/admin/spotify/search");
-        if (!cancelled) setSpotifyEnabled(res.ok);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setSpotifyEnabled(res.ok && data.configured !== false);
       } catch {
         if (!cancelled) setSpotifyEnabled(false);
       }
@@ -214,12 +224,15 @@ export default function ArtistEditor({
     };
   }, [imagePreview]);
 
-  const setField = (name: keyof FormState, value: string) =>
+  const setField = (name: keyof FormState, value: string) => {
+    markDirty();
     setForm((p) => ({ ...p, [name]: value }));
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    markDirty();
     setImageFile(file);
     setImageUrl(null);
     if (imagePreview && imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
@@ -243,6 +256,7 @@ export default function ArtistEditor({
   };
 
   const applyImport = (a: SpotifyArtist) => {
+    markDirty();
     setForm((p) => ({
       ...p,
       name: a.name || p.name,
@@ -287,10 +301,12 @@ export default function ArtistEditor({
       const links = (data.links || {}) as Partial<Record<LinkKey, string>>;
       const isnis = (data.isnis || []) as string[];
       const ipis = (data.ipis || []) as string[];
+      const genres = (data.genres || []) as string[];
       // Record the MB link regardless — picking the artist establishes it, even
       // if the MB page has no links/codes yet (e.g. a freshly-added artist).
+      markDirty();
       setForm((p) => ({ ...p, musicBrainzId: m.mbid }));
-      if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0) {
+      if (Object.keys(links).length === 0 && isnis.length === 0 && ipis.length === 0 && genres.length === 0) {
         toast.success("Linked to MusicBrainz. That page has no links/codes yet — nothing to import.");
         setMbOpen(false);
         return;
@@ -298,6 +314,7 @@ export default function ArtistEditor({
       setMbPreview(links);
       setMbIsni(isnis[0] || null);
       setMbIpis(ipis);
+      setMbGenres(genres);
     } catch {
       toast.error("Couldn't load data from MusicBrainz");
     } finally {
@@ -309,6 +326,7 @@ export default function ArtistEditor({
   // Also fills ISNI (if empty) and merges any IPI codes found.
   const applyMbLinks = () => {
     if (!mbPreview) return;
+    markDirty();
     let applied = 0;
     let skipped = 0;
     setForm((p) => {
@@ -333,12 +351,18 @@ export default function ArtistEditor({
           applied += add.length;
         }
       }
+      // Fill genres only if empty (don't clobber what the admin typed).
+      if (mbGenres.length && !next.genres.trim()) {
+        next.genres = mbGenres.join(", ");
+        applied += mbGenres.length;
+      }
       return next;
     });
     setMbOpen(false);
     setMbPreview(null);
     setMbIsni(null);
     setMbIpis([]);
+    setMbGenres([]);
     toast.success(
       `Added ${applied} item${applied === 1 ? "" : "s"}${skipped ? `, kept ${skipped} existing` : ""} — review and save.`
     );
@@ -450,6 +474,7 @@ export default function ArtistEditor({
           body: JSON.stringify({ showOnWebsite: form.showOnWebsite }),
         }).catch(() => {});
       }
+      setDirty(false);
       toast.success(mode === "edit" ? "Artist saved" : "Artist created");
       router.push("/admin/catalog/artists");
     } catch (e) {
@@ -472,7 +497,9 @@ export default function ArtistEditor({
     <div>
       <Button
         variant="ghost"
-        onClick={() => router.push("/admin/catalog/artists")}
+        onClick={() => {
+          if (confirmDiscard()) router.push("/admin/catalog/artists");
+        }}
         className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to artists
@@ -497,7 +524,7 @@ export default function ArtistEditor({
                 setMbOpen(true);
               }}
             >
-              <Link2 className="h-4 w-4" /> Find social links
+              <Link2 className="h-4 w-4" /> Import from MusicBrainz
             </Button>
             <Button
               type="button"
@@ -552,6 +579,7 @@ export default function ArtistEditor({
                     variant="destructive"
                     size="sm"
                     onClick={() => {
+                      markDirty();
                       if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
                       setImageFile(null);
                       setImageUrl(null);
@@ -620,15 +648,15 @@ export default function ArtistEditor({
                 <label htmlFor="genres" className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Genres
                 </label>
-                <Input
+                <GenrePicker
                   id="genres"
-                  name="genres"
                   value={form.genres}
-                  onChange={(e) => setField("genres", e.target.value)}
+                  onChange={(v) => setField("genres", v)}
                   placeholder="e.g. House, Techno, Melodic"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Comma-separated. Auto-filled from Spotify on import; editable.
+                  Comma-separated. Use “Browse” to pick from real Spotify genres, or
+                  import from MusicBrainz (Spotify no longer provides genres via its API).
                 </p>
               </div>
               {mode === "edit" ? (
@@ -636,7 +664,10 @@ export default function ArtistEditor({
                   <input
                     type="checkbox"
                     checked={form.showOnWebsite}
-                    onChange={(e) => setForm((p) => ({ ...p, showOnWebsite: e.target.checked }))}
+                    onChange={(e) => {
+                      markDirty();
+                      setForm((p) => ({ ...p, showOnWebsite: e.target.checked }));
+                    }}
                     className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
                   />
                   Show on website
@@ -730,7 +761,7 @@ export default function ArtistEditor({
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Often auto-assigned once on streaming. Use Find, or “Find social links” pulls it from MusicBrainz.
+                    Often auto-assigned once on streaming. Use Find, or “Import from MusicBrainz” pulls it in.
                   </p>
                 </div>
                 <div>
@@ -769,6 +800,36 @@ export default function ArtistEditor({
                 </div>
               </div>
               <div className="mt-4">
+                <label htmlFor="musicBrainzId" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  MusicBrainz ID
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    id="musicBrainzId"
+                    name="musicBrainzId"
+                    value={form.musicBrainzId}
+                    onChange={(e) => setField("musicBrainzId", e.target.value)}
+                    placeholder="Set by “Import from MusicBrainz”"
+                    className="font-mono text-sm"
+                  />
+                  {form.musicBrainzId ? (
+                    <Button type="button" variant="outline" asChild>
+                      <a
+                        href={`https://musicbrainz.org/artist/${form.musicBrainzId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4" /> View
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Links this artist to their MusicBrainz page — a strong SEO “sameAs”
+                  signal. Filled automatically by “Import from MusicBrainz”.
+                </p>
+              </div>
+              <div className="mt-4">
                 <label htmlFor="internalNotes" className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Notes
                 </label>
@@ -801,7 +862,9 @@ export default function ArtistEditor({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/admin/catalog/artists")}
+                onClick={() => {
+                  if (confirmDiscard()) router.push("/admin/catalog/artists");
+                }}
               >
                 Cancel
               </Button>
@@ -850,7 +913,7 @@ export default function ArtistEditor({
                 <img
                   src={a.imageUrl || "/placeholder.svg"}
                   alt=""
-                  className="h-12 w-12 shrink-0 rounded-full object-cover"
+                  className="h-12 w-12 shrink-0 rounded-lg object-cover"
                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{a.name}</p>
@@ -873,23 +936,44 @@ export default function ArtistEditor({
 
       {/* MusicBrainz social-link import dialog */}
       <Dialog open={mbOpen} onOpenChange={setMbOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Find social links</DialogTitle>
-            <DialogDescription>
-              Searches the free MusicBrainz database for social &amp; streaming
-              links. Coverage varies — review before applying. Only empty link
-              fields are filled; your existing links are never overwritten.
+        <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="min-w-0">
+            <DialogTitle>Import from MusicBrainz</DialogTitle>
+            <DialogDescription className="break-words">
+              Picking a match links the artist (sets their{" "}
+              <strong className="text-foreground">MusicBrainz ID</strong>) and imports
+              social/streaming links, genres and ISNI/IPI — filling only empty fields.
+              Coverage varies; review before applying.
             </DialogDescription>
           </DialogHeader>
 
           {mbPreview ? (
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <p className="text-sm text-muted-foreground">
                 Found for <span className="text-foreground">{mbPickedName}</span>:
               </p>
-              {(mbIsni || mbIpis.length) ? (
+              {form.musicBrainzId ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                  <span className="w-24 shrink-0 font-medium">MusicBrainz ID</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{form.musicBrainzId}</span>
+                  <span className="shrink-0 rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-400">linked</span>
+                </div>
+              ) : null}
+              {(mbIsni || mbIpis.length || mbGenres.length) ? (
                 <ul className="space-y-2">
+                  {mbGenres.length ? (
+                    <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
+                      <span className="w-24 shrink-0 font-medium">Genres</span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">{mbGenres.join(", ")}</span>
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-xs ${
+                          form.genres.trim() ? "bg-muted text-muted-foreground" : "bg-green-500/15 text-green-400"
+                        }`}
+                      >
+                        {form.genres.trim() ? "keep existing" : "will add"}
+                      </span>
+                    </li>
+                  ) : null}
                   {mbIsni ? (
                     <li className="flex items-center gap-3 rounded-lg border border-border p-2 text-sm">
                       <span className="w-24 shrink-0 font-medium">ISNI</span>
@@ -1009,7 +1093,7 @@ export default function ArtistEditor({
               Searches the public ISNI registry by name. It lists every kind of
               entity (companies too), so verify via the sources/links shown —
               music entries are flagged and listed first. For artists already on
-              MusicBrainz, “Find social links” returns the ISNI without guessing.
+              MusicBrainz, “Import from MusicBrainz” returns the ISNI without guessing.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withWriteRetry } from "@/lib/db-retry";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getFeaturedReleases } from "@/lib/admin-data";
 import { revalidatePath } from "next/cache";
@@ -32,11 +33,17 @@ export async function PUT(request: NextRequest) {
     if (orderedIds.length === 0) {
       return NextResponse.json({ error: "orderedIds required" }, { status: 400 });
     }
-    await prisma.$transaction(
-      orderedIds.map((id, index) =>
-        prisma.release.update({ where: { id }, data: { homeOrder: index } })
-      )
-    );
+    // Sequential single-document updates — a multi-document $transaction here
+    // deadlocks on MongoDB ("write conflict"). Order isn't security-critical, so
+    // atomicity isn't required; sequential writes are reliable and conflict-free.
+    for (let index = 0; index < orderedIds.length; index++) {
+      await withWriteRetry(() =>
+        prisma.release.update({
+          where: { id: orderedIds[index] },
+          data: { homeOrder: index },
+        })
+      );
+    }
     revalidatePath("/");
     revalidatePath("/releases");
     return NextResponse.json({ ok: true });

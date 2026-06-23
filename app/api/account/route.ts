@@ -13,15 +13,18 @@ export async function DELETE(request: NextRequest) {
   const guard = await requireUser(request);
   if (!guard.ok) return guard.response;
 
-  const userId = guard.token.sub!;
+  // token.sub is the OAuth subject, NOT our Mongo user id — delete by email (the
+  // unique login key); the schema cascade removes accounts/sessions/profile/
+  // history/entry. (Deleting by token.sub threw "Malformed ObjectID".)
   const email = guard.token.email ?? null;
+  if (!email) {
+    return NextResponse.json({ error: "No account email on session" }, { status: 400 });
+  }
 
   try {
     await prisma.$transaction([
-      ...(email
-        ? [prisma.newsletterSubscriber.deleteMany({ where: { email } })]
-        : []),
-      prisma.user.delete({ where: { id: userId } }),
+      prisma.newsletterSubscriber.deleteMany({ where: { email } }),
+      prisma.user.delete({ where: { email } }),
     ]);
     return NextResponse.json({ ok: true });
   } catch (error) {

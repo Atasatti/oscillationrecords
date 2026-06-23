@@ -8,6 +8,8 @@ import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube }
 import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
+import { usePageMedia } from "@/hooks/use-page-media";
+import { slugify } from "@/lib/slug";
 
 interface Artist {
   id: string;
@@ -41,9 +43,17 @@ const MeetArtistSection = ({
   initialArtists,
 }: MeetArtistSectionProps) => {
   const router = useRouter();
+  const { bgHero } = usePageMedia();
   const [artists, setArtists] = useState<Artist[]>(initialArtists ?? []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(initialArtists === undefined);
+
+  // Keep the carousel index in range when the artist list changes (e.g. a client
+  // refetch returns fewer artists) — otherwise artists[currentIndex] is undefined
+  // and the spotlight crashes on .name / .profilePicture.
+  useEffect(() => {
+    setCurrentIndex((i) => (artists.length === 0 ? 0 : Math.min(i, artists.length - 1)));
+  }, [artists.length]);
 
   useEffect(() => {
     // Data already in the HTML from the server — don't refetch on mount.
@@ -78,7 +88,7 @@ const MeetArtistSection = ({
   const handleViewDetails = () => {
     if (variant === "artists") {
       const a = artists[currentIndex];
-      if (a?.id) router.push(`/artists/${a.id}`);
+      if (a?.id) router.push(`/artists/${slugify(a.name)}`);
       return;
     }
     router.push("/artists");
@@ -87,11 +97,11 @@ const MeetArtistSection = ({
   if (isLoading) {
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-        style={{ backgroundImage: `url('/hero-bg.svg')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+        style={{ backgroundImage: `url('${bgHero}')` }}>
+        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
         </p>
-        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
@@ -102,13 +112,13 @@ const MeetArtistSection = ({
   if (artists.length === 0) {
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-        style={{ backgroundImage: `url('/hero-bg.svg')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+        style={{ backgroundImage: `url('${bgHero}')` }}>
+        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
         </p>
-        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+        <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center mt-6 sm:mt-8">
-          <IconButton text="See Who's Here"/>
+          <IconButton text="See Who's Here" href="/artists"/>
         </div>
         <p className="text-center text-muted-foreground mt-12 sm:mt-16">No artists available yet.</p>
       </div>
@@ -119,29 +129,29 @@ const MeetArtistSection = ({
   const artistNumber = String(currentIndex + 1).padStart(2, '0');
 
   return (
-    <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
-      style={{ backgroundImage: `url('/hero-bg.svg')` }}>
-      <p className="font-light text-3xl sm:text-4xl md:text-5xl opacity-90 text-center tracking-tighter">
+    <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-10 md:py-12"
+      style={{ backgroundImage: `url('${bgHero}')` }}>
+      <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
         Meet the Artists.
       </p>
-      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 opacity-50 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
-      <div className="flex justify-center mt-6 sm:mt-8">
-        <IconButton text="See Who's Here" onClick={() => router.push("/artists")}/>
+      <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
+      <div className="flex justify-center mt-5 sm:mt-6">
+        <IconButton text="See Who's Here" href="/artists"/>
       </div>
-      <div className="mt-8 sm:mt-12 md:mt-16 flex flex-col lg:flex-row justify-between items-center gap-8 lg:gap-4 min-h-[600px] sm:min-h-[700px] md:min-h-[800px]">
+      <div className="mt-6 sm:mt-8 flex flex-col lg:flex-row justify-between items-center gap-6 lg:gap-6">
         {/* Previous button - hidden on mobile, shown on desktop */}
         <div 
-          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
           onClick={handlePrevious}
         >
           <ArrowLeft className="w-4 h-4"/>
           <p className="text-muted-foreground text-sm uppercase">View previous artist</p>
         </div>
         
-        {/* Main content - image and info */}
-        <div className="relative w-full lg:flex-1 flex justify-center">
-          <div className="relative w-full max-w-[500px]">
-            <div className="relative w-full aspect-[5/6] max-h-[600px]">
+        {/* Main content - image + info side by side, centered as one group */}
+        <div className="w-full lg:flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
+          <div className="w-full max-w-[380px] lg:flex-shrink-0">
+            <div className="relative w-full aspect-[5/6] max-h-[456px]">
               <Image
                 src={currentArtist.profilePicture || "/meet-artist-img.svg"}
                 width={500}
@@ -202,15 +212,16 @@ const MeetArtistSection = ({
                 </a>
               )}
             </div>
-            {/* Artist info - below image on mobile, to the right on desktop */}
-            <div className="mt-6 lg:absolute lg:left-[105%] lg:bottom-0 lg:w-80 lg:mt-0 min-h-[200px] sm:min-h-[250px]">
+          </div>
+          {/* Artist info - below image on mobile, beside it on desktop */}
+          <div className="w-full max-w-[380px] lg:max-w-none lg:w-80 lg:flex-shrink-0">
               <p className="text-xs text-muted-foreground">({artistNumber})</p>
               <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1">{currentArtist.name}</p>
               <p className="text-xs sm:text-sm font-light text-muted-foreground mt-2 line-clamp-3 lg:line-clamp-4 min-h-[60px] sm:min-h-[80px]">
                 {currentArtist.biography}
               </p>
               <div 
-                className="mt-6 sm:mt-10 lg:mt-14 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                className="mt-5 sm:mt-6 lg:mt-8 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
                 onClick={handleViewDetails}
               >
                 <p className="text-xs sm:text-sm font-medium">
@@ -219,12 +230,11 @@ const MeetArtistSection = ({
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5"/>
               </div>
             </div>
-          </div>
         </div>
-        
+
         {/* Next button - hidden on mobile, shown on desktop */}
         <div 
-          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
           onClick={handleNext}
         >
           <p className="text-muted-foreground text-sm uppercase">View next artist</p>

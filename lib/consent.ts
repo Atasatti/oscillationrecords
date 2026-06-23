@@ -16,6 +16,9 @@ export type ConsentValue = "all" | "essential";
 /** Window event the footer dispatches to reopen the consent banner on demand. */
 export const OPEN_CONSENT_EVENT = "osc:open-consent";
 
+/** Window event fired when analytics consent is granted (so trackers can start). */
+export const CONSENT_GRANTED_EVENT = "osc:consent-granted";
+
 export const CONSENT_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 export const VISITOR_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 

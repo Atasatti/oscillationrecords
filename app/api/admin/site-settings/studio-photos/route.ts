@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { isSafeUrl } from "@/lib/url-safety";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function PUT(request: NextRequest) {
 
     const photos = body.photos
       .map((p: unknown) => (typeof p === "string" ? p.trim() : ""))
-      .filter((p: string) => p.length > 0);
+      .filter((p: string) => p.length > 0 && isSafeUrl(p));
 
     if (photos.length > MAX_PHOTOS) {
       return NextResponse.json(

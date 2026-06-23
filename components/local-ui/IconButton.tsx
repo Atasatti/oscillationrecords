@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import React from "react";
@@ -9,7 +8,7 @@ import classNames from "classnames";
 interface IconButtonProps {
   text: string;
   onClick?: () => void;
-  /** When set, the whole control is a Next.js link (preferred over wrapping in `<Link>`). */
+  /** When set, the whole control is a Next.js link (preferred for navigation). */
   href?: string;
   className?: string;
 }
@@ -31,20 +30,16 @@ const IconButton: React.FC<IconButtonProps> = ({
     </span>
   );
 
-  const arrow = href ? (
+  // Arrow is purely visual — the click target is the whole pill (Link/button
+  // below), so a span (not a nested button) keeps the entire control clickable
+  // and the markup valid.
+  const arrow = (
     <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded-2xl bg-black text-white">
       <ArrowRight className="h-5 w-5" aria-hidden />
     </span>
-  ) : (
-    <Button
-      onClick={onClick}
-      size="icon"
-      className="bg-black text-white rounded-2xl h-8 w-10 hover:bg-neutral-800 transition-colors cursor-pointer"
-    >
-      <ArrowRight className="h-5 w-5" />
-    </Button>
   );
 
+  // A real link when navigating: the whole pill is clickable and crawlable.
   if (href) {
     return (
       <Link href={href} className={shellClass}>
@@ -54,11 +49,13 @@ const IconButton: React.FC<IconButtonProps> = ({
     );
   }
 
+  // Otherwise a real button so the ENTIRE pill is clickable (and keyboard
+  // accessible) — not just the arrow.
   return (
-    <div className={shellClass}>
+    <button type="button" onClick={onClick} className={shellClass}>
       {label}
       {arrow}
-    </div>
+    </button>
   );
 };
 

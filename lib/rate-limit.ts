@@ -43,8 +43,18 @@ export function rateLimit(
   return { ok: true, retryAfter: 0 };
 }
 
+/**
+ * Best-effort client IP for rate-limit keying. Prefer `x-real-ip`, which the
+ * hosting proxy (Vercel) sets to the true client IP and the client cannot forge
+ * through the proxy. Fall back to the left-most `x-forwarded-for` hop only when
+ * `x-real-ip` is absent. NOTE: if this app is ever served WITHOUT a trusted
+ * proxy that overwrites these headers, a client can spoof them — back the limiter
+ * with a shared store + a hardened IP source for production-grade limits.
+ */
 export function clientIp(req: NextRequest): string {
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  return "unknown";
 }

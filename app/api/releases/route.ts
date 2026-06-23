@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
     // `pageSize` is present do we return the `{items,total,page,pageSize}` envelope;
     // otherwise the response stays the existing bare array (public site, carousel).
     if (searchParams.has("page") || searchParams.has("pageSize")) {
+      // Admin-only data view (maps with isAdmin:true, exposes DRAFT + upcCode).
+      const guard = await requireAdmin(request);
+      if (!guard.ok) return guard.response;
       const statusParam = searchParams.get("status");
       const result = await getReleasesPage({
         page: parseInt(searchParams.get("page") || "1", 10) || 1,
@@ -62,22 +65,15 @@ export async function GET(request: NextRequest) {
 
     let releases;
     if (carouselOnly) {
-      // Pin + auto-fill: releases flagged "New Music carousel" (showOnHome) come
-      // first in their admin (sortOrder) order, then the rest auto-fill newest
-      // first. New releases therefore appear automatically without being flagged,
-      // and the newest cycle to the front. Capped so it stays a highlight reel.
-      const all = await prisma.release.findMany({ ...baseList, where });
-      const pinned = all
-        .filter((r) => r.showOnHome)
-        .sort((a, b) => a.homeOrder - b.homeOrder);
-      const rest = all
-        .filter((r) => !r.showOnHome)
-        .sort((a, b) => {
-          const ta = (a.releaseDate ? new Date(a.releaseDate) : new Date(a.createdAt)).getTime();
-          const tb = (b.releaseDate ? new Date(b.releaseDate) : new Date(b.createdAt)).getTime();
-          return tb - ta;
-        });
-      releases = [...pinned, ...rest].slice(0, 12);
+      // The "New Music" carousel is exactly the releases the admin curated
+      // (showOnHome), in the order they set (homeOrder) — no auto-fill, so the
+      // homepage mirrors the admin selection 1:1. Admin callers see every flagged
+      // release; the public `where` limits non-admins to live ones.
+      const all = await prisma.release.findMany({
+        ...baseList,
+        where: where ? { AND: [{ showOnHome: true }, where] } : { showOnHome: true },
+      });
+      releases = all.sort((a, b) => a.homeOrder - b.homeOrder);
     } else if (qParam.length > 0) {
       // Fuzzy match in JS (catalog is small) so "bigheck" still finds
       // releases by "Big Heck" — against release name, linked artists, and
@@ -188,6 +184,17 @@ export async function POST(request: NextRequest) {
         { error: "name and coverImage are required" },
         { status: 400 }
       );
+    }
+
+    // A scheduled (Coming Soon) release must be dated in the future.
+    if (status === "SCHEDULED") {
+      const d = releaseDate ? new Date(releaseDate) : null;
+      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
     }
 
     if (

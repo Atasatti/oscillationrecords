@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
+import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 
 const PAGE_SIZE = 25;
@@ -73,6 +75,7 @@ export default function AdminArtistsPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [newReleaseFor, setNewReleaseFor] = useState<{ id: string; name: string } | null>(null);
+  const [view, setView] = useState<"manage" | "order">("manage");
 
   // Debounce the search box → query (and reset to page 1).
   useEffect(() => {
@@ -175,10 +178,13 @@ export default function AdminArtistsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ featuredOnHome }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || "Failed to update featured");
+      }
+    } catch (e) {
       setItems(prev);
-      toast.error("Failed to update featured");
+      toast.error(e instanceof Error ? e.message : "Failed to update featured");
     }
   };
 
@@ -229,7 +235,7 @@ export default function AdminArtistsPage() {
     <div>
       <PageHeader
         title="Artists"
-        description="Search, manage visibility, and edit your roster."
+        description="Your artist roster. Add and edit artists, control whether each shows on the public site, feature them on the home page, and set the order shown on the site."
         actions={
           <Button asChild className="bg-white text-black hover:bg-gray-200">
             <Link href="/admin/catalog/artists/new">
@@ -240,6 +246,38 @@ export default function AdminArtistsPage() {
         }
       />
 
+      {/* View toggle: filtered table vs manual custom order */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        {([["manage", "Manage"], ["order", "Custom order"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => {
+              setView(k);
+              if (k === "manage") load(); // reflect any reordering just made
+            }}
+            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        {view === "order"
+          ? "Drag artists into the order they should appear on the site (and in this list)."
+          : "Browse, search and edit artists. Switch to “Custom order” to set the order they appear on the site."}
+      </p>
+
+      {view === "order" ? (
+        <ManualOrderPanel
+          loadEndpoint="/api/admin/artists/reorder"
+          saveEndpoint="/api/admin/artists/reorder"
+          kind="artist"
+        />
+      ) : (
+      <>
       {/* Search + filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative w-full sm:max-w-xs">
@@ -374,9 +412,15 @@ export default function AdminArtistsPage() {
               <TableHead className="hidden xl:table-cell">
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">Profile</TableHead>
-              <TableHead>Visibility</TableHead>
-              <TableHead>Featured</TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-artist SEO score (0–100) from the fields that drive search ranking: streaming/social links, MusicBrainz ID, ISNI, bio, photo, genres and releases. The badge shows the highest-impact gaps — click it to fill them." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Featured <InfoHint text="Feature this artist in the home page carousel. Set the carousel order on the Homepage screen." /></span>
+              </TableHead>
               <TableHead className="hidden xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
@@ -392,7 +436,7 @@ export default function AdminArtistsPage() {
                   <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <Skeleton className="h-10 w-10 rounded-lg" />
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
@@ -431,7 +475,7 @@ export default function AdminArtistsPage() {
                       <img
                         src={a.profilePicture || "/placeholder.svg"}
                         alt=""
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
                     </Link>
@@ -466,13 +510,31 @@ export default function AdminArtistsPage() {
                       : "—"}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {a.complete ? (
-                      <Badge variant="success">Complete</Badge>
-                    ) : (
-                      <Badge variant="warning" title={`Missing: ${a.missing.join(", ")}`}>
-                        Needs {a.missing.length}
+                    <Link
+                      href={`/admin/catalog/artists/${a.id}/edit`}
+                      title={
+                        a.complete
+                          ? "All key SEO fields filled"
+                          : `To improve SEO, add: ${a.missing.join(", ")} — click to edit`
+                      }
+                      className="inline-flex"
+                    >
+                      <Badge
+                        variant={
+                          a.seoGrade === "strong"
+                            ? "success"
+                            : a.seoGrade === "good"
+                              ? "warning"
+                              : "destructive"
+                        }
+                        className="cursor-pointer tabular-nums hover:opacity-80"
+                      >
+                        SEO {a.seoScore}
+                        {!a.complete && a.missing.length ? (
+                          <span className="font-normal opacity-80">· add {a.missing[0]}</span>
+                        ) : null}
                       </Badge>
-                    )}
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <button
@@ -490,8 +552,10 @@ export default function AdminArtistsPage() {
                   <TableCell>
                     <button
                       type="button"
+                      disabled={!a.showOnWebsite}
                       onClick={() => setFeatured(a.id, !a.featuredOnHome)}
-                      title="Feature in the home carousel"
+                      title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {a.featuredOnHome ? (
                         <Badge variant="warning">
@@ -550,6 +614,8 @@ export default function AdminArtistsPage() {
           />
         </div>
       </div>
+      </>
+      )}
 
       {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

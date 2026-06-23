@@ -13,28 +13,32 @@ export async function GET(request: NextRequest) {
   const guard = await requireUser(request);
   if (!guard.ok) return guard.response;
 
-  const userId = guard.token.sub!;
+  // token.sub is the OAuth (Google) subject, NOT our Mongo user id — resolve the
+  // account by email (the unique login key), then read everything by that id.
+  // (Using token.sub directly threw "Malformed ObjectID" on every export.)
   const email = guard.token.email ?? null;
+  if (!email) {
+    return NextResponse.json({ error: "No account email on session" }, { status: 400 });
+  }
 
   try {
-    const [user, profile, playEvents, remixEntry, newsletter] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-          emailVerified: true,
-        },
-      }),
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, image: true, emailVerified: true },
+    });
+    if (!user) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+    const userId = user.id;
+
+    const [profile, playEvents, remixEntry, newsletter] = await Promise.all([
       prisma.userProfile.findUnique({ where: { userId } }),
       prisma.playEvent.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
       }),
       prisma.benertRemixEntry.findUnique({ where: { userId } }),
-      email ? prisma.newsletterSubscriber.findUnique({ where: { email } }) : null,
+      prisma.newsletterSubscriber.findUnique({ where: { email } }),
     ]);
 
     const payload = {

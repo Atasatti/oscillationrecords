@@ -7,6 +7,9 @@ import { MusicPlayer } from "@/components/local-ui/MusicPlayer";
 import UserDemographicsCollector from "@/components/user/UserDemographicsCollector";
 import CookieConsent from "@/components/local-ui/CookieConsent";
 import PageViewTracker from "@/components/local-ui/PageViewTracker";
+import GoogleAnalytics from "@/components/local-ui/GoogleAnalytics";
+import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
+import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
 
 // Load all weights by omitting `weight`
@@ -37,11 +40,13 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: "A Record Label That Puts Artists First",
     url: SITE_URL,
+    images: [{ url: "/og-default.png", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: "A Record Label That Puts Artists First",
+    images: ["/og-default.png"],
   },
 };
 
@@ -60,6 +65,9 @@ export default function RootLayout({
             <UserDemographicsCollector />
             <CookieConsent />
             <PageViewTracker />
+            <GoogleAnalytics />
+            <ClientErrorLogger />
+            <NewsletterPrompt />
           </MusicProvider>
         </SessionProvider>
       </body>

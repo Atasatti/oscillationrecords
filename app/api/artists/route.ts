@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { requireAdmin } from "@/lib/auth-guard";
+import { rehostExternalImage } from "@/lib/s3";
 import {
   getArtistsPage,
   type ArtistSort,
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
     // Opt-in pagination (admin tables). Backward-compatible: only when `page` or
     // `pageSize` is present do we return the paginated envelope.
     if (searchParams.has("page") || searchParams.has("pageSize")) {
+      // Admin-only management view (hidden artists, play stats, SEO internals).
+      const guard = await requireAdmin(request);
+      if (!guard.ok) return guard.response;
       const page = parseInt(searchParams.get("page") || "1", 10) || 1;
       const pageSize = parseInt(searchParams.get("pageSize") || "25", 10) || 25;
       const sort = (searchParams.get("sort") || "sortOrder") as ArtistSort;
@@ -154,11 +158,18 @@ export async function POST(request: NextRequest) {
     });
     const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
 
+    // Re-host any external photo (e.g. a Spotify i.scdn.co URL from import) onto
+    // our own S3 so the image file is ours — best-effort, keeps the original URL
+    // if the copy fails. See rehostExternalImage in lib/s3.ts.
+    const finalPicture = profilePicture
+      ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
+      : profilePicture;
+
     const artist = await prisma.artist.create({
       data: {
         name,
         biography,
-        profilePicture,
+        profilePicture: finalPicture,
         composer: composer || null,
         lyricist: lyricist || null,
         leadVocal: leadVocal || null,

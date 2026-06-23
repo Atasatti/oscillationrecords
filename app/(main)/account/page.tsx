@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import NewsletterToggle from "@/components/local-ui/NewsletterToggle";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Trash2, Loader2, ShieldCheck } from "lucide-react";
+import { Download, Trash2, Loader2, ShieldCheck, Mail, Cookie } from "lucide-react";
+import { OPEN_CONSENT_EVENT } from "@/lib/consent";
 
 export default function AccountPage() {
   const { data: session, status } = useSession();
@@ -34,16 +36,19 @@ export default function AccountPage() {
     }
   };
 
+  const openCookiePrefs = () => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT));
+
   return (
     <main className="mx-auto max-w-2xl px-4 sm:px-6 py-16 text-gray-300">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-5 w-5 text-muted-foreground" />
         <h1 className="text-3xl sm:text-4xl font-light tracking-tighter text-white">
-          Your data
+          Account settings
         </h1>
       </div>
       <p className="mt-3 leading-relaxed">
-        Manage the personal data we hold about you. See our{" "}
+        Manage your newsletter, privacy choices, and the personal data we hold about
+        you. See our{" "}
         <Link href="/privacy" className="text-white underline">
           Privacy Policy
         </Link>{" "}
@@ -61,18 +66,58 @@ export default function AccountPage() {
             <Link href="/login" className="text-white underline">
               sign in
             </Link>{" "}
-            to download or delete your data.
+            to manage your account.
           </p>
         </div>
       ) : (
         <div className="mt-10 space-y-6">
+          {/* Account / sign-in */}
           <div className="rounded-xl border border-border bg-card p-6">
             <p className="text-sm text-muted-foreground">Signed in as</p>
             <p className="mt-1 font-medium text-white">
               {session.user.name || session.user.email}
             </p>
+            {session.user.email ? (
+              <p className="text-sm text-muted-foreground">{session.user.email}</p>
+            ) : null}
+            <p className="mt-3 text-xs text-muted-foreground">
+              You sign in with Google — your email and password are managed by your
+              Google account and can’t be changed here.
+            </p>
           </div>
 
+          {/* Newsletter */}
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h2 className="flex items-center gap-2 text-lg font-medium text-white">
+              <Mail className="h-4 w-4 text-muted-foreground" /> Newsletter
+            </h2>
+            <div className="mt-3">
+              <NewsletterToggle />
+            </div>
+          </div>
+
+          {/* Privacy & cookies */}
+          <div className="rounded-xl border border-border bg-card p-6">
+            <h2 className="flex items-center gap-2 text-lg font-medium text-white">
+              <Cookie className="h-4 w-4 text-muted-foreground" /> Privacy &amp; cookies
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Read how we handle your data, and change your cookie choices any time.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              <Link href="/privacy" className="text-white underline">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-white underline">
+                Terms
+              </Link>
+              <button type="button" onClick={openCookiePrefs} className="text-white underline">
+                Manage cookie preferences
+              </button>
+            </div>
+          </div>
+
+          {/* Download data */}
           <div className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-lg font-medium text-white">Download your data</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -86,6 +131,7 @@ export default function AccountPage() {
             </Button>
           </div>
 
+          {/* Delete account */}
           <div className="rounded-xl border border-red-500/30 bg-red-500/[0.03] p-6">
             <h2 className="text-lg font-medium text-white">Delete your account</h2>
             <p className="mt-1 text-sm text-muted-foreground">

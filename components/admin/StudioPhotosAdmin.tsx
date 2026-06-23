@@ -4,13 +4,18 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Loader2, Save, Upload, X, ArrowLeft, ArrowRight } from "lucide-react";
+import { useToast } from "@/components/local-ui/Toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
 export default function StudioPhotosAdmin() {
+  const toast = useToast();
+  // Staged uploads / reorders / removals are unsaved until "Save photos".
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChangesGuard(dirty);
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -23,7 +28,7 @@ export default function StudioPhotosAdmin() {
           if (!cancelled && Array.isArray(data.photos)) setPhotos(data.photos);
         }
       } catch {
-        if (!cancelled) setMessage({ type: "err", text: "Could not load current photos." });
+        if (!cancelled) toast.error("Could not load current photos.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -31,7 +36,7 @@ export default function StudioPhotosAdmin() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [toast]);
 
   const getPresignedUrl = async (imageFile: File) => {
     const timestamp = Date.now();
@@ -61,10 +66,9 @@ export default function StudioPhotosAdmin() {
     if (!files || files.length === 0) return;
     const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (images.length === 0) {
-      setMessage({ type: "err", text: "Please choose image files." });
+      toast.error("Please choose image files.");
       return;
     }
-    setMessage(null);
     setUploading(true);
     try {
       const uploaded: string[] = [];
@@ -74,24 +78,26 @@ export default function StudioPhotosAdmin() {
         uploaded.push(fileURL);
       }
       setPhotos((prev) => [...prev, ...uploaded]);
-      setMessage({
-        type: "ok",
-        text: `${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} added. Save to apply on the home page.`,
-      });
+      setDirty(true);
+      toast.success(
+        `${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} added. Save to apply on the home page.`
+      );
     } catch (e) {
-      setMessage({
-        type: "err",
-        text: e instanceof Error ? e.message : "Upload failed. Check AWS configuration.",
-      });
+      toast.error(
+        e instanceof Error ? e.message : "Upload failed. Check AWS configuration."
+      );
     } finally {
       setUploading(false);
     }
   };
 
-  const removeAt = (i: number) =>
+  const removeAt = (i: number) => {
+    setDirty(true);
     setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+  };
 
-  const move = (i: number, dir: -1 | 1) =>
+  const move = (i: number, dir: -1 | 1) => {
+    setDirty(true);
     setPhotos((prev) => {
       const j = i + dir;
       if (j < 0 || j >= prev.length) return prev;
@@ -99,10 +105,10 @@ export default function StudioPhotosAdmin() {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+  };
 
   const handleSave = async () => {
     setSaving(true);
-    setMessage(null);
     try {
       const res = await fetch("/api/admin/site-settings/studio-photos", {
         method: "PUT",
@@ -111,9 +117,10 @@ export default function StudioPhotosAdmin() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Save failed");
-      setMessage({ type: "ok", text: "Studio photos saved." });
+      setDirty(false);
+      toast.success("Studio photos saved.");
     } catch (e) {
-      setMessage({ type: "err", text: e instanceof Error ? e.message : "Save failed" });
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -130,12 +137,13 @@ export default function StudioPhotosAdmin() {
   return (
     <section className="mt-14 md:mt-16 border-t border-white/10 pt-10 md:pt-12">
       <div className="mb-6 text-center md:text-left">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Home page</p>
-        <h2 className="font-light text-2xl md:text-3xl tracking-tighter mt-1">Studio photos carousel</h2>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Home page · top carousel</p>
+        <h2 className="font-light text-2xl md:text-3xl tracking-tighter mt-1">Top photo carousel</h2>
         <p className="text-gray-400 text-sm mt-2 max-w-2xl mx-auto md:mx-0">
-          Photos shown in the slow-scrolling carousel below the hero. Add as many as
-          you like, reorder them, and remove any you don&apos;t want. Until you add
-          your own, the carousel falls back to the stacked hero images.
+          The photos shown in the slow-scrolling carousel at the very top of the
+          home page — the first thing visitors see. Add as many as you like,
+          reorder them, and remove any you don&apos;t want. Until you add your own,
+          the built-in Oscillation artwork is shown.
         </p>
       </div>
 
@@ -243,11 +251,6 @@ export default function StudioPhotosAdmin() {
             </>
           )}
         </Button>
-        {message && (
-          <p className={message.type === "ok" ? "text-green-400 text-sm" : "text-red-400 text-sm"}>
-            {message.text}
-          </p>
-        )}
       </div>
     </section>
   );

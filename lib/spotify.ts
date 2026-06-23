@@ -18,7 +18,7 @@ export interface SpotifyArtist {
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 export function isConfigured(): boolean {
-  return Boolean(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET);
+  return Boolean(process.env.SPOTIFY_CLIENT_ID?.trim() && process.env.SPOTIFY_CLIENT_SECRET?.trim());
 }
 
 async function getToken(): Promise<string> {
@@ -38,6 +38,7 @@ async function getToken(): Promise<string> {
     },
     body: "grant_type=client_credentials",
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     throw new Error(`Spotify token request failed: ${res.status}`);
@@ -80,10 +81,57 @@ export async function searchArtists(q: string, limit = 8): Promise<SpotifyArtist
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
   const data = (await res.json()) as { artists?: { items?: RawArtist[] } };
   return (data.artists?.items ?? []).map(normalize);
+}
+
+export interface SpotifyAlbum {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  spotifyUrl: string | null;
+  /** "YYYY", "YYYY-MM" or "YYYY-MM-DD" depending on Spotify's date precision. */
+  releaseDate: string | null;
+  artistNames: string[];
+}
+
+interface RawAlbum {
+  id: string;
+  name: string;
+  images?: { url: string; width: number; height: number }[];
+  external_urls?: { spotify?: string };
+  release_date?: string;
+  artists?: { name: string }[];
+}
+
+function normalizeAlbum(a: RawAlbum): SpotifyAlbum {
+  return {
+    id: a.id,
+    name: a.name,
+    imageUrl: a.images && a.images.length > 0 ? a.images[0].url : null,
+    spotifyUrl: a.external_urls?.spotify ?? null,
+    releaseDate: a.release_date ?? null,
+    artistNames: (a.artists ?? []).map((x) => x.name),
+  };
+}
+
+/** Search Spotify albums/singles by title (optionally "title artist"). */
+export async function searchAlbums(q: string, limit = 8): Promise<SpotifyAlbum[]> {
+  const query = q.trim();
+  if (!query) return [];
+  const token = await getToken();
+  const url = `https://api.spotify.com/v1/search?type=album&limit=${limit}&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
+  const data = (await res.json()) as { albums?: { items?: RawAlbum[] } };
+  return (data.albums?.items ?? []).map(normalizeAlbum);
 }
 
 export async function getArtist(id: string): Promise<SpotifyArtist | null> {
@@ -91,6 +139,7 @@ export async function getArtist(id: string): Promise<SpotifyArtist | null> {
   const res = await fetch(`https://api.spotify.com/v1/artists/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Spotify artist fetch failed: ${res.status}`);

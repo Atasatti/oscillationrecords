@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isSafeUrl } from "@/lib/url-safety";
 
 export type FooterSocialLinks = {
   xLink: string | null;
@@ -63,5 +64,8 @@ export async function getFooterSocialLinks(): Promise<FooterSocialLinks> {
 export function normalizeFooterUrl(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   const s = String(v).trim();
-  return s === "" ? null : s;
+  if (s === "") return null;
+  // Reject dangerous schemes (javascript:, data:, …) — these render into public
+  // footer <a href>s, so a stored value must never be able to execute script.
+  return isSafeUrl(s) ? s : null;
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const days = Math.max(1, parseInt(searchParams.get("days") || "30", 10));
+    const daysRaw = parseInt(searchParams.get("days") || "30", 10);
+    const days = Math.min(Math.max(1, Number.isFinite(daysRaw) ? daysRaw : 30), 365);
     const now = new Date();
     const startDate = new Date(now.getTime() - days * 86400000);
     const prevStart = new Date(now.getTime() - 2 * days * 86400000);
@@ -94,13 +96,16 @@ export async function GET(request: NextRequest) {
     // ---- daily series (zero-filled) ----
     const dayKeys: string[] = [];
     {
+      // Use UTC day boundaries so the bucket keys match the UTC date keys used
+      // by bump() (toISOString). Mixing local setHours with UTC keys dropped
+      // events near the day boundary on non-UTC servers.
       const cursor = new Date(startDate);
-      cursor.setHours(0, 0, 0, 0);
+      cursor.setUTCHours(0, 0, 0, 0);
       const end = new Date(now);
-      end.setHours(0, 0, 0, 0);
+      end.setUTCHours(0, 0, 0, 0);
       while (cursor <= end) {
         dayKeys.push(cursor.toISOString().split("T")[0]);
-        cursor.setDate(cursor.getDate() + 1);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
     const zero = () => new Map(dayKeys.map((d) => [d, 0]));
@@ -177,10 +182,16 @@ export async function GET(request: NextRequest) {
       gender[g in gender ? g : "unknown"] += 1;
       const a = (profile?.ageRange as AgeKey) || "unknown";
       ageRange[a in ageRange ? a : "unknown"] += 1;
-      const country = e.country || profile?.country || null;
-      if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
-      const city = e.city || profile?.city || null;
-      if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      // "Where listeners are" must reflect actual listens only. A release-page
+      // VIEW also logs an event, so counting every event double-counts a play made
+      // on a release page (view + play). Restrict the listener geography to audio
+      // plays — one valid listen = one country count.
+      if (isAudio(e.contentType)) {
+        const country = canonicalCountry(e.country || profile?.country || null);
+        if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
+        const city = e.city || profile?.city || null;
+        if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      }
     });
     const topList = (m: Map<string, number>, n: number) =>
       Array.from(m.entries())

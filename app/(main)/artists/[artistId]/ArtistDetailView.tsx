@@ -9,7 +9,9 @@ import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { LuX } from "react-icons/lu";
 import { RiTiktokFill } from "react-icons/ri";
 import type { ArtistDetailDTO, ReleaseCardDTO } from "@/lib/catalog-data";
+import { SITE_NAME } from "@/lib/seo";
 import { trackLinkClick } from "@/lib/track-link-click";
+import { slugify } from "@/lib/slug";
 
 type ArtistDetailViewProps = {
   artist: ArtistDetailDTO;
@@ -50,7 +52,9 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               {artist.profilePicture && (
                 <img
                   src={artist.profilePicture}
-                  alt={artist.name}
+                  // Richer alt = more disambiguating text for Google Images on a
+                  // short/ambiguous name (e.g. "BSK"): name, primary genre, label.
+                  alt={`${artist.name}${artist.genres?.[0] ? `, ${artist.genres[0]} artist` : ""} on ${SITE_NAME}`}
                   className="w-48 h-48 rounded-2xl object-cover"
                 />
               )}
@@ -161,7 +165,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                 {releases.map((rel) => (
                   <div
                     key={rel.id}
-                    onClick={() => router.push(`/releases/${rel.id}`)}
+                    onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
                     className="cursor-pointer w-72 h-84"
                   >
                     <ReleaseCardSm

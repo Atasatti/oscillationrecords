@@ -16,9 +16,13 @@ import {
   Loader2,
   Star,
   Database,
+  Send,
+  EyeOff,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
+import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
+import InfoHint from "@/components/admin/InfoHint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -80,8 +84,8 @@ function ReleasesPageInner() {
   const [page, setPage] = useState(1);
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<ReleaseSort>("createdAt");
-  const [dir, setDir] = useState<SortDir>("desc");
+  const [sort, setSort] = useState<ReleaseSort>("sortOrder");
+  const [dir, setDir] = useState<SortDir>("asc");
   const [statusFilter, setStatusFilter] = useState<StatusTab>(
     toStatusTab(searchParams.get("status"))
   );
@@ -95,6 +99,7 @@ function ReleasesPageInner() {
     SCHEDULED: 0,
   });
   const [newOpen, setNewOpen] = useState(false);
+  const [view, setView] = useState<"manage" | "order">("manage");
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -121,6 +126,10 @@ function ReleasesPageInner() {
       setItems(data.items);
       setTotal(data.total);
       setSelected(new Set());
+      // If a delete emptied the current page (e.g. the last row on the last
+      // page), clamp back to the last valid page instead of a stuck empty table.
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
     } catch {
       toast.error("Failed to load releases");
     } finally {
@@ -176,33 +185,35 @@ function ReleasesPageInner() {
       return next;
     });
 
+  // A release is "live" (eligible for the Latest pill) when it's RELEASED, or a
+  // SCHEDULED release whose date has arrived. Drafts / not-yet-due are not.
+  const isLiveRelease = (r: { status: string; releaseDate: string | null }) =>
+    r.status === "RELEASED" ||
+    (r.status === "SCHEDULED" &&
+      !!r.releaseDate &&
+      new Date(r.releaseDate).getTime() <= Date.now());
+
   const patchFlag = async (
     id: string,
     key: "showOnHome" | "showLatestOnHome",
     value: boolean
   ) => {
     const prev = items;
-    // "Latest" is single-select — turning one on clears the rest (server enforces too).
-    const clearOthersLatest = key === "showLatestOnHome" && value;
-    setItems((list) =>
-      list.map((r) =>
-        r.id === id
-          ? { ...r, [key]: value }
-          : clearOthersLatest
-            ? { ...r, showLatestOnHome: false }
-            : r
-      )
-    );
+    // "Latest" now supports multiple releases — no single-select clearing.
+    setItems((list) => list.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     try {
       const res = await fetch(`/api/releases/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: value }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to update");
+      }
+    } catch (e) {
       setItems(prev);
-      toast.error("Failed to update");
+      toast.error(e instanceof Error ? e.message : "Failed to update");
     }
   };
 
@@ -250,13 +261,55 @@ function ReleasesPageInner() {
     }
   };
 
+  // Bulk publish / unpublish the selected releases. Publishing skips any with no
+  // tracks (they'd otherwise go live empty); moving to draft is always safe.
+  const bulkSetStatus = async (status: "RELEASED" | "DRAFT") => {
+    const targets = items.filter((r) => selected.has(r.id));
+    if (targets.length === 0) return;
+    const actionable = status === "RELEASED" ? targets.filter((r) => r.songCount > 0) : targets;
+    const skipped = targets.length - actionable.length;
+    if (actionable.length === 0) {
+      toast.error("None of the selected releases have tracks to publish.");
+      return;
+    }
+    setWorking(true);
+    try {
+      const results = await Promise.allSettled(
+        actionable.map((r) =>
+          fetch(`/api/releases/${r.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          })
+        )
+      );
+      const failed = results.filter(
+        (x) => x.status === "rejected" || (x.status === "fulfilled" && !x.value.ok)
+      ).length;
+      const ok = actionable.length - failed;
+      const verb = status === "RELEASED" ? "Published" : "Moved to draft";
+      let msg = `${verb} ${ok}`;
+      if (failed) msg += `, ${failed} failed`;
+      if (skipped) msg += `, skipped ${skipped} with no tracks`;
+      if (failed) toast.error(msg);
+      else toast.success(msg);
+      setSelected(new Set());
+      load();
+      loadCounts();
+    } catch {
+      toast.error("Bulk update failed");
+    } finally {
+      setWorking(false);
+    }
+  };
+
   const selectedCount = selected.size;
 
   return (
     <div>
       <PageHeader
         title="Releases"
-        description="Search, manage, and curate your catalog. Tracks are edited from a release."
+        description="Every release in your catalog. Create new ones, edit details and tracks, set status (Draft / Scheduled / Live), feature them on the home page, and set the order shown on the site."
         actions={
           <Button className="bg-white text-black hover:bg-gray-200" onClick={() => setNewOpen(true)}>
             <Plus className="h-4 w-4" /> New release
@@ -264,6 +317,38 @@ function ReleasesPageInner() {
         }
       />
 
+      {/* View toggle: filtered table vs manual custom order */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        {([["manage", "Manage"], ["order", "Custom order"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => {
+              setView(k);
+              if (k === "manage") load(); // reflect any reordering just made
+            }}
+            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        {view === "order"
+          ? "Drag releases into the order they should appear on the site (and in this list)."
+          : "Browse, search and edit releases. Use the tabs to filter by status; switch to “Custom order” to set their order on the site."}
+      </p>
+
+      {view === "order" ? (
+        <ManualOrderPanel
+          loadEndpoint="/api/admin/releases/reorder"
+          saveEndpoint="/api/admin/releases/reorder"
+          kind="release"
+        />
+      ) : (
+      <>
       {/* Status tabs */}
       <div className="mb-5 flex gap-1 border-b border-border">
         {STATUS_TABS.map(({ key, label }) => {
@@ -322,6 +407,12 @@ function ReleasesPageInner() {
       {selectedCount > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
           <span className="text-sm text-muted-foreground">{selectedCount} selected</span>
+          <Button variant="outline" size="sm" disabled={working} onClick={() => bulkSetStatus("RELEASED")}>
+            <Send className="mr-1 h-4 w-4" /> Publish
+          </Button>
+          <Button variant="outline" size="sm" disabled={working} onClick={() => bulkSetStatus("DRAFT")}>
+            <EyeOff className="mr-1 h-4 w-4" /> Move to draft
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -358,9 +449,18 @@ function ReleasesPageInner() {
                   Type {sortIcon("kind")}
                 </button>
               </TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Latest</TableHead>
-              <TableHead>New Music</TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Status <InfoHint text="Draft = hidden. Scheduled = future-dated, shows in Coming Soon. Live = public." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">Latest <InfoHint text="Shows a 'Latest' badge on the home page. Only one release can be Latest at a time — turning it on clears the others." /></span>
+              </TableHead>
+              <TableHead>
+                <span className="inline-flex items-center gap-1">New Music <InfoHint text="Feature this release in the home page's New Music carousel. Set the carousel order on the Homepage screen." /></span>
+              </TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-release SEO score (0–100) from the fields that drive search ranking and rich results: streaming links, description, cover image, tracklist, genres, release date and primary artist. The badge shows the highest-impact gap — click it to fill it." /></span>
+              </TableHead>
               <TableHead className="w-10 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -380,12 +480,13 @@ function ReleasesPageInner() {
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   {query ? `No releases match “${query}”.` : "No releases here yet."}
                 </TableCell>
               </TableRow>
@@ -402,12 +503,12 @@ function ReleasesPageInner() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Link href={`/admin/catalog/release/${r.id}`} className="flex items-center gap-3 group">
+                    <Link href={`/admin/catalog/releases/${r.id}/edit`} className="flex items-center gap-3 group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={r.thumbnail || "/new-music-img1.svg"}
                         alt=""
-                        className="h-12 w-12 shrink-0 rounded object-cover"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{r.name}</span>
                     </Link>
@@ -428,14 +529,57 @@ function ReleasesPageInner() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)} title="Show the 'Latest' pill on home">
+                    <button
+                      type="button"
+                      disabled={!isLiveRelease(r)}
+                      onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)}
+                      title={isLiveRelease(r) ? "Show the 'Latest' pill on home" : "Only released / live releases can be a Latest Release"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showLatestOnHome ? <Badge variant="destructive">Latest</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)} title="Feature in the New Music carousel">
+                    <button
+                      type="button"
+                      disabled={r.status === "DRAFT"}
+                      onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)}
+                      title={r.status === "DRAFT" ? "Publish this release before adding it to New Music" : "Feature in the New Music carousel"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {r.seoScore === null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <Link
+                        href={`/admin/catalog/releases/${r.id}/edit`}
+                        title={
+                          r.seoComplete
+                            ? "All key SEO fields filled"
+                            : `To improve SEO, add: ${r.seoMissing.join(", ")} — click to edit`
+                        }
+                        className="inline-flex"
+                      >
+                        <Badge
+                          variant={
+                            r.seoGrade === "strong"
+                              ? "success"
+                              : r.seoGrade === "good"
+                                ? "warning"
+                                : "destructive"
+                          }
+                          className="cursor-pointer tabular-nums hover:opacity-80"
+                        >
+                          SEO {r.seoScore}
+                          {!r.seoComplete && r.seoMissing.length ? (
+                            <span className="font-normal opacity-80">· add {r.seoMissing[0]}</span>
+                          ) : null}
+                        </Badge>
+                      </Link>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -486,6 +630,8 @@ function ReleasesPageInner() {
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       </div>
+      </>
+      )}
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent>

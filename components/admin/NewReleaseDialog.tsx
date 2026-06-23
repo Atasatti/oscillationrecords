@@ -40,6 +40,17 @@ export default function NewReleaseDialog({
   >([]);
   const [searching, setSearching] = useState(false);
 
+  // Reset to defaults when the dialog closes. These instances stay mounted on the
+  // Releases list / Coming Soon pages, so without this it reopens showing the
+  // previous search text and selected kind (risking a release created as the wrong type).
+  useEffect(() => {
+    if (!open) {
+      setKind("single");
+      setQuery("");
+      setResults([]);
+    }
+  }, [open]);
+
   useEffect(() => {
     if (!open || presetArtist) return;
     const t = setTimeout(async () => {
@@ -143,7 +154,7 @@ export default function NewReleaseDialog({
                     <img
                       src={a.profilePicture || "/placeholder.svg"}
                       alt=""
-                      className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      className="h-9 w-9 shrink-0 rounded-lg object-cover"
                     />
                     <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
                     <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />

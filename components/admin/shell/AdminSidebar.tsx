@@ -4,31 +4,59 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Home, Settings, Activity, Mail, LogOut, User, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
+import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
+// `match` lists extra path prefixes that should also activate a link. The
+// release/artist detail + legacy-edit pages live on sibling paths (singular
+// `release`, `artist`, and `edit/...`) that would otherwise fall through to
+// "Site content" — keep them under their primary nav item instead.
 const adminLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/data", label: "Live data", icon: Activity },
-  { href: "/admin/catalog/releases", label: "Releases", icon: Disc3 },
-  { href: "/admin/catalog/artists", label: "Artists", icon: Users },
-  { href: "/admin/catalog", label: "Homepage", icon: Home },
+  {
+    href: "/admin/catalog/releases",
+    label: "Releases",
+    icon: Disc3,
+    match: ["/admin/catalog/release", "/admin/catalog/edit/release"],
+  },
+  {
+    href: "/admin/catalog/artists",
+    label: "Artists",
+    icon: Users,
+    match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
+  },
+  { href: "/admin/catalog/press", label: "Press", icon: Newspaper },
+  { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate },
   { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
+  { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
+  { href: "/admin/data", label: "Live data", icon: Activity },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const matches = (pathname: string, href: string) =>
-  href === "/admin"
+const prefixMatches = (pathname: string, prefix: string) =>
+  prefix === "/admin"
     ? pathname === "/admin"
-    : pathname === href || pathname.startsWith(href + "/");
+    : pathname === prefix || pathname.startsWith(prefix + "/");
 
-/** The active link is the one whose href is the longest matching prefix, so
- * /admin/catalog/artists highlights "Artists" rather than also "Catalog". */
+/** Every path prefix that should light up a link: its href plus any aliases. */
+const linkPrefixes = (link: (typeof adminLinks)[number]): readonly string[] => [
+  link.href,
+  ...((link as { match?: readonly string[] }).match ?? []),
+];
+
+/** The active link is the one with the longest matching prefix, so
+ * /admin/catalog/release/<id> highlights "Releases" rather than "Site content". */
 function activeHrefFor(pathname: string): string | undefined {
-  return adminLinks
-    .map((l) => l.href)
-    .filter((h) => matches(pathname, h))
-    .sort((a, b) => b.length - a.length)[0];
+  let best: { href: string; len: number } | undefined;
+  for (const link of adminLinks) {
+    for (const prefix of linkPrefixes(link)) {
+      if (prefixMatches(pathname, prefix) && (!best || prefix.length > best.len)) {
+        best = { href: link.href, len: prefix.length };
+      }
+    }
+  }
+  return best?.href;
 }
 
 export const isAdminLinkActive = (pathname: string, href: string) =>
@@ -42,16 +70,27 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const user = session?.user;
+  const guard = useUnsavedChangesContext();
+
+  // Gate client-side navigation away from an editor with unsaved changes.
+  // For <Link>, cancelling preventDefault stops Next's client navigation.
+  const onLinkClick = (e: React.MouseEvent) => {
+    if (guard && !guard.confirmNavigation()) {
+      e.preventDefault();
+      return;
+    }
+    onNavigate?.();
+  };
 
   return (
     <div className="flex h-full flex-col">
       <Link
         href="/admin"
-        onClick={onNavigate}
+        onClick={onLinkClick}
         className="flex items-center gap-2 px-5 py-5"
       >
         <Image width={36} height={36} className="h-9 w-9" alt="" src="/logo-icon.svg" />
-        <Image width={96} height={28} className="h-7 w-auto" alt="Oscillation Records" src="/logo-name.svg" />
+        <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
       </Link>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
@@ -62,7 +101,7 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
             <Link
               key={link.href}
               href={link.href}
-              onClick={onNavigate}
+              onClick={onLinkClick}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                 active
@@ -105,7 +144,7 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
             </div>
             <Link
               href="/"
-              onClick={onNavigate}
+              onClick={onLinkClick}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
             >
               <ExternalLink className="h-4 w-4" aria-hidden />
@@ -114,6 +153,7 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
             <button
               type="button"
               onClick={() => {
+                if (guard && !guard.confirmNavigation()) return;
                 onNavigate?.();
                 signOutCompletely("/");
               }}

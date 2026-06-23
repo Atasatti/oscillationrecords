@@ -29,7 +29,7 @@ type OrderItem = {
   thumbnail?: string | null;
 };
 
-type SearchHit = { id: string; name: string; profilePicture?: string | null; thumbnail?: string | null };
+type SearchHit = { id: string; name: string; profilePicture?: string | null; thumbnail?: string | null; status?: "DRAFT" | "SCHEDULED" | "RELEASED"; showOnWebsite?: boolean };
 
 /** One draggable carousel row (grip + thumbnail + name + remove). */
 function CarouselRow({
@@ -64,9 +64,9 @@ function CarouselRow({
       <span className="w-5 shrink-0 text-center text-sm tabular-nums text-muted-foreground">{index + 1}</span>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={item.profilePicture || item.thumbnail || "/placeholder.svg"}
+        src={item.profilePicture || item.thumbnail || (kind === "artist" ? "/placeholder.svg" : "/new-music-img1.svg")}
         alt=""
-        className={`h-10 w-10 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded-lg"}`}
+        className="h-10 w-10 shrink-0 rounded-lg object-cover"
       />
       <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
       <Button
@@ -147,7 +147,15 @@ export default function HomeOrderPanel({
         const res = await fetch(`${searchUrl}?pageSize=8&q=${encodeURIComponent(term)}`);
         const data = res.ok ? await res.json() : { items: [] };
         const featured = new Set(items.map((i) => i.id));
-        setResults((data.items || []).filter((r: SearchHit) => !featured.has(r.id)));
+        // Exclude already-featured items, any DRAFT release (only published
+        // releases in New Music), and any hidden artist (only visible artists as
+        // Featured Artists).
+        setResults(
+          (data.items || []).filter(
+            (r: SearchHit) =>
+              !featured.has(r.id) && r.status !== "DRAFT" && r.showOnWebsite !== false
+          )
+        );
       } finally {
         setSearching(false);
       }
@@ -264,7 +272,7 @@ export default function HomeOrderPanel({
                 <img
                   src={r.profilePicture || r.thumbnail || "/placeholder.svg"}
                   alt=""
-                  className={`h-8 w-8 shrink-0 object-cover ${kind === "artist" ? "rounded-full" : "rounded"}`}
+                  className="h-8 w-8 shrink-0 rounded-lg object-cover"
                 />
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{r.name}</span>
                 <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />

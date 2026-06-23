@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Play,
@@ -227,7 +227,11 @@ export default function AnalyticsDashboard() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const showList = (title: string, rows: ListRow[]) => setDetail({ kind: "list", title, rows });
 
+  // Guard against out-of-order responses: a slow earlier request (e.g. 365D)
+  // must not overwrite a newer one (e.g. 7D). Only the latest request commits.
+  const reqRef = useRef(0);
   const fetchAll = useCallback(async () => {
+    const myReq = ++reqRef.current;
     setIsLoading(true);
     try {
       const [d, c] = await Promise.all([
@@ -235,13 +239,16 @@ export default function AnalyticsDashboard() {
         fetch(`/api/analytics/link-clicks?days=${days}`, { cache: "no-store" }),
       ]);
       if (!d.ok) throw new Error();
-      setData(await d.json());
-      if (c.ok) setCtr(await c.json());
+      const dj = await d.json();
+      const cj = c.ok ? await c.json() : null;
+      if (myReq !== reqRef.current) return; // superseded by a newer fetch
+      setData(dj);
+      if (cj) setCtr(cj);
       setError(null);
     } catch {
-      setError("Failed to fetch dashboard data");
+      if (myReq === reqRef.current) setError("Failed to fetch dashboard data");
     } finally {
-      setIsLoading(false);
+      if (myReq === reqRef.current) setIsLoading(false);
     }
   }, [days]);
 
@@ -251,6 +258,7 @@ export default function AnalyticsDashboard() {
 
   const handleContentClick = async (contentId: string, contentType: string, contentName: string) => {
     setSelectedContent({ id: contentId, type: contentType, name: contentName });
+    setContentAnalytics(null); // clear the previous item's stats while the new ones load
     setLoadingContent(true);
     try {
       const actualId = contentId.includes("-") ? contentId.split("-")[1] : contentId;
