@@ -55,8 +55,9 @@ export default function CookieConsent() {
       <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-xl border border-white/10 bg-[#141414]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur sm:flex-row sm:items-center sm:gap-4">
         <p className="flex-1 text-sm text-gray-300">
           We use a strictly-necessary cookie to keep you signed in. With your
-          consent we also use a first-party analytics cookie to understand which
-          releases resonate — never sold, never shared.{" "}
+          consent we also use analytics cookies — our own and Google Analytics —
+          to understand which releases resonate. We never sell your data, and
+          nothing non-essential loads unless you accept.{" "}
           <Link href="/privacy" className="underline hover:text-white">
             Privacy policy
           </Link>

@@ -60,6 +60,12 @@ export default function PrivacyPolicy() {
               anonymously and is <em>not</em> tied to your identity.
             </li>
             <li>
+              <strong className="text-white">Google Analytics data</strong> — with your
+              consent, Google Analytics collects standard usage data (such as page views,
+              approximate location, device/browser, and how you arrived) to measure
+              traffic. See &ldquo;Cookies&rdquo; below.
+            </li>
+            <li>
               <strong className="text-white">Newsletter</strong> — if you subscribe, your
               email address.
             </li>
@@ -90,15 +96,24 @@ export default function PrivacyPolicy() {
             short-lived <strong className="text-white">session cookie</strong> to group
             your activity into a single visit, and we read campaign tags
             (<code>utm_source</code>/<code>utm_medium</code>/<code>utm_campaign</code>)
-            from links you arrive through so we can see which promotions work. We never
-            sell or share this data, and we don&apos;t use third-party advertising cookies.
+            from links you arrive through so we can see which promotions work.
+          </p>
+          <p>
+            With the same consent we also load{" "}
+            <strong className="text-white">Google Analytics</strong> (Google&apos;s
+            gtag.js), a third-party service that sets its own cookies (such as{" "}
+            <code>_ga</code>) to measure page views and traffic on our behalf. It is
+            loaded <em>only</em> after you accept; if you reject, it is never loaded and
+            sets no cookies. We never sell your data and we don&apos;t use advertising or
+            ad-targeting cookies. Data collected through Google Analytics is processed by
+            Google as described in &ldquo;Who we share it with&rdquo; below.
           </p>
           <p>
             You choose when you first visit (&ldquo;Accept&rdquo; or &ldquo;Reject
-            non-essential&rdquo;). If you reject, no analytics cookie is set and we
-            don&apos;t track your anonymous activity. You can change your mind any
-            time by clearing this site&apos;s cookies in your browser; we&apos;ll ask
-            again on your next visit.
+            non-essential&rdquo;). If you reject, no analytics cookies are set, Google
+            Analytics is not loaded, and we don&apos;t track your activity. You can
+            change your mind any time by clearing this site&apos;s cookies in your
+            browser; we&apos;ll ask again on your next visit.
           </p>
         </section>
 
@@ -116,10 +131,10 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-medium text-white">Legal bases (UK GDPR / GDPR)</h2>
           <p>
             We rely on: <strong className="text-white">consent</strong> (optional profile
-            details and the newsletter); <strong className="text-white">legitimate
-            interests</strong> (analytics to improve the service, and security);
-            and <strong className="text-white">performance of a contract</strong>
-            (operating your account). You can withdraw consent at any time.
+            details, the newsletter, and analytics cookies — including Google Analytics);{" "}
+            <strong className="text-white">legitimate interests</strong> (keeping the site
+            secure and operational); and <strong className="text-white">performance of a
+            contract</strong> (operating your account). You can withdraw consent at any time.
           </p>
         </section>
 
@@ -127,10 +142,14 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-medium text-white">Who we share it with</h2>
           <p>
             We do not sell your personal data. We share it only with service providers
-            who process it on our behalf, including: Google (sign-in), Amazon Web
-            Services (media storage), MongoDB Atlas (database), and our hosting
-            provider. [Confirm the full processor list, and any email provider.] These
-            providers may process data outside the UK/EEA under appropriate safeguards.
+            who process it on our behalf, including: Google — for sign-in and, with your
+            consent, <strong className="text-white">Google Analytics</strong> (website
+            analytics); Amazon Web Services (media storage); MongoDB Atlas (database); and
+            our hosting provider. [Confirm the full processor list, and any email
+            provider.] Some of these providers, including Google, are based in the United
+            States, so your data may be transferred outside the UK/EEA under appropriate
+            safeguards (such as the UK extension to the EU&ndash;US Data Privacy Framework
+            or Standard Contractual Clauses).
           </p>
         </section>
 
