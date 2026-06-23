@@ -258,30 +258,41 @@ export async function PATCH(
       }
     }
 
-    // The New Music carousel + "Latest" pill are public surfaces, so only a
-    // published/live release may sit there. Block flagging a DRAFT for them, and
-    // strip the flags if a featured release is moved back to DRAFT (so it leaves
-    // the carousel instead of lingering as "draft but still shown").
+    // The New Music carousel and the "Latest" pill are public surfaces. New Music
+    // requires a published (non-DRAFT) release; "Latest Release" is stricter — only
+    // a live release (RELEASED, or SCHEDULED whose date has arrived) qualifies.
+    // Reject an explicit attempt to NEWLY feature an ineligible release; a full
+    // editor save that merely carries a stale flag is coerced off below instead
+    // (self-healing), so it never blocks an unrelated save.
     const nextStatus = ["DRAFT", "SCHEDULED", "RELEASED"].includes(String(status))
       ? (status as "DRAFT" | "SCHEDULED" | "RELEASED")
       : existing.status;
-    // Reject an explicit attempt to NEWLY feature a draft (e.g. the home-order
-    // "add"). A full editor save that merely carries a stale flag isn't blocked —
-    // clearHomeFlags below coerces it off instead, self-healing any bad data.
-    if (
-      nextStatus === "DRAFT" &&
-      ((showOnHome === true && !existing.showOnHome) ||
-        (showLatestOnHome === true && !existing.showLatestOnHome))
-    ) {
+    const nextReleaseDate =
+      releaseDate !== undefined
+        ? releaseDate
+          ? new Date(releaseDate)
+          : null
+        : existing.releaseDate;
+    const nextIsLive = isReleasePublic({ status: nextStatus, releaseDate: nextReleaseDate });
+
+    if (showOnHome === true && !existing.showOnHome && nextStatus === "DRAFT") {
       return NextResponse.json(
         {
           error:
-            "Only published releases can be added to the New Music / Latest sections — publish this release first.",
+            "Only published releases can be added to the New Music carousel — publish this release first.",
         },
         { status: 400 }
       );
     }
-    const clearHomeFlags = nextStatus === "DRAFT";
+    if (showLatestOnHome === true && !existing.showLatestOnHome && !nextIsLive) {
+      return NextResponse.json(
+        { error: "Only released / live releases can be set as a Latest Release." },
+        { status: 400 }
+      );
+    }
+    // A DRAFT can't sit in New Music; a non-live release can't be a Latest Release.
+    const clearShowOnHome = nextStatus === "DRAFT";
+    const clearLatest = !nextIsLive;
 
     const releaseFeatureNamesPatch =
       releaseFeatureNamesRaw !== undefined
@@ -372,14 +383,7 @@ export async function PATCH(
     }
 
     await withWriteRetry(() => prisma.$transaction(async (tx) => {
-      // "Latest" is single-select: turning it on for this release clears it on the
-      // others, so the home page only ever shows one "Latest" pill.
-      if (showLatestOnHome === true) {
-        await tx.release.updateMany({
-          where: { id: { not: releaseId }, showLatestOnHome: true },
-          data: { showLatestOnHome: false },
-        });
-      }
+      // "Latest Release" supports MULTIPLE releases — no single-select clearing.
       await tx.release.update({
         where: { id: releaseId },
         data: {
@@ -433,14 +437,14 @@ export async function PATCH(
                 ? Math.trunc(sortOrder)
                 : 0,
           }),
-          // Home flags are forced off when the release is a DRAFT (it must not sit
-          // in a public carousel); otherwise honour the patch.
-          ...(clearHomeFlags
+          // New Music is forced off for a DRAFT; "Latest" is forced off whenever the
+          // release isn't live — otherwise honour the patch.
+          ...(clearLatest
             ? { showLatestOnHome: false }
             : showLatestOnHome !== undefined && {
                 showLatestOnHome: Boolean(showLatestOnHome),
               }),
-          ...(clearHomeFlags
+          ...(clearShowOnHome
             ? { showOnHome: false }
             : showOnHome !== undefined && { showOnHome: Boolean(showOnHome) }),
           ...(homeOrderPatch !== undefined && { homeOrder: homeOrderPatch }),

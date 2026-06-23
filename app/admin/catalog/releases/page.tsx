@@ -185,33 +185,35 @@ function ReleasesPageInner() {
       return next;
     });
 
+  // A release is "live" (eligible for the Latest pill) when it's RELEASED, or a
+  // SCHEDULED release whose date has arrived. Drafts / not-yet-due are not.
+  const isLiveRelease = (r: { status: string; releaseDate: string | null }) =>
+    r.status === "RELEASED" ||
+    (r.status === "SCHEDULED" &&
+      !!r.releaseDate &&
+      new Date(r.releaseDate).getTime() <= Date.now());
+
   const patchFlag = async (
     id: string,
     key: "showOnHome" | "showLatestOnHome",
     value: boolean
   ) => {
     const prev = items;
-    // "Latest" is single-select — turning one on clears the rest (server enforces too).
-    const clearOthersLatest = key === "showLatestOnHome" && value;
-    setItems((list) =>
-      list.map((r) =>
-        r.id === id
-          ? { ...r, [key]: value }
-          : clearOthersLatest
-            ? { ...r, showLatestOnHome: false }
-            : r
-      )
-    );
+    // "Latest" now supports multiple releases — no single-select clearing.
+    setItems((list) => list.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     try {
       const res = await fetch(`/api/releases/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: value }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to update");
+      }
+    } catch (e) {
       setItems(prev);
-      toast.error("Failed to update");
+      toast.error(e instanceof Error ? e.message : "Failed to update");
     }
   };
 
@@ -527,12 +529,24 @@ function ReleasesPageInner() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)} title="Show the 'Latest' pill on home">
+                    <button
+                      type="button"
+                      disabled={!isLiveRelease(r)}
+                      onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)}
+                      title={isLiveRelease(r) ? "Show the 'Latest' pill on home" : "Only released / live releases can be a Latest Release"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showLatestOnHome ? <Badge variant="destructive">Latest</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)} title="Feature in the New Music carousel">
+                    <button
+                      type="button"
+                      disabled={r.status === "DRAFT"}
+                      onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)}
+                      title={r.status === "DRAFT" ? "Publish this release before adding it to New Music" : "Feature in the New Music carousel"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
