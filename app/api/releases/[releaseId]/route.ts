@@ -257,6 +257,31 @@ export async function PATCH(
       }
     }
 
+    // The New Music carousel + "Latest" pill are public surfaces, so only a
+    // published/live release may sit there. Block flagging a DRAFT for them, and
+    // strip the flags if a featured release is moved back to DRAFT (so it leaves
+    // the carousel instead of lingering as "draft but still shown").
+    const nextStatus = ["DRAFT", "SCHEDULED", "RELEASED"].includes(String(status))
+      ? (status as "DRAFT" | "SCHEDULED" | "RELEASED")
+      : existing.status;
+    // Reject an explicit attempt to NEWLY feature a draft (e.g. the home-order
+    // "add"). A full editor save that merely carries a stale flag isn't blocked —
+    // clearHomeFlags below coerces it off instead, self-healing any bad data.
+    if (
+      nextStatus === "DRAFT" &&
+      ((showOnHome === true && !existing.showOnHome) ||
+        (showLatestOnHome === true && !existing.showLatestOnHome))
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Only published releases can be added to the New Music / Latest sections — publish this release first.",
+        },
+        { status: 400 }
+      );
+    }
+    const clearHomeFlags = nextStatus === "DRAFT";
+
     const releaseFeatureNamesPatch =
       releaseFeatureNamesRaw !== undefined
         ? normalizeFeatureArtistNamesInput(releaseFeatureNamesRaw)
@@ -407,12 +432,16 @@ export async function PATCH(
                 ? Math.trunc(sortOrder)
                 : 0,
           }),
-          ...(showLatestOnHome !== undefined && {
-            showLatestOnHome: Boolean(showLatestOnHome),
-          }),
-          ...(showOnHome !== undefined && {
-            showOnHome: Boolean(showOnHome),
-          }),
+          // Home flags are forced off when the release is a DRAFT (it must not sit
+          // in a public carousel); otherwise honour the patch.
+          ...(clearHomeFlags
+            ? { showLatestOnHome: false }
+            : showLatestOnHome !== undefined && {
+                showLatestOnHome: Boolean(showLatestOnHome),
+              }),
+          ...(clearHomeFlags
+            ? { showOnHome: false }
+            : showOnHome !== undefined && { showOnHome: Boolean(showOnHome) }),
           ...(homeOrderPatch !== undefined && { homeOrder: homeOrderPatch }),
           ...(primaryArtistIds !== undefined && { primaryArtistIds }),
           ...(featIds !== undefined && { featureArtistIds: featIds }),
