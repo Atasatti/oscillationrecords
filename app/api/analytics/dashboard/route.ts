@@ -181,10 +181,16 @@ export async function GET(request: NextRequest) {
       gender[g in gender ? g : "unknown"] += 1;
       const a = (profile?.ageRange as AgeKey) || "unknown";
       ageRange[a in ageRange ? a : "unknown"] += 1;
-      const country = e.country || profile?.country || null;
-      if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
-      const city = e.city || profile?.city || null;
-      if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      // "Where listeners are" must reflect actual listens only. A release-page
+      // VIEW also logs an event, so counting every event double-counts a play made
+      // on a release page (view + play). Restrict the listener geography to audio
+      // plays — one valid listen = one country count.
+      if (isAudio(e.contentType)) {
+        const country = e.country || profile?.country || null;
+        if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
+        const city = e.city || profile?.city || null;
+        if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      }
     });
     const topList = (m: Map<string, number>, n: number) =>
       Array.from(m.entries())
