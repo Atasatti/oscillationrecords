@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
 // These exports tell Next.js to never statically generate or analyze this route
@@ -118,7 +119,7 @@ export async function GET(
         ageRangeStats.unknown++;
       }
       // Geography prefers the per-event snapshot (covers anonymous), else profile.
-      const country = event.country || profile?.country || null;
+      const country = canonicalCountry(event.country || profile?.country || null);
       if (country) countryStats.set(country, (countryStats.get(country) || 0) + 1);
       const city = event.city || profile?.city || null;
       if (city) cityStats.set(city, (cityStats.get(city) || 0) + 1);

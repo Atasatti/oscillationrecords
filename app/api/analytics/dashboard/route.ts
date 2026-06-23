@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = "force-dynamic";
@@ -186,7 +187,7 @@ export async function GET(request: NextRequest) {
       // on a release page (view + play). Restrict the listener geography to audio
       // plays — one valid listen = one country count.
       if (isAudio(e.contentType)) {
-        const country = e.country || profile?.country || null;
+        const country = canonicalCountry(e.country || profile?.country || null);
         if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
         const city = e.city || profile?.city || null;
         if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
