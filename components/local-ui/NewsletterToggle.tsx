@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -20,6 +20,7 @@ export default function NewsletterToggle({ compact = false }: { compact?: boolea
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const inputId = useId(); // unique per instance (footer + section can both render)
 
   useEffect(() => {
     if (!signedIn) {
@@ -69,6 +70,8 @@ export default function NewsletterToggle({ compact = false }: { compact?: boolea
     <div>
       <label className="flex cursor-pointer items-start gap-2.5">
         <input
+          id={inputId}
+          name="newsletter"
           type="checkbox"
           checked={subscribed === true}
           disabled={!signedIn || busy || subscribed === null}

@@ -65,7 +65,10 @@ const ContactFormSection = () => {
         }}
       >
         <Input
+          id="contact-name"
+          name="name"
           type="text"
+          autoComplete="name"
           placeholder="Enter your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -73,7 +76,10 @@ const ContactFormSection = () => {
         />
 
         <Input
+          id="contact-email"
+          name="email"
           type="email"
+          autoComplete="email"
           placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -81,6 +87,8 @@ const ContactFormSection = () => {
         />
 
         <Textarea
+          id="contact-message"
+          name="message"
           placeholder="Enter your message"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
