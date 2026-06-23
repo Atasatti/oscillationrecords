@@ -222,30 +222,20 @@ export async function mapReleasesToCards(
 }
 
 /**
- * Releases for the "New Music" carousel. Releases flagged for the home carousel
- * (`showOnHome`) come first in their admin order, then the rest auto-fill newest
- * first, so new releases surface without being flagged. Capped at 12.
+ * Releases for the "New Music" carousel — exactly the releases the admin curated
+ * (`showOnHome`), in the order they set (`homeOrder`). No auto-fill: the homepage
+ * mirrors the admin's New Music selection 1:1. Only publicly-visible (live)
+ * releases are returned, so a not-yet-released flagged release stays hidden until
+ * its date arrives.
  */
 export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const all = await prisma.release.findMany({
+    const featured = await prisma.release.findMany({
       ...releaseCardListArgs,
-      where: publicReleaseWhere(),
+      where: { AND: [{ showOnHome: true }, publicReleaseWhere()] },
     });
-    // Featured releases first, in their curated home order; then the rest fill in
-    // newest-first up to the cap.
-    const pinned = all
-      .filter((r) => r.showOnHome)
-      .sort((a, b) => a.homeOrder - b.homeOrder);
-    const rest = all
-      .filter((r) => !r.showOnHome)
-      .sort((a, b) => {
-        const ta = (a.releaseDate ? new Date(a.releaseDate) : new Date(a.createdAt)).getTime();
-        const tb = (b.releaseDate ? new Date(b.releaseDate) : new Date(b.createdAt)).getTime();
-        return tb - ta;
-      });
-    const releases = [...pinned, ...rest].slice(0, 12);
-    return await mapReleasesToCards(releases, { isAdmin: false });
+    featured.sort((a, b) => a.homeOrder - b.homeOrder);
+    return await mapReleasesToCards(featured, { isAdmin: false });
   } catch (e) {
     console.error("getCarouselReleases: DB unavailable", e);
     return [];
