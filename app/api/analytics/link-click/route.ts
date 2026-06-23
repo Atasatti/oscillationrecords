@@ -48,12 +48,13 @@ export async function POST(request: NextRequest) {
     const contextName =
       typeof body.contextName === "string" ? body.contextName.slice(0, 200) : null;
 
-    // Attribute to a consented visitor/session when available (for campaign CTR).
-    const consented = hasAnalyticsConsent(request.cookies.get(CONSENT_COOKIE)?.value);
-    const visitorId = consented ? request.cookies.get(VISITOR_COOKIE)?.value || null : null;
-    const sessionId = consented
-      ? nextSessionId(request.cookies.get(SESSION_COOKIE)?.value)
-      : null;
+    // Analytics is consent-gated — a link click is not recorded (even anonymously)
+    // without analytics consent, consistent with page-view / track-play.
+    if (!hasAnalyticsConsent(request.cookies.get(CONSENT_COOKIE)?.value)) {
+      return NextResponse.json({ ok: false, skipped: true });
+    }
+    const visitorId = request.cookies.get(VISITOR_COOKIE)?.value || null;
+    const sessionId = nextSessionId(request.cookies.get(SESSION_COOKIE)?.value);
 
     await prisma.linkClick.create({
       data: { context, contextId, linkType, contextName, visitorId, sessionId },
