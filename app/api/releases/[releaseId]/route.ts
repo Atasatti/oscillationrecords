@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withWriteRetry } from "@/lib/db-retry";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { normalizeCredits } from "@/lib/credits";
@@ -370,7 +371,7 @@ export async function PATCH(
       }
     }
 
-    await prisma.$transaction(async (tx) => {
+    await withWriteRetry(() => prisma.$transaction(async (tx) => {
       // "Latest" is single-select: turning it on for this release clears it on the
       // others, so the home page only ever shows one "Latest" pill.
       if (showLatestOnHome === true) {
@@ -533,7 +534,7 @@ export async function PATCH(
           }
         }
       }
-    });
+    }));
 
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
