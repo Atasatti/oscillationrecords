@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { hasAnalyticsConsent, CONSENT_COOKIE } from "@/lib/consent";
 
 // Demographics are free-form in the DB but the dashboard treats them as enums.
 // Validate on write so a client can't store junk/oversized values that then
@@ -52,6 +53,13 @@ export async function POST(request: NextRequest) {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Demographics feed the analytics dashboard, so they're consent-gated like the
+    // play / pageview / link beacons: a signed-in user who rejected non-essential
+    // cookies is not stored, matching the cookie banner's wording.
+    if (!hasAnalyticsConsent(request.cookies.get(CONSENT_COOKIE)?.value)) {
+      return NextResponse.json({ success: false, skipped: true });
     }
 
     const body = await request.json();
