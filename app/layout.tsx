@@ -7,6 +7,7 @@ import { MusicPlayer } from "@/components/local-ui/MusicPlayer";
 import UserDemographicsCollector from "@/components/user/UserDemographicsCollector";
 import CookieConsent from "@/components/local-ui/CookieConsent";
 import PageViewTracker from "@/components/local-ui/PageViewTracker";
+import GoogleAnalytics from "@/components/local-ui/GoogleAnalytics";
 import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
 import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
@@ -64,6 +65,7 @@ export default function RootLayout({
             <UserDemographicsCollector />
             <CookieConsent />
             <PageViewTracker />
+            <GoogleAnalytics />
             <ClientErrorLogger />
             <NewsletterPrompt />
           </MusicProvider>
