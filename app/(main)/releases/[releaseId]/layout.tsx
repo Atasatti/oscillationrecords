@@ -37,7 +37,8 @@ export async function generateMetadata({
   if (!r) return { title: "Release" };
 
   const url = absoluteUrl(`/releases/${slugify(r.name)}`);
-  const artistSuffix = r.primaryArtist ? ` by ${r.primaryArtist.name}` : "";
+  const artistNames = r.primaryArtists.map((a) => a.name).join(", ");
+  const artistSuffix = artistNames ? ` by ${artistNames}` : "";
   const description =
     metaDescription(r.description) ||
     `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}.`;

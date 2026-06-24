@@ -399,6 +399,9 @@ export default function ReleaseDetailsPanel({
                 onChange={(ids) => onChange({ primaryArtistIds: ids })}
                 placeholder="Primary artists *"
               />
+              <p className="text-xs text-gray-500">
+                Select one or more — a release can have multiple primary artists.
+              </p>
               {errors.primaryArtists ? (
                 <p className="text-sm text-red-400">{errors.primaryArtists}</p>
               ) : null}

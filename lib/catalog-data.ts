@@ -478,7 +478,7 @@ export interface ReleaseMetaDTO {
   description: string | null;
   releaseDate: string | null; // ISO
   genres: string[];
-  primaryArtist: { id: string; name: string } | null;
+  primaryArtists: { id: string; name: string }[];
   spotifyLink: string | null;
   appleMusicLink: string | null;
   tidalLink: string | null;
@@ -515,14 +515,18 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     });
     if (!r) return null;
 
-    let primaryArtist: { id: string; name: string } | null = null;
-    const firstId = r.primaryArtistIds?.[0];
-    if (firstId) {
-      const a = await prisma.artist.findUnique({
-        where: { id: firstId },
+    // All primary artists, in the saved order (a release can have several).
+    let primaryArtists: { id: string; name: string }[] = [];
+    const ids = r.primaryArtistIds ?? [];
+    if (ids.length) {
+      const found = await prisma.artist.findMany({
+        where: { id: { in: ids } },
         select: { id: true, name: true },
       });
-      if (a) primaryArtist = a;
+      const byId = new Map(found.map((a) => [a.id, a]));
+      primaryArtists = ids
+        .map((id) => byId.get(id))
+        .filter((a): a is { id: string; name: string } => Boolean(a));
     }
 
     return {
@@ -532,7 +536,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
       genres: [r.primaryGenre, r.secondaryGenre].filter((g): g is string => Boolean(g)),
-      primaryArtist,
+      primaryArtists,
       spotifyLink: r.spotifyLink ?? null,
       appleMusicLink: r.appleMusicLink ?? null,
       tidalLink: r.tidalLink ?? null,

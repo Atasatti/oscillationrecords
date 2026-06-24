@@ -122,7 +122,7 @@ type ReleaseDetailLike = {
   description?: string | null;
   releaseDate?: string | Date | null;
   genres?: Array<string | null | undefined>;
-  primaryArtist?: { id: string; name: string } | null;
+  primaryArtists?: { id: string; name: string }[];
   spotifyLink?: string | null;
   appleMusicLink?: string | null;
   tidalLink?: string | null;
@@ -162,12 +162,14 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     const d = new Date(release.releaseDate);
     if (!isNaN(d.getTime())) jsonLd.datePublished = d.toISOString().slice(0, 10);
   }
-  if (release.primaryArtist) {
-    jsonLd.byArtist = {
+  if (release.primaryArtists?.length) {
+    const byArtist = release.primaryArtists.map((a) => ({
       "@type": "MusicGroup",
-      name: release.primaryArtist.name,
-      url: absoluteUrl(`/artists/${slugify(release.primaryArtist.name)}`),
-    };
+      name: a.name,
+      url: absoluteUrl(`/artists/${slugify(a.name)}`),
+    }));
+    // schema.org byArtist accepts one or many — keep a bare object when single.
+    jsonLd.byArtist = byArtist.length === 1 ? byArtist[0] : byArtist;
   }
   if (release.tracks && release.tracks.length) {
     jsonLd.numTracks = release.tracks.length;
