@@ -7,6 +7,7 @@ import {
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import InfoHint from "@/components/admin/InfoHint";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,10 @@ const STATUS_FILTERS = [
   { key: "done", label: "Done" },
 ] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number]["key"];
+type Tab = "attention" | StatusFilter;
+
+const ATTENTION_HELP =
+  "Issues we found automatically in your live catalog — releases or settings that need fixing (e.g. missing artwork, streaming links or metadata). Click any to jump straight to it. These aren't tasks you create; they clear once fixed.";
 
 type PriorityVariant = "muted" | "default" | "warning" | "destructive";
 function priorityVariant(p: string): PriorityVariant {
@@ -111,13 +116,13 @@ export default function TasksPage() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [tab, setTab] = useState<Tab>("all");
   const [categoryFilter, setCategoryFilter] = useState("");
 
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Needs attention (auto-detected catalog issues) — a collapsible panel, lazily loaded.
-  const [showAttention, setShowAttention] = useState(false);
+  // Needs attention (auto-detected catalog issues) — its own tab, eager-loaded so
+  // the count is visible on the tab.
   const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
   const [attentionLoading, setAttentionLoading] = useState(false);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
@@ -145,8 +150,6 @@ export default function TasksPage() {
     }
   }, [toast]);
 
-  useEffect(() => { loadTasks(); }, [loadTasks]);
-
   const loadAttention = useCallback(async () => {
     setAttentionLoading(true);
     try {
@@ -156,15 +159,16 @@ export default function TasksPage() {
       setAttentionItems(data.items);
       setAttentionLoaded(true);
     } catch {
-      toast.error("Failed to load attention items");
+      // non-fatal: the tab still works, just no count/items
     } finally {
       setAttentionLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
-    if (showAttention && !attentionLoaded && !attentionLoading) loadAttention();
-  }, [showAttention, attentionLoaded, attentionLoading, loadAttention]);
+    loadTasks();
+    loadAttention();
+  }, [loadTasks, loadAttention]);
 
   // ---- derived ----
   const counts = useMemo(() => {
@@ -177,10 +181,10 @@ export default function TasksPage() {
     () =>
       tasks.filter(
         (t) =>
-          (statusFilter === "all" || t.status === statusFilter) &&
+          (tab === "all" || t.status === tab) &&
           (!categoryFilter || t.category === categoryFilter)
       ),
-    [tasks, statusFilter, categoryFilter]
+    [tasks, tab, categoryFilter]
   );
 
   // ---- actions ----
@@ -217,14 +221,14 @@ export default function TasksPage() {
             body: JSON.stringify(body),
           });
       if (!res.ok) throw new Error();
-      toast.success(editingId ? "Task updated" : "Task added");
       const wasNew = !editingId;
+      toast.success(wasNew ? "Task added" : "Task updated");
       setDialogOpen(false);
       setEditingId(null);
       setForm({ ...EMPTY_FORM });
       // Land where the saved task is so it's visible (new tasks default to To Do).
-      if (wasNew) setStatusFilter("todo");
-      else setStatusFilter((sf) => (sf === "all" || sf === form.status ? sf : (form.status as StatusFilter)));
+      if (wasNew) setTab("todo");
+      else if (tab !== "all" && tab !== "attention" && tab !== form.status) setTab(form.status as Tab);
       loadTasks();
     } catch {
       toast.error(editingId ? "Failed to update task" : "Failed to add task");
@@ -242,7 +246,7 @@ export default function TasksPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("Task added to To Do");
-      setStatusFilter("todo");
+      setTab("todo");
       loadTasks();
     } catch {
       toast.error("Failed to add task");
@@ -295,70 +299,6 @@ export default function TasksPage() {
         }
       />
 
-      {/* Needs attention — auto-detected catalog issues (collapsible) */}
-      <div className="mb-3 rounded-xl border border-border bg-card">
-        <button
-          type="button"
-          onClick={() => setShowAttention((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium"
-        >
-          <span className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-            Needs attention
-            {attentionLoaded ? (
-              <Badge variant={attentionItems.length ? "warning" : "muted"} className="text-[10px]">
-                {attentionItems.length}
-              </Badge>
-            ) : null}
-          </span>
-          {showAttention ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {showAttention && (
-          <div className="border-t border-border p-4">
-            {attentionLoading ? (
-              <div className="flex flex-col gap-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="rounded-lg border border-border bg-background p-3">
-                    <Skeleton className="mb-1.5 h-4 w-64" />
-                    <Skeleton className="h-3 w-80 max-w-full" />
-                  </div>
-                ))}
-              </div>
-            ) : attentionItems.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                Everything looks good — no catalog issues found.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {attentionItems.map((item) => {
-                  const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : Radio;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      className="group flex items-start gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
-                    >
-                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border">
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium group-hover:underline">{item.title}</span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{item.detail}</span>
-                      </span>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Badge variant={attentionPriorityVariant(item.priority)} className="text-[10px]">{item.priority}</Badge>
-                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Suggested tasks (collapsible) */}
       <div className="mb-5 rounded-xl border border-border bg-card">
         <button
@@ -393,16 +333,35 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Filters: status (with counts) + category */}
+      {/* Tabs: Needs attention + status filters, then category */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg border border-border p-0.5">
+        <div className="inline-flex items-center rounded-lg border border-border p-0.5">
+          <button
+            type="button"
+            onClick={() => setTab("attention")}
+            title={ATTENTION_HELP}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              tab === "attention" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <AlertCircle className="h-3.5 w-3.5" />
+            Needs attention
+            {attentionLoaded ? (
+              <span className={`ml-0.5 tabular-nums ${attentionItems.length ? "text-amber-400" : "text-muted-foreground"}`}>
+                {attentionItems.length}
+              </span>
+            ) : attentionLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+            ) : null}
+          </button>
+          <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
           {STATUS_FILTERS.map(({ key, label }) => (
             <button
               key={key}
               type="button"
-              onClick={() => setStatusFilter(key)}
+              onClick={() => setTab(key)}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                statusFilter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+                tab === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {label}
@@ -410,106 +369,163 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-        </select>
-      </div>
-
-      {/* Task list */}
-      <div className="flex flex-col gap-2">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-border bg-card p-4">
-              <Skeleton className="mb-1.5 h-4 w-64" />
-              <Skeleton className="h-3 w-40" />
-            </div>
-          ))
-        ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-            {tasks.length === 0
-              ? "No tasks yet. Add one with “New task”, or pick from the suggestions above."
-              : categoryFilter || statusFilter !== "all"
-                ? "No tasks match these filters."
-                : "No tasks yet."}
-          </div>
+        {tab === "attention" ? (
+          <InfoHint text={ATTENTION_HELP} />
         ) : (
-          filtered.map((t) => (
-            <div
-              key={t.id}
-              className={`flex items-start gap-3 rounded-xl border bg-card p-4 ${isOverdue(t) ? "border-amber-500/40" : "border-border"}`}
-            >
-              {/* Complete toggle */}
-              <button
-                type="button"
-                onClick={() => updateStatus(t.id, t.status === "done" ? "todo" : "done")}
-                title={t.status === "done" ? "Mark as to do" : "Mark as done"}
-                aria-label={t.status === "done" ? "Mark as to do" : "Mark as done"}
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                  t.status === "done"
-                    ? "border-emerald-500 bg-emerald-500 text-black"
-                    : "border-border hover:border-foreground/50"
-                }`}
-              >
-                {t.status === "done" ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-              </button>
-
-              <div className="min-w-0 flex-1">
-                <p className={`text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : ""}`}>
-                  {t.title}
-                </p>
-                {t.description && (
-                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.description}</p>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <Badge variant="muted" className="text-[10px]">{t.category}</Badge>
-                  <Badge variant={priorityVariant(t.priority)} className="text-[10px]">{PRIORITY_LABELS[t.priority]}</Badge>
-                  {t.dueAt && (
-                    <span className={`text-[10px] ${isOverdue(t) ? "text-amber-400" : "text-muted-foreground"}`}>
-                      Due {fmtDate(t.dueAt)}{isOverdue(t) ? " ⚠" : ""}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Status + edit + delete */}
-              <div className="flex shrink-0 items-center gap-1.5">
-                <select
-                  value={t.status}
-                  onChange={(e) => updateStatus(t.id, e.target.value)}
-                  title="Change status"
-                  aria-label="Change status"
-                  className="rounded-md border border-border bg-background py-1 pl-2 pr-6 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => openEdit(t)}
-                  title="Edit task"
-                  aria-label="Edit task"
-                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(t.id)}
-                  title="Delete task"
-                  aria-label="Delete task"
-                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+          </select>
         )}
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* NEEDS ATTENTION                                                     */}
+      {/* ------------------------------------------------------------------ */}
+      {tab === "attention" ? (
+        <div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Auto-detected issues in your live catalog — click any to jump straight to it. These clear themselves once fixed.
+          </p>
+          {attentionLoading ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border bg-card p-4">
+                  <Skeleton className="mb-1.5 h-4 w-64" />
+                  <Skeleton className="h-3 w-96 max-w-full" />
+                </div>
+              ))}
+            </div>
+          ) : attentionItems.length === 0 ? (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+              Everything looks good — no catalog issues found.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {attentionItems.map((item) => {
+                const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : Radio;
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className="group flex items-start gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
+                  >
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium group-hover:underline">{item.title}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{item.detail}</span>
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={attentionPriorityVariant(item.priority)} className="text-[10px]">{item.priority}</Badge>
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* -------------------------------------------------------------- */
+        /* TASK LIST                                                       */
+        /* -------------------------------------------------------------- */
+        <div className="flex flex-col gap-2">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-4">
+                <Skeleton className="mb-1.5 h-4 w-64" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            ))
+          ) : filtered.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
+              {tasks.length === 0
+                ? "No tasks yet. Add one with “New task”, or pick from the suggestions above."
+                : categoryFilter || tab !== "all"
+                  ? "No tasks match these filters."
+                  : "No tasks yet."}
+            </div>
+          ) : (
+            filtered.map((t) => (
+              <div
+                key={t.id}
+                className={`flex items-start gap-3 rounded-xl border bg-card p-4 ${isOverdue(t) ? "border-amber-500/40" : "border-border"}`}
+              >
+                {/* Complete toggle */}
+                <button
+                  type="button"
+                  onClick={() => updateStatus(t.id, t.status === "done" ? "todo" : "done")}
+                  title={t.status === "done" ? "Mark as to do" : "Mark as done"}
+                  aria-label={t.status === "done" ? "Mark as to do" : "Mark as done"}
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    t.status === "done"
+                      ? "border-emerald-500 bg-emerald-500 text-black"
+                      : "border-border hover:border-foreground/50"
+                  }`}
+                >
+                  {t.status === "done" ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                </button>
+
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : ""}`}>
+                    {t.title}
+                  </p>
+                  {t.description && (
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.description}</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="muted" className="text-[10px]">{t.category}</Badge>
+                    <Badge variant={priorityVariant(t.priority)} className="text-[10px]">{PRIORITY_LABELS[t.priority]}</Badge>
+                    {t.dueAt && (
+                      <span className={`text-[10px] ${isOverdue(t) ? "text-amber-400" : "text-muted-foreground"}`}>
+                        Due {fmtDate(t.dueAt)}{isOverdue(t) ? " ⚠" : ""}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status + edit + delete */}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <select
+                    value={t.status}
+                    onChange={(e) => updateStatus(t.id, e.target.value)}
+                    title="Change status"
+                    aria-label="Change status"
+                    className="rounded-md border border-border bg-background py-1 pl-2 pr-6 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(t)}
+                    title="Edit task"
+                    aria-label="Edit task"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(t.id)}
+                    title="Delete task"
+                    aria-label="Delete task"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Create / edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
