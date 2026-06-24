@@ -26,8 +26,11 @@ export async function GET(request: NextRequest) {
     // Optional ?date=YYYY-MM-DD (UTC day) focuses the recent-plays list on a
     // single day — matching the dashboard's UTC daily buckets — for the
     // "see these plays" drill-down from the Plays breakdown.
-    const dateParam = new URL(request.url).searchParams.get("date");
-    const metricParam = new URL(request.url).searchParams.get("metric"); // plays | views | clicks
+    const sp = new URL(request.url).searchParams;
+    const dateParam = sp.get("date");
+    const metricParam = sp.get("metric"); // plays | views | clicks
+    const linkTypeParam = sp.get("linkType"); // clicks of one platform (By platform)
+    const contextIdParam = sp.get("contextId"); // clicks for one release (Most-clicked / CTR)
     const dayStart =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
         ? new Date(`${dateParam}T00:00:00.000Z`)
@@ -52,7 +55,22 @@ export async function GET(request: NextRequest) {
         : focusMetric === "views"
           ? { createdAt: dayRange!, contentType: "release" }
           : undefined;
-    const clicksWhere = focusMetric === "clicks" ? { createdAt: dayRange! } : undefined;
+    // Clicks can be focused by platform (By platform), by content (Most-clicked /
+    // Release CTR), or by day (the Link-clicks KPI).
+    const clicksWhere = linkTypeParam
+      ? { linkType: linkTypeParam }
+      : contextIdParam
+        ? { contextId: contextIdParam }
+        : focusMetric === "clicks"
+          ? { createdAt: dayRange! }
+          : undefined;
+    const focus = linkTypeParam
+      ? { metric: "clicks" as const, linkType: linkTypeParam }
+      : contextIdParam
+        ? { metric: "clicks" as const, contextId: contextIdParam }
+        : focusMetric
+          ? { metric: focusMetric, date: dateParam }
+          : null;
 
     const [
       users,
@@ -184,8 +202,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       now: now.toISOString(),
-      // Echoes the day-drill focus (if any) so the page can label/scope + highlight.
-      focus: focusMetric ? { metric: focusMetric, date: dateParam } : null,
+      // Echoes the drill focus (day / platform / content) so the page can
+      // label/scope + highlight the matching section.
+      focus,
       counts: { users, profiles, artists, releases, tracks, playEvents, pageViews, linkClicks, subscribers },
       // activeSessions is the TRUE count; items is capped for display.
       live: { activeSessions: live.length, items: live.slice(0, LIVE_ROWS) },

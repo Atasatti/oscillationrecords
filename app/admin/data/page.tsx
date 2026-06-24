@@ -7,7 +7,7 @@ import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 interface RawData {
   now: string;
-  focus?: { metric: string; date: string } | null;
+  focus?: { metric: string; date?: string; linkType?: string; contextId?: string } | null;
   counts: Record<string, number>;
   live: {
     activeSessions: number;
@@ -89,25 +89,43 @@ export default function RawDataPage() {
   const [error, setError] = useState(false);
   // Optional day focus (from the dashboard Plays breakdown → /admin/data?date=…):
   // narrows the recent-plays list to that UTC day and highlights the section.
-  const [focus, setFocus] = useState<{ date: string; metric: string } | null>(null);
+  const [focus, setFocus] = useState<{
+    metric: string;
+    date?: string;
+    linkType?: string;
+    contextId?: string;
+  } | null>(null);
   const scrolledRef = useRef(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const date = p.get("date");
+    const linkType = p.get("linkType");
+    const contextId = p.get("contextId");
+    const mp = p.get("metric");
+    const metric = mp === "views" || mp === "clicks" ? mp : "plays";
     if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      const mp = p.get("metric");
-      const metric = mp === "views" || mp === "clicks" ? mp : "plays";
-      setFocus({ date, metric });
+      setFocus({ metric, date });
+    } else if (linkType) {
+      setFocus({ metric: "clicks", linkType });
+    } else if (contextId) {
+      setFocus({ metric: "clicks", contextId });
     }
   }, []);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/analytics/raw${focus ? `?metric=${focus.metric}&date=${encodeURIComponent(focus.date)}` : ""}`,
-        { cache: "no-store" }
-      );
+      const query = focus
+        ? "?" +
+          new URLSearchParams(
+            focus.linkType
+              ? { metric: "clicks", linkType: focus.linkType }
+              : focus.contextId
+                ? { metric: "clicks", contextId: focus.contextId }
+                : { metric: focus.metric, date: focus.date ?? "" }
+          ).toString()
+        : "";
+      const res = await fetch(`/api/analytics/raw${query}`, { cache: "no-store" });
       if (!res.ok) throw new Error();
       const json = await res.json();
       // Defensive: guarantee every array/object the UI reads exists, so a partial
@@ -155,15 +173,19 @@ export default function RawDataPage() {
     window.history.replaceState(null, "", "/admin/data");
   };
 
-  const prettyDay = (d: string) =>
-    new Date(`${d}T00:00:00.000Z`).toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
+  const prettyDay = (d?: string) =>
+    d
+      ? new Date(`${d}T00:00:00.000Z`).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+      : "";
   const metricLabel = (m: string) =>
     m === "views" ? "release views" : m === "clicks" ? "link clicks" : "plays";
+  const prettyPlatform = (s: string) =>
+    s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div>
@@ -185,21 +207,27 @@ export default function RawDataPage() {
         <p className="py-12 text-center text-muted-foreground">Failed to load.</p>
       ) : (
         <div className="space-y-6">
-          {focus ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
-              <span>
-                Showing the{" "}
-                <strong className="text-foreground">
-                  {(focus.metric === "clicks" ? data.recentClicks.length : data.recentPlays.length).toLocaleString()}
-                </strong>{" "}
-                {metricLabel(focus.metric)} from{" "}
-                <strong className="text-foreground">{prettyDay(focus.date)}</strong> — highlighted below.
-              </span>
-              <Button variant="outline" size="sm" className="shrink-0" onClick={clearFocus}>
-                Clear
-              </Button>
-            </div>
-          ) : null}
+          {focus ? (() => {
+            const isClicks = focus.metric === "clicks";
+            const count = isClicks ? data.recentClicks.length : data.recentPlays.length;
+            const what = focus.linkType
+              ? `${prettyPlatform(focus.linkType)} link clicks`
+              : focus.contextId
+                ? `link clicks on ${data.recentClicks[0]?.contextName || "this release"}`
+                : metricLabel(focus.metric);
+            const when = focus.date ? ` from ${prettyDay(focus.date)}` : "";
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+                <span>
+                  Showing the <strong className="text-foreground">{count.toLocaleString()}</strong> {what}
+                  {when} — highlighted below.
+                </span>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={clearFocus}>
+                  Clear
+                </Button>
+              </div>
+            );
+          })() : null}
           {/* Privacy note */}
           <div className="flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
@@ -323,12 +351,20 @@ export default function RawDataPage() {
           <Section
             id="recent-clicks"
             highlight={focus?.metric === "clicks"}
-            title={focus?.metric === "clicks" ? `Link clicks on ${prettyDay(focus.date)}` : "Recent link clicks"}
-            hint={focus?.metric === "clicks" ? "Every link click recorded on this day." : undefined}
+            title={
+              focus?.linkType
+                ? `${prettyPlatform(focus.linkType)} link clicks`
+                : focus?.contextId
+                  ? `Link clicks on ${data.recentClicks[0]?.contextName || "this release"}`
+                  : focus?.metric === "clicks" && focus.date
+                    ? `Link clicks on ${prettyDay(focus.date)}`
+                    : "Recent link clicks"
+            }
+            hint={focus?.metric === "clicks" ? "Each row is one outbound click — Clear above to see all." : undefined}
           >
             {data.recentClicks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                {focus?.metric === "clicks" ? "No link clicks recorded on this day." : "No link clicks yet."}
+                {focus?.metric === "clicks" ? "No matching link clicks." : "No link clicks yet."}
               </p>
             ) : (
               <Table head={["When", "Platform", "Context", "Name", "Session"]}>

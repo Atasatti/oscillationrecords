@@ -747,7 +747,15 @@ export default function AnalyticsDashboard() {
                     {(() => {
                       const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
                       return ctr.byLinkType.map((t) => (
-                        <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
+                        <button
+                          key={t.linkType}
+                          type="button"
+                          onClick={() => router.push(`/admin/data?metric=clicks&linkType=${encodeURIComponent(t.linkType)}`)}
+                          title="See these clicks in Live & raw data"
+                          className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
+                        >
+                          <BarRow label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
+                        </button>
                       ));
                     })()}
                   </div>
@@ -762,7 +770,13 @@ export default function AnalyticsDashboard() {
                     {(() => {
                       const m = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
                       return ctr.topLinks.map((l) => (
-                        <div key={`${l.context}-${l.contextId}`} className="space-y-1.5">
+                        <button
+                          key={`${l.context}-${l.contextId}`}
+                          type="button"
+                          onClick={() => router.push(`/admin/data?metric=clicks&contextId=${encodeURIComponent(l.contextId)}`)}
+                          title="See these clicks in Live & raw data"
+                          className="block w-full space-y-1.5 rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
+                        >
                           <div className="flex items-center justify-between gap-3">
                             <span className="flex min-w-0 items-center gap-1.5">
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -773,7 +787,7 @@ export default function AnalyticsDashboard() {
                           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                             <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
                           </div>
-                        </div>
+                        </button>
                       ));
                     })()}
                   </div>
@@ -820,7 +834,12 @@ export default function AnalyticsDashboard() {
                 <tbody>
                   {ctr.ctrByRelease.length > 0 ? (
                     ctr.ctrByRelease.map((r) => (
-                      <tr key={r.contextId} className="border-b border-border hover:bg-white/[0.02]">
+                      <tr
+                        key={r.contextId}
+                        onClick={() => router.push(`/admin/data?metric=clicks&contextId=${encodeURIComponent(r.contextId)}`)}
+                        title="See these clicks in Live & raw data"
+                        className="cursor-pointer border-b border-border transition-colors hover:bg-white/[0.02]"
+                      >
                         <td className="px-4 py-2.5 text-sm text-foreground">{r.name}</td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-muted-foreground">{r.views}</td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-foreground">{r.clicks}</td>
