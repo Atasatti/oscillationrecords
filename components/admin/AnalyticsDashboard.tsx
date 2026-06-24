@@ -138,9 +138,9 @@ const countryName = (code: string) => {
 
 type Metric = "plays" | "views" | "clicks";
 const METRICS: { key: Metric; label: string; color: string }[] = [
-  { key: "plays", label: "Plays", color: "var(--primary)" },
-  { key: "views", label: "Release views", color: "var(--primary)" },
-  { key: "clicks", label: "Link clicks", color: "var(--primary)" },
+  { key: "plays", label: "Plays", color: "#34d399" }, // emerald
+  { key: "views", label: "Release views", color: "#38bdf8" }, // sky
+  { key: "clicks", label: "Link clicks", color: "#a78bfa" }, // violet
 ];
 
 type ListRow = { label: string; value: number | string; sub?: string };
@@ -173,6 +173,7 @@ function KpiCard({
   previous,
   series,
   color,
+  iconColor,
   sub,
   onClick,
 }: {
@@ -183,6 +184,7 @@ function KpiCard({
   previous: number;
   series?: number[];
   color: string;
+  iconColor?: string;
   sub?: string;
   onClick?: () => void;
 }) {
@@ -194,7 +196,10 @@ function KpiCard({
       className="group rounded-xl border border-border bg-card p-6 text-left transition-colors enabled:cursor-pointer enabled:hover:border-white/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
+        <span
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 ${iconColor ? "" : "text-muted-foreground"}`}
+          style={iconColor ? { color: iconColor } : undefined}
+        >
           <Icon className="h-4 w-4" />
         </span>
         <DeltaBadge current={current} previous={previous} />
@@ -346,10 +351,10 @@ export default function AnalyticsDashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
+        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="#34d399" iconColor="#34d399" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
         <KpiCard icon={Users} label="Unique listeners" value={s.listeners} current={s.listeners} previous={data.previous.listeners} color="var(--primary)" sub={`${s.reach.toLocaleString()} total reach · ${s.anonPlays.toLocaleString()} anon plays`} onClick={() => setDetail({ kind: "listeners" })} />
-        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "views" })} />
-        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
+        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="#38bdf8" iconColor="#38bdf8" onClick={() => setDetail({ kind: "series", metric: "views" })} />
+        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="#a78bfa" iconColor="#a78bfa" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
       </div>
 
       {/* Secondary stats — de-emphasised single row (supports the KPIs, doesn't compete) */}
@@ -379,10 +384,11 @@ export default function AnalyticsDashboard() {
                 key={m.key}
                 type="button"
                 onClick={() => setMetric(m.key)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   metric === m.key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: m.color }} />
                 {m.label}
               </button>
             ))}
