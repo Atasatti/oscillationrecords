@@ -471,12 +471,23 @@ export async function PATCH(
           });
         }
 
-        for (const t of parsedTracks) {
-          if (t.id && existingIds.has(String(t.id))) {
-            const prev = existing.tracks.find((x) => x.id === t.id)!;
-            const nextAudio = t.audioFile || prev.audioFile;
-            const nextDuration = t.audioFile ? t.duration : prev.duration;
-            await tx.track.update({
+      }
+    }));
+
+    // Track create/updates run OUTSIDE the interactive transaction, in small
+    // concurrent batches. Many sequential track writes inside one transaction
+    // blew Prisma's 5s interactive-transaction timeout (P2028) on larger albums.
+    // Each write is its own retryable op on a distinct row, so they don't
+    // conflict with one another or hold a transaction open.
+    if (parsedTracks && !clearAllTracks) {
+      const existingById = new Map(existing.tracks.map((t) => [String(t.id), t]));
+      const writes = parsedTracks.map((t) => () => {
+        const prev = t.id ? existingById.get(String(t.id)) : undefined;
+        if (t.id && prev) {
+          const nextAudio = t.audioFile || prev.audioFile;
+          const nextDuration = t.audioFile ? t.duration : prev.duration;
+          return withWriteRetry(() =>
+            prisma.track.update({
               where: { id: t.id },
               data: {
                 name: t.name,
@@ -504,41 +515,46 @@ export async function PATCH(
                 featureArtistNames: t.featureArtistNames,
                 sortOrder: t.sortOrder,
               },
-            });
-          } else {
-            await tx.track.create({
-              data: {
-                releaseId,
-                name: t.name,
-                image: t.image,
-                audioFile: t.audioFile,
-                duration: t.duration,
-                releaseDate: t.releaseDate,
-                composer: t.composer,
-                lyricist: t.lyricist,
-                leadVocal: t.leadVocal,
-                lyrics: t.lyrics,
-                stemsFile: t.stemsFile,
-                trackCredits: t.trackCredits,
-                isrcCode: t.isrcCode,
-                iswc: t.iswc,
-                isrcExplicit: t.isrcExplicit,
-                spotifyLink: t.spotifyLink,
-                appleMusicLink: t.appleMusicLink,
-                tidalLink: t.tidalLink,
-                amazonMusicLink: t.amazonMusicLink,
-                youtubeLink: t.youtubeLink,
-                soundcloudLink: t.soundcloudLink,
-                primaryArtistIds: t.primaryArtistIds,
-                featureArtistIds: t.featureArtistIds,
-                featureArtistNames: t.featureArtistNames,
-                sortOrder: t.sortOrder,
-              },
-            });
-          }
+            })
+          );
         }
+        return withWriteRetry(() =>
+          prisma.track.create({
+            data: {
+              releaseId,
+              name: t.name,
+              image: t.image,
+              audioFile: t.audioFile,
+              duration: t.duration,
+              releaseDate: t.releaseDate,
+              composer: t.composer,
+              lyricist: t.lyricist,
+              leadVocal: t.leadVocal,
+              lyrics: t.lyrics,
+              stemsFile: t.stemsFile,
+              trackCredits: t.trackCredits,
+              isrcCode: t.isrcCode,
+              iswc: t.iswc,
+              isrcExplicit: t.isrcExplicit,
+              spotifyLink: t.spotifyLink,
+              appleMusicLink: t.appleMusicLink,
+              tidalLink: t.tidalLink,
+              amazonMusicLink: t.amazonMusicLink,
+              youtubeLink: t.youtubeLink,
+              soundcloudLink: t.soundcloudLink,
+              primaryArtistIds: t.primaryArtistIds,
+              featureArtistIds: t.featureArtistIds,
+              featureArtistNames: t.featureArtistNames,
+              sortOrder: t.sortOrder,
+            },
+          })
+        );
+      });
+      // Bounded concurrency: fast, but won't exhaust the DB connection pool.
+      for (let i = 0; i < writes.length; i += 5) {
+        await Promise.all(writes.slice(i, i + 5).map((run) => run()));
       }
-    }));
+    }
 
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
