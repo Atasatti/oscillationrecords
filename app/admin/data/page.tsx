@@ -7,7 +7,7 @@ import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 interface RawData {
   now: string;
-  playsDate?: string | null;
+  focus?: { metric: string; date: string } | null;
   counts: Record<string, number>;
   live: {
     activeSessions: number;
@@ -89,18 +89,23 @@ export default function RawDataPage() {
   const [error, setError] = useState(false);
   // Optional day focus (from the dashboard Plays breakdown → /admin/data?date=…):
   // narrows the recent-plays list to that UTC day and highlights the section.
-  const [focusDate, setFocusDate] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ date: string; metric: string } | null>(null);
   const scrolledRef = useRef(false);
 
   useEffect(() => {
-    const d = new URLSearchParams(window.location.search).get("date");
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setFocusDate(d);
+    const p = new URLSearchParams(window.location.search);
+    const date = p.get("date");
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const mp = p.get("metric");
+      const metric = mp === "views" || mp === "clicks" ? mp : "plays";
+      setFocus({ date, metric });
+    }
   }, []);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/analytics/raw${focusDate ? `?date=${encodeURIComponent(focusDate)}` : ""}`,
+        `/api/analytics/raw${focus ? `?metric=${focus.metric}&date=${encodeURIComponent(focus.date)}` : ""}`,
         { cache: "no-store" }
       );
       if (!res.ok) throw new Error();
@@ -110,7 +115,7 @@ export default function RawDataPage() {
       // on undefined — this surfaced in the error log as a /admin/data TypeError).
       setData({
         now: json.now,
-        playsDate: json.playsDate ?? null,
+        focus: json.focus ?? null,
         counts: json.counts ?? {},
         live: { activeSessions: json.live?.activeSessions ?? 0, items: json.live?.items ?? [] },
         recentVisits: json.recentVisits ?? [],
@@ -125,28 +130,27 @@ export default function RawDataPage() {
     } finally {
       setLoading(false);
     }
-  }, [focusDate]);
+  }, [focus]);
 
   useEffect(() => {
     load();
     // A specific past day doesn't change — don't poll while focused on one.
-    if (focusDate) return;
+    if (focus) return;
     const t = setInterval(load, 15000); // keep "live now" fresh
     return () => clearInterval(t);
-  }, [load, focusDate]);
+  }, [load, focus]);
 
-  // Scroll to the plays section once, when arriving with a day focus.
+  // Scroll to the focused section once, when arriving with a day drill-down.
   useEffect(() => {
-    if (focusDate && data && !scrolledRef.current) {
+    if (focus && data && !scrolledRef.current) {
       scrolledRef.current = true;
-      document
-        .getElementById("recent-plays")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const target = focus.metric === "clicks" ? "recent-clicks" : "recent-plays";
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [focusDate, data]);
+  }, [focus, data]);
 
   const clearFocus = () => {
-    setFocusDate(null);
+    setFocus(null);
     scrolledRef.current = false;
     window.history.replaceState(null, "", "/admin/data");
   };
@@ -158,6 +162,8 @@ export default function RawDataPage() {
       year: "numeric",
       timeZone: "UTC",
     });
+  const metricLabel = (m: string) =>
+    m === "views" ? "release views" : m === "clicks" ? "link clicks" : "plays";
 
   return (
     <div>
@@ -179,13 +185,15 @@ export default function RawDataPage() {
         <p className="py-12 text-center text-muted-foreground">Failed to load.</p>
       ) : (
         <div className="space-y-6">
-          {focusDate ? (
+          {focus ? (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
               <span>
                 Showing the{" "}
-                <strong className="text-foreground">{data.recentPlays.length}</strong>{" "}
-                play{data.recentPlays.length === 1 ? "" : "s"} from{" "}
-                <strong className="text-foreground">{prettyDay(focusDate)}</strong> — highlighted below.
+                <strong className="text-foreground">
+                  {(focus.metric === "clicks" ? data.recentClicks.length : data.recentPlays.length).toLocaleString()}
+                </strong>{" "}
+                {metricLabel(focus.metric)} from{" "}
+                <strong className="text-foreground">{prettyDay(focus.date)}</strong> — highlighted below.
               </span>
               <Button variant="outline" size="sm" className="shrink-0" onClick={clearFocus}>
                 Clear
@@ -270,13 +278,27 @@ export default function RawDataPage() {
           {/* Recent plays */}
           <Section
             id="recent-plays"
-            highlight={!!focusDate}
-            title={focusDate ? `Plays on ${prettyDay(focusDate)}` : "Recent plays & views"}
-            hint={focusDate ? "Every play recorded on this day." : undefined}
+            highlight={focus?.metric === "plays" || focus?.metric === "views"}
+            title={
+              focus?.metric === "views"
+                ? `Release views on ${prettyDay(focus.date)}`
+                : focus?.metric === "plays"
+                  ? `Plays on ${prettyDay(focus.date)}`
+                  : "Recent plays & views"
+            }
+            hint={
+              focus?.metric === "views"
+                ? "Every release-page view recorded on this day."
+                : focus?.metric === "plays"
+                  ? "Every play recorded on this day."
+                  : undefined
+            }
           >
             {data.recentPlays.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                {focusDate ? "No plays recorded on this day." : "No plays yet."}
+                {focus?.metric === "plays" || focus?.metric === "views"
+                  ? "Nothing recorded on this day."
+                  : "No plays yet."}
               </p>
             ) : (
               <Table head={["When", "Who", "Type", "Content", "Artist", "Location", "Completed"]}>
@@ -298,9 +320,16 @@ export default function RawDataPage() {
           </Section>
 
           {/* Recent clicks */}
-          <Section title="Recent link clicks">
+          <Section
+            id="recent-clicks"
+            highlight={focus?.metric === "clicks"}
+            title={focus?.metric === "clicks" ? `Link clicks on ${prettyDay(focus.date)}` : "Recent link clicks"}
+            hint={focus?.metric === "clicks" ? "Every link click recorded on this day." : undefined}
+          >
             {data.recentClicks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No link clicks yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {focus?.metric === "clicks" ? "No link clicks recorded on this day." : "No link clicks yet."}
+              </p>
             ) : (
               <Table head={["When", "Platform", "Context", "Name", "Session"]}>
                 {data.recentClicks.map((r) => (

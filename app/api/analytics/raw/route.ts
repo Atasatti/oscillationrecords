@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     // single day — matching the dashboard's UTC daily buckets — for the
     // "see these plays" drill-down from the Plays breakdown.
     const dateParam = new URL(request.url).searchParams.get("date");
+    const metricParam = new URL(request.url).searchParams.get("metric"); // plays | views | clicks
     const dayStart =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
         ? new Date(`${dateParam}T00:00:00.000Z`)
@@ -35,6 +36,23 @@ export async function GET(request: NextRequest) {
       dayStart && !isNaN(dayStart.getTime())
         ? { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) }
         : null;
+    // Which list a day-drill focuses, matching the dashboard KPIs so the drilled
+    // count lines up with the breakdown: plays = audio events, views = release-
+    // page events (both PlayEvent rows), clicks = link clicks.
+    const focusMetric = dayRange
+      ? metricParam === "views"
+        ? "views"
+        : metricParam === "clicks"
+          ? "clicks"
+          : "plays"
+      : null;
+    const playsWhere =
+      focusMetric === "plays"
+        ? { createdAt: dayRange!, contentType: { not: "release" } }
+        : focusMetric === "views"
+          ? { createdAt: dayRange!, contentType: "release" }
+          : undefined;
+    const clicksWhere = focusMetric === "clicks" ? { createdAt: dayRange! } : undefined;
 
     const [
       users,
@@ -86,19 +104,20 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.playEvent.findMany({
-        // With ?date set, return ALL of that UTC day's plays so the admin sees
-        // exactly where the day's count came from; otherwise the recent N.
-        where: dayRange ? { createdAt: dayRange } : undefined,
+        // With a day focus, return ALL of that day's events for the focused
+        // metric (plays = audio, views = release); otherwise the recent N.
+        where: playsWhere,
         orderBy: { createdAt: "desc" },
-        take: dayRange ? 500 : RECENT_ROWS,
+        take: playsWhere ? 500 : RECENT_ROWS,
         select: {
           id: true, contentType: true, contentName: true, artistName: true, completed: true,
           country: true, city: true, sessionId: true, visitorId: true, userId: true, createdAt: true,
         },
       }),
       prisma.linkClick.findMany({
+        where: clicksWhere,
         orderBy: { createdAt: "desc" },
-        take: RECENT_ROWS,
+        take: clicksWhere ? 500 : RECENT_ROWS,
         select: { id: true, context: true, contextName: true, linkType: true, sessionId: true, visitorId: true, createdAt: true },
       }),
       prisma.user.findMany({ orderBy: { id: "desc" }, take: 10, select: { id: true, name: true, email: true } }),
@@ -165,8 +184,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       now: now.toISOString(),
-      // Echoes the day filter (if any) so the page can label/scope the plays list.
-      playsDate: dayRange ? dateParam : null,
+      // Echoes the day-drill focus (if any) so the page can label/scope + highlight.
+      focus: focusMetric ? { metric: focusMetric, date: dateParam } : null,
       counts: { users, profiles, artists, releases, tracks, playEvents, pageViews, linkClicks, subscribers },
       // activeSessions is the TRUE count; items is capped for display.
       live: { activeSessions: live.length, items: live.slice(0, LIVE_ROWS) },

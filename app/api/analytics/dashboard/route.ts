@@ -110,16 +110,29 @@ export async function GET(request: NextRequest) {
     }
     const zero = () => new Map(dayKeys.map((d) => [d, 0]));
     const playsMap = zero();
+    const playsCompletedMap = zero();
     const viewsMap = zero();
     const clicksMap = zero();
     const bump = (m: Map<string, number>, d: Date) => {
       const k = d.toISOString().split("T")[0];
       if (m.has(k)) m.set(k, (m.get(k) || 0) + 1);
     };
-    events.forEach((e) => bump(isAudio(e.contentType) ? playsMap : viewsMap, e.createdAt));
+    events.forEach((e) => {
+      if (isAudio(e.contentType)) {
+        bump(playsMap, e.createdAt);
+        if (e.completed) bump(playsCompletedMap, e.createdAt);
+      } else {
+        bump(viewsMap, e.createdAt);
+      }
+    });
     clickRows.forEach((c) => bump(clicksMap, c.createdAt));
     const series = {
-      plays: dayKeys.map((d) => ({ date: d, count: playsMap.get(d) || 0 })),
+      // plays carry a full/partial split (completed vs not) for the breakdown.
+      plays: dayKeys.map((d) => {
+        const count = playsMap.get(d) || 0;
+        const completed = playsCompletedMap.get(d) || 0;
+        return { date: d, count, completed, partial: count - completed };
+      }),
       views: dayKeys.map((d) => ({ date: d, count: viewsMap.get(d) || 0 })),
       clicks: dayKeys.map((d) => ({ date: d, count: clicksMap.get(d) || 0 })),
     };

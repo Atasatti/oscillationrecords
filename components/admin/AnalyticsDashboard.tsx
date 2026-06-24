@@ -30,7 +30,7 @@ import DeltaBadge from "@/components/admin/charts/DeltaBadge";
 import Sparkline from "@/components/admin/charts/Sparkline";
 import TrendArea from "@/components/admin/charts/TrendArea";
 
-type Series = { date: string; count: number }[];
+type Series = { date: string; count: number; completed?: number; partial?: number }[];
 
 interface DashboardData {
   days: number;
@@ -896,6 +896,8 @@ export default function AnalyticsDashboard() {
                 const series = data.series[detail.metric];
                 const isPlays = m.key === "plays";
                 const total = series.reduce((acc, d) => acc + d.count, 0);
+                const totalCompleted = series.reduce((acc, d) => acc + (d.completed ?? 0), 0);
+                const totalPartial = total - totalCompleted;
                 const avg = series.length ? total / series.length : 0;
                 const peak = series.reduce((mx, d) => (d.count > mx.count ? d : mx), series[0] || { date: "", count: 0 });
                 // List only days that had activity — over a 30/90/365-day window
@@ -920,6 +922,16 @@ export default function AnalyticsDashboard() {
                         </div>
                       ))}
                     </div>
+                    {isPlays ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400" /> Full play — {totalCompleted.toLocaleString()}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-400" /> Partial — {totalPartial.toLocaleString()}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="mt-4 max-h-[50vh] overflow-y-auto rounded-lg border border-border">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-card">
@@ -933,21 +945,26 @@ export default function AnalyticsDashboard() {
                             [...active].reverse().map((d) => (
                               <tr
                                 key={d.date}
-                                className={`border-b border-border ${isPlays ? "cursor-pointer transition-colors hover:bg-white/5" : ""}`}
-                                onClick={
-                                  isPlays
-                                    ? () => {
-                                        setDetail(null);
-                                        router.push(`/admin/data?date=${d.date.slice(0, 10)}`);
-                                      }
-                                    : undefined
-                                }
-                                title={isPlays ? "See these plays in Live & raw data" : undefined}
+                                className="cursor-pointer border-b border-border transition-colors hover:bg-white/5"
+                                onClick={() => {
+                                  setDetail(null);
+                                  router.push(`/admin/data?metric=${m.key}&date=${d.date.slice(0, 10)}`);
+                                }}
+                                title="See these in Live & raw data"
                               >
                                 <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums text-foreground">
-                                  {d.count.toLocaleString()}
-                                  {isPlays ? <span className="ml-1 text-muted-foreground">›</span> : null}
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {isPlays ? (
+                                    <span>
+                                      <span className="text-emerald-400">{(d.completed ?? 0).toLocaleString()}</span>
+                                      {(d.partial ?? 0) > 0 ? (
+                                        <span className="text-amber-400"> + {(d.partial ?? 0).toLocaleString()}</span>
+                                      ) : null}
+                                    </span>
+                                  ) : (
+                                    <span className="text-foreground">{d.count.toLocaleString()}</span>
+                                  )}
+                                  <span className="ml-1 text-muted-foreground">›</span>
                                 </td>
                               </tr>
                             ))
