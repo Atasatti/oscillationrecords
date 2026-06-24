@@ -186,7 +186,7 @@ function toSlices(
  * Sparkline/BarRow style. Slices share the dashboard palette. */
 function DonutChart({
   data,
-  size = 128,
+  size = 120,
 }: {
   data: { label: string; value: number; color: string }[];
   size?: number;
@@ -195,8 +195,10 @@ function DonutChart({
   const r = size / 2 - 9;
   const circ = 2 * Math.PI * r;
   let acc = 0;
+  // Stack the legend BELOW the donut: side-by-side overflows in the narrow
+  // demographics columns on smaller screens.
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex flex-col items-center gap-3">
       <svg
         width={size}
         height={size}
@@ -226,7 +228,7 @@ function DonutChart({
           })
         )}
       </svg>
-      <ul className="min-w-0 flex-1 space-y-1.5">
+      <ul className="w-full space-y-1.5">
         {data.map((d) => (
           <li key={d.label} className="flex items-center gap-2 text-sm">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
