@@ -165,6 +165,83 @@ function BarRow({ label, value, max, color, sub }: { label: string; value: numbe
   );
 }
 
+// Pie/donut slice palette — drawn from the dashboard's accent hues; "unknown"
+// always renders muted so it reads as a residual rather than a category.
+const SLICE_COLORS = ["#34d399", "#38bdf8", "#a78bfa", "#fbbf24", "#fb7185", "#2dd4bf"];
+const UNKNOWN_COLOR = "#52525b";
+
+function toSlices(
+  entries: [string, number][],
+  prettify: (k: string) => string
+): { label: string; value: number; color: string }[] {
+  let i = 0;
+  return entries.map(([k, n]) => ({
+    label: prettify(k),
+    value: n,
+    color: k.toLowerCase() === "unknown" ? UNKNOWN_COLOR : SLICE_COLORS[i++ % SLICE_COLORS.length],
+  }));
+}
+
+/** Donut chart + legend. SVG-only (no chart dependency), matching the hand-rolled
+ * Sparkline/BarRow style. Slices share the dashboard palette. */
+function DonutChart({
+  data,
+  size = 128,
+}: {
+  data: { label: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = data.reduce((a, d) => a + d.value, 0);
+  const r = size / 2 - 9;
+  const circ = 2 * Math.PI * r;
+  let acc = 0;
+  return (
+    <div className="flex items-center gap-5">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90 shrink-0"
+      >
+        {total === 0 ? (
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={14} />
+        ) : (
+          data.map((d) => {
+            const frac = d.value / total;
+            const seg = (
+              <circle
+                key={d.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={d.color}
+                strokeWidth={14}
+                strokeDasharray={`${frac * circ} ${circ - frac * circ}`}
+                strokeDashoffset={-acc * circ}
+              />
+            );
+            acc += frac;
+            return seg;
+          })
+        )}
+      </svg>
+      <ul className="min-w-0 flex-1 space-y-1.5">
+        {data.map((d) => (
+          <li key={d.label} className="flex items-center gap-2 text-sm">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+            <span className="min-w-0 flex-1 truncate capitalize text-foreground">{d.label}</span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{d.value.toLocaleString()}</span>
+            <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              {total ? Math.round((d.value / total) * 100) : 0}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function KpiCard({
   icon: Icon,
   label,
@@ -300,8 +377,8 @@ export default function AnalyticsDashboard() {
   const leakingReleases = (ctr?.ctrByRelease || []).filter((r) => r.views > 0 && r.clicks === 0);
   const genderEntries = Object.entries(data.demographics.gender).filter(([, n]) => n > 0);
   const ageEntries = Object.entries(data.demographics.ageRange).filter(([, n]) => n > 0);
-  const maxGender = Math.max(...genderEntries.map(([, n]) => n), 1);
-  const maxAge = Math.max(...ageEntries.map(([, n]) => n), 1);
+  const genderSlices = toSlices(genderEntries, (g) => g.replace(/_/g, " "));
+  const ageSlices = toSlices(ageEntries, (a) => (a === "unknown" ? "Unknown" : a));
   const activeMetric = METRICS.find((m) => m.key === metric)!;
   const metricSeries = data.series[metric];
 
@@ -554,15 +631,19 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Gender</h4>
-              {genderEntries.map(([g, n]) => (
-                <BarRow key={g} label={g.replace(/_/g, " ")} value={n} max={maxGender} color="var(--primary)" />
-              ))}
+              {genderSlices.length ? (
+                <DonutChart data={genderSlices} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No data yet.</p>
+              )}
             </div>
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Age</h4>
-              {ageEntries.map(([a, n]) => (
-                <BarRow key={a} label={a === "unknown" ? "Unknown" : a} value={n} max={maxAge} color="var(--primary)" />
-              ))}
+              {ageSlices.length ? (
+                <DonutChart data={ageSlices} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No data yet.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1025,21 +1106,19 @@ export default function AnalyticsDashboard() {
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <h4 className="mb-2 text-sm font-medium text-muted-foreground">Gender</h4>
-                      {genderEntries.length ? genderEntries.map(([g, n]) => (
-                        <div key={g} className="flex justify-between text-sm">
-                          <span className="capitalize text-foreground">{g.replace(/_/g, " ")}</span>
-                          <span className="tabular-nums text-muted-foreground">{n}</span>
-                        </div>
-                      )) : <p className="text-sm text-muted-foreground">—</p>}
+                      {genderSlices.length ? (
+                        <DonutChart data={genderSlices} size={104} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">—</p>
+                      )}
                     </div>
                     <div>
                       <h4 className="mb-2 text-sm font-medium text-muted-foreground">Age</h4>
-                      {ageEntries.length ? ageEntries.map(([a, n]) => (
-                        <div key={a} className="flex justify-between text-sm">
-                          <span className="text-foreground">{a === "unknown" ? "Unknown" : a}</span>
-                          <span className="tabular-nums text-muted-foreground">{n}</span>
-                        </div>
-                      )) : <p className="text-sm text-muted-foreground">—</p>}
+                      {ageSlices.length ? (
+                        <DonutChart data={ageSlices} size={104} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">—</p>
+                      )}
                     </div>
                   </div>
                 </>
