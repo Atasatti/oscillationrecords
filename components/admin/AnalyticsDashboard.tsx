@@ -895,12 +895,15 @@ export default function AnalyticsDashboard() {
                 const total = series.reduce((acc, d) => acc + d.count, 0);
                 const avg = series.length ? total / series.length : 0;
                 const peak = series.reduce((mx, d) => (d.count > mx.count ? d : mx), series[0] || { date: "", count: 0 });
+                // List only days that had activity — over a 30/90/365-day window
+                // the zero rows are just noise. Totals above still span the period.
+                const active = series.filter((d) => d.count > 0);
                 const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
                 return (
                   <>
                     <DialogHeader>
                       <DialogTitle>{m.label} — full breakdown</DialogTitle>
-                      <DialogDescription>Every day in the selected {data.days}-day period.</DialogDescription>
+                      <DialogDescription>Days with {m.label.toLowerCase()} in the selected {data.days}-day period.</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-3 gap-3">
                       {[
@@ -923,12 +926,20 @@ export default function AnalyticsDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {[...series].reverse().map((d) => (
-                            <tr key={d.date} className="border-b border-border">
-                              <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
-                              <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{d.count.toLocaleString()}</td>
+                          {active.length ? (
+                            [...active].reverse().map((d) => (
+                              <tr key={d.date} className="border-b border-border">
+                                <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{d.count.toLocaleString()}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={2} className="px-3 py-8 text-center text-muted-foreground">
+                                No {m.label.toLowerCase()} recorded in this period.
+                              </td>
                             </tr>
-                          ))}
+                          )}
                         </tbody>
                       </table>
                     </div>
