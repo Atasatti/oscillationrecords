@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
+  List, CalendarDays, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -28,6 +29,13 @@ import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 const CATEGORIES = ["pitching", "research", "admin", "social", "sync", "radio", "catalog"] as const;
 const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 const PRIORITY_LABELS: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
+const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-amber-400", medium: "bg-sky-400", low: "bg-zinc-500" };
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const shiftMonth = (c: { y: number; m: number }, delta: number) => {
+  const d = new Date(c.y, c.m + delta, 1);
+  return { y: d.getFullYear(), m: d.getMonth() };
+};
 
 const STATUSES = ["todo", "in_progress", "done"] as const;
 const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", done: "Done" };
@@ -118,6 +126,8 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("all");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -186,6 +196,33 @@ export default function TasksPage() {
       ),
     [tasks, tab, categoryFilter]
   );
+
+  // Calendar: group dated tasks by their due day (category filter applies; all
+  // statuses shown). Undated tasks get their own strip below the grid.
+  const byDay = useMemo(() => {
+    const m: Record<string, Task[]> = {};
+    for (const t of tasks) {
+      if (!t.dueAt) continue;
+      if (categoryFilter && t.category !== categoryFilter) continue;
+      (m[t.dueAt.slice(0, 10)] ??= []).push(t);
+    }
+    return m;
+  }, [tasks, categoryFilter]);
+  const undated = useMemo(
+    () => tasks.filter((t) => !t.dueAt && (!categoryFilter || t.category === categoryFilter)),
+    [tasks, categoryFilter]
+  );
+  const monthLabel = new Date(cal.y, cal.m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; })();
+  const cells = useMemo(() => {
+    const startDow = new Date(cal.y, cal.m, 1).getDay();
+    const days = new Date(cal.y, cal.m + 1, 0).getDate();
+    const arr: Array<{ key: string; day: number } | null> = [];
+    for (let i = 0; i < startDow; i++) arr.push(null);
+    for (let d = 1; d <= days; d++) arr.push({ key: `${cal.y}-${pad(cal.m + 1)}-${pad(d)}`, day: d });
+    while (arr.length % 7 !== 0) arr.push(null);
+    return arr;
+  }, [cal]);
 
   // ---- actions ----
   const setField = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
@@ -333,6 +370,30 @@ export default function TasksPage() {
         )}
       </div>
 
+      {/* View: list / calendar */}
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        <button
+          type="button"
+          onClick={() => setView("list")}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+            view === "list" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <List className="h-3.5 w-3.5" /> List
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("calendar")}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+            view === "calendar" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CalendarDays className="h-3.5 w-3.5" /> Calendar
+        </button>
+      </div>
+
+      {view === "list" ? (
+        <>
       {/* Tabs: Needs attention + status filters, then category */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center rounded-lg border border-border p-0.5">
@@ -523,6 +584,70 @@ export default function TasksPage() {
                 </div>
               </div>
             ))
+          )}
+        </div>
+      )}
+        </>
+      ) : (
+        <div>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center rounded-lg border border-border p-0.5">
+              <button type="button" onClick={() => setCal((c) => shiftMonth(c, -1))} aria-label="Previous month" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="w-36 text-center text-sm font-medium">{monthLabel}</span>
+              <button type="button" onClick={() => setCal((c) => shiftMonth(c, 1))} aria-label="Next month" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <button type="button" onClick={() => { const d = new Date(); setCal({ y: d.getFullYear(), m: d.getMonth() }); }} className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Today
+            </button>
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <option value="">All categories</option>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="bg-card px-2 py-1.5 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{d}</div>
+            ))}
+            {cells.map((cell, i) =>
+              cell === null ? (
+                <div key={`b-${i}`} className="min-h-[6rem] bg-background/30" />
+              ) : (
+                <div key={cell.key} className="min-h-[6rem] bg-card p-1.5">
+                  <div className="mb-1 flex justify-end">
+                    <span className={`flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs tabular-nums ${cell.key === todayKey ? "bg-white font-medium text-black" : "text-muted-foreground"}`}>
+                      {cell.day}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {(byDay[cell.key] ?? []).map((t) => (
+                      <button key={t.id} type="button" onClick={() => openEdit(t)} title={t.title} className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] transition-colors hover:bg-white/5">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[t.priority] ?? "bg-zinc-500"}`} />
+                        <span className={`truncate ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
+          {undated.length > 0 && (
+            <div className="mt-4 rounded-xl border border-border bg-card p-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">No due date ({undated.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {undated.map((t) => (
+                  <button key={t.id} type="button" onClick={() => openEdit(t)} title={t.title} className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs transition-colors hover:border-white/20">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[t.priority] ?? "bg-zinc-500"}`} />
+                    <span className={`truncate ${t.status === "done" ? "text-muted-foreground line-through" : ""}`}>{t.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
