@@ -179,14 +179,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
 
   const kindLabel =
     release.type === "album" ? "Album" : release.type === "ep" ? "EP" : "Single";
-  const releaseCredits = Array.isArray(release.credits)
-    ? release.credits.filter(
-        (c) => c && c.role && Array.isArray(c.people) && c.people.length > 0
-      )
-    : [];
-  const hasCredits = Boolean(
-    release.composer || release.lyricist || release.leadVocal
-  ) || releaseCredits.length > 0;
   const showAbout =
     Boolean(release.description) || Boolean(release.releaseDate) ||
     Boolean(release.primaryGenre) || Boolean(release.secondaryGenre);
@@ -308,11 +300,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   ) : null}
                 </header>
 
-                {(showAbout || hasCredits) && (
-                  <div
-                    className={`grid gap-4 lg:gap-5 ${showAbout && hasCredits ? "md:grid-cols-2" : ""}`}
-                  >
-                    {showAbout ? (
+                {showAbout ? (
                       <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-5 sm:p-6 space-y-4">
                         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           About
@@ -342,42 +330,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         ) : null}
                       </div>
                     ) : null}
-
-                    {hasCredits ? (
-                      <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-5 sm:p-6">
-                        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-                          Credits
-                        </h2>
-                        <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-[minmax(5rem,auto)_1fr]">
-                          {release.composer ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Composer</dt>
-                              <dd className="text-gray-200">{release.composer}</dd>
-                            </>
-                          ) : null}
-                          {release.lyricist ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Lyricist</dt>
-                              <dd className="text-gray-200">{release.lyricist}</dd>
-                            </>
-                          ) : null}
-                          {release.leadVocal ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Lead vocal</dt>
-                              <dd className="text-gray-200">{release.leadVocal}</dd>
-                            </>
-                          ) : null}
-                          {releaseCredits.map((c, i) => (
-                            <React.Fragment key={i}>
-                              <dt className="text-gray-500 font-medium">{c.role}</dt>
-                              <dd className="text-gray-200">{c.people.join(", ")}</dd>
-                            </React.Fragment>
-                          ))}
-                        </dl>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
 
                 {showStream ? (
                   <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

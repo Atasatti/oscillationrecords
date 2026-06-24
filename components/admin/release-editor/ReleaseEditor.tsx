@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
-import { normalizeCredits, type CreditEntry } from "@/lib/credits";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
   buildArtistMap,
@@ -70,7 +69,6 @@ export default function ReleaseEditor({
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });
-  const [credits, setCredits] = useState<CreditEntry[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -162,7 +160,6 @@ export default function ReleaseEditor({
           pLine: data.pLine || "",
           cLine: data.cLine || "",
         });
-        setCredits(normalizeCredits(data.credits));
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
@@ -341,7 +338,6 @@ export default function ReleaseEditor({
         pLine: form.pLine || null,
         cLine: form.cLine || null,
         primaryArtistIds: form.primaryArtistIds,
-        credits: normalizeCredits(credits),
       };
 
       // Only send feature artists on create, when the field changed, or when there
@@ -538,11 +534,6 @@ export default function ReleaseEditor({
           errors={errors}
           artists={artists}
           loadingArtists={loadingArtists}
-          credits={credits}
-          onCreditsChange={(c) => {
-            setDirty(true);
-            setCredits(c);
-          }}
           imagePreview={imagePreview}
           onPickImage={onPickImage}
           onRemoveImage={onRemoveImage}
