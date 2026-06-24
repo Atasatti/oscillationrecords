@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Play,
   Users,
@@ -298,6 +299,15 @@ function KpiCard({
   );
 }
 
+// Code-split + client-only: keeps the ~100KB world map data out of the main
+// admin bundle and avoids SSR-ing the SVG map.
+const ListenerMap = dynamic(() => import("./charts/ListenerMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-48 animate-pulse rounded-lg border border-border bg-background/40" />
+  ),
+});
+
 export default function AnalyticsDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [ctr, setCtr] = useState<LinkClickData | null>(null);
@@ -585,7 +595,14 @@ export default function AnalyticsDashboard() {
           {data.geography.topCountries.length === 0 && data.geography.topCities.length === 0 ? (
             <p className="text-sm text-muted-foreground">No location data yet (added as consented visitors listen).</p>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="space-y-4">
+              <ListenerMap
+                countries={data.geography.topCountries.map((c) => ({
+                  name: countryName(c.name),
+                  count: c.count,
+                }))}
+              />
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
                 <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries</h4>
                 {data.geography.topCountries.slice(0, 8).map((c) => (
@@ -620,6 +637,7 @@ export default function AnalyticsDashboard() {
                   </button>
                 ) : null}
               </div>
+            </div>
             </div>
           )}
         </div>
