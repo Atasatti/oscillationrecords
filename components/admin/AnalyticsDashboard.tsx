@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Play,
   Users,
@@ -225,6 +226,7 @@ export default function AnalyticsDashboard() {
   const [contentAnalytics, setContentAnalytics] = useState<ContentAnalytics | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const router = useRouter();
   const showList = (title: string, rows: ListRow[]) => setDetail({ kind: "list", title, rows });
 
   // Guard against out-of-order responses: a slow earlier request (e.g. 365D)
@@ -892,6 +894,7 @@ export default function AnalyticsDashboard() {
             ? (() => {
                 const m = METRICS.find((x) => x.key === detail.metric)!;
                 const series = data.series[detail.metric];
+                const isPlays = m.key === "plays";
                 const total = series.reduce((acc, d) => acc + d.count, 0);
                 const avg = series.length ? total / series.length : 0;
                 const peak = series.reduce((mx, d) => (d.count > mx.count ? d : mx), series[0] || { date: "", count: 0 });
@@ -928,9 +931,24 @@ export default function AnalyticsDashboard() {
                         <tbody>
                           {active.length ? (
                             [...active].reverse().map((d) => (
-                              <tr key={d.date} className="border-b border-border">
+                              <tr
+                                key={d.date}
+                                className={`border-b border-border ${isPlays ? "cursor-pointer transition-colors hover:bg-white/5" : ""}`}
+                                onClick={
+                                  isPlays
+                                    ? () => {
+                                        setDetail(null);
+                                        router.push(`/admin/data?date=${d.date.slice(0, 10)}`);
+                                      }
+                                    : undefined
+                                }
+                                title={isPlays ? "See these plays in Live & raw data" : undefined}
+                              >
                                 <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
-                                <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{d.count.toLocaleString()}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-foreground">
+                                  {d.count.toLocaleString()}
+                                  {isPlays ? <span className="ml-1 text-muted-foreground">›</span> : null}
+                                </td>
                               </tr>
                             ))
                           ) : (

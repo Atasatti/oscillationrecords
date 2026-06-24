@@ -23,6 +23,19 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const liveSince = new Date(now.getTime() - 5 * 60 * 1000);
 
+    // Optional ?date=YYYY-MM-DD (UTC day) focuses the recent-plays list on a
+    // single day — matching the dashboard's UTC daily buckets — for the
+    // "see these plays" drill-down from the Plays breakdown.
+    const dateParam = new URL(request.url).searchParams.get("date");
+    const dayStart =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+        ? new Date(`${dateParam}T00:00:00.000Z`)
+        : null;
+    const dayRange =
+      dayStart && !isNaN(dayStart.getTime())
+        ? { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) }
+        : null;
+
     const [
       users,
       profiles,
@@ -73,8 +86,11 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.playEvent.findMany({
+        // With ?date set, return ALL of that UTC day's plays so the admin sees
+        // exactly where the day's count came from; otherwise the recent N.
+        where: dayRange ? { createdAt: dayRange } : undefined,
         orderBy: { createdAt: "desc" },
-        take: RECENT_ROWS,
+        take: dayRange ? 500 : RECENT_ROWS,
         select: {
           id: true, contentType: true, contentName: true, artistName: true, completed: true,
           country: true, city: true, sessionId: true, visitorId: true, userId: true, createdAt: true,
@@ -149,6 +165,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       now: now.toISOString(),
+      // Echoes the day filter (if any) so the page can label/scope the plays list.
+      playsDate: dayRange ? dateParam : null,
       counts: { users, profiles, artists, releases, tracks, playEvents, pageViews, linkClicks, subscribers },
       // activeSessions is the TRUE count; items is capped for display.
       live: { activeSessions: live.length, items: live.slice(0, LIVE_ROWS) },

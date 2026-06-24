@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 interface RawData {
   now: string;
+  playsDate?: string | null;
   counts: Record<string, number>;
   live: {
     activeSessions: number;
@@ -35,9 +36,26 @@ const ago = (s: number) => (s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 
 const loc = (country: string | null, city: string | null) => (city && country ? `${city}, ${country}` : country || city || "—");
 const when = (iso: string) => new Date(iso).toLocaleString();
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+  id,
+  highlight,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  id?: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
+    <div
+      id={id}
+      className={`rounded-xl border bg-card p-6 ${
+        highlight ? "border-primary/50 ring-2 ring-primary/30" : "border-border"
+      }`}
+    >
       <h3 className="text-lg font-medium text-foreground">{title}</h3>
       {hint ? <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{hint}</p> : <div className="mb-3" />}
       {children}
@@ -69,10 +87,22 @@ export default function RawDataPage() {
   const [data, setData] = useState<RawData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // Optional day focus (from the dashboard Plays breakdown → /admin/data?date=…):
+  // narrows the recent-plays list to that UTC day and highlights the section.
+  const [focusDate, setFocusDate] = useState<string | null>(null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setFocusDate(d);
+  }, []);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/analytics/raw", { cache: "no-store" });
+      const res = await fetch(
+        `/api/analytics/raw${focusDate ? `?date=${encodeURIComponent(focusDate)}` : ""}`,
+        { cache: "no-store" }
+      );
       if (!res.ok) throw new Error();
       const json = await res.json();
       // Defensive: guarantee every array/object the UI reads exists, so a partial
@@ -80,6 +110,7 @@ export default function RawDataPage() {
       // on undefined — this surfaced in the error log as a /admin/data TypeError).
       setData({
         now: json.now,
+        playsDate: json.playsDate ?? null,
         counts: json.counts ?? {},
         live: { activeSessions: json.live?.activeSessions ?? 0, items: json.live?.items ?? [] },
         recentVisits: json.recentVisits ?? [],
@@ -94,13 +125,39 @@ export default function RawDataPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [focusDate]);
 
   useEffect(() => {
     load();
+    // A specific past day doesn't change — don't poll while focused on one.
+    if (focusDate) return;
     const t = setInterval(load, 15000); // keep "live now" fresh
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, focusDate]);
+
+  // Scroll to the plays section once, when arriving with a day focus.
+  useEffect(() => {
+    if (focusDate && data && !scrolledRef.current) {
+      scrolledRef.current = true;
+      document
+        .getElementById("recent-plays")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusDate, data]);
+
+  const clearFocus = () => {
+    setFocusDate(null);
+    scrolledRef.current = false;
+    window.history.replaceState(null, "", "/admin/data");
+  };
+
+  const prettyDay = (d: string) =>
+    new Date(`${d}T00:00:00.000Z`).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
 
   return (
     <div>
@@ -122,6 +179,19 @@ export default function RawDataPage() {
         <p className="py-12 text-center text-muted-foreground">Failed to load.</p>
       ) : (
         <div className="space-y-6">
+          {focusDate ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+              <span>
+                Showing the{" "}
+                <strong className="text-foreground">{data.recentPlays.length}</strong>{" "}
+                play{data.recentPlays.length === 1 ? "" : "s"} from{" "}
+                <strong className="text-foreground">{prettyDay(focusDate)}</strong> — highlighted below.
+              </span>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={clearFocus}>
+                Clear
+              </Button>
+            </div>
+          ) : null}
           {/* Privacy note */}
           <div className="flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
@@ -198,9 +268,16 @@ export default function RawDataPage() {
           </Section>
 
           {/* Recent plays */}
-          <Section title="Recent plays & views">
+          <Section
+            id="recent-plays"
+            highlight={!!focusDate}
+            title={focusDate ? `Plays on ${prettyDay(focusDate)}` : "Recent plays & views"}
+            hint={focusDate ? "Every play recorded on this day." : undefined}
+          >
             {data.recentPlays.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No plays yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {focusDate ? "No plays recorded on this day." : "No plays yet."}
+              </p>
             ) : (
               <Table head={["When", "Who", "Type", "Content", "Artist", "Location", "Completed"]}>
                 {data.recentPlays.map((r) => (
