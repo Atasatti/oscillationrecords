@@ -560,8 +560,8 @@ export default function TasksPage() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {editingId ? (
+            {editingId ? (
+              <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Status</label>
                   <select value={form.status} onChange={(e) => setField("status", e.target.value)}
@@ -569,13 +569,19 @@ export default function TasksPage() {
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                   </select>
                 </div>
-              ) : null}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Due date</label>
-                <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
-                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Due date</label>
+                  <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
+                    className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Due date <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
