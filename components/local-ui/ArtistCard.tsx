@@ -8,6 +8,7 @@ import {
   useTransform,
   useSpring,
   useMotionTemplate,
+  useReducedMotion,
 } from "motion/react";
 import {
   FaApple,
@@ -48,6 +49,9 @@ interface ArtistCardProps {
 const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  // When the user prefers reduced motion, the JS-driven tilt/shimmer/scale are
+  // skipped (the global CSS reduced-motion block only stops CSS animations).
+  const reduced = useReducedMotion();
 
   // 0–1 range; 0.5 = cursor at center = no tilt
   const mouseX = useMotionValue(0.5);
@@ -69,7 +73,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
   const shimmerBg = useMotionTemplate`radial-gradient(circle at ${shimmerX}% ${shimmerY}%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 40%, transparent 68%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
+    if (reduced || !cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     mouseX.set((e.clientX - rect.left) / rect.width);
     mouseY.set((e.clientY - rect.top) / rect.height);
@@ -87,17 +91,31 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  // Real, labelled, keyboard-operable social buttons (were bare clickable <svg>s).
+  const socials: { url: string | null | undefined; Icon: typeof LuX; label: string }[] = [
+    { url: artist.xLink, Icon: LuX, label: "X (Twitter)" },
+    { url: artist.tiktokLink, Icon: RiTiktokFill, label: "TikTok" },
+    { url: artist.youtubeLink, Icon: FaYoutube, label: "YouTube" },
+    { url: artist.instagramLink, Icon: FaInstagram, label: "Instagram" },
+    { url: artist.facebookLink, Icon: FaFacebookF, label: "Facebook" },
+    { url: artist.spotifyLink, Icon: FaSpotify, label: "Spotify" },
+    { url: artist.appleMusicLink, Icon: FaApple, label: "Apple Music" },
+    { url: artist.tidalLink, Icon: SiTidal, label: "Tidal" },
+    { url: artist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music" },
+    { url: artist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud" },
+  ];
+
   return (
     // Perspective wrapper — does not transform itself, just sets the 3D stage
     <div
       style={{ perspective: "800px" }}
-      className="w-72 h-84 cursor-pointer"
+      className="w-72 max-w-full h-84 cursor-pointer"
       onClick={onClick}
     >
       <motion.div
         ref={cardRef}
         onMouseMove={handleMouseMove}
-        onMouseEnter={() => setIsHovered(true)}
+        onMouseEnter={() => !reduced && setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
         animate={{
           z: isHovered ? 20 : 0,
@@ -150,66 +168,19 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           </p>
           <div className="h-[1px] bg-gray-600 w-full mt-2" />
           <div className="flex justify-between items-center gap-2 mt-3">
-            {artist.xLink && (
-              <LuX
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.xLink, e)}
-              />
-            )}
-            {artist.tiktokLink && (
-              <RiTiktokFill
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.tiktokLink, e)}
-              />
-            )}
-            {artist.youtubeLink && (
-              <FaYoutube
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.youtubeLink, e)}
-              />
-            )}
-            {artist.instagramLink && (
-              <FaInstagram
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.instagramLink, e)}
-              />
-            )}
-            {artist.facebookLink && (
-              <FaFacebookF
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.facebookLink, e)}
-              />
-            )}
-            {artist.spotifyLink && (
-              <FaSpotify
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.spotifyLink, e)}
-              />
-            )}
-            {artist.appleMusicLink && (
-              <FaApple
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.appleMusicLink, e)}
-              />
-            )}
-            {artist.tidalLink && (
-              <SiTidal
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.tidalLink, e)}
-              />
-            )}
-            {artist.amazonMusicLink && (
-              <SiAmazonmusic
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.amazonMusicLink, e)}
-              />
-            )}
-            {artist.soundcloudLink && (
-              <FaSoundcloud
-                className="h-6 w-6 text-white hover:text-gray-300 cursor-pointer"
-                onClick={(e) => handleSocialClick(artist.soundcloudLink, e)}
-              />
-            )}
+            {socials
+              .filter((s) => s.url)
+              .map(({ url, Icon, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  aria-label={label}
+                  onClick={(e) => handleSocialClick(url, e)}
+                  className="inline-flex rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  <Icon className="h-6 w-6" aria-hidden />
+                </button>
+              ))}
           </div>
         </div>
       </motion.div>

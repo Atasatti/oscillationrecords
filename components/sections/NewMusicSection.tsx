@@ -216,15 +216,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
               {releases.map((release) => (
                 <div
                   key={release.id}
-                  role="button"
-                  tabIndex={0}
                   onClick={() => handleReleaseClick(release)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleReleaseClick(release);
-                    }
-                  }}
                   className="cursor-pointer relative group w-72 h-84 shrink-0"
                 >
                   {release.showLatestOnHome ? (
@@ -233,6 +225,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
                     </span>
                   ) : null}
                   <ReleaseCardSm
+                    href={`/releases/${slugify(release.name)}`}
                     release={{
                       id: release.id,
                       name: release.name,

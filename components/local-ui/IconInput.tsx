@@ -42,9 +42,10 @@ const IconInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
         onClick={onArrowClick}
         size="icon"
         variant="default"
+        aria-label="Search"
         className="absolute top-[5px] right-[5px] h-8 w-10 rounded-2xl p-0 cursor-pointer"
       >
-        <Icon className="!h-5 !w-5" />
+        <Icon className="!h-5 !w-5" aria-hidden />
       </Button>
     </div>
   )

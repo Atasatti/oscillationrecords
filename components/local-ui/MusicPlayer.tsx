@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { useMusic } from "@/contexts/music-context";
 import { Play, Pause, X } from "lucide-react";
 import ExplicitBadge from "./ExplicitBadge";
@@ -76,10 +77,12 @@ export function MusicPlayer() {
           {/* Left: Song Info - Premium style with image emphasis */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="relative h-12 w-12 rounded-md overflow-hidden flex-shrink-0 shadow-xl border border-[#dc2626]/30 bg-[#1a1a1a]">
-              <img
+              <Image
                 src={currentSong.image || "/placeholder.svg"}
                 alt={currentSong.title}
-                className="w-full h-full object-cover"
+                fill
+                sizes="48px"
+                className="object-cover"
               />
               <div className="absolute inset-0 rounded-md shadow-inner border border-[#dc2626]/10" />
             </div>
@@ -115,7 +118,30 @@ export function MusicPlayer() {
             <div className="w-full relative group">
               <div
                 ref={progressBarRef}
-                className="relative h-1.5 bg-[#262626] rounded-full cursor-pointer transition-all hover:h-2"
+                role="slider"
+                tabIndex={0}
+                aria-label="Seek"
+                aria-valuemin={0}
+                aria-valuemax={Math.floor(duration) || 0}
+                aria-valuenow={Math.floor(currentTime) || 0}
+                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                onKeyDown={(e) => {
+                  if (!duration) return;
+                  if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    seek(Math.min(currentTime + 5, duration));
+                  } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+                    e.preventDefault();
+                    seek(Math.max(currentTime - 5, 0));
+                  } else if (e.key === "Home") {
+                    e.preventDefault();
+                    seek(0);
+                  } else if (e.key === "End") {
+                    e.preventDefault();
+                    seek(duration);
+                  }
+                }}
+                className="relative h-1.5 bg-[#262626] rounded-full cursor-pointer transition-all hover:h-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                 onClick={handleProgressClick}
                 onMouseDown={handleMouseDown}
               >

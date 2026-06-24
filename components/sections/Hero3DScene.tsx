@@ -2,7 +2,7 @@
 
 import React, { useRef } from "react";
 import Link from "next/link";
-import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
+import { motion, useMotionValue, useTransform, useSpring, useReducedMotion } from "motion/react";
 import IconButton from "@/components/local-ui/IconButton";
 import StudioPhotosCarousel from "@/components/sections/StudioPhotosCarousel";
 import { usePageMedia } from "@/hooks/use-page-media";
@@ -14,6 +14,9 @@ interface Hero3DSceneProps {
 export default function Hero3DScene({ photos }: Hero3DSceneProps) {
   const headlineRef = useRef<HTMLDivElement>(null);
   const { bgHero } = usePageMedia();
+  // Reduced-motion users: skip the mouse-driven tilt and the entrance rotation
+  // (the fade is kept — it's non-vestibular).
+  const reduced = useReducedMotion();
 
   // Mouse-driven tilt — applied ONLY to the headline block below, so the rest of
   // the hero (mission, cards, photos) renders flat.
@@ -25,7 +28,7 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
   const rotateY = useSpring(rawRotateY, { stiffness: 120, damping: 22 });
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!headlineRef.current) return;
+    if (reduced || !headlineRef.current) return;
     const rect = headlineRef.current.getBoundingClientRect();
     mouseX.set(((e.clientX - rect.left) / rect.width - 0.5) * 2);
     mouseY.set(((e.clientY - rect.top) / rect.height - 0.5) * 2);
@@ -51,8 +54,8 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
         >
           <motion.div
             style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-            initial={{ rotateX: 8, opacity: 0 }}
-            animate={{ rotateX: 0, opacity: 1 }}
+            initial={reduced ? { opacity: 0 } : { rotateX: 8, opacity: 0 }}
+            animate={reduced ? { opacity: 1 } : { rotateX: 0, opacity: 1 }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
           >
             <p className="text-muted-foreground uppercase text-xs sm:text-sm text-center font-[font-family:var(--font-inter)] tracking-wider">

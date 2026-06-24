@@ -161,62 +161,36 @@ const MeetArtistSection = ({
               />
             </div>
             <div className="flex justify-center items-center gap-5 sm:gap-7 mt-4 sm:mt-5">
-              {currentArtist.xLink && (
-                <a href={currentArtist.xLink} target="_blank" rel="noopener noreferrer">
-                  <LuX className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.tiktokLink && (
-                <a href={currentArtist.tiktokLink} target="_blank" rel="noopener noreferrer">
-                  <RiTiktokFill className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.youtubeLink && (
-                <a href={currentArtist.youtubeLink} target="_blank" rel="noopener noreferrer">
-                  <FaYoutube className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.instagramLink && (
-                <a href={currentArtist.instagramLink} target="_blank" rel="noopener noreferrer">
-                  <FaInstagram className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.facebookLink && (
-                <a href={currentArtist.facebookLink} target="_blank" rel="noopener noreferrer">
-                  <FaFacebookF className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.spotifyLink && (
-                <a href={currentArtist.spotifyLink} target="_blank" rel="noopener noreferrer">
-                  <FaSpotify className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.appleMusicLink && (
-                <a href={currentArtist.appleMusicLink} target="_blank" rel="noopener noreferrer">
-                  <FaApple className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.tidalLink && (
-                <a href={currentArtist.tidalLink} target="_blank" rel="noopener noreferrer">
-                  <SiTidal className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.amazonMusicLink && (
-                <a href={currentArtist.amazonMusicLink} target="_blank" rel="noopener noreferrer">
-                  <SiAmazonmusic className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
-              {currentArtist.soundcloudLink && (
-                <a href={currentArtist.soundcloudLink} target="_blank" rel="noopener noreferrer">
-                  <FaSoundcloud className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" />
-                </a>
-              )}
+              {[
+                { url: currentArtist.xLink, Icon: LuX, label: "X (Twitter)" },
+                { url: currentArtist.tiktokLink, Icon: RiTiktokFill, label: "TikTok" },
+                { url: currentArtist.youtubeLink, Icon: FaYoutube, label: "YouTube" },
+                { url: currentArtist.instagramLink, Icon: FaInstagram, label: "Instagram" },
+                { url: currentArtist.facebookLink, Icon: FaFacebookF, label: "Facebook" },
+                { url: currentArtist.spotifyLink, Icon: FaSpotify, label: "Spotify" },
+                { url: currentArtist.appleMusicLink, Icon: FaApple, label: "Apple Music" },
+                { url: currentArtist.tidalLink, Icon: SiTidal, label: "Tidal" },
+                { url: currentArtist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music" },
+                { url: currentArtist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud" },
+              ]
+                .filter((s) => s.url)
+                .map(({ url, Icon, label }) => (
+                  <a
+                    key={label}
+                    href={url as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${currentArtist.name} on ${label}`}
+                  >
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" aria-hidden />
+                  </a>
+                ))}
             </div>
           </div>
           {/* Artist info - below image on mobile, beside it on desktop */}
           <div className="w-full max-w-[380px] lg:max-w-none lg:w-80 lg:flex-shrink-0">
               <p className="text-xs text-muted-foreground">({artistNumber})</p>
-              <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1">{currentArtist.name}</p>
+              <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1 break-words">{currentArtist.name}</p>
               <p className="text-xs sm:text-sm font-light text-muted-foreground mt-2 line-clamp-3 lg:line-clamp-4 min-h-[60px] sm:min-h-[80px]">
                 {currentArtist.biography}
               </p>

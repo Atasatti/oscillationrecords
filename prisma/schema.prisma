@@ -427,6 +427,86 @@ model LinkClick {
   @@index([createdAt])
 }
 
+// ---------------------------------------------------------------------------
+// Outreach / PR
+// ---------------------------------------------------------------------------
+
+/// A press/PR contact — blog editor, playlist curator, radio producer, sync
+/// supervisor, or influencer. Central address book for all outreach activity.
+model OutreachContact {
+  id                 String     @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  outlet             String
+  /// "blog" | "curator" | "radio" | "sync" | "influencer"
+  type               String
+  contactEmail       String?
+  contactUrl         String?
+  genreFocus         String[]   @default([])
+  /// "cold" | "contacted" | "responded" | "published" | "declined"
+  relationshipStatus String     @default("cold")
+  lastContactedAt    DateTime?
+  notes              String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  pitches            PitchLog[]
+
+  @@index([relationshipStatus])
+  @@index([type])
+  @@index([createdAt])
+}
+
+/// A single pitch sent (or to be sent) to an OutreachContact for one or more
+/// artists / releases.
+model PitchLog {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  contactId     String          @db.ObjectId
+  contact       OutreachContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  artistIds     String[]        @db.ObjectId
+  releaseIds    String[]        @db.ObjectId
+  /// "not_sent" | "sent" | "followed_up" | "accepted" | "declined"
+  status        String          @default("not_sent")
+  sentAt        DateTime?
+  followUpDueAt DateTime?
+  responseNotes String?
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([contactId])
+  @@index([status])
+  @@index([followUpDueAt])
+  @@index([createdAt])
+}
+
+/// An outreach task for the PA — either a live action item or a reusable
+/// suggestion template (isTemplate: true).
+model OutreachTask {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  /// "pitching" | "research" | "admin" | "social" | "sync" | "radio"
+  category    String
+  /// "low" | "medium" | "high" | "urgent"
+  priority    String   @default("medium")
+  /// "todo" | "in_progress" | "done"
+  status      String   @default("todo")
+  artistIds   String[] @db.ObjectId
+  releaseIds  String[] @db.ObjectId
+  dueAt       DateTime?
+  notes       String?
+  isTemplate  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([isTemplate])
+  @@index([dueAt])
+}
+
+// ---------------------------------------------------------------------------
+
 /// Site-wide error tracking (server + client), surfaced in the admin "Errors"
 /// page. Identical errors are de-duplicated by `fingerprint` (a hash of
 /// source/level/normalized-message/path) and counted, so the table stays small

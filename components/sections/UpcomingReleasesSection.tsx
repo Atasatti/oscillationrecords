@@ -160,26 +160,6 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
   );
 }
 
-function LoadingCards() {
-  return (
-    <div className="mt-10 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-9 lg:grid-cols-3 lg:gap-10 xl:grid-cols-4">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="animate-pulse overflow-hidden rounded-[1.25rem] border border-white/[0.07] bg-zinc-950/55 shadow-lg"
-        >
-          <div className="aspect-square bg-gradient-to-br from-zinc-900/90 to-zinc-950" />
-          <div className="space-y-3 p-5">
-            <div className="h-5 w-[85%] max-w-[13rem] rounded-md bg-zinc-800/70" />
-            <div className="h-4 w-[60%] rounded-md bg-zinc-800/45" />
-            <div className="h-4 w-[40%] rounded-md bg-zinc-800/35" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 type UpcomingReleasesSectionProps = {
   /** Server-rendered releases. When provided, the section renders from the
    * initial HTML and skips the client fetch (no spinner / hydration waterfall). */
@@ -191,7 +171,6 @@ const UpcomingReleasesSection = ({
 }: UpcomingReleasesSectionProps) => {
   // Always server-supplied (home SSRs getUpcomingReleases into initialReleases).
   const releases = initialReleases ?? [];
-  const loading = false;
   const { bgHero } = usePageMedia();
 
   const sectionChrome = (
@@ -216,18 +195,6 @@ const UpcomingReleasesSection = ({
       />
     </>
   );
-
-  if (loading) {
-    return (
-      <section className="relative isolate -mt-px overflow-hidden bg-background px-4 sm:px-6 md:px-[10%] py-14 sm:py-20 md:py-28">
-        {sectionChrome}
-        <div className="relative z-10 w-full">
-          <SectionHeader />
-          <LoadingCards />
-        </div>
-      </section>
-    );
-  }
 
   if (releases.length === 0) return null;
 

@@ -11,6 +11,12 @@ interface IconButtonProps {
   /** When set, the whole control is a Next.js link (preferred for navigation). */
   href?: string;
   className?: string;
+  /** Disables the button variant (ignored when `href` is set). */
+  disabled?: boolean;
+  /** Button type — use "submit" to submit an enclosing form. Defaults to "button". */
+  type?: "button" | "submit";
+  /** Accessible label when the visible text isn't descriptive enough. */
+  "aria-label"?: string;
 }
 
 const IconButton: React.FC<IconButtonProps> = ({
@@ -18,9 +24,13 @@ const IconButton: React.FC<IconButtonProps> = ({
   onClick,
   href,
   className,
+  disabled,
+  type = "button",
+  "aria-label": ariaLabel,
 }) => {
   const shellClass = classNames(
     "inline-flex items-center bg-white rounded-full overflow-hidden shadow-md p-1.5 cursor-pointer transition-opacity hover:opacity-95",
+    disabled && "opacity-60 pointer-events-none",
     className
   );
 
@@ -52,7 +62,13 @@ const IconButton: React.FC<IconButtonProps> = ({
   // Otherwise a real button so the ENTIRE pill is clickable (and keyboard
   // accessible) — not just the arrow.
   return (
-    <button type="button" onClick={onClick} className={shellClass}>
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={shellClass}
+    >
       {label}
       {arrow}
     </button>

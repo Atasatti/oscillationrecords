@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
@@ -27,6 +27,8 @@ const adminLinks = [
     match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
   },
   { href: "/admin/catalog/press", label: "Press", icon: Newspaper },
+  { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"] },
+  { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
   { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate },
   { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
   { href: "/admin/errors", label: "Errors", icon: TriangleAlert },

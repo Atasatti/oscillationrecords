@@ -201,9 +201,27 @@ export function buildBreadcrumbJsonLd(items: Array<{ name: string; url: string }
   };
 }
 
+// Authoritative third-party references to the SAME entity — official registries
+// and music databases. Google reads Organization.sameAs to confirm/disambiguate
+// the entity and build the Knowledge Graph. These are stable, so they live here
+// (not in the editable footer socials). Add Discogs / Wikidata / LinkedIn etc.
+// to this list as they come online.
+const ORG_ENTITY_REFERENCES = [
+  // Companies House (official UK company register).
+  "https://find-and-update.company-information.service.gov.uk/company/15579381",
+  // MusicBrainz label entity (high-signal music database).
+  "https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470",
+];
+
 /** schema.org Organization for the label itself (site-wide entity). */
 export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
-  const sameAs = (opts?.sameAs ?? []).filter((u) => Boolean(u && u.trim()));
+  const sameAs = Array.from(
+    new Set(
+      [...(opts?.sameAs ?? []), ...ORG_ENTITY_REFERENCES].filter((u) =>
+        Boolean(u && u.trim())
+      )
+    )
+  );
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -214,6 +232,23 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
   };
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
+}
+
+/**
+ * schema.org WebSite for the site entity. Google uses this to confirm the site
+ * NAME shown in search results (the "site name" feature). We intentionally omit
+ * the SearchAction / Sitelinks Searchbox — Google retired that rich result in
+ * late 2024, so it would just be dead markup.
+ */
+export function buildWebSiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
+    name: SITE_NAME,
+    url: SITE_URL,
+    publisher: { "@id": `${SITE_URL}/#organization` },
+  };
 }
 
 type PressItemLike = {

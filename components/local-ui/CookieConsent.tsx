@@ -51,14 +51,21 @@ export default function CookieConsent() {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] p-3 sm:p-4">
+    <div
+      role="region"
+      aria-label="Cookie consent"
+      className="fixed inset-x-0 bottom-0 z-[100] p-3 sm:p-4"
+    >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-xl border border-white/10 bg-[#141414]/95 p-4 shadow-2xl shadow-black/50 backdrop-blur sm:flex-row sm:items-center sm:gap-4">
         <p className="flex-1 text-sm text-gray-300">
           We use a strictly-necessary cookie to keep you signed in. With your
           consent we also use analytics cookies — our own and Google Analytics —
           to understand which releases resonate. We never sell your data, and
           nothing non-essential loads unless you accept.{" "}
-          <Link href="/privacy" className="underline hover:text-white">
+          <Link
+            href="/privacy"
+            className="rounded-sm underline hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          >
             Privacy policy
           </Link>
           .
@@ -68,6 +75,7 @@ export default function CookieConsent() {
             type="button"
             disabled={saving}
             onClick={() => choose(false)}
+            aria-label="Reject non-essential cookies"
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-white/5 disabled:opacity-50"
           >
             Reject non-essential
@@ -76,6 +84,7 @@ export default function CookieConsent() {
             type="button"
             disabled={saving}
             onClick={() => choose(true)}
+            aria-label="Accept analytics cookies"
             className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-gray-200 disabled:opacity-50"
           >
             Accept

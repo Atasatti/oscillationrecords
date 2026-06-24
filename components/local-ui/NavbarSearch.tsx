@@ -52,6 +52,7 @@ export default function NavbarSearch({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchHit[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [mounted, setMounted] = useState(false);
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({
     position: "fixed",
@@ -66,6 +67,10 @@ export default function NavbarSearch({
   const synced = query.trim() === debounced;
 
   useEffect(() => setMounted(true), []);
+
+  // Reset the keyboard highlight whenever the query (and therefore the result
+  // set) changes — nothing is pre-selected until the user presses ArrowDown.
+  useEffect(() => setActiveIndex(-1), [debounced]);
 
   const updatePanelPosition = useCallback(() => {
     const el = rootRef.current;
@@ -203,17 +208,21 @@ export default function NavbarSearch({
             Searching…
           </div>
         ) : results.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+          <div role="status" aria-live="polite" className="px-4 py-6 text-center text-sm text-muted-foreground">
             No artists or releases matched &ldquo;{debounced}&rdquo;.
           </div>
         ) : (
           <ul className="py-1">
-            {results.map((r) => (
-              <li key={r.id} role="option" aria-selected={false}>
+            {results.map((r, i) => (
+              <li key={r.id} role="option" aria-selected={i === activeIndex}>
                 <button
                   type="button"
                   onClick={() => go(r.id, r.type)}
-                  className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none"
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={cn(
+                    "flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/30",
+                    i === activeIndex && "bg-white/[0.06]"
+                  )}
                 >
                   <div className="relative mt-0.5 h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black">
                     <Image
@@ -252,8 +261,10 @@ export default function NavbarSearch({
         icon={Search}
         value={query}
         autoComplete="off"
+        role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}
+        aria-controls={open ? "navbar-search-panel" : undefined}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
@@ -267,9 +278,23 @@ export default function NavbarSearch({
             setOpen(false);
             return;
           }
-          if (e.key === "Enter" && synced && !loading && results[0]) {
+          if (e.key === "ArrowDown") {
+            if (!results.length) return;
             e.preventDefault();
-            go(results[0].id, results[0].type);
+            setOpen(true);
+            setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+            return;
+          }
+          if (e.key === "ArrowUp") {
+            if (!results.length) return;
+            e.preventDefault();
+            setActiveIndex((i) => Math.max(i - 1, 0));
+            return;
+          }
+          if (e.key === "Enter" && synced && !loading && results.length) {
+            e.preventDefault();
+            const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
+            if (pick) go(pick.id, pick.type);
           }
         }}
         onArrowClick={() => {

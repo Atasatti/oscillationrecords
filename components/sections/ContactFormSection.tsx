@@ -17,6 +17,11 @@ const ContactFormSection = () => {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
+  // Point inputs at the status message only when one is shown, so screen
+  // readers associate the error/success with the fields.
+  const describedBy =
+    status.kind === "error" || status.kind === "success" ? "contact-status" : undefined;
+
   const submit = async () => {
     if (status.kind === "submitting") return;
 
@@ -64,6 +69,9 @@ const ContactFormSection = () => {
           submit();
         }}
       >
+        <label htmlFor="contact-name" className="sr-only">
+          Your name
+        </label>
         <Input
           id="contact-name"
           name="name"
@@ -72,9 +80,15 @@ const ContactFormSection = () => {
           placeholder="Enter your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          aria-required="true"
+          aria-invalid={status.kind === "error" && !name.trim() ? true : undefined}
+          aria-describedby={describedBy}
           className="placeholder:font-light rounded-full !py-5"
         />
 
+        <label htmlFor="contact-email" className="sr-only">
+          Your email
+        </label>
         <Input
           id="contact-email"
           name="email"
@@ -83,31 +97,54 @@ const ContactFormSection = () => {
           placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          aria-required="true"
+          aria-invalid={status.kind === "error" && !email.trim() ? true : undefined}
+          aria-describedby={describedBy}
           className="placeholder:font-light rounded-full !py-5"
         />
 
+        <label htmlFor="contact-message" className="sr-only">
+          Your message
+        </label>
         <Textarea
           id="contact-message"
           name="message"
           placeholder="Enter your message"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          aria-required="true"
+          aria-invalid={status.kind === "error" && !message.trim() ? true : undefined}
+          aria-describedby={describedBy}
           className="placeholder:font-light min-h-[120px] max-h-[200px] resize-none no-scrollbar rounded-3xl !py-5"
           rows={5}
         />
       </form>
 
       {status.kind === "success" ? (
-        <p className="mt-4 text-sm text-green-500/90 font-light">
+        <p
+          id="contact-status"
+          role="status"
+          aria-live="polite"
+          className="mt-4 text-sm text-green-500/90 font-light"
+        >
           Thanks — your message has been sent. We’ll be in touch.
         </p>
       ) : status.kind === "error" ? (
-        <p className="mt-4 text-sm text-red-400/90 font-light">{status.message}</p>
+        <p
+          id="contact-status"
+          role="alert"
+          aria-live="assertive"
+          className="mt-4 text-sm text-red-400/90 font-light"
+        >
+          {status.message}
+        </p>
       ) : null}
 
       <IconButton
         text={status.kind === "submitting" ? "Sending…" : "Get In Touch"}
         onClick={submit}
+        disabled={status.kind === "submitting"}
+        aria-label="Send your message"
         className="w-fit mt-10"
       />
     </div>

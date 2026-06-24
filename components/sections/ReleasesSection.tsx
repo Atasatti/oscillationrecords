@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import ReleaseCardSm from "../local-ui/ReleaseCardSm";
+import { Skeleton } from "@/components/ui/skeleton";
 import { slugify } from "@/lib/slug";
 
 interface Release {
@@ -40,6 +41,7 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
   const router = useRouter();
   const [releases, setReleases] = useState<Release[]>(initialReleases ?? []);
   const [isLoading, setIsLoading] = useState(initialReleases === undefined);
+  const [error, setError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
 
   const handleReleaseClick = (release: Release) => {
@@ -53,14 +55,19 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
   }, [initialReleases]);
 
   const fetchReleases = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await fetch("/api/releases");
       if (response.ok) {
         const data = await response.json();
         setReleases(data);
+      } else {
+        setError("Failed to load releases");
       }
     } catch (error) {
       console.error("Error fetching releases:", error);
+      setError("Failed to load releases");
     } finally {
       setIsLoading(false);
     }
@@ -94,8 +101,29 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
         <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
           All releases
         </p>
-        <div className="flex justify-center items-center mt-10 py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="flex gap-5 items-center flex-wrap mt-14 justify-center sm:justify-start">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="w-72 max-w-full h-84 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-[10%] w-full mx-auto py-14">
+        <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
+          All releases
+        </p>
+        <div className="text-center py-20">
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={fetchReleases}
+            className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -133,10 +161,11 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
             <div
               key={release.id}
               onClick={() => handleReleaseClick(release)}
-              className="cursor-pointer relative group w-72 h-84"
+              className="cursor-pointer relative group w-72 max-w-full h-84"
             >
 
               <ReleaseCardSm
+                href={`/releases/${slugify(release.name)}`}
                 release={{
                   id: release.id,
                   name: release.name,

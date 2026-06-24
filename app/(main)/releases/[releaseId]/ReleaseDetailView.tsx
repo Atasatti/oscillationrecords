@@ -1,10 +1,12 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { useSession } from "next-auth/react";
 import { useMusic } from "@/contexts/music-context";
 import { slugify } from "@/lib/slug";
@@ -268,11 +270,17 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
 
             <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 xl:gap-12 items-start">
               <div className="w-full max-w-[min(100%,320px)] mx-auto lg:mx-0 shrink-0">
-                <img
-                  src={release.coverImage}
-                  alt={release.name}
-                  className="w-full aspect-square object-cover rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40"
-                />
+                <div className="relative aspect-square w-full overflow-hidden rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40">
+                  <Image
+                    src={release.coverImage}
+                    alt={release.name}
+                    fill
+                    sizes="(max-width: 1024px) 320px, 320px"
+                    placeholder="blur"
+                    blurDataURL={BLUR_DATA_URL}
+                    className="object-cover"
+                  />
+                </div>
               </div>
 
               <div className="flex-1 min-w-0 space-y-6 w-full">
@@ -281,7 +289,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     {kindLabel}
                   </p>
                   <h1 className="text-4xl sm:text-5xl font-light tracking-tighter flex flex-wrap items-center gap-3">
-                    <span>{release.name}</span>
+                    <span className="break-words min-w-0">{release.name}</span>
                     {release.isrcExplicit ? <ExplicitBadge size="xl" /> : null}
                   </h1>
                   {(releasePrimaryNames.length > 0 || releaseFeatureNames.length > 0) ? (
@@ -406,7 +414,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     key={song.id}
                     className="border-b border-white/5 last:border-b-0"
                   >
-                    <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
+                    <div className="grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
                       <span className="w-5 text-xs text-gray-500 text-right">{index + 1}</span>
                       <button
                         type="button"
@@ -414,10 +422,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         className="group/cover relative h-11 w-11 overflow-hidden rounded-md ring-1 ring-white/10 hover:ring-white/30 transition"
                         aria-label={`Play ${song.name}`}
                       >
-                        <img
+                        <Image
                           src={song.image || release.coverImage}
                           alt={song.name}
-                          className="h-full w-full object-cover"
+                          fill
+                          sizes="44px"
+                          className="object-cover"
                         />
                         <span className="absolute inset-0 bg-black/0 group-hover/cover:bg-black/30 transition-colors" />
                       </button>
@@ -429,6 +439,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         <div className="mt-0.5 space-y-0.5">
                           <p className="text-xs text-white/90 font-medium truncate">
                             {getTrackPrimaryLine(song)}
+                            {/* Duration moves into the meta line on mobile, where the
+                                dedicated column is hidden, so the title row isn't cramped. */}
+                            <span className="text-muted-foreground tabular-nums sm:hidden">
+                              {" · "}
+                              {formatDuration(song.duration)}
+                            </span>
                           </p>
                           {trackFeatureNames.length > 0 ? (
                             <p className="text-xs text-muted-foreground truncate">
@@ -447,7 +463,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                           contextName={song.name}
                         />
                       </div>
-                      <span className="text-xs text-gray-500 tabular-nums">
+                      <span className="hidden sm:block text-xs text-gray-500 tabular-nums">
                         {formatDuration(song.duration)}
                       </span>
                       <button
@@ -519,6 +535,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                       className="cursor-pointer relative group w-72 h-84 shrink-0"
                     >
                       <ReleaseCardSm
+                        href={`/releases/${slugify(r.name)}`}
                         release={{
                           id: r.id,
                           name: r.name,

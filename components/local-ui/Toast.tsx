@@ -103,6 +103,7 @@ function ToastRow({
     <div
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
+      aria-atomic="true"
       onMouseEnter={pauseTimer}
       onMouseLeave={startTimer}
       onFocus={pauseTimer}

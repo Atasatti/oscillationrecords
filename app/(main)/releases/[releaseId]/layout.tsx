@@ -5,7 +5,13 @@ import {
   resolveReleaseIdBySlug,
 } from "@/lib/catalog-data";
 import { OBJECT_ID_RE, slugify } from "@/lib/slug";
-import { buildReleaseJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/lib/seo";
+import {
+  buildReleaseJsonLd,
+  buildBreadcrumbJsonLd,
+  metaDescription,
+  absoluteUrl,
+  SITE_NAME,
+} from "@/lib/seo";
 
 // Prerender every release at build for fast TTFB; new releases render on demand
 // and are then cached.
@@ -78,10 +84,24 @@ export default async function ReleaseLayout({
   return (
     <>
       {r ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildReleaseJsonLd(r)) }}
-        />
+        <>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(buildReleaseJsonLd(r)) }}
+          />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(
+                buildBreadcrumbJsonLd([
+                  { name: "Home", url: "/" },
+                  { name: "Releases", url: "/releases" },
+                  { name: r.name, url: `/releases/${slugify(r.name)}` },
+                ])
+              ),
+            }}
+          />
+        </>
       ) : null}
       {children}
     </>
