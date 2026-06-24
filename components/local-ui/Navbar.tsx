@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import NavbarSearch from "./NavbarSearch";
-import { LogOut, User, Menu, X, Settings } from "lucide-react";
+import { LogOut, User, Menu, X, Settings, Shield } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -145,7 +145,7 @@ const Navbar = () => {
               ) : isAuthenticated && session?.user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    <button aria-label="Account menu" className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
                       {session.user.image ? (
                         <Image
                           src={session.user.image}
@@ -175,6 +175,14 @@ const Navbar = () => {
                         <span>Account settings</span>
                       </Link>
                     </DropdownMenuItem>
+                    {session.user.isAdmin ? (
+                      <DropdownMenuItem asChild className="cursor-pointer">
+                        <Link href="/admin">
+                          <Shield className="mr-2 h-4 w-4" />
+                          <span>Admin</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Sign out</span>
@@ -306,6 +314,16 @@ const Navbar = () => {
                   <Settings className="h-4 w-4" />
                   <span>Account settings</span>
                 </Link>
+                {session.user.isAdmin ? (
+                  <Link
+                    href="/admin"
+                    onClick={closeMobileMenu}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <Shield className="h-4 w-4" />
+                    <span>Admin</span>
+                  </Link>
+                ) : null}
                 <button
                   onClick={() => { handleSignOut(); closeMobileMenu(); }}
                   className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-destructive hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

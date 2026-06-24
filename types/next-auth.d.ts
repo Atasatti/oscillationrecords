@@ -6,6 +6,10 @@ declare module "next-auth" {
       id: string;
       /** Authorization role mirrored from the JWT ("admin" | "user"). */
       role?: string;
+      /** True for bootstrap admins OR role === "admin". Computed in the session
+       * callback so the client can show the "Admin" link without knowing the
+       * bootstrap allowlist. */
+      isAdmin?: boolean;
     } & DefaultSession["user"];
   }
 }

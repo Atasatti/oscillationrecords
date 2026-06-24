@@ -2,6 +2,7 @@ import NextAuth, { AuthOptions } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
+import { isAdminEmail } from "@/lib/auth-session";
 
 interface ExtendedToken extends JWT {
   role?: string;
@@ -100,6 +101,9 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         session.user.id = extendedToken.sub as string;
         session.user.role = (extendedToken.role as string) ?? "user";
+        // Single client-visible admin flag: bootstrap email OR role === "admin".
+        session.user.isAdmin =
+          isAdminEmail(extendedToken.email as string) || extendedToken.role === "admin";
       }
       return session;
     },
