@@ -56,15 +56,15 @@ export default function OutreachHubPage() {
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground">Total contacts</p>
-          <p className="mt-1 text-3xl font-semibold">{stat(summary?.totalContacts)}</p>
+          <div className="mt-1 text-3xl font-semibold">{stat(summary?.totalContacts)}</div>
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground">Active pitches</p>
-          <p className="mt-1 text-3xl font-semibold">{stat(summary?.activePitches)}</p>
+          <div className="mt-1 text-3xl font-semibold">{stat(summary?.activePitches)}</div>
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground">Accepted</p>
-          <p className="mt-1 text-3xl font-semibold text-green-400">{stat(summary?.acceptedPitches)}</p>
+          <div className="mt-1 text-3xl font-semibold text-green-400">{stat(summary?.acceptedPitches)}</div>
         </div>
       </div>
 
@@ -86,9 +86,9 @@ export default function OutreachHubPage() {
               Blogs, curators, radio, sync supervisors and influencers.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {loading ? <Skeleton className="h-3 w-20" /> : `${summary?.totalContacts ?? 0} contact${(summary?.totalContacts ?? 0) !== 1 ? "s" : ""}`}
-          </p>
+          </div>
         </Link>
 
         <Link
@@ -107,9 +107,9 @@ export default function OutreachHubPage() {
               Track every pitch sent per release and its outcome.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {loading ? <Skeleton className="h-3 w-20" /> : `${summary?.activePitches ?? 0} active`}
-          </p>
+          </div>
         </Link>
       </div>
 
