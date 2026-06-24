@@ -522,13 +522,13 @@ export default function ReleaseEditor({
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-6xl xl:max-w-7xl">
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             onClick={requestLeave}
-            className="text-gray-400 hover:text-white"
+            className="-ml-2 text-gray-400 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to releases
@@ -594,7 +594,7 @@ export default function ReleaseEditor({
         </p>
       </div>
 
-      <div className="max-w-4xl">
+      <div>
         <ReleaseDetailsPanel
           value={form}
           onChange={patchForm}

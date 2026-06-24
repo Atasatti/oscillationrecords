@@ -503,8 +503,8 @@ export default function AdminReleaseDetail() {
   const showStream = hasStreamingLinks(streamProps);
 
   return (
-    <div className="min-h-screen text-white">
-            <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
+    <div className="text-white">
+      <div>
         <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
           <Button
             variant="ghost"
