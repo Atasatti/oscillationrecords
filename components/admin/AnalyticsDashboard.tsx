@@ -738,47 +738,49 @@ export default function AnalyticsDashboard() {
             <MousePointerClick className="h-5 w-5 text-amber-400" />
             <h2 className="text-xl font-light tracking-tight text-foreground">Conversion — outbound clicks</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="mb-4 text-lg font-medium text-foreground">By platform</h3>
-              {ctr.byLinkType.length > 0 ? (
-                <div className="space-y-3">
-                  {(() => {
-                    const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
-                    return ctr.byLinkType.map((t) => (
-                      <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
-                    ));
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
-              )}
-            </div>
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="mb-4 text-lg font-medium text-foreground">Most-clicked</h3>
-              {ctr.topLinks.length > 0 ? (
-                <div className="space-y-3">
-                  {(() => {
-                    const m = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
-                    return ctr.topLinks.map((l) => (
-                      <div key={`${l.context}-${l.contextId}`} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate text-sm text-foreground">{l.name}</span>
-                          </span>
-                          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+              <div className="space-y-3">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">By platform</h4>
+                {ctr.byLinkType.length > 0 ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
+                      return ctr.byLinkType.map((t) => (
+                        <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
+                )}
+              </div>
+              <div className="space-y-3">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Most-clicked</h4>
+                {ctr.topLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const m = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
+                      return ctr.topLinks.map((l) => (
+                        <div key={`${l.context}-${l.contextId}`} className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate text-sm text-foreground">{l.name}</span>
+                            </span>
+                            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
+                          </div>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                          <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
-              )}
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
+                )}
+              </div>
             </div>
           </div>
 
