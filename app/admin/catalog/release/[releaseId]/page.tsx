@@ -341,14 +341,10 @@ export default function AdminReleaseDetail() {
       if (res.ok) {
         setDeleteDialogOpen(false);
         toast.success("Release deleted");
-        // Back to the releases list (this release no longer exists).
+        // Back to the releases list (this release no longer exists). AdminShell
+        // clears any lingering Radix pointer-events lock on the route change, so
+        // the admin doesn't freeze when the dialog unmounts mid-navigation.
         router.push("/admin/catalog/releases");
-        // Radix can leave <body style="pointer-events:none"> when its dialog
-        // unmounts mid-navigation, which freezes the whole admin (sidebar
-        // included) until a manual refresh. Restore it once the route settles.
-        setTimeout(() => {
-          if (typeof document !== "undefined") document.body.style.pointerEvents = "";
-        }, 300);
       } else {
         const err = await res.json();
         toast.error(err.error || "Failed to delete");

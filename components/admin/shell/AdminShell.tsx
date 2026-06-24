@@ -20,6 +20,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     setDrawerOpen(false);
   }, [pathname]);
 
+  // Safety net for a Radix quirk: a dialog/dropdown that unmounts mid-navigation
+  // (e.g. deleting a release redirects to the list) can leave
+  // <body style="pointer-events:none"> behind, freezing the entire admin —
+  // sidebar included — until a manual refresh. Clearing it on every route change
+  // guarantees the UI can never get stuck. The rAF handles the common case
+  // instantly; the timeout covers a dialog whose exit-animation cleanup re-locks
+  // the body just after navigation.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const unlock = () => {
+      document.body.style.pointerEvents = "";
+    };
+    const raf = requestAnimationFrame(unlock);
+    const timer = setTimeout(unlock, 500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [pathname]);
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop sidebar */}
