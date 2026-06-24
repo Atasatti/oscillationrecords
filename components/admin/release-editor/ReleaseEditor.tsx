@@ -341,15 +341,13 @@ export default function ReleaseEditor({
       toast.error("Hold on — tracks are still uploading. Try again in a moment.");
       return;
     }
-    // Going live requires a complete tracklist: at least one track and every
-    // track with audio, an artist, and an ISRC. (Scheduled/Coming-Soon doesn't.)
-    if (status === "RELEASED") {
-      if (mode === "create") {
-        // Create mode has no tracklist UI, so a RELEASED release would go live
-        // empty. Steer the admin to the draft-first path.
-        toast.error("Save as a draft first, then add the tracklist before publishing.");
-        return;
-      }
+    // A live release only appears publicly once it has a complete tracklist, so
+    // when publishing FROM THE EDITOR (tracks are present) every track must have
+    // audio, an artist, and an ISRC. Create mode has no tracklist yet — the
+    // release is created as Released but stays hidden until tracks are added on
+    // the next screen (see publicReleaseWhere / getReleaseDetail). Draft is
+    // therefore optional, not forced.
+    if (status === "RELEASED" && mode === "edit") {
       if (trackInfo.trackCount === 0) {
         toast.error("Add at least one track before publishing.");
         return;
@@ -420,15 +418,18 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        if (status === "DRAFT") {
-          toast.success("Draft saved");
-          // Leaving via Cancel → "Save as draft" goes to the list; the "Next"
-          // button stays in the editor so tracks can be added (refresh resumes here).
-          if (redirectTo) router.push(redirectTo);
-          else router.replace(`/admin/catalog/releases/${created.id}/edit`);
-        } else {
-          router.push(`/admin/catalog/release/${created.id}`);
-        }
+        // Every new release continues to the editor to add its tracklist — a live
+        // release only appears publicly once it has tracks. (Cancel → "Save as
+        // draft" passes redirectTo to leave for the list instead.)
+        toast.success(
+          status === "DRAFT"
+            ? "Draft saved"
+            : status === "SCHEDULED"
+              ? "Release created — add the tracklist to finish."
+              : "Release created — add at least one track to make it live."
+        );
+        if (redirectTo) router.push(redirectTo);
+        else router.replace(`/admin/catalog/releases/${created.id}/edit`);
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",
@@ -472,19 +473,12 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  // In create mode the primary button advances setup ("Next" → save as a draft
-  // and move on to the tracklist). Editing an existing draft still reads "Save
-  // draft"; the explicit save/discard choice now lives on Cancel.
-  const isNext = mode === "create" && form.status === "DRAFT";
-  const saveLabel = isNext
-    ? "Next"
-    : form.status === "DRAFT"
-      ? "Save draft"
-      : mode === "edit"
-        ? "Save"
-        : form.status === "SCHEDULED"
-          ? "Schedule release"
-          : "Publish release";
+  // Create always advances to the tracklist next — whatever status the admin
+  // picks (Draft / Scheduled / Released) — so the button reads "Next". The chosen
+  // status takes effect once tracks are added (a live release stays hidden until
+  // then). Editing shows Save / Save draft; save-or-discard lives on Cancel.
+  const isNext = mode === "create";
+  const saveLabel = isNext ? "Next" : form.status === "DRAFT" ? "Save draft" : "Save";
 
   // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
   // a pristine create form) keep the lighter confirmDiscard / direct navigation.

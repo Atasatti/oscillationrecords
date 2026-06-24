@@ -85,6 +85,10 @@ const RELEASE_LINK_KEYS = [
 /** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived. */
 export function publicReleaseWhere(): Prisma.ReleaseWhereInput {
   return {
+    // A live release is only public once it has at least one track. A trackless
+    // RELEASED release is still being set up (created directly as Released, with
+    // the tracklist added next), so it stays hidden like a draft until then.
+    tracks: { some: {} },
     OR: [
       { status: "RELEASED" },
       { status: "SCHEDULED", releaseDate: { lte: new Date() } },
@@ -497,6 +501,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       where: { id, status: { not: "DRAFT" } },
       select: {
         id: true,
+        status: true,
         name: true,
         coverImage: true,
         description: true,
@@ -514,6 +519,12 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       },
     });
     if (!r) return null;
+
+    // A trackless live release (created directly as Released, tracks added next)
+    // 404s on its detail page — don't emit metadata for it either.
+    if (isReleasePublic({ status: r.status, releaseDate: r.releaseDate }) && r.tracks.length === 0) {
+      return null;
+    }
 
     // All primary artists, in the saved order (a release can have several).
     let primaryArtists: { id: string; name: string }[] = [];
@@ -600,6 +611,12 @@ export const getReleaseDetail = cache(
       });
       // DRAFT is admin-only; SCHEDULED + RELEASED are public.
       if (!release || release.status === "DRAFT") return null;
+
+      // A live release (RELEASED, or a SCHEDULED whose date has arrived) is only
+      // public once it has at least one track — a trackless live release is still
+      // being set up (created directly as Released, tracks added next), so hide it
+      // like a draft. Future-dated SCHEDULED (Coming Soon) may still be trackless.
+      if (isReleasePublic(release) && release.tracks.length === 0) return null;
 
       // Future-dated SCHEDULED: public metadata, but tracks (audio) stay hidden
       // until the date arrives. The page shows "Tracklist to be revealed".
