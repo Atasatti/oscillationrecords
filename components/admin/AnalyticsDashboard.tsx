@@ -8,7 +8,6 @@ import {
   Users,
   Eye,
   MousePointerClick,
-  TrendingUp,
   ExternalLink,
   Globe,
   Flame,
@@ -150,12 +149,12 @@ type Detail =
   | { kind: "list"; title: string; rows: ListRow[] };
 
 /** Small labelled progress bar used across the audience/top panels. */
-function BarRow({ label, value, max, color, sub }: { label: string; value: number; max: number; color: string; sub?: string }) {
+function BarRow({ label, value, max, color, sub, valueLabel }: { label: string; value: number; max: number; color: string; sub?: string; valueLabel?: string }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-foreground">{label}</span>
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{value.toLocaleString()}</span>
+        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{valueLabel ?? value.toLocaleString()}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className="h-full rounded-full" style={{ width: `${(value / (max || 1)) * 100}%`, backgroundColor: color }} />
@@ -373,6 +372,7 @@ export default function AnalyticsDashboard() {
 
   const s = data.summary;
   const maxContent = Math.max(...data.topContent.map((c) => c.plays), 1);
+  const maxRising = Math.max(...data.risingContent.map((c) => c.delta), 1);
   const maxCountry = Math.max(...data.geography.topCountries.map((c) => c.count), 1);
   const maxCity = Math.max(...data.geography.topCities.map((c) => c.count), 1);
   const maxPage = Math.max(...data.topPages.map((p) => p.count), 1);
@@ -507,7 +507,7 @@ export default function AnalyticsDashboard() {
                     onClick={() => handleContentClick(c.id, type, c.name)}
                     className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
                   >
-                    <BarRow label={c.name} value={c.plays} max={maxContent} color="var(--primary)" sub={c.artistName} />
+                    <BarRow label={c.name} value={c.plays} max={maxContent} color="#34d399" sub={c.artistName} />
                   </button>
                 );
               })
@@ -525,18 +525,15 @@ export default function AnalyticsDashboard() {
           <div className="space-y-3">
             {data.risingContent.length > 0 ? (
               data.risingContent.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-foreground">{c.name}</p>
-                    {c.artistName ? <p className="truncate text-xs text-muted-foreground">{c.artistName}</p> : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm tabular-nums text-muted-foreground">{c.plays}</span>
-                    <span className="inline-flex items-center gap-0.5 text-xs text-foreground">
-                      <TrendingUp className="h-3 w-3" /> +{c.delta}
-                    </span>
-                  </div>
-                </div>
+                <BarRow
+                  key={c.id}
+                  label={c.name}
+                  value={c.delta}
+                  max={maxRising}
+                  color="#34d399"
+                  sub={c.artistName}
+                  valueLabel={`+${c.delta}`}
+                />
               ))
             ) : (
               <p className="text-sm text-muted-foreground">Not enough history to spot trends yet.</p>
