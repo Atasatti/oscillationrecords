@@ -2,7 +2,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Loader2, Database, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { normalizeCredits, type CreditEntry } from "@/lib/credits";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
@@ -94,6 +102,8 @@ export default function ReleaseEditor({
   const [dirty, setDirty] = useState(false);
   const [tracksUnsaved, setTracksUnsaved] = useState(false);
   const { confirmDiscard } = useUnsavedChangesGuard(dirty || tracksUnsaved);
+  // Create-flow "leave" prompt (Save as draft / Discard / Continue editing).
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -280,7 +290,9 @@ export default function ReleaseEditor({
     return data.fileURL as string;
   };
 
-  const validate = (): ReleaseDetailsErrors | null => {
+  const validate = (
+    status: ReleaseDetailsValue["status"] = form.status
+  ): ReleaseDetailsErrors | null => {
     const fieldErrors: ReleaseDetailsErrors = {};
     if (!form.name.trim()) fieldErrors.name = "Please enter a release name";
 
@@ -290,12 +302,12 @@ export default function ReleaseEditor({
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    if (mode === "create" && form.status === "RELEASED" && form.releaseDate) {
+    if (mode === "create" && status === "RELEASED" && form.releaseDate) {
       if (form.releaseDate < todayStr) {
         fieldErrors.releaseDate = "Release date can’t be in the past";
       }
     }
-    if (form.status === "SCHEDULED") {
+    if (status === "SCHEDULED") {
       // Coming Soon must be in the future, never a past (or today) date.
       if (!form.releaseDate) {
         fieldErrors.releaseDate = "Scheduled releases need a future release date";
@@ -309,8 +321,14 @@ export default function ReleaseEditor({
     return Object.keys(fieldErrors).length ? fieldErrors : null;
   };
 
-  const handleSave = async () => {
-    const fieldErrors = validate();
+  const handleSave = async (override?: {
+    status?: ReleaseDetailsValue["status"];
+    redirectTo?: string;
+  }) => {
+    // Status to persist (the Cancel dialog forces DRAFT); where to go afterwards.
+    const status = override?.status ?? form.status;
+    const redirectTo = override?.redirectTo;
+    const fieldErrors = validate(status);
     if (fieldErrors) {
       setErrors(fieldErrors);
       return;
@@ -322,13 +340,13 @@ export default function ReleaseEditor({
     }
     // Don't publish/schedule while tracks are still uploading or saving — a
     // half-saved tracklist would go live. Saving as DRAFT is always allowed.
-    if (form.status !== "DRAFT" && tracksActive) {
+    if (status !== "DRAFT" && tracksActive) {
       toast.error("Hold on — tracks are still uploading. Try again in a moment.");
       return;
     }
     // Going live requires a complete tracklist: at least one track and every
     // track with audio, an artist, and an ISRC. (Scheduled/Coming-Soon doesn't.)
-    if (form.status === "RELEASED") {
+    if (status === "RELEASED") {
       if (mode === "create") {
         // Create mode has no tracklist UI, so a RELEASED release would go live
         // empty. Steer the admin to the draft-first path.
@@ -372,8 +390,8 @@ export default function ReleaseEditor({
         youtubeLink: form.youtubeLink || null,
         soundcloudLink: form.soundcloudLink || null,
         isrcExplicit: form.isrcExplicit,
-        status: form.status,
         preSaveUrl: form.preSaveUrl || null,
+        status,
         upcCode: form.upcCode || null,
         catalogueNumber: form.catalogueNumber || null,
         pLine: form.pLine || null,
@@ -405,10 +423,12 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        if (form.status === "DRAFT") {
-          // Stay in the editor so tracks can be added; refresh resumes here.
+        if (status === "DRAFT") {
           toast.success("Draft saved");
-          router.replace(`/admin/catalog/releases/${created.id}/edit`);
+          // Leaving via Cancel → "Save as draft" goes to the list; the "Next"
+          // button stays in the editor so tracks can be added (refresh resumes here).
+          if (redirectTo) router.push(redirectTo);
+          else router.replace(`/admin/catalog/releases/${created.id}/edit`);
         } else {
           router.push(`/admin/catalog/release/${created.id}`);
         }
@@ -425,9 +445,10 @@ export default function ReleaseEditor({
         setDirty(false);
         // Keep the live-tracklist guard in sync with what we just persisted (e.g.
         // demoting RELEASED -> DRAFT must release the hold on tracklist autosave).
-        setDbReleaseIsLive(releaseIsLiveFrom(form.status, form.releaseDate || null));
-        if (form.status === "DRAFT") {
+        setDbReleaseIsLive(releaseIsLiveFrom(status, form.releaseDate || null));
+        if (status === "DRAFT") {
           toast.success("Draft saved");
+          if (redirectTo) router.push(redirectTo);
         } else {
           router.push(`/admin/catalog/release/${releaseId}`);
         }
@@ -454,14 +475,43 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  const saveLabel =
-    form.status === "DRAFT"
+  // In create mode the primary button advances setup ("Next" → save as a draft
+  // and move on to the tracklist). Editing an existing draft still reads "Save
+  // draft"; the explicit save/discard choice now lives on Cancel.
+  const isNext = mode === "create" && form.status === "DRAFT";
+  const saveLabel = isNext
+    ? "Next"
+    : form.status === "DRAFT"
       ? "Save draft"
       : mode === "edit"
         ? "Save"
         : form.status === "SCHEDULED"
           ? "Schedule release"
           : "Publish release";
+
+  // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
+  // a pristine create form) keep the lighter confirmDiscard / direct navigation.
+  const requestLeave = () => {
+    if (mode === "create" && dirty) {
+      setLeaveOpen(true);
+      return;
+    }
+    if (confirmDiscard()) router.push("/admin/catalog/releases");
+  };
+
+  const discardAndLeave = () => {
+    setDirty(false); // release the unsaved-changes guard before navigating
+    setLeaveOpen(false);
+    router.push("/admin/catalog/releases");
+  };
+
+  const saveDraftAndLeave = async () => {
+    // Reuse handleSave forced to DRAFT; it navigates to the list on success.
+    await handleSave({ status: "DRAFT", redirectTo: "/admin/catalog/releases" });
+    // On a validation/network failure handleSave surfaces the error and stays —
+    // close the dialog so the form (and any field errors) is visible again.
+    setLeaveOpen(false);
+  };
 
   if (loadingRelease) {
     return (
@@ -477,9 +527,7 @@ export default function ReleaseEditor({
         <div className="mb-4 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
-            onClick={() => {
-              if (confirmDiscard()) router.push("/admin/catalog/releases");
-            }}
+            onClick={requestLeave}
             className="text-gray-400 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -542,7 +590,7 @@ export default function ReleaseEditor({
         <p className="text-gray-400 mt-2">
           {mode === "edit"
             ? "Edit release details below. The tracklist saves automatically as you edit it."
-            : "Release details. After saving you can add the tracklist."}
+            : "Release details. Click “Next” to add the tracklist."}
         </p>
       </div>
 
@@ -580,14 +628,14 @@ export default function ReleaseEditor({
           </div>
         ) : (
           <p className="mt-8 rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
-            Save a draft to start adding the tracklist with background uploads.
+            Click “Next” to create the release and start adding the tracklist.
           </p>
         )}
 
         <div className="mt-8 flex gap-4">
           <Button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
@@ -595,6 +643,11 @@ export default function ReleaseEditor({
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving…
+              </>
+            ) : isNext ? (
+              <>
+                {saveLabel}
+                <ArrowRight className="w-4 h-4 ml-2" />
               </>
             ) : (
               <>
@@ -606,9 +659,7 @@ export default function ReleaseEditor({
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              if (confirmDiscard()) router.push("/admin/catalog/releases");
-            }}
+            onClick={requestLeave}
             className="border-white/10 text-gray-300"
           >
             Cancel
@@ -620,6 +671,55 @@ export default function ReleaseEditor({
           </p>
         ) : null}
       </div>
+
+      <Dialog
+        open={leaveOpen}
+        onOpenChange={(o) => {
+          // Don't let an outside-click/Esc close it mid-save.
+          if (!saving && !uploadingImage) setLeaveOpen(o);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save this release?</DialogTitle>
+            <DialogDescription>
+              Do you want to save this release as a draft or discard it?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setLeaveOpen(false)}
+              disabled={saving || uploadingImage}
+              className="text-gray-300"
+            >
+              Continue editing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={discardAndLeave}
+              disabled={saving || uploadingImage}
+              className="border-white/10 text-red-300 hover:text-red-200"
+            >
+              Discard
+            </Button>
+            <Button
+              onClick={saveDraftAndLeave}
+              disabled={saving || uploadingImage}
+              className="bg-white text-black hover:bg-gray-200"
+            >
+              {saving || uploadingImage ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save as draft"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
