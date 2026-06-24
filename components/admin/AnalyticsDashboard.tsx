@@ -11,7 +11,7 @@ import {
   MousePointerClick,
   ExternalLink,
   Globe,
-  Flame,
+  TrendingUp,
   AlertTriangle,
   ChevronRight,
   Loader2,
@@ -150,12 +150,19 @@ type Detail =
   | { kind: "list"; title: string; rows: ListRow[] };
 
 /** Small labelled progress bar used across the audience/top panels. */
-function BarRow({ label, value, max, color, sub, valueLabel }: { label: string; value: number; max: number; color: string; sub?: string; valueLabel?: string }) {
+function BarRow({ label, value, max, color, sub, valueLabel, delta }: { label: string; value: number; max: number; color: string; sub?: string; valueLabel?: string; delta?: number }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-foreground">{label}</span>
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{valueLabel ?? value.toLocaleString()}</span>
+        <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
+          {delta && delta > 0 ? (
+            <span className="inline-flex items-center gap-0.5 text-xs text-emerald-400" title={`+${delta} vs the previous period`}>
+              <TrendingUp className="h-3 w-3" />+{delta}
+            </span>
+          ) : null}
+          <span className="text-muted-foreground">{valueLabel ?? value.toLocaleString()}</span>
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className="h-full rounded-full" style={{ width: `${(value / (max || 1)) * 100}%`, backgroundColor: color }} />
@@ -382,7 +389,10 @@ export default function AnalyticsDashboard() {
 
   const s = data.summary;
   const maxContent = Math.max(...data.topContent.map((c) => c.plays), 1);
-  const maxRising = Math.max(...data.risingContent.map((c) => c.delta), 1);
+  const maxArtist = Math.max(...data.topArtists.map((a) => a.plays), 1);
+  // Gain per content (id → delta), so Top content can show a "+N" rising badge
+  // inline — folding the old separate "Rising" panel into one list.
+  const risingById = new Map(data.risingContent.map((c) => [c.id, c.delta]));
   const maxCountry = Math.max(...data.geography.topCountries.map((c) => c.count), 1);
   const maxCity = Math.max(...data.geography.topCities.map((c) => c.count), 1);
   const maxPage = Math.max(...data.topPages.map((p) => p.count), 1);
@@ -517,7 +527,7 @@ export default function AnalyticsDashboard() {
                     onClick={() => handleContentClick(c.id, type, c.name)}
                     className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
                   >
-                    <BarRow label={c.name} value={c.plays} max={maxContent} color="#34d399" sub={c.artistName} />
+                    <BarRow label={c.name} value={c.plays} max={maxContent} color="#34d399" sub={c.artistName} delta={risingById.get(c.id) ?? 0} />
                   </button>
                 );
               })
@@ -528,61 +538,39 @@ export default function AnalyticsDashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6">
-          <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
-            <Flame className="h-4 w-4 text-muted-foreground" /> Rising
-          </h3>
-          <p className="mb-4 text-xs text-muted-foreground">Biggest gains vs the previous {data.days} days.</p>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-foreground">Top artists</h3>
+            {data.topArtists.length > 6 ? (
+              <button
+                type="button"
+                onClick={() => showList("All top artists", data.topArtists.map((a) => ({ label: a.name, value: a.plays })))}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                View all ({data.topArtists.length})
+              </button>
+            ) : null}
+          </div>
           <div className="space-y-3">
-            {data.risingContent.length > 0 ? (
-              data.risingContent.map((c) => (
-                <BarRow
-                  key={c.id}
-                  label={c.name}
-                  value={c.delta}
-                  max={maxRising}
-                  color="#34d399"
-                  sub={c.artistName}
-                  valueLabel={`+${c.delta}`}
-                />
-              ))
+            {data.topArtists.length > 0 ? (
+              data.topArtists.slice(0, 6).map((a) =>
+                a.id ? (
+                  <Link
+                    key={a.id}
+                    href={`/admin/catalog/artist/${a.id}`}
+                    className="block w-full rounded-lg p-1 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <BarRow label={a.name} value={a.plays} max={maxArtist} color="#34d399" />
+                  </Link>
+                ) : (
+                  <div key={a.name} className="p-1">
+                    <BarRow label={a.name} value={a.plays} max={maxArtist} color="#34d399" />
+                  </div>
+                )
+              )
             ) : (
-              <p className="text-sm text-muted-foreground">Not enough history to spot trends yet.</p>
+              <p className="text-sm text-muted-foreground">No plays in this period.</p>
             )}
           </div>
-
-          {data.topArtists.length > 0 ? (
-            <>
-              <h4 className="mb-3 mt-6 text-sm font-medium text-muted-foreground">Top artists</h4>
-              <div className="flex flex-wrap gap-2">
-                {data.topArtists.slice(0, 8).map((a, i) => {
-                  const cls = "inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs";
-                  const inner = (
-                    <>
-                      <span className="text-muted-foreground">#{i + 1}</span>
-                      <span className="text-foreground">{a.name}</span>
-                      <span className="text-muted-foreground">{a.plays}</span>
-                    </>
-                  );
-                  return a.id ? (
-                    <Link key={a.name} href={`/admin/catalog/artist/${a.id}`} className={`${cls} transition-colors hover:border-white/25 hover:bg-white/[0.04]`}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    <span key={a.name} className={cls}>{inner}</span>
-                  );
-                })}
-              </div>
-              {data.topArtists.length > 8 ? (
-                <button
-                  type="button"
-                  onClick={() => showList("All top artists", data.topArtists.map((a) => ({ label: a.name, value: a.plays })))}
-                  className="mt-3 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  View all ({data.topArtists.length})
-                </button>
-              ) : null}
-            </>
-          ) : null}
         </div>
       </div>
 
