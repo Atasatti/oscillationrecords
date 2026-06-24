@@ -157,7 +157,8 @@ export default function ArtistEditor({
     (async () => {
       try {
         const res = await fetch("/api/admin/spotify/search");
-        if (!cancelled) setSpotifyEnabled(res.ok);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setSpotifyEnabled(res.ok && data.configured !== false);
       } catch {
         if (!cancelled) setSpotifyEnabled(false);
       }

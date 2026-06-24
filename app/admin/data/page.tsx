@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 interface RawData {
   now: string;
+  focus?: { metric: string; date?: string; linkType?: string; contextId?: string } | null;
   counts: Record<string, number>;
   live: {
     activeSessions: number;
@@ -35,9 +36,26 @@ const ago = (s: number) => (s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 
 const loc = (country: string | null, city: string | null) => (city && country ? `${city}, ${country}` : country || city || "—");
 const when = (iso: string) => new Date(iso).toLocaleString();
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+  id,
+  highlight,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  id?: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
+    <div
+      id={id}
+      className={`rounded-xl border bg-card p-6 ${
+        highlight ? "border-primary/50 ring-2 ring-primary/30" : "border-border"
+      }`}
+    >
       <h3 className="text-lg font-medium text-foreground">{title}</h3>
       {hint ? <p className="mb-3 mt-0.5 text-xs text-muted-foreground">{hint}</p> : <div className="mb-3" />}
       {children}
@@ -69,10 +87,45 @@ export default function RawDataPage() {
   const [data, setData] = useState<RawData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // Optional day focus (from the dashboard Plays breakdown → /admin/data?date=…):
+  // narrows the recent-plays list to that UTC day and highlights the section.
+  const [focus, setFocus] = useState<{
+    metric: string;
+    date?: string;
+    linkType?: string;
+    contextId?: string;
+  } | null>(null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const date = p.get("date");
+    const linkType = p.get("linkType");
+    const contextId = p.get("contextId");
+    const mp = p.get("metric");
+    const metric = mp === "views" || mp === "clicks" ? mp : "plays";
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setFocus({ metric, date });
+    } else if (linkType) {
+      setFocus({ metric: "clicks", linkType });
+    } else if (contextId) {
+      setFocus({ metric: "clicks", contextId });
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/analytics/raw", { cache: "no-store" });
+      const query = focus
+        ? "?" +
+          new URLSearchParams(
+            focus.linkType
+              ? { metric: "clicks", linkType: focus.linkType }
+              : focus.contextId
+                ? { metric: "clicks", contextId: focus.contextId }
+                : { metric: focus.metric, date: focus.date ?? "" }
+          ).toString()
+        : "";
+      const res = await fetch(`/api/analytics/raw${query}`, { cache: "no-store" });
       if (!res.ok) throw new Error();
       const json = await res.json();
       // Defensive: guarantee every array/object the UI reads exists, so a partial
@@ -80,6 +133,7 @@ export default function RawDataPage() {
       // on undefined — this surfaced in the error log as a /admin/data TypeError).
       setData({
         now: json.now,
+        focus: json.focus ?? null,
         counts: json.counts ?? {},
         live: { activeSessions: json.live?.activeSessions ?? 0, items: json.live?.items ?? [] },
         recentVisits: json.recentVisits ?? [],
@@ -94,13 +148,44 @@ export default function RawDataPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [focus]);
 
   useEffect(() => {
     load();
+    // A specific past day doesn't change — don't poll while focused on one.
+    if (focus) return;
     const t = setInterval(load, 15000); // keep "live now" fresh
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, focus]);
+
+  // Scroll to the focused section once, when arriving with a day drill-down.
+  useEffect(() => {
+    if (focus && data && !scrolledRef.current) {
+      scrolledRef.current = true;
+      const target = focus.metric === "clicks" ? "recent-clicks" : "recent-plays";
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focus, data]);
+
+  const clearFocus = () => {
+    setFocus(null);
+    scrolledRef.current = false;
+    window.history.replaceState(null, "", "/admin/data");
+  };
+
+  const prettyDay = (d?: string) =>
+    d
+      ? new Date(`${d}T00:00:00.000Z`).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+      : "";
+  const metricLabel = (m: string) =>
+    m === "views" ? "release views" : m === "clicks" ? "link clicks" : "plays";
+  const prettyPlatform = (s: string) =>
+    s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div>
@@ -122,6 +207,27 @@ export default function RawDataPage() {
         <p className="py-12 text-center text-muted-foreground">Failed to load.</p>
       ) : (
         <div className="space-y-6">
+          {focus ? (() => {
+            const isClicks = focus.metric === "clicks";
+            const count = isClicks ? data.recentClicks.length : data.recentPlays.length;
+            const what = focus.linkType
+              ? `${prettyPlatform(focus.linkType)} link clicks`
+              : focus.contextId
+                ? `link clicks on ${data.recentClicks[0]?.contextName || "this release"}`
+                : metricLabel(focus.metric);
+            const when = focus.date ? ` from ${prettyDay(focus.date)}` : "";
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+                <span>
+                  Showing the <strong className="text-foreground">{count.toLocaleString()}</strong> {what}
+                  {when} — highlighted below.
+                </span>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={clearFocus}>
+                  Clear
+                </Button>
+              </div>
+            );
+          })() : null}
           {/* Privacy note */}
           <div className="flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
@@ -198,9 +304,30 @@ export default function RawDataPage() {
           </Section>
 
           {/* Recent plays */}
-          <Section title="Recent plays & views">
+          <Section
+            id="recent-plays"
+            highlight={focus?.metric === "plays" || focus?.metric === "views"}
+            title={
+              focus?.metric === "views"
+                ? `Release views on ${prettyDay(focus.date)}`
+                : focus?.metric === "plays"
+                  ? `Plays on ${prettyDay(focus.date)}`
+                  : "Recent plays & views"
+            }
+            hint={
+              focus?.metric === "views"
+                ? "Every release-page view recorded on this day."
+                : focus?.metric === "plays"
+                  ? "Every play recorded on this day."
+                  : undefined
+            }
+          >
             {data.recentPlays.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No plays yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {focus?.metric === "plays" || focus?.metric === "views"
+                  ? "Nothing recorded on this day."
+                  : "No plays yet."}
+              </p>
             ) : (
               <Table head={["When", "Who", "Type", "Content", "Artist", "Location", "Completed"]}>
                 {data.recentPlays.map((r) => (
@@ -221,9 +348,24 @@ export default function RawDataPage() {
           </Section>
 
           {/* Recent clicks */}
-          <Section title="Recent link clicks">
+          <Section
+            id="recent-clicks"
+            highlight={focus?.metric === "clicks"}
+            title={
+              focus?.linkType
+                ? `${prettyPlatform(focus.linkType)} link clicks`
+                : focus?.contextId
+                  ? `Link clicks on ${data.recentClicks[0]?.contextName || "this release"}`
+                  : focus?.metric === "clicks" && focus.date
+                    ? `Link clicks on ${prettyDay(focus.date)}`
+                    : "Recent link clicks"
+            }
+            hint={focus?.metric === "clicks" ? "Each row is one outbound click — Clear above to see all." : undefined}
+          >
             {data.recentClicks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No link clicks yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {focus?.metric === "clicks" ? "No matching link clicks." : "No link clicks yet."}
+              </p>
             ) : (
               <Table head={["When", "Platform", "Context", "Name", "Session"]}>
                 {data.recentClicks.map((r) => (

@@ -178,10 +178,13 @@ export default function AdminArtistsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ featuredOnHome }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || "Failed to update featured");
+      }
+    } catch (e) {
       setItems(prev);
-      toast.error("Failed to update featured");
+      toast.error(e instanceof Error ? e.message : "Failed to update featured");
     }
   };
 
@@ -549,8 +552,10 @@ export default function AdminArtistsPage() {
                   <TableCell>
                     <button
                       type="button"
+                      disabled={!a.showOnWebsite}
                       onClick={() => setFeatured(a.id, !a.featuredOnHome)}
-                      title="Feature in the home carousel"
+                      title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {a.featuredOnHome ? (
                         <Badge variant="warning">

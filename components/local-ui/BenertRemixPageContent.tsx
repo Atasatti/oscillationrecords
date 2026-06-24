@@ -278,6 +278,8 @@ export default function BenertRemixPageContent({
                       <p className="text-xs text-white/50 mt-1">Name your remix after the Benert EP track you remixed.</p>
                     </div>
                     <Input
+                      id="remix-file"
+                      name="remix-file"
                       type="file"
                       accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp3,audio/m4a,audio/x-m4a,.mp3,.wav,.m4a"
                       onChange={(e) => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = "force-dynamic";
@@ -109,16 +110,29 @@ export async function GET(request: NextRequest) {
     }
     const zero = () => new Map(dayKeys.map((d) => [d, 0]));
     const playsMap = zero();
+    const playsCompletedMap = zero();
     const viewsMap = zero();
     const clicksMap = zero();
     const bump = (m: Map<string, number>, d: Date) => {
       const k = d.toISOString().split("T")[0];
       if (m.has(k)) m.set(k, (m.get(k) || 0) + 1);
     };
-    events.forEach((e) => bump(isAudio(e.contentType) ? playsMap : viewsMap, e.createdAt));
+    events.forEach((e) => {
+      if (isAudio(e.contentType)) {
+        bump(playsMap, e.createdAt);
+        if (e.completed) bump(playsCompletedMap, e.createdAt);
+      } else {
+        bump(viewsMap, e.createdAt);
+      }
+    });
     clickRows.forEach((c) => bump(clicksMap, c.createdAt));
     const series = {
-      plays: dayKeys.map((d) => ({ date: d, count: playsMap.get(d) || 0 })),
+      // plays carry a full/partial split (completed vs not) for the breakdown.
+      plays: dayKeys.map((d) => {
+        const count = playsMap.get(d) || 0;
+        const completed = playsCompletedMap.get(d) || 0;
+        return { date: d, count, completed, partial: count - completed };
+      }),
       views: dayKeys.map((d) => ({ date: d, count: viewsMap.get(d) || 0 })),
       clicks: dayKeys.map((d) => ({ date: d, count: clicksMap.get(d) || 0 })),
     };
@@ -181,10 +195,16 @@ export async function GET(request: NextRequest) {
       gender[g in gender ? g : "unknown"] += 1;
       const a = (profile?.ageRange as AgeKey) || "unknown";
       ageRange[a in ageRange ? a : "unknown"] += 1;
-      const country = e.country || profile?.country || null;
-      if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
-      const city = e.city || profile?.city || null;
-      if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      // "Where listeners are" must reflect actual listens only. A release-page
+      // VIEW also logs an event, so counting every event double-counts a play made
+      // on a release page (view + play). Restrict the listener geography to audio
+      // plays — one valid listen = one country count.
+      if (isAudio(e.contentType)) {
+        const country = canonicalCountry(e.country || profile?.country || null);
+        if (country) countryMap.set(country, (countryMap.get(country) || 0) + 1);
+        const city = e.city || profile?.city || null;
+        if (city) cityMap.set(city, (cityMap.get(city) || 0) + 1);
+      }
     });
     const topList = (m: Map<string, number>, n: number) =>
       Array.from(m.entries())

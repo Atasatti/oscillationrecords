@@ -10,9 +10,12 @@ import React from "react";
 const SEGMENT_LABELS: Record<string, string> = {
   admin: "Admin",
   catalog: "Homepage",
-  artist: "Artist",
+  // Singular detail segments are labelled plural too — their crumb links to the
+  // list page (see SEGMENT_HREF_OVERRIDES), so "Admin › Releases › Details" reads
+  // consistently with where the link goes.
+  artist: "Artists",
   artists: "Artists",
-  release: "Release",
+  release: "Releases",
   releases: "Releases",
   album: "Album",
   ep: "EP",
@@ -21,6 +24,14 @@ const SEGMENT_LABELS: Record<string, string> = {
   edit: "Edit",
   "new": "New",
   settings: "Settings",
+};
+
+// Singular detail segments (e.g. /admin/catalog/release/<id>) have no index page
+// at their own path — the list lives at the PLURAL route. Point their crumb link
+// at the list so it doesn't 404 on the missing /admin/catalog/release path.
+const SEGMENT_HREF_OVERRIDES: Record<string, string> = {
+  release: "/admin/catalog/releases",
+  artist: "/admin/catalog/artists",
 };
 
 const isId = (seg: string) => /^[0-9a-f]{24}$/i.test(seg);
@@ -55,8 +66,9 @@ export default function Breadcrumbs() {
 
   const crumbs = kept.map(({ seg, i }, idx) => ({
     label: labelFor(seg),
-    // Rebuild hrefs from the original path so dropped segments stay in the URL.
-    href: "/" + raw.slice(0, i + 1).join("/"),
+    // Rebuild hrefs from the original path so dropped segments stay in the URL,
+    // except for singular detail segments that have no index page (→ list route).
+    href: SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/"),
     isLast: idx === kept.length - 1,
   }));
 

@@ -90,7 +90,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-[#1ed760] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Spotify"
         >
-          <FaSpotify className={icon} />
+          <FaSpotify className={icon} aria-hidden />
         </button>
       )}
       {appleMusicLink && (
@@ -100,7 +100,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-white transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Apple Music"
         >
-          <FaApple className={icon} />
+          <FaApple className={icon} aria-hidden />
         </button>
       )}
       {tidalLink && (
@@ -110,7 +110,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-white transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Tidal"
         >
-          <SiTidal className={icon} />
+          <SiTidal className={icon} aria-hidden />
         </button>
       )}
       {amazonMusicLink && (
@@ -120,7 +120,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-[#25d1da] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on Amazon Music"
         >
-          <SiAmazonmusic className={icon} />
+          <SiAmazonmusic className={icon} aria-hidden />
         </button>
       )}
       {youtubeLink && (
@@ -130,7 +130,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-[#ff0033] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on YouTube"
         >
-          <FaYoutube className={icon} />
+          <FaYoutube className={icon} aria-hidden />
         </button>
       )}
       {soundcloudLink && (
@@ -140,7 +140,7 @@ const StreamingLinks: React.FC<StreamingLinksProps> = ({
           className="text-gray-300 hover:text-[#ff5500] transition-colors rounded-md p-1 -m-1"
           aria-label="Open on SoundCloud"
         >
-          <FaSoundcloud className={icon} />
+          <FaSoundcloud className={icon} aria-hidden />
         </button>
       )}
     </div>

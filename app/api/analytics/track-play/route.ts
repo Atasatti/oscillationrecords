@@ -65,7 +65,14 @@ export async function POST(request: NextRequest) {
       ? Math.min(Math.max(Math.trunc(rawDuration), 0), 86_400)
       : null;
 
-    // Resolve the listener: a logged-in user, else a consented anonymous visitor.
+    // Analytics is consent-gated for EVERYONE — logged-in or anonymous. A user
+    // who rejected non-essential cookies must not be tracked, matching the cookie
+    // banner and the admin panel's "only visitors who accepted analytics" wording.
+    if (!hasAnalyticsConsent(consent)) {
+      return NextResponse.json({ success: false, skipped: true });
+    }
+
+    // Resolve the listener: a logged-in user, else the first-party visitor cookie.
     let userId: string | null = null;
     if (token?.email) {
       let user = await prisma.user.findUnique({ where: { email: token.email as string } });
@@ -81,20 +88,14 @@ export async function POST(request: NextRequest) {
       userId = user.id;
     }
 
-    const anonAllowed = hasAnalyticsConsent(consent) && Boolean(vid);
-    if (!userId && !anonAllowed) {
-      // No identity and no analytics consent — don't track, but don't error.
+    // Consented, but nothing to attribute the event to (no logged-in user and no
+    // first-party visitor cookie) — skip rather than record an orphan row.
+    if (!userId && !vid) {
       return NextResponse.json({ success: false, skipped: true });
     }
 
     const { country, city } = geoFromHeaders(request.headers);
-
-    // Sessions are an analytics cookie → only with consent. Logged-in users who
-    // haven't consented are still tracked, just without a session/visit grouping.
-    const consented = hasAnalyticsConsent(consent);
-    const sessionId = consented
-      ? nextSessionId(request.cookies.get(SESSION_COOKIE)?.value)
-      : null;
+    const sessionId = nextSessionId(request.cookies.get(SESSION_COOKIE)?.value);
 
     const playEvent = await prisma.playEvent.create({
       data: {

@@ -36,6 +36,14 @@ export default function UserDemographicsCollector() {
     const checkProfile = async () => {
       if (!session?.user) return;
 
+      // Demographics are analytics → only prompt with analytics consent
+      // ("osc_consent=all", a readable cookie set by the consent banner). The
+      // server enforces the same on write.
+      const consented =
+        typeof document !== "undefined" &&
+        document.cookie.split("; ").some((c) => c.trim() === "osc_consent=all");
+      if (!consented) return;
+
       try {
         const response = await fetch("/api/analytics/user-profile");
         if (response.ok) {

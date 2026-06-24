@@ -25,6 +25,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. A stray lockfile in the parent dir
+  // (C:\Users\…\package-lock.json) made Next infer too high a root and try to
+  // watch C:\ system files in dev (the Watchpack EINVAL errors). This silences
+  // that warning and scopes file watching / output tracing to the project.
+  outputFileTracingRoot: __dirname,
   images: {
     // Skip the optimizer in dev: it fetches images server-side from S3, which
     // can timeout on slower local networks. Production still runs the optimizer.

@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import React from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { usePageMedia } from "@/hooks/use-page-media";
 
 const AboutHeroSection = () => {
   const { aboutHero, bgHero } = usePageMedia();
+  // Reduced-motion users get the static composition (no infinite spin/float).
+  const reduced = useReducedMotion();
   return (
     <div
       className="bg-background bg-center bg-no-repeat px-[10%] w-full mx-auto py-14"
@@ -28,8 +30,8 @@ const AboutHeroSection = () => {
           <div style={{ perspective: "400px" }} className="relative w-15 h-15 md:w-20 md:h-20 lg:w-24 lg:h-24">
             <motion.div
               className="relative w-full h-full"
-              animate={{ rotateZ: 360 }}
-              transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+              animate={reduced ? undefined : { rotateZ: 360 }}
+              transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "linear" }}
             >
               <Image
                 src="/record-disk.svg"
@@ -47,25 +49,37 @@ const AboutHeroSection = () => {
       {/* Hero image — big elliptical float */}
       <div style={{ perspective: "900px" }} className="flex justify-center mt-14">
         <motion.div
-          animate={{
-            y:       [0, -22, -18, -8, 0, 8, 18, 22, 18, 8, 0, -8, -18, -22, 0],
-            rotateY: [0,  4,   12,  18, 20, 18, 12, 4, -4, -12, -20, -18, -12, -4, 0],
-            rotateZ: [0,  1,   2,   1.5, 0, -1.5, -2, -1, 0, 1, 2, 1.5, 0.5, -0.5, 0],
-          }}
-          transition={{
-            duration: 5,
-            ease: "linear",
-            repeat: Infinity,
-            repeatType: "loop",
-            times: [0, 0.07, 0.14, 0.21, 0.28, 0.35, 0.42, 0.5, 0.57, 0.64, 0.71, 0.78, 0.85, 0.93, 1],
-          }}
+          animate={
+            reduced
+              ? undefined
+              : {
+                  y:       [0, -22, -18, -8, 0, 8, 18, 22, 18, 8, 0, -8, -18, -22, 0],
+                  rotateY: [0,  4,   12,  18, 20, 18, 12, 4, -4, -12, -20, -18, -12, -4, 0],
+                  rotateZ: [0,  1,   2,   1.5, 0, -1.5, -2, -1, 0, 1, 2, 1.5, 0.5, -0.5, 0],
+                }
+          }
+          transition={
+            reduced
+              ? undefined
+              : {
+                  duration: 5,
+                  ease: "linear",
+                  repeat: Infinity,
+                  repeatType: "loop",
+                  times: [0, 0.07, 0.14, 0.21, 0.28, 0.35, 0.42, 0.5, 0.57, 0.64, 0.71, 0.78, 0.85, 0.93, 1],
+                }
+          }
           style={{ transformStyle: "preserve-3d" }}
-          whileHover={{
-            scale: 1.06,
-            rotateY: 25,
-            y: -28,
-            transition: { type: "spring", stiffness: 180, damping: 16 },
-          }}
+          whileHover={
+            reduced
+              ? undefined
+              : {
+                  scale: 1.06,
+                  rotateY: 25,
+                  y: -28,
+                  transition: { type: "spring", stiffness: 180, damping: 16 },
+                }
+          }
         >
           <Image
             src={aboutHero}

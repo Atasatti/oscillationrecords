@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withWriteRetry } from "@/lib/db-retry";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getFeaturedReleases } from "@/lib/admin-data";
 import { revalidatePath } from "next/cache";
@@ -36,10 +37,12 @@ export async function PUT(request: NextRequest) {
     // deadlocks on MongoDB ("write conflict"). Order isn't security-critical, so
     // atomicity isn't required; sequential writes are reliable and conflict-free.
     for (let index = 0; index < orderedIds.length; index++) {
-      await prisma.release.update({
-        where: { id: orderedIds[index] },
-        data: { homeOrder: index },
-      });
+      await withWriteRetry(() =>
+        prisma.release.update({
+          where: { id: orderedIds[index] },
+          data: { homeOrder: index },
+        })
+      );
     }
     revalidatePath("/");
     revalidatePath("/releases");

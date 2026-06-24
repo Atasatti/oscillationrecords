@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ArtistCard from "../local-ui/ArtistCard";
+import { Skeleton } from "@/components/ui/skeleton";
 import { slugify } from "@/lib/slug";
 
 interface Artist {
@@ -107,14 +108,16 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="flex gap-5 items-center flex-wrap mt-14">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="w-72 max-w-full h-84 rounded-lg" />
+          ))}
         </div>
       ) : error ? (
         <div className="text-center py-20">
           <p className="text-red-400 mb-4">{error}</p>
-          <button 
-            onClick={fetchArtists} 
+          <button
+            onClick={fetchArtists}
             className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700"
           >
             Try Again
@@ -122,8 +125,8 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
         </div>
       ) : filteredArtists.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-400 text-lg">No artists found</p>
-          <p className="text-gray-500">Check back later for new releases</p>
+          <p className="text-lg text-foreground">No artists found</p>
+          <p className="text-muted-foreground">Check back later for new releases</p>
         </div>
       ) : (
         <div className="flex gap-5 items-center flex-wrap mt-14">

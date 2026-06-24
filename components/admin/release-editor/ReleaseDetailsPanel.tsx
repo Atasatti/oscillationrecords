@@ -5,8 +5,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Image as ImageIcon } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
-import CreditsEditor from "@/components/admin/CreditsEditor";
-import { type CreditEntry } from "@/lib/credits";
 
 export interface ArtistOption {
   id: string;
@@ -77,8 +75,6 @@ export interface ReleaseDetailsPanelProps {
   errors: ReleaseDetailsErrors;
   artists: ArtistOption[];
   loadingArtists: boolean;
-  credits: CreditEntry[];
-  onCreditsChange: (credits: CreditEntry[]) => void;
   imagePreview: string | null;
   onPickImage: (file: File) => void;
   onRemoveImage: () => void;
@@ -90,8 +86,6 @@ export default function ReleaseDetailsPanel({
   errors,
   artists,
   loadingArtists,
-  credits,
-  onCreditsChange,
   imagePreview,
   onPickImage,
   onRemoveImage,
@@ -350,19 +344,6 @@ export default function ReleaseDetailsPanel({
         </div>
 
         <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <h3 className="text-lg font-medium text-gray-200 mb-1">Credits</h3>
-          <p className="mb-4 text-xs text-gray-500">
-            Release-level credits — producers, songwriters, composers, etc.
-            (per-track credits are set on each track.)
-          </p>
-          <CreditsEditor
-            value={credits}
-            onChange={onCreditsChange}
-            idPrefix="release-credits"
-          />
-        </div>
-
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
           <h3 className="text-lg font-medium text-gray-200 mb-4">Streaming</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(
@@ -399,6 +380,9 @@ export default function ReleaseDetailsPanel({
                 onChange={(ids) => onChange({ primaryArtistIds: ids })}
                 placeholder="Primary artists *"
               />
+              <p className="text-xs text-gray-500">
+                Select one or more — a release can have multiple primary artists.
+              </p>
               {errors.primaryArtists ? (
                 <p className="text-sm text-red-400">{errors.primaryArtists}</p>
               ) : null}

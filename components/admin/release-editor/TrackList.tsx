@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
 import {
   type EditorTrack,
+  type TrackCreditsValue,
   newEditorTrack,
   editorTrackFromSerialized,
   trackIsPersistable,
@@ -322,6 +323,29 @@ export default function TrackList({
     [markDirty]
   );
 
+  // Copy one track's credits onto every track — albums often share the same
+  // contributors, so this saves re-entering them on each track.
+  const applyCreditsToAll = useCallback(
+    (source: TrackCreditsValue) => {
+      if (tracks.length <= 1) return;
+      if (
+        !window.confirm(
+          `Copy these credits to all ${tracks.length} tracks? This replaces each track's current credits.`
+        )
+      ) {
+        return;
+      }
+      setTracks((prev) =>
+        prev.map((r) => ({
+          ...r,
+          credits: JSON.parse(JSON.stringify(source)) as TrackCreditsValue,
+        }))
+      );
+      markDirty();
+    },
+    [tracks.length, markDirty]
+  );
+
   const setAllExpanded = useCallback((expanded: boolean) => {
     setTracks((prev) => prev.map((r) => ({ ...r, expanded })));
   }, []);
@@ -497,6 +521,11 @@ export default function TrackList({
                   onRetryStems={() => queue.retry(`${track.rowId}:stems`)}
                   onToggleExpand={() =>
                     updateRow(track.rowId, { expanded: !track.expanded }, false)
+                  }
+                  onCopyCreditsToAll={
+                    tracks.length > 1
+                      ? () => applyCreditsToAll(track.credits)
+                      : undefined
                   }
                 />
               ))}

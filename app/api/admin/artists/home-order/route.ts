@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withWriteRetry } from "@/lib/db-retry";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getFeaturedArtists } from "@/lib/admin-data";
 import { revalidatePath } from "next/cache";
@@ -35,10 +36,12 @@ export async function PUT(request: NextRequest) {
     // Sequential single-document updates — a multi-document $transaction here
     // deadlocks on MongoDB ("write conflict"). Order isn't atomicity-critical.
     for (let index = 0; index < orderedIds.length; index++) {
-      await prisma.artist.update({
-        where: { id: orderedIds[index] },
-        data: { homeOrder: index },
-      });
+      await withWriteRetry(() =>
+        prisma.artist.update({
+          where: { id: orderedIds[index] },
+          data: { homeOrder: index },
+        })
+      );
     }
     revalidatePath("/");
     return NextResponse.json({ ok: true });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -80,6 +80,12 @@ function ReleasesPageInner() {
   const searchParams = useSearchParams();
 
   const [items, setItems] = useState<ReleaseCardDTO[]>([]);
+  // Releases with a home/latest flag write currently in flight. A ref is the
+  // hard guard (synchronous, beats rapid double-clicks); the state mirror drives
+  // the disabled UI. One flag write per release at a time → no overlapping PATCH
+  // transactions on the same row, which is what triggers Prisma P2034 conflicts.
+  const pendingFlagRef = useRef<Set<string>>(new Set());
+  const [pendingFlags, setPendingFlags] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [queryInput, setQueryInput] = useState("");
@@ -185,33 +191,45 @@ function ReleasesPageInner() {
       return next;
     });
 
+  // A release is "live" (eligible for the Latest pill) when it's RELEASED, or a
+  // SCHEDULED release whose date has arrived. Drafts / not-yet-due are not.
+  const isLiveRelease = (r: { status: string; releaseDate: string | null }) =>
+    r.status === "RELEASED" ||
+    (r.status === "SCHEDULED" &&
+      !!r.releaseDate &&
+      new Date(r.releaseDate).getTime() <= Date.now());
+
   const patchFlag = async (
     id: string,
     key: "showOnHome" | "showLatestOnHome",
     value: boolean
   ) => {
+    // Ignore clicks while this release already has a flag write in flight — both
+    // toggles are disabled meanwhile, but this also blocks any synchronous
+    // double-fire. Prevents overlapping PATCH transactions (Prisma P2034).
+    if (pendingFlagRef.current.has(id)) return;
+    pendingFlagRef.current.add(id);
+    setPendingFlags(new Set(pendingFlagRef.current));
+
     const prev = items;
-    // "Latest" is single-select — turning one on clears the rest (server enforces too).
-    const clearOthersLatest = key === "showLatestOnHome" && value;
-    setItems((list) =>
-      list.map((r) =>
-        r.id === id
-          ? { ...r, [key]: value }
-          : clearOthersLatest
-            ? { ...r, showLatestOnHome: false }
-            : r
-      )
-    );
+    // "Latest" now supports multiple releases — no single-select clearing.
+    setItems((list) => list.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
     try {
       const res = await fetch(`/api/releases/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: value }),
       });
-      if (!res.ok) throw new Error();
-    } catch {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to update");
+      }
+    } catch (e) {
       setItems(prev);
-      toast.error("Failed to update");
+      toast.error(e instanceof Error ? e.message : "Failed to update");
+    } finally {
+      pendingFlagRef.current.delete(id);
+      setPendingFlags(new Set(pendingFlagRef.current));
     }
   };
 
@@ -527,12 +545,24 @@ function ReleasesPageInner() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)} title="Show the 'Latest' pill on home">
+                    <button
+                      type="button"
+                      disabled={!isLiveRelease(r) || pendingFlags.has(r.id)}
+                      onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)}
+                      title={isLiveRelease(r) ? "Show the 'Latest' pill on home" : "Only released / live releases can be a Latest Release"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showLatestOnHome ? <Badge variant="destructive">Latest</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)} title="Feature in the New Music carousel">
+                    <button
+                      type="button"
+                      disabled={r.status === "DRAFT" || pendingFlags.has(r.id)}
+                      onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)}
+                      title={r.status === "DRAFT" ? "Publish this release before adding it to New Music" : "Feature in the New Music carousel"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>

@@ -7,6 +7,7 @@ import { MusicPlayer } from "@/components/local-ui/MusicPlayer";
 import UserDemographicsCollector from "@/components/user/UserDemographicsCollector";
 import CookieConsent from "@/components/local-ui/CookieConsent";
 import PageViewTracker from "@/components/local-ui/PageViewTracker";
+import GoogleAnalytics from "@/components/local-ui/GoogleAnalytics";
 import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
 import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
@@ -18,10 +19,15 @@ const inter = Inter({
   display: "swap",
 });
 
+// Only the weights actually used (light 300 for body, regular 400, bold 700).
+// Was 100/300/400/700/900 — each non-variable weight is its own preloaded
+// woff2, so trimming the two unused extremes drops 2 render-blocking font
+// preloads at first paint. (100 had no usages; 900 was only the ExplicitBadge,
+// now font-bold.)
 const lato = Lato({
   variable: "--font-lato",
   subsets: ["latin"],
-  weight: ["100", "300", "400", "700", "900"], // All available weights
+  weight: ["300", "400", "700"],
   display: "swap",
 });
 
@@ -64,6 +70,7 @@ export default function RootLayout({
             <UserDemographicsCollector />
             <CookieConsent />
             <PageViewTracker />
+            <GoogleAnalytics />
             <ClientErrorLogger />
             <NewsletterPrompt />
           </MusicProvider>

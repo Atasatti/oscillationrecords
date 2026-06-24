@@ -2,9 +2,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Loader2, Database, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ArrowLeft, ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
-import { normalizeCredits, type CreditEntry } from "@/lib/credits";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
   buildArtistMap,
@@ -19,7 +26,6 @@ import ReleaseDetailsPanel, {
   type ReleaseDetailsErrors,
   type ReleaseDetailsValue,
 } from "./ReleaseDetailsPanel";
-import TrackList from "./TrackList";
 import ReleaseLinkImport, {
   type ReleaseLinkKey,
   type SpotifyAlbumPick,
@@ -35,18 +41,6 @@ export interface ReleaseEditorProps {
   initialArtistId?: string;
   /** Pre-set status on create (e.g. "SCHEDULED" from the Coming Soon page). */
   initialStatus?: ReleaseDetailsValue["status"];
-}
-
-/** True when a release is publicly visible together with its tracklist:
- * RELEASED, or a SCHEDULED release whose date has already passed. Used to keep
- * the tracklist autosave from ever leaving a live release empty/partial. */
-function releaseIsLiveFrom(
-  status: string | null | undefined,
-  releaseDate: string | null | undefined
-): boolean {
-  if (status === "RELEASED") return true;
-  if (status === "SCHEDULED" && releaseDate) return new Date(releaseDate) <= new Date();
-  return false;
 }
 
 export default function ReleaseEditor({
@@ -65,35 +59,26 @@ export default function ReleaseEditor({
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loadedKind, setLoadedKind] = useState<ReleaseKind | null>(null);
-  // Whether the release is currently live IN THE DB (not the unsaved form), so an
-  // unsaved status change can't trick the tracklist autosave into exposing an
-  // empty live release. Set on load and after each successful save.
-  const [dbReleaseIsLive, setDbReleaseIsLive] = useState(false);
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
-    // New releases start as DRAFT so the admin saves first and adds the tracklist
-    // before going live — a RELEASED release created here would publish empty
-    // (the tracklist UI only exists in edit mode). An explicit initialStatus
-    // (e.g. SCHEDULED from Coming Soon) still wins. Edit loads the saved status.
+    // New releases default to DRAFT, but the admin can pick any status — a live
+    // release just stays hidden until its tracklist is added on the next step.
+    // An explicit initialStatus (e.g. SCHEDULED from Coming Soon) still wins.
     base.status = mode === "create" ? initialStatus ?? "DRAFT" : "DRAFT";
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });
-  const [credits, setCredits] = useState<CreditEntry[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<ReleaseDetailsErrors>({});
-  const [initialTracks, setInitialTracks] = useState<Record<string, unknown>[]>([]);
-  const [tracksActive, setTracksActive] = useState(false);
-  const [trackInfo, setTrackInfo] = useState({ trackCount: 0, issueCount: 0 });
-  // Tracks unsaved release-detail edits. The tracklist autosaves separately, so
-  // it reports its own "leaving loses work" state (in-flight/failed save) via
-  // onUnsavedChange — both feed the guard so Back/Cancel/leave warn either way.
+  // Tracks unsaved release-detail edits (the tracklist lives on its own page and
+  // autosaves there). Feeds the guard so Back/Cancel/leave warn about lost edits.
   const [dirty, setDirty] = useState(false);
-  const [tracksUnsaved, setTracksUnsaved] = useState(false);
-  const { confirmDiscard } = useUnsavedChangesGuard(dirty || tracksUnsaved);
+  const { confirmDiscard } = useUnsavedChangesGuard(dirty);
+  // Create-flow "leave" prompt (Save as draft / Discard / Continue editing).
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   // Track the feature line as loaded so we only overwrite feature artists (which
   // would convert linked artists to plain names) when the field actually changes.
@@ -175,16 +160,8 @@ export default function ReleaseEditor({
           pLine: data.pLine || "",
           cLine: data.cLine || "",
         });
-        setCredits(normalizeCredits(data.credits));
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
-        setInitialTracks(Array.isArray(data.tracks) ? data.tracks : []);
-        setDbReleaseIsLive(
-          releaseIsLiveFrom(
-            data.status,
-            data.releaseDate ? String(data.releaseDate).slice(0, 10) : null
-          )
-        );
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -280,7 +257,9 @@ export default function ReleaseEditor({
     return data.fileURL as string;
   };
 
-  const validate = (): ReleaseDetailsErrors | null => {
+  const validate = (
+    status: ReleaseDetailsValue["status"] = form.status
+  ): ReleaseDetailsErrors | null => {
     const fieldErrors: ReleaseDetailsErrors = {};
     if (!form.name.trim()) fieldErrors.name = "Please enter a release name";
 
@@ -290,12 +269,9 @@ export default function ReleaseEditor({
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    if (mode === "create" && form.status === "RELEASED" && form.releaseDate) {
-      if (form.releaseDate < todayStr) {
-        fieldErrors.releaseDate = "Release date can’t be in the past";
-      }
-    }
-    if (form.status === "SCHEDULED") {
+    // RELEASED/DRAFT may be backdated — e.g. adding an older catalogue release,
+    // or re-adding one that was deleted. Only SCHEDULED (Coming Soon) is future-only.
+    if (status === "SCHEDULED") {
       // Coming Soon must be in the future, never a past (or today) date.
       if (!form.releaseDate) {
         fieldErrors.releaseDate = "Scheduled releases need a future release date";
@@ -309,8 +285,14 @@ export default function ReleaseEditor({
     return Object.keys(fieldErrors).length ? fieldErrors : null;
   };
 
-  const handleSave = async () => {
-    const fieldErrors = validate();
+  const handleSave = async (override?: {
+    status?: ReleaseDetailsValue["status"];
+    redirectTo?: string;
+  }) => {
+    // Status to persist (the Cancel dialog forces DRAFT); where to go afterwards.
+    const status = override?.status ?? form.status;
+    const redirectTo = override?.redirectTo;
+    const fieldErrors = validate(status);
     if (fieldErrors) {
       setErrors(fieldErrors);
       return;
@@ -320,32 +302,9 @@ export default function ReleaseEditor({
       toast.error("No artists available. Create an artist first.");
       return;
     }
-    // Don't publish/schedule while tracks are still uploading or saving — a
-    // half-saved tracklist would go live. Saving as DRAFT is always allowed.
-    if (form.status !== "DRAFT" && tracksActive) {
-      toast.error("Hold on — tracks are still uploading. Try again in a moment.");
-      return;
-    }
-    // Going live requires a complete tracklist: at least one track and every
-    // track with audio, an artist, and an ISRC. (Scheduled/Coming-Soon doesn't.)
-    if (form.status === "RELEASED") {
-      if (mode === "create") {
-        // Create mode has no tracklist UI, so a RELEASED release would go live
-        // empty. Steer the admin to the draft-first path.
-        toast.error("Save as a draft first, then add the tracklist before publishing.");
-        return;
-      }
-      if (trackInfo.trackCount === 0) {
-        toast.error("Add at least one track before publishing.");
-        return;
-      }
-      if (trackInfo.issueCount > 0) {
-        toast.error(
-          `${trackInfo.issueCount} track${trackInfo.issueCount === 1 ? "" : "s"} need audio, an artist, or an ISRC before publishing.`
-        );
-        return;
-      }
-    }
+    // The tracklist lives on its own page (it autosaves there), so the details
+    // form has no track state to check. A live release stays hidden until it has
+    // tracks (see publicReleaseWhere), so the status can be set freely here.
 
     setSaving(true);
     try {
@@ -372,14 +331,13 @@ export default function ReleaseEditor({
         youtubeLink: form.youtubeLink || null,
         soundcloudLink: form.soundcloudLink || null,
         isrcExplicit: form.isrcExplicit,
-        status: form.status,
         preSaveUrl: form.preSaveUrl || null,
+        status,
         upcCode: form.upcCode || null,
         catalogueNumber: form.catalogueNumber || null,
         pLine: form.pLine || null,
         cLine: form.cLine || null,
         primaryArtistIds: form.primaryArtistIds,
-        credits: normalizeCredits(credits),
       };
 
       // Only send feature artists on create, when the field changed, or when there
@@ -405,13 +363,18 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        if (form.status === "DRAFT") {
-          // Stay in the editor so tracks can be added; refresh resumes here.
-          toast.success("Draft saved");
-          router.replace(`/admin/catalog/releases/${created.id}/edit`);
-        } else {
-          router.push(`/admin/catalog/release/${created.id}`);
-        }
+        // Every new release continues to the editor to add its tracklist — a live
+        // release only appears publicly once it has tracks. (Cancel → "Save as
+        // draft" passes redirectTo to leave for the list instead.)
+        toast.success(
+          status === "DRAFT"
+            ? "Draft saved"
+            : status === "SCHEDULED"
+              ? "Release created — add the tracklist to finish."
+              : "Release created — add at least one track to make it live."
+        );
+        if (redirectTo) router.push(redirectTo);
+        else router.replace(`/admin/catalog/releases/${created.id}/tracks`);
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",
@@ -423,11 +386,9 @@ export default function ReleaseEditor({
           return;
         }
         setDirty(false);
-        // Keep the live-tracklist guard in sync with what we just persisted (e.g.
-        // demoting RELEASED -> DRAFT must release the hold on tracklist autosave).
-        setDbReleaseIsLive(releaseIsLiveFrom(form.status, form.releaseDate || null));
-        if (form.status === "DRAFT") {
+        if (status === "DRAFT") {
           toast.success("Draft saved");
+          if (redirectTo) router.push(redirectTo);
         } else {
           router.push(`/admin/catalog/release/${releaseId}`);
         }
@@ -454,14 +415,36 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  const saveLabel =
-    form.status === "DRAFT"
-      ? "Save draft"
-      : mode === "edit"
-        ? "Save"
-        : form.status === "SCHEDULED"
-          ? "Schedule release"
-          : "Publish release";
+  // Create always advances to the tracklist next — whatever status the admin
+  // picks (Draft / Scheduled / Released) — so the button reads "Next". The chosen
+  // status takes effect once tracks are added (a live release stays hidden until
+  // then). Editing shows Save / Save draft; save-or-discard lives on Cancel.
+  const isNext = mode === "create";
+  const saveLabel = isNext ? "Next" : form.status === "DRAFT" ? "Save draft" : "Save";
+
+  // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
+  // a pristine create form) keep the lighter confirmDiscard / direct navigation.
+  const requestLeave = () => {
+    if (mode === "create" && dirty) {
+      setLeaveOpen(true);
+      return;
+    }
+    if (confirmDiscard()) router.push("/admin/catalog/releases");
+  };
+
+  const discardAndLeave = () => {
+    setDirty(false); // release the unsaved-changes guard before navigating
+    setLeaveOpen(false);
+    router.push("/admin/catalog/releases");
+  };
+
+  const saveDraftAndLeave = async () => {
+    // Reuse handleSave forced to DRAFT; it navigates to the list on success.
+    await handleSave({ status: "DRAFT", redirectTo: "/admin/catalog/releases" });
+    // On a validation/network failure handleSave surfaces the error and stays —
+    // close the dialog so the form (and any field errors) is visible again.
+    setLeaveOpen(false);
+  };
 
   if (loadingRelease) {
     return (
@@ -472,15 +455,13 @@ export default function ReleaseEditor({
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-6xl xl:max-w-7xl">
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
-            onClick={() => {
-              if (confirmDiscard()) router.push("/admin/catalog/releases");
-            }}
-            className="text-gray-400 hover:text-white"
+            onClick={requestLeave}
+            className="-ml-2 text-gray-400 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to releases
@@ -542,52 +523,52 @@ export default function ReleaseEditor({
         <p className="text-gray-400 mt-2">
           {mode === "edit"
             ? "Edit release details below. The tracklist saves automatically as you edit it."
-            : "Release details. After saving you can add the tracklist."}
+            : "Release details. Click “Next” to add the tracklist."}
         </p>
       </div>
 
-      <div className="max-w-4xl">
+      <div>
         <ReleaseDetailsPanel
           value={form}
           onChange={patchForm}
           errors={errors}
           artists={artists}
           loadingArtists={loadingArtists}
-          credits={credits}
-          onCreditsChange={(c) => {
-            setDirty(true);
-            setCredits(c);
-          }}
           imagePreview={imagePreview}
           onPickImage={onPickImage}
           onRemoveImage={onRemoveImage}
         />
 
         {mode === "edit" && releaseId ? (
-          <div className="mt-8 rounded-xl border border-white/10 bg-[#141414] p-6">
-            <TrackList
-              releaseId={releaseId}
-              artists={artists}
-              defaultPrimaryArtistIds={form.primaryArtistIds}
-              defaultFeatureArtistText={form.featureArtistText}
-              requireIsrc={form.status === "RELEASED"}
-              releaseIsLive={dbReleaseIsLive}
-              initialTracks={initialTracks}
-              onActivityChange={setTracksActive}
-              onUnsavedChange={setTracksUnsaved}
-              onValidityChange={setTrackInfo}
-            />
+          <div className="mt-8 flex flex-col gap-4 rounded-xl border border-white/10 bg-[#141414] p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-gray-200">Tracklist</h3>
+              <p className="mt-1 text-sm text-gray-400">
+                Add and edit tracks, with audio uploads, on a dedicated page.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                if (confirmDiscard()) router.push(`/admin/catalog/releases/${releaseId}/tracks`);
+              }}
+            >
+              Manage tracklist
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </div>
         ) : (
           <p className="mt-8 rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
-            Save a draft to start adding the tracklist with background uploads.
+            Click “Next” to create the release — you’ll add the tracklist on the next step.
           </p>
         )}
 
         <div className="mt-8 flex gap-4">
           <Button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
@@ -595,6 +576,11 @@ export default function ReleaseEditor({
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving…
+              </>
+            ) : isNext ? (
+              <>
+                {saveLabel}
+                <ArrowRight className="w-4 h-4 ml-2" />
               </>
             ) : (
               <>
@@ -606,9 +592,7 @@ export default function ReleaseEditor({
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              if (confirmDiscard()) router.push("/admin/catalog/releases");
-            }}
+            onClick={requestLeave}
             className="border-white/10 text-gray-300"
           >
             Cancel
@@ -620,6 +604,55 @@ export default function ReleaseEditor({
           </p>
         ) : null}
       </div>
+
+      <Dialog
+        open={leaveOpen}
+        onOpenChange={(o) => {
+          // Don't let an outside-click/Esc close it mid-save.
+          if (!saving && !uploadingImage) setLeaveOpen(o);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save this release?</DialogTitle>
+            <DialogDescription>
+              Do you want to save this release as a draft or discard it?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setLeaveOpen(false)}
+              disabled={saving || uploadingImage}
+              className="text-gray-300"
+            >
+              Continue editing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={discardAndLeave}
+              disabled={saving || uploadingImage}
+              className="border-white/10 text-red-300 hover:text-red-200"
+            >
+              Discard
+            </Button>
+            <Button
+              onClick={saveDraftAndLeave}
+              disabled={saving || uploadingImage}
+              className="bg-white text-black hover:bg-gray-200"
+            >
+              {saving || uploadingImage ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save as draft"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

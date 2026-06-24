@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import StreamingLinks from "./StreamingLinks";
 import ExplicitBadge from "./ExplicitBadge";
 import {
@@ -9,6 +11,7 @@ import {
   useTransform,
   useSpring,
   useMotionTemplate,
+  useReducedMotion,
 } from "motion/react";
 
 export interface ReleaseCardSmRelease {
@@ -30,9 +33,14 @@ export interface ReleaseCardSmRelease {
   isrcExplicit?: boolean;
 }
 
-const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release }) => {
+const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string }> = ({
+  release,
+  href,
+}) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  // Skip the JS-driven tilt/shimmer/scale for reduced-motion users.
+  const reduced = useReducedMotion();
 
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
@@ -51,7 +59,7 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release })
   const shimmerBg = useMotionTemplate`radial-gradient(circle at ${shimmerX}% ${shimmerY}%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 40%, transparent 68%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
+    if (reduced || !cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     mouseX.set((e.clientX - rect.left) / rect.width);
     mouseY.set((e.clientY - rect.top) / rect.height);
@@ -69,7 +77,7 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release })
       <motion.div
         ref={cardRef}
         onMouseMove={handleMouseMove}
-        onMouseEnter={() => setIsHovered(true)}
+        onMouseEnter={() => !reduced && setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
         animate={{ z: isHovered ? 18 : 0, scale: isHovered ? 1.02 : 1 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
@@ -77,11 +85,16 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release })
         className="relative w-full h-full rounded-2xl cursor-pointer"
         title={release.name}
       >
-        {/* Background image — clipped inside here */}
+        {/* Artwork — next/image (auto-resized to display size + WebP + cached)
+            instead of a full-res CSS background, which was shipping multi-MB
+            originals on the homepage. */}
         <div className="absolute inset-0 rounded-2xl overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${release.thumbnail || "/new-music-img1.svg"})` }}
+          <Image
+            src={release.thumbnail || "/new-music-img1.svg"}
+            alt={release.name}
+            fill
+            sizes="288px"
+            className="object-cover"
           />
         </div>
 
@@ -103,7 +116,21 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease }> = ({ release })
         <div className="absolute inset-0 p-4 flex flex-col justify-end z-10">
           <div className="text-white">
             <h3 className="text-lg font-medium mb-1 mt-1 flex items-center gap-2 flex-wrap">
-              <span className="line-clamp-2 min-w-0 flex-1">{release.name}</span>
+              {href ? (
+                // Real link = keyboard-focusable, screen-reader-announced and
+                // crawlable navigation, without nesting interactive elements
+                // (the streaming buttons stay siblings). stopPropagation avoids
+                // a duplicate navigation from the parent's mouse onClick.
+                <Link
+                  href={href}
+                  onClick={(e) => e.stopPropagation()}
+                  className="line-clamp-2 min-w-0 flex-1 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  {release.name}
+                </Link>
+              ) : (
+                <span className="line-clamp-2 min-w-0 flex-1">{release.name}</span>
+              )}
               {release.isrcExplicit ? <ExplicitBadge size="sm" /> : null}
             </h3>
             {release.primaryArtistName ? (

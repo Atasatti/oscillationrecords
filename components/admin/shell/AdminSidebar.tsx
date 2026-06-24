@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, type LucideIcon } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
@@ -12,27 +12,59 @@ import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 // release/artist detail + legacy-edit pages live on sibling paths (singular
 // `release`, `artist`, and `edit/...`) that would otherwise fall through to
 // "Site content" — keep them under their primary nav item instead.
-const adminLinks = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+//
+// Links are organised into labelled groups (rendered with a small header in the
+// sidebar). The first group has no header — Dashboard sits on its own up top.
+type AdminLink = { href: string; label: string; icon: LucideIcon; match?: readonly string[] };
+type AdminGroup = { header: string | null; links: readonly AdminLink[] };
+const adminGroups: readonly AdminGroup[] = [
   {
-    href: "/admin/catalog/releases",
-    label: "Releases",
-    icon: Disc3,
-    match: ["/admin/catalog/release", "/admin/catalog/edit/release"],
+    header: null,
+    links: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    href: "/admin/catalog/artists",
-    label: "Artists",
-    icon: Users,
-    match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
+    header: "Catalog",
+    links: [
+      {
+        href: "/admin/catalog/releases",
+        label: "Releases",
+        icon: Disc3,
+        match: ["/admin/catalog/release", "/admin/catalog/edit/release"],
+      },
+      {
+        href: "/admin/catalog/artists",
+        label: "Artists",
+        icon: Users,
+        match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
+      },
+      { href: "/admin/catalog/press", label: "Press", icon: Newspaper },
+    ],
   },
-  { href: "/admin/catalog/press", label: "Press", icon: Newspaper },
-  { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate },
-  { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
-  { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
-  { href: "/admin/data", label: "Live data", icon: Activity },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-] as const;
+  {
+    header: "Promotion",
+    links: [
+      { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"] },
+      { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
+      { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
+    ],
+  },
+  {
+    header: "Analytics",
+    links: [
+      { href: "/admin/data", label: "Live data", icon: Activity },
+      { href: "/admin/errors", label: "Errors", icon: TriangleAlert },
+    ],
+  },
+  {
+    header: "System",
+    links: [
+      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate },
+      { href: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
+];
+
+const adminLinks = adminGroups.flatMap((g) => g.links);
 
 const prefixMatches = (pathname: string, prefix: string) =>
   prefix === "/admin"
@@ -93,27 +125,38 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
         <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
       </Link>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
-        {adminLinks.map((link) => {
-          const active = isAdminLinkActive(pathname, link.href);
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={onLinkClick}
-              aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              {link.label}
-            </Link>
-          );
-        })}
+      <nav className="scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
+        {adminGroups.map((group, gi) => (
+          <div key={group.header ?? "main"} className={gi > 0 ? "mt-4" : undefined}>
+            {group.header ? (
+              <p className="px-3 pb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {group.header}
+              </p>
+            ) : null}
+            <div className="flex flex-col gap-1">
+              {group.links.map((link) => {
+                const active = isAdminLinkActive(pathname, link.href);
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={onLinkClick}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      active
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="mt-auto border-t border-border p-3">

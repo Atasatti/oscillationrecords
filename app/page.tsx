@@ -12,7 +12,7 @@ import {
   getHomeArtists,
   getUpcomingReleases,
 } from "@/lib/catalog-data";
-import { buildOrganizationJsonLd } from "@/lib/seo";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/seo";
 import { getFooterSocialLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
 
@@ -59,27 +59,37 @@ export default async function Home() {
           __html: JSON.stringify(buildOrganizationJsonLd({ sameAs: labelSameAs })),
         }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildWebSiteJsonLd()),
+        }}
+      />
       <Navbar />
-      {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
-      <HomeHeroSection />
-      <ScrollReveal3D>
-        <NoProfitSection />
-      </ScrollReveal3D>
-      <ScrollReveal3D>
-        <UpcomingReleasesSection initialReleases={upcomingReleases} />
-      </ScrollReveal3D>
-      <ScrollReveal3D>
-        <NewMusicSection initialReleases={carouselReleases} />
-      </ScrollReveal3D>
-      <ScrollReveal3D>
-        <MeetArtistSection initialArtists={artists} />
-      </ScrollReveal3D>
-      <ScrollReveal3D>
-        <MusicHeardSection
-          heading="Let's get your music heard."
-          subtext="Artist, visionary, or just someone with big ideas? We're here to listen. Let's talk. "
-        />
-      </ScrollReveal3D>
+      {/* Single <main> landmark for the homepage (it uses the root layout, not
+          the (main) group, so it needs its own). */}
+      <main>
+        {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
+        <HomeHeroSection />
+        <ScrollReveal3D>
+          <NoProfitSection />
+        </ScrollReveal3D>
+        <ScrollReveal3D>
+          <UpcomingReleasesSection initialReleases={upcomingReleases} />
+        </ScrollReveal3D>
+        <ScrollReveal3D>
+          <NewMusicSection initialReleases={carouselReleases} />
+        </ScrollReveal3D>
+        <ScrollReveal3D>
+          <MeetArtistSection initialArtists={artists} />
+        </ScrollReveal3D>
+        <ScrollReveal3D>
+          <MusicHeardSection
+            heading="Let's get your music heard."
+            subtext="Artist, visionary, or just someone with big ideas? We're here to listen. Let's talk. "
+          />
+        </ScrollReveal3D>
+      </main>
       <Footer />
     </div>
   );

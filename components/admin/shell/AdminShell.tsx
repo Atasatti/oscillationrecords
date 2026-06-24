@@ -20,6 +20,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     setDrawerOpen(false);
   }, [pathname]);
 
+  // Safety net for a Radix quirk: a dialog/dropdown that unmounts mid-navigation
+  // (e.g. deleting a release redirects to the list) can leave
+  // <body style="pointer-events:none"> behind, freezing the entire admin —
+  // sidebar included — until a manual refresh. Clearing it on every route change
+  // guarantees the UI can never get stuck. The rAF handles the common case
+  // instantly; the timeout covers a dialog whose exit-animation cleanup re-locks
+  // the body just after navigation.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const unlock = () => {
+      document.body.style.pointerEvents = "";
+    };
+    const raf = requestAnimationFrame(unlock);
+    const timer = setTimeout(unlock, 500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [pathname]);
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop sidebar */}
@@ -41,13 +61,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           onClick={() => setDrawerOpen(false)}
         />
         <div
-          className={`absolute left-0 top-0 h-full w-72 max-w-[85vw] border-r border-border bg-sidebar shadow-xl transition-transform duration-300 ${
+          className={`absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-sidebar shadow-xl transition-transform duration-300 ${
             drawerOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           role="dialog"
           aria-label="Admin navigation"
         >
-          <div className="flex justify-end p-2">
+          <div className="flex shrink-0 justify-end p-2">
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
@@ -57,7 +77,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <X className="h-5 w-5" />
             </button>
           </div>
-          <AdminSidebar onNavigate={() => setDrawerOpen(false)} />
+          <div className="min-h-0 flex-1">
+            <AdminSidebar onNavigate={() => setDrawerOpen(false)} />
+          </div>
         </div>
       </div>
 

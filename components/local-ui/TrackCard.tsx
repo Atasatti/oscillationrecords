@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
+import Image from "next/image";
 import { Play } from "lucide-react";
 import { useMusic } from "@/contexts/music-context";
 import { useSession } from "next-auth/react";
@@ -13,6 +14,7 @@ import {
   useTransform,
   useSpring,
   useMotionTemplate,
+  useReducedMotion,
 } from "motion/react";
 
 export interface TrackCardTrack {
@@ -41,6 +43,8 @@ const TrackCard: React.FC<{ track: TrackCardTrack }> = ({ track }) => {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  // Skip the JS-driven tilt/shimmer/scale for reduced-motion users.
+  const reduced = useReducedMotion();
 
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
@@ -59,7 +63,7 @@ const TrackCard: React.FC<{ track: TrackCardTrack }> = ({ track }) => {
   const shimmerBg = useMotionTemplate`radial-gradient(circle at ${shimmerX}% ${shimmerY}%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 40%, transparent 68%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
+    if (reduced || !cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     mouseX.set((e.clientX - rect.left) / rect.width);
     mouseY.set((e.clientY - rect.top) / rect.height);
@@ -102,18 +106,22 @@ const TrackCard: React.FC<{ track: TrackCardTrack }> = ({ track }) => {
       <motion.div
         ref={cardRef}
         onMouseMove={handleMouseMove}
-        onMouseEnter={() => setIsHovered(true)}
+        onMouseEnter={() => !reduced && setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
         animate={{ z: isHovered ? 18 : 0, scale: isHovered ? 1.02 : 1 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
         style={{ rotateX, rotateY, boxShadow, transformStyle: "preserve-3d" }}
         className="relative w-full h-full rounded-2xl cursor-pointer group"
       >
-        {/* Background image — clipped inside here so it doesn't bleed on tilt */}
+        {/* Artwork — next/image (resized + WebP + cached) instead of a full-res
+            CSS background. */}
         <div className="absolute inset-0 rounded-2xl overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${track.backgroundImage})` }}
+          <Image
+            src={track.backgroundImage}
+            alt={track.title}
+            fill
+            sizes="336px"
+            className="object-cover"
           />
         </div>
 
@@ -142,9 +150,11 @@ const TrackCard: React.FC<{ track: TrackCardTrack }> = ({ track }) => {
         {/* Track info */}
         <div className="absolute inset-0 p-4 flex flex-col justify-end z-10">
           <div className="text-white">
-            <img
+            <Image
               src={track.avatar || "/placeholder.svg"}
               alt={track.artist}
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-md"
             />
             <h3 className="text-lg font-medium mb-1 mt-1 flex items-center gap-2 flex-wrap">

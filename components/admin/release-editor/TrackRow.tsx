@@ -34,6 +34,7 @@ export default function TrackRow({
   onUploadStems,
   onRetryStems,
   onToggleExpand,
+  onCopyCreditsToAll,
 }: {
   track: EditorTrack;
   index: number;
@@ -48,6 +49,7 @@ export default function TrackRow({
   onUploadStems: (file: File) => void;
   onRetryStems: () => void;
   onToggleExpand: () => void;
+  onCopyCreditsToAll?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: track.rowId });
@@ -303,6 +305,7 @@ export default function TrackRow({
             value={track.credits}
             onChange={(credits) => onChange({ credits })}
             idPrefix={track.rowId}
+            onCopyToAllTracks={onCopyCreditsToAll}
           />
         </div>
       ) : null}

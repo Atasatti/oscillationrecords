@@ -2,15 +2,16 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Play,
   Users,
   Eye,
   MousePointerClick,
-  TrendingUp,
   ExternalLink,
   Globe,
-  Flame,
+  TrendingUp,
   AlertTriangle,
   ChevronRight,
   Loader2,
@@ -29,7 +30,7 @@ import DeltaBadge from "@/components/admin/charts/DeltaBadge";
 import Sparkline from "@/components/admin/charts/Sparkline";
 import TrendArea from "@/components/admin/charts/TrendArea";
 
-type Series = { date: string; count: number }[];
+type Series = { date: string; count: number; completed?: number; partial?: number }[];
 
 interface DashboardData {
   days: number;
@@ -137,9 +138,9 @@ const countryName = (code: string) => {
 
 type Metric = "plays" | "views" | "clicks";
 const METRICS: { key: Metric; label: string; color: string }[] = [
-  { key: "plays", label: "Plays", color: "var(--primary)" },
-  { key: "views", label: "Release views", color: "var(--primary)" },
-  { key: "clicks", label: "Link clicks", color: "var(--primary)" },
+  { key: "plays", label: "Plays", color: "#34d399" }, // emerald
+  { key: "views", label: "Release views", color: "#38bdf8" }, // sky
+  { key: "clicks", label: "Link clicks", color: "#a78bfa" }, // violet
 ];
 
 type ListRow = { label: string; value: number | string; sub?: string };
@@ -149,17 +150,103 @@ type Detail =
   | { kind: "list"; title: string; rows: ListRow[] };
 
 /** Small labelled progress bar used across the audience/top panels. */
-function BarRow({ label, value, max, color, sub }: { label: string; value: number; max: number; color: string; sub?: string }) {
+function BarRow({ label, value, max, color, sub, valueLabel, delta }: { label: string; value: number; max: number; color: string; sub?: string; valueLabel?: string; delta?: number }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-sm text-foreground">{label}</span>
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{value.toLocaleString()}</span>
+        <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
+          {delta && delta > 0 ? (
+            <span className="inline-flex items-center gap-0.5 text-xs text-emerald-400" title={`+${delta} vs the previous period`}>
+              <TrendingUp className="h-3 w-3" />+{delta}
+            </span>
+          ) : null}
+          <span className="text-muted-foreground">{valueLabel ?? value.toLocaleString()}</span>
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className="h-full rounded-full" style={{ width: `${(value / (max || 1)) * 100}%`, backgroundColor: color }} />
       </div>
       {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
+    </div>
+  );
+}
+
+// Pie/donut slice palette — drawn from the dashboard's accent hues; "unknown"
+// always renders muted so it reads as a residual rather than a category.
+const SLICE_COLORS = ["#34d399", "#38bdf8", "#a78bfa", "#fbbf24", "#fb7185", "#2dd4bf"];
+const UNKNOWN_COLOR = "#52525b";
+
+function toSlices(
+  entries: [string, number][],
+  prettify: (k: string) => string
+): { label: string; value: number; color: string }[] {
+  let i = 0;
+  return entries.map(([k, n]) => ({
+    label: prettify(k),
+    value: n,
+    color: k.toLowerCase() === "unknown" ? UNKNOWN_COLOR : SLICE_COLORS[i++ % SLICE_COLORS.length],
+  }));
+}
+
+/** Donut chart + legend. SVG-only (no chart dependency), matching the hand-rolled
+ * Sparkline/BarRow style. Slices share the dashboard palette. */
+function DonutChart({
+  data,
+  size = 120,
+}: {
+  data: { label: string; value: number; color: string }[];
+  size?: number;
+}) {
+  const total = data.reduce((a, d) => a + d.value, 0);
+  const r = size / 2 - 9;
+  const circ = 2 * Math.PI * r;
+  let acc = 0;
+  // Stack the legend BELOW the donut: side-by-side overflows in the narrow
+  // demographics columns on smaller screens.
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90 shrink-0"
+      >
+        {total === 0 ? (
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={14} />
+        ) : (
+          data.map((d) => {
+            const frac = d.value / total;
+            const seg = (
+              <circle
+                key={d.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={d.color}
+                strokeWidth={14}
+                strokeDasharray={`${frac * circ} ${circ - frac * circ}`}
+                strokeDashoffset={-acc * circ}
+              />
+            );
+            acc += frac;
+            return seg;
+          })
+        )}
+      </svg>
+      <ul className="w-full space-y-1.5">
+        {data.map((d) => (
+          <li key={d.label} className="flex items-center gap-2 text-sm">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+            <span className="min-w-0 flex-1 truncate capitalize text-foreground">{d.label}</span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{d.value.toLocaleString()}</span>
+            <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              {total ? Math.round((d.value / total) * 100) : 0}%
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -172,6 +259,7 @@ function KpiCard({
   previous,
   series,
   color,
+  iconColor,
   sub,
   onClick,
 }: {
@@ -182,6 +270,7 @@ function KpiCard({
   previous: number;
   series?: number[];
   color: string;
+  iconColor?: string;
   sub?: string;
   onClick?: () => void;
 }) {
@@ -193,7 +282,10 @@ function KpiCard({
       className="group rounded-xl border border-border bg-card p-6 text-left transition-colors enabled:cursor-pointer enabled:hover:border-white/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
+        <span
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 ${iconColor ? "" : "text-muted-foreground"}`}
+          style={iconColor ? { color: iconColor } : undefined}
+        >
           <Icon className="h-4 w-4" />
         </span>
         <DeltaBadge current={current} previous={previous} />
@@ -214,6 +306,15 @@ function KpiCard({
   );
 }
 
+// Code-split + client-only: keeps the ~100KB world map data out of the main
+// admin bundle and avoids SSR-ing the SVG map.
+const ListenerMap = dynamic(() => import("./charts/ListenerMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-48 animate-pulse rounded-lg border border-border bg-background/40" />
+  ),
+});
+
 export default function AnalyticsDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [ctr, setCtr] = useState<LinkClickData | null>(null);
@@ -225,6 +326,7 @@ export default function AnalyticsDashboard() {
   const [contentAnalytics, setContentAnalytics] = useState<ContentAnalytics | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const router = useRouter();
   const showList = (title: string, rows: ListRow[]) => setDetail({ kind: "list", title, rows });
 
   // Guard against out-of-order responses: a slow earlier request (e.g. 365D)
@@ -287,14 +389,18 @@ export default function AnalyticsDashboard() {
 
   const s = data.summary;
   const maxContent = Math.max(...data.topContent.map((c) => c.plays), 1);
+  const maxArtist = Math.max(...data.topArtists.map((a) => a.plays), 1);
+  // Gain per content (id → delta), so Top content can show a "+N" rising badge
+  // inline — folding the old separate "Rising" panel into one list.
+  const risingById = new Map(data.risingContent.map((c) => [c.id, c.delta]));
   const maxCountry = Math.max(...data.geography.topCountries.map((c) => c.count), 1);
   const maxCity = Math.max(...data.geography.topCities.map((c) => c.count), 1);
   const maxPage = Math.max(...data.topPages.map((p) => p.count), 1);
   const leakingReleases = (ctr?.ctrByRelease || []).filter((r) => r.views > 0 && r.clicks === 0);
   const genderEntries = Object.entries(data.demographics.gender).filter(([, n]) => n > 0);
   const ageEntries = Object.entries(data.demographics.ageRange).filter(([, n]) => n > 0);
-  const maxGender = Math.max(...genderEntries.map(([, n]) => n), 1);
-  const maxAge = Math.max(...ageEntries.map(([, n]) => n), 1);
+  const genderSlices = toSlices(genderEntries, (g) => g.replace(/_/g, " "));
+  const ageSlices = toSlices(ageEntries, (a) => (a === "unknown" ? "Unknown" : a));
   const activeMetric = METRICS.find((m) => m.key === metric)!;
   const metricSeries = data.series[metric];
 
@@ -344,10 +450,10 @@ export default function AnalyticsDashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
+        <KpiCard icon={Play} label="Plays" value={s.plays} current={s.plays} previous={data.previous.plays} series={data.series.plays.map((p) => p.count)} color="#34d399" iconColor="#34d399" onClick={() => setDetail({ kind: "series", metric: "plays" })} />
         <KpiCard icon={Users} label="Unique listeners" value={s.listeners} current={s.listeners} previous={data.previous.listeners} color="var(--primary)" sub={`${s.reach.toLocaleString()} total reach · ${s.anonPlays.toLocaleString()} anon plays`} onClick={() => setDetail({ kind: "listeners" })} />
-        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "views" })} />
-        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="var(--primary)" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
+        <KpiCard icon={Eye} label="Release views" value={s.releaseViews} current={s.releaseViews} previous={data.previous.releaseViews} series={data.series.views.map((p) => p.count)} color="#38bdf8" iconColor="#38bdf8" onClick={() => setDetail({ kind: "series", metric: "views" })} />
+        <KpiCard icon={MousePointerClick} label="Link clicks" value={s.linkClicks} current={s.linkClicks} previous={data.previous.linkClicks} series={data.series.clicks.map((p) => p.count)} color="#a78bfa" iconColor="#a78bfa" onClick={() => setDetail({ kind: "series", metric: "clicks" })} />
       </div>
 
       {/* Secondary stats — de-emphasised single row (supports the KPIs, doesn't compete) */}
@@ -377,10 +483,11 @@ export default function AnalyticsDashboard() {
                 key={m.key}
                 type="button"
                 onClick={() => setMetric(m.key)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   metric === m.key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: m.color }} />
                 {m.label}
               </button>
             ))}
@@ -420,7 +527,7 @@ export default function AnalyticsDashboard() {
                     onClick={() => handleContentClick(c.id, type, c.name)}
                     className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
                   >
-                    <BarRow label={c.name} value={c.plays} max={maxContent} color="var(--primary)" sub={c.artistName} />
+                    <BarRow label={c.name} value={c.plays} max={maxContent} color="#34d399" sub={c.artistName} delta={risingById.get(c.id) ?? 0} />
                   </button>
                 );
               })
@@ -431,64 +538,39 @@ export default function AnalyticsDashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6">
-          <h3 className="mb-1 flex items-center gap-2 text-lg font-medium text-foreground">
-            <Flame className="h-4 w-4 text-muted-foreground" /> Rising
-          </h3>
-          <p className="mb-4 text-xs text-muted-foreground">Biggest gains vs the previous {data.days} days.</p>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-foreground">Top artists</h3>
+            {data.topArtists.length > 6 ? (
+              <button
+                type="button"
+                onClick={() => showList("All top artists", data.topArtists.map((a) => ({ label: a.name, value: a.plays })))}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                View all ({data.topArtists.length})
+              </button>
+            ) : null}
+          </div>
           <div className="space-y-3">
-            {data.risingContent.length > 0 ? (
-              data.risingContent.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-foreground">{c.name}</p>
-                    {c.artistName ? <p className="truncate text-xs text-muted-foreground">{c.artistName}</p> : null}
+            {data.topArtists.length > 0 ? (
+              data.topArtists.slice(0, 6).map((a) =>
+                a.id ? (
+                  <Link
+                    key={a.id}
+                    href={`/admin/catalog/artist/${a.id}`}
+                    className="block w-full rounded-lg p-1 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <BarRow label={a.name} value={a.plays} max={maxArtist} color="#34d399" />
+                  </Link>
+                ) : (
+                  <div key={a.name} className="p-1">
+                    <BarRow label={a.name} value={a.plays} max={maxArtist} color="#34d399" />
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm tabular-nums text-muted-foreground">{c.plays}</span>
-                    <span className="inline-flex items-center gap-0.5 text-xs text-foreground">
-                      <TrendingUp className="h-3 w-3" /> +{c.delta}
-                    </span>
-                  </div>
-                </div>
-              ))
+                )
+              )
             ) : (
-              <p className="text-sm text-muted-foreground">Not enough history to spot trends yet.</p>
+              <p className="text-sm text-muted-foreground">No plays in this period.</p>
             )}
           </div>
-
-          {data.topArtists.length > 0 ? (
-            <>
-              <h4 className="mb-3 mt-6 text-sm font-medium text-muted-foreground">Top artists</h4>
-              <div className="flex flex-wrap gap-2">
-                {data.topArtists.slice(0, 8).map((a, i) => {
-                  const cls = "inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs";
-                  const inner = (
-                    <>
-                      <span className="text-muted-foreground">#{i + 1}</span>
-                      <span className="text-foreground">{a.name}</span>
-                      <span className="text-muted-foreground">{a.plays}</span>
-                    </>
-                  );
-                  return a.id ? (
-                    <Link key={a.name} href={`/admin/catalog/artist/${a.id}`} className={`${cls} transition-colors hover:border-white/25 hover:bg-white/[0.04]`}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    <span key={a.name} className={cls}>{inner}</span>
-                  );
-                })}
-              </div>
-              {data.topArtists.length > 8 ? (
-                <button
-                  type="button"
-                  onClick={() => showList("All top artists", data.topArtists.map((a) => ({ label: a.name, value: a.plays })))}
-                  className="mt-3 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  View all ({data.topArtists.length})
-                </button>
-              ) : null}
-            </>
-          ) : null}
         </div>
       </div>
 
@@ -501,7 +583,14 @@ export default function AnalyticsDashboard() {
           {data.geography.topCountries.length === 0 && data.geography.topCities.length === 0 ? (
             <p className="text-sm text-muted-foreground">No location data yet (added as consented visitors listen).</p>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="space-y-4">
+              <ListenerMap
+                countries={data.geography.topCountries.map((c) => ({
+                  name: countryName(c.name),
+                  count: c.count,
+                }))}
+              />
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-3">
                 <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries</h4>
                 {data.geography.topCountries.slice(0, 8).map((c) => (
@@ -537,6 +626,7 @@ export default function AnalyticsDashboard() {
                 ) : null}
               </div>
             </div>
+            </div>
           )}
         </div>
 
@@ -546,15 +636,19 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Gender</h4>
-              {genderEntries.map(([g, n]) => (
-                <BarRow key={g} label={g.replace(/_/g, " ")} value={n} max={maxGender} color="var(--primary)" />
-              ))}
+              {genderSlices.length ? (
+                <DonutChart data={genderSlices} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No data yet.</p>
+              )}
             </div>
             <div className="space-y-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Age</h4>
-              {ageEntries.map(([a, n]) => (
-                <BarRow key={a} label={a === "unknown" ? "Unknown" : a} value={n} max={maxAge} color="var(--primary)" />
-              ))}
+              {ageSlices.length ? (
+                <DonutChart data={ageSlices} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No data yet.</p>
+              )}
             </div>
           </div>
         </div>
@@ -644,47 +738,63 @@ export default function AnalyticsDashboard() {
             <MousePointerClick className="h-5 w-5 text-amber-400" />
             <h2 className="text-xl font-light tracking-tight text-foreground">Conversion — outbound clicks</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="mb-4 text-lg font-medium text-foreground">By platform</h3>
-              {ctr.byLinkType.length > 0 ? (
-                <div className="space-y-3">
-                  {(() => {
-                    const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
-                    return ctr.byLinkType.map((t) => (
-                      <BarRow key={t.linkType} label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
-                    ));
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
-              )}
-            </div>
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="mb-4 text-lg font-medium text-foreground">Most-clicked</h3>
-              {ctr.topLinks.length > 0 ? (
-                <div className="space-y-3">
-                  {(() => {
-                    const m = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
-                    return ctr.topLinks.map((l) => (
-                      <div key={`${l.context}-${l.contextId}`} className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate text-sm text-foreground">{l.name}</span>
-                          </span>
-                          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                          <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
-              )}
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+              <div className="space-y-3">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">By platform</h4>
+                {ctr.byLinkType.length > 0 ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const m = Math.max(...ctr.byLinkType.map((t) => t.count), 1);
+                      return ctr.byLinkType.map((t) => (
+                        <button
+                          key={t.linkType}
+                          type="button"
+                          onClick={() => router.push(`/admin/data?metric=clicks&linkType=${encodeURIComponent(t.linkType)}`)}
+                          title="See these clicks in Live & raw data"
+                          className="block w-full rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
+                        >
+                          <BarRow label={linkTypeLabel(t.linkType)} value={t.count} max={m} color="var(--primary)" />
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
+                )}
+              </div>
+              <div className="space-y-3">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Most-clicked</h4>
+                {ctr.topLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const m = Math.max(...ctr.topLinks.map((l) => l.clicks), 1);
+                      return ctr.topLinks.map((l) => (
+                        <button
+                          key={`${l.context}-${l.contextId}`}
+                          type="button"
+                          onClick={() => router.push(`/admin/data?metric=clicks&contextId=${encodeURIComponent(l.contextId)}`)}
+                          title="See these clicks in Live & raw data"
+                          className="block w-full space-y-1.5 rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate text-sm text-foreground">{l.name}</span>
+                            </span>
+                            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div className="h-full rounded-full" style={{ width: `${(l.clicks / m) * 100}%`, backgroundColor: "var(--primary)" }} />
+                          </div>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No link clicks recorded yet.</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -724,7 +834,12 @@ export default function AnalyticsDashboard() {
                 <tbody>
                   {ctr.ctrByRelease.length > 0 ? (
                     ctr.ctrByRelease.map((r) => (
-                      <tr key={r.contextId} className="border-b border-border hover:bg-white/[0.02]">
+                      <tr
+                        key={r.contextId}
+                        onClick={() => router.push(`/admin/data?metric=clicks&contextId=${encodeURIComponent(r.contextId)}`)}
+                        title="See these clicks in Live & raw data"
+                        className="cursor-pointer border-b border-border transition-colors hover:bg-white/[0.02]"
+                      >
                         <td className="px-4 py-2.5 text-sm text-foreground">{r.name}</td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-muted-foreground">{r.views}</td>
                         <td className="px-4 py-2.5 text-right text-sm tabular-nums text-foreground">{r.clicks}</td>
@@ -752,15 +867,15 @@ export default function AnalyticsDashboard() {
       {/* Recent activity */}
       <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="mb-4 text-lg font-medium text-foreground">Recent plays</h3>
-        <div className="overflow-x-auto">
+        <div className="max-h-80 overflow-auto scroll-themed">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
-                <th className="hidden px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
+                <th className="sticky top-0 z-10 hidden bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
               </tr>
             </thead>
             <tbody>
@@ -892,15 +1007,21 @@ export default function AnalyticsDashboard() {
             ? (() => {
                 const m = METRICS.find((x) => x.key === detail.metric)!;
                 const series = data.series[detail.metric];
+                const isPlays = m.key === "plays";
                 const total = series.reduce((acc, d) => acc + d.count, 0);
+                const totalCompleted = series.reduce((acc, d) => acc + (d.completed ?? 0), 0);
+                const totalPartial = total - totalCompleted;
                 const avg = series.length ? total / series.length : 0;
                 const peak = series.reduce((mx, d) => (d.count > mx.count ? d : mx), series[0] || { date: "", count: 0 });
+                // List only days that had activity — over a 30/90/365-day window
+                // the zero rows are just noise. Totals above still span the period.
+                const active = series.filter((d) => d.count > 0);
                 const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
                 return (
                   <>
                     <DialogHeader>
                       <DialogTitle>{m.label} — full breakdown</DialogTitle>
-                      <DialogDescription>Every day in the selected {data.days}-day period.</DialogDescription>
+                      <DialogDescription>Days with {m.label.toLowerCase()} in the selected {data.days}-day period.</DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-3 gap-3">
                       {[
@@ -914,6 +1035,16 @@ export default function AnalyticsDashboard() {
                         </div>
                       ))}
                     </div>
+                    {isPlays ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400" /> Full play — {totalCompleted.toLocaleString()}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-400" /> Partial — {totalPartial.toLocaleString()}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="mt-4 max-h-[50vh] overflow-y-auto rounded-lg border border-border">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-card">
@@ -923,12 +1054,40 @@ export default function AnalyticsDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {[...series].reverse().map((d) => (
-                            <tr key={d.date} className="border-b border-border">
-                              <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
-                              <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{d.count.toLocaleString()}</td>
+                          {active.length ? (
+                            [...active].reverse().map((d) => (
+                              <tr
+                                key={d.date}
+                                className="cursor-pointer border-b border-border transition-colors hover:bg-white/5"
+                                onClick={() => {
+                                  setDetail(null);
+                                  router.push(`/admin/data?metric=${m.key}&date=${d.date.slice(0, 10)}`);
+                                }}
+                                title="See these in Live & raw data"
+                              >
+                                <td className="px-3 py-1.5 text-muted-foreground">{fmt(d.date)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {isPlays ? (
+                                    <span>
+                                      <span className="text-emerald-400">{(d.completed ?? 0).toLocaleString()}</span>
+                                      {(d.partial ?? 0) > 0 ? (
+                                        <span className="text-amber-400"> + {(d.partial ?? 0).toLocaleString()}</span>
+                                      ) : null}
+                                    </span>
+                                  ) : (
+                                    <span className="text-foreground">{d.count.toLocaleString()}</span>
+                                  )}
+                                  <span className="ml-1 text-muted-foreground">›</span>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={2} className="px-3 py-8 text-center text-muted-foreground">
+                                No {m.label.toLowerCase()} recorded in this period.
+                              </td>
                             </tr>
-                          ))}
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -973,21 +1132,19 @@ export default function AnalyticsDashboard() {
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <h4 className="mb-2 text-sm font-medium text-muted-foreground">Gender</h4>
-                      {genderEntries.length ? genderEntries.map(([g, n]) => (
-                        <div key={g} className="flex justify-between text-sm">
-                          <span className="capitalize text-foreground">{g.replace(/_/g, " ")}</span>
-                          <span className="tabular-nums text-muted-foreground">{n}</span>
-                        </div>
-                      )) : <p className="text-sm text-muted-foreground">—</p>}
+                      {genderSlices.length ? (
+                        <DonutChart data={genderSlices} size={104} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">—</p>
+                      )}
                     </div>
                     <div>
                       <h4 className="mb-2 text-sm font-medium text-muted-foreground">Age</h4>
-                      {ageEntries.length ? ageEntries.map(([a, n]) => (
-                        <div key={a} className="flex justify-between text-sm">
-                          <span className="text-foreground">{a === "unknown" ? "Unknown" : a}</span>
-                          <span className="tabular-nums text-muted-foreground">{n}</span>
-                        </div>
-                      )) : <p className="text-sm text-muted-foreground">—</p>}
+                      {ageSlices.length ? (
+                        <DonutChart data={ageSlices} size={104} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">—</p>
+                      )}
                     </div>
                   </div>
                 </>

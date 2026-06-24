@@ -1,12 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { useSession } from "next-auth/react";
 import { useMusic } from "@/contexts/music-context";
+import { slugify } from "@/lib/slug";
 import {
   Dialog,
   DialogContent,
@@ -178,14 +181,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
 
   const kindLabel =
     release.type === "album" ? "Album" : release.type === "ep" ? "EP" : "Single";
-  const releaseCredits = Array.isArray(release.credits)
-    ? release.credits.filter(
-        (c) => c && c.role && Array.isArray(c.people) && c.people.length > 0
-      )
-    : [];
-  const hasCredits = Boolean(
-    release.composer || release.lyricist || release.leadVocal
-  ) || releaseCredits.length > 0;
   const showAbout =
     Boolean(release.description) || Boolean(release.releaseDate) ||
     Boolean(release.primaryGenre) || Boolean(release.secondaryGenre);
@@ -275,11 +270,17 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
 
             <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 xl:gap-12 items-start">
               <div className="w-full max-w-[min(100%,320px)] mx-auto lg:mx-0 shrink-0">
-                <img
-                  src={release.coverImage}
-                  alt={release.name}
-                  className="w-full aspect-square object-cover rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40"
-                />
+                <div className="relative aspect-square w-full overflow-hidden rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40">
+                  <Image
+                    src={release.coverImage}
+                    alt={release.name}
+                    fill
+                    sizes="(max-width: 1024px) 320px, 320px"
+                    placeholder="blur"
+                    blurDataURL={BLUR_DATA_URL}
+                    className="object-cover"
+                  />
+                </div>
               </div>
 
               <div className="flex-1 min-w-0 space-y-6 w-full">
@@ -288,7 +289,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     {kindLabel}
                   </p>
                   <h1 className="text-4xl sm:text-5xl font-light tracking-tighter flex flex-wrap items-center gap-3">
-                    <span>{release.name}</span>
+                    <span className="break-words min-w-0">{release.name}</span>
                     {release.isrcExplicit ? <ExplicitBadge size="xl" /> : null}
                   </h1>
                   {(releasePrimaryNames.length > 0 || releaseFeatureNames.length > 0) ? (
@@ -307,11 +308,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   ) : null}
                 </header>
 
-                {(showAbout || hasCredits) && (
-                  <div
-                    className={`grid gap-4 lg:gap-5 ${showAbout && hasCredits ? "md:grid-cols-2" : ""}`}
-                  >
-                    {showAbout ? (
+                {showAbout ? (
                       <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-5 sm:p-6 space-y-4">
                         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           About
@@ -341,42 +338,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         ) : null}
                       </div>
                     ) : null}
-
-                    {hasCredits ? (
-                      <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-5 sm:p-6">
-                        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-                          Credits
-                        </h2>
-                        <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-[minmax(5rem,auto)_1fr]">
-                          {release.composer ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Composer</dt>
-                              <dd className="text-gray-200">{release.composer}</dd>
-                            </>
-                          ) : null}
-                          {release.lyricist ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Lyricist</dt>
-                              <dd className="text-gray-200">{release.lyricist}</dd>
-                            </>
-                          ) : null}
-                          {release.leadVocal ? (
-                            <>
-                              <dt className="text-gray-500 font-medium">Lead vocal</dt>
-                              <dd className="text-gray-200">{release.leadVocal}</dd>
-                            </>
-                          ) : null}
-                          {releaseCredits.map((c, i) => (
-                            <React.Fragment key={i}>
-                              <dt className="text-gray-500 font-medium">{c.role}</dt>
-                              <dd className="text-gray-200">{c.people.join(", ")}</dd>
-                            </React.Fragment>
-                          ))}
-                        </dl>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
 
                 {showStream ? (
                   <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] px-5 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -453,7 +414,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     key={song.id}
                     className="border-b border-white/5 last:border-b-0"
                   >
-                    <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
+                    <div className="grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
                       <span className="w-5 text-xs text-gray-500 text-right">{index + 1}</span>
                       <button
                         type="button"
@@ -461,10 +422,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         className="group/cover relative h-11 w-11 overflow-hidden rounded-md ring-1 ring-white/10 hover:ring-white/30 transition"
                         aria-label={`Play ${song.name}`}
                       >
-                        <img
+                        <Image
                           src={song.image || release.coverImage}
                           alt={song.name}
-                          className="h-full w-full object-cover"
+                          fill
+                          sizes="44px"
+                          className="object-cover"
                         />
                         <span className="absolute inset-0 bg-black/0 group-hover/cover:bg-black/30 transition-colors" />
                       </button>
@@ -476,6 +439,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         <div className="mt-0.5 space-y-0.5">
                           <p className="text-xs text-white/90 font-medium truncate">
                             {getTrackPrimaryLine(song)}
+                            {/* Duration moves into the meta line on mobile, where the
+                                dedicated column is hidden, so the title row isn't cramped. */}
+                            <span className="text-muted-foreground tabular-nums sm:hidden">
+                              {" · "}
+                              {formatDuration(song.duration)}
+                            </span>
                           </p>
                           {trackFeatureNames.length > 0 ? (
                             <p className="text-xs text-muted-foreground truncate">
@@ -494,7 +463,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                           contextName={song.name}
                         />
                       </div>
-                      <span className="text-xs text-gray-500 tabular-nums">
+                      <span className="hidden sm:block text-xs text-gray-500 tabular-nums">
                         {formatDuration(song.duration)}
                       </span>
                       <button
@@ -562,10 +531,11 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   {otherReleases.map((r) => (
                     <div
                       key={r.id}
-                      onClick={() => router.push(`/releases/${r.id}`)}
+                      onClick={() => router.push(`/releases/${slugify(r.name)}`)}
                       className="cursor-pointer relative group w-72 h-84 shrink-0"
                     >
                       <ReleaseCardSm
+                        href={`/releases/${slugify(r.name)}`}
                         release={{
                           id: r.id,
                           name: r.name,

@@ -85,6 +85,10 @@ const RELEASE_LINK_KEYS = [
 /** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived. */
 export function publicReleaseWhere(): Prisma.ReleaseWhereInput {
   return {
+    // A live release is only public once it has at least one track. A trackless
+    // RELEASED release is still being set up (created directly as Released, with
+    // the tracklist added next), so it stays hidden like a draft until then.
+    tracks: { some: {} },
     OR: [
       { status: "RELEASED" },
       { status: "SCHEDULED", releaseDate: { lte: new Date() } },
@@ -222,30 +226,20 @@ export async function mapReleasesToCards(
 }
 
 /**
- * Releases for the "New Music" carousel. Releases flagged for the home carousel
- * (`showOnHome`) come first in their admin order, then the rest auto-fill newest
- * first, so new releases surface without being flagged. Capped at 12.
+ * Releases for the "New Music" carousel — exactly the releases the admin curated
+ * (`showOnHome`), in the order they set (`homeOrder`). No auto-fill: the homepage
+ * mirrors the admin's New Music selection 1:1. Only publicly-visible (live)
+ * releases are returned, so a not-yet-released flagged release stays hidden until
+ * its date arrives.
  */
 export async function getCarouselReleases(): Promise<ReleaseCardDTO[]> {
   try {
-    const all = await prisma.release.findMany({
+    const featured = await prisma.release.findMany({
       ...releaseCardListArgs,
-      where: publicReleaseWhere(),
+      where: { AND: [{ showOnHome: true }, publicReleaseWhere()] },
     });
-    // Featured releases first, in their curated home order; then the rest fill in
-    // newest-first up to the cap.
-    const pinned = all
-      .filter((r) => r.showOnHome)
-      .sort((a, b) => a.homeOrder - b.homeOrder);
-    const rest = all
-      .filter((r) => !r.showOnHome)
-      .sort((a, b) => {
-        const ta = (a.releaseDate ? new Date(a.releaseDate) : new Date(a.createdAt)).getTime();
-        const tb = (b.releaseDate ? new Date(b.releaseDate) : new Date(b.createdAt)).getTime();
-        return tb - ta;
-      });
-    const releases = [...pinned, ...rest].slice(0, 12);
-    return await mapReleasesToCards(releases, { isAdmin: false });
+    featured.sort((a, b) => a.homeOrder - b.homeOrder);
+    return await mapReleasesToCards(featured, { isAdmin: false });
   } catch (e) {
     console.error("getCarouselReleases: DB unavailable", e);
     return [];
@@ -438,6 +432,34 @@ export const resolveArtistIdBySlug = cache(
   }
 );
 
+/**
+ * Every public (non-DRAFT) release's slug → id (slug derived from the title).
+ * Powers pretty `/releases/<slug>` URLs, the static params, and the sitemap —
+ * mirrors the artist slug index. Cached per request.
+ */
+export const getReleaseSlugIndex = cache(
+  async (): Promise<{ id: string; name: string; slug: string }[]> => {
+    try {
+      const releases = await prisma.release.findMany({
+        where: { status: { not: "DRAFT" } },
+        select: { id: true, name: true },
+      });
+      return releases.map((r) => ({ id: r.id, name: r.name, slug: slugify(r.name) }));
+    } catch (e) {
+      console.error("getReleaseSlugIndex: DB unavailable", e);
+      return [];
+    }
+  }
+);
+
+/** Resolve a pretty `/releases/<slug>` to its release id, or null if no match. */
+export const resolveReleaseIdBySlug = cache(
+  async (slug: string): Promise<string | null> => {
+    const index = await getReleaseSlugIndex();
+    return index.find((r) => r.slug === slug)?.id ?? null;
+  }
+);
+
 /** All live artists for the public /artists page, listed alphabetically. */
 export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   try {
@@ -460,7 +482,7 @@ export interface ReleaseMetaDTO {
   description: string | null;
   releaseDate: string | null; // ISO
   genres: string[];
-  primaryArtist: { id: string; name: string } | null;
+  primaryArtists: { id: string; name: string }[];
   spotifyLink: string | null;
   appleMusicLink: string | null;
   tidalLink: string | null;
@@ -479,6 +501,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       where: { id, status: { not: "DRAFT" } },
       select: {
         id: true,
+        status: true,
         name: true,
         coverImage: true,
         description: true,
@@ -497,14 +520,24 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     });
     if (!r) return null;
 
-    let primaryArtist: { id: string; name: string } | null = null;
-    const firstId = r.primaryArtistIds?.[0];
-    if (firstId) {
-      const a = await prisma.artist.findUnique({
-        where: { id: firstId },
+    // A trackless live release (created directly as Released, tracks added next)
+    // 404s on its detail page — don't emit metadata for it either.
+    if (isReleasePublic({ status: r.status, releaseDate: r.releaseDate }) && r.tracks.length === 0) {
+      return null;
+    }
+
+    // All primary artists, in the saved order (a release can have several).
+    let primaryArtists: { id: string; name: string }[] = [];
+    const ids = r.primaryArtistIds ?? [];
+    if (ids.length) {
+      const found = await prisma.artist.findMany({
+        where: { id: { in: ids } },
         select: { id: true, name: true },
       });
-      if (a) primaryArtist = a;
+      const byId = new Map(found.map((a) => [a.id, a]));
+      primaryArtists = ids
+        .map((id) => byId.get(id))
+        .filter((a): a is { id: string; name: string } => Boolean(a));
     }
 
     return {
@@ -514,7 +547,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
       genres: [r.primaryGenre, r.secondaryGenre].filter((g): g is string => Boolean(g)),
-      primaryArtist,
+      primaryArtists,
       spotifyLink: r.spotifyLink ?? null,
       appleMusicLink: r.appleMusicLink ?? null,
       tidalLink: r.tidalLink ?? null,
@@ -578,6 +611,12 @@ export const getReleaseDetail = cache(
       });
       // DRAFT is admin-only; SCHEDULED + RELEASED are public.
       if (!release || release.status === "DRAFT") return null;
+
+      // A live release (RELEASED, or a SCHEDULED whose date has arrived) is only
+      // public once it has at least one track — a trackless live release is still
+      // being set up (created directly as Released, tracks added next), so hide it
+      // like a draft. Future-dated SCHEDULED (Coming Soon) may still be trackless.
+      if (isReleasePublic(release) && release.tracks.length === 0) return null;
 
       // Future-dated SCHEDULED: public metadata, but tracks (audio) stay hidden
       // until the date arrives. The page shows "Tracklist to be revealed".

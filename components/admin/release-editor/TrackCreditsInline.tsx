@@ -42,10 +42,13 @@ export default function TrackCreditsInline({
   value,
   onChange,
   idPrefix,
+  onCopyToAllTracks,
 }: {
   value: TrackCreditsValue;
   onChange: (next: TrackCreditsValue) => void;
   idPrefix: string;
+  /** When provided (a multi-track release), shows a "Copy to all tracks" action. */
+  onCopyToAllTracks?: () => void;
 }) {
   const setComposers = (composerNames: string[]) =>
     onChange({ ...value, composerNames });
@@ -127,9 +130,22 @@ export default function TrackCreditsInline({
 
   return (
     <div className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-4">
-      <p className="text-sm font-medium text-white">
-        Track credits <span className="font-normal text-gray-500">(optional)</span>
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-white">
+          Track credits <span className="font-normal text-gray-500">(optional)</span>
+        </p>
+        {onCopyToAllTracks ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-white/10"
+            onClick={onCopyToAllTracks}
+          >
+            Copy to all tracks
+          </Button>
+        ) : null}
+      </div>
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">

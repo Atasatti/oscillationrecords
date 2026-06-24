@@ -1,18 +1,29 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
-import { getReleaseMeta } from "@/lib/catalog-data";
-import { buildReleaseJsonLd, metaDescription, absoluteUrl, SITE_NAME } from "@/lib/seo";
+import {
+  getReleaseMeta,
+  getReleaseSlugIndex,
+  resolveReleaseIdBySlug,
+} from "@/lib/catalog-data";
+import { OBJECT_ID_RE, slugify } from "@/lib/slug";
+import {
+  buildReleaseJsonLd,
+  buildBreadcrumbJsonLd,
+  metaDescription,
+  absoluteUrl,
+  SITE_NAME,
+} from "@/lib/seo";
 
 // Prerender every release at build for fast TTFB; new releases render on demand
 // and are then cached.
 export async function generateStaticParams() {
   try {
     // Prebuild RELEASED + SCHEDULED (Coming-Soon pages are public); never DRAFT.
-    const releases = await prisma.release.findMany({
-      where: { status: { not: "DRAFT" } },
-      select: { id: true },
-    });
-    return releases.map((r) => ({ releaseId: r.id }));
+    // The [releaseId] segment now holds a title-slug; legacy id URLs 308-redirect
+    // to the slug in page.tsx.
+    const index = await getReleaseSlugIndex();
+    return Array.from(new Set(index.map((r) => r.slug))).map((slug) => ({
+      releaseId: slug,
+    }));
   } catch {
     return [];
   }
@@ -26,12 +37,14 @@ export async function generateMetadata({
 }: {
   params: Promise<{ releaseId: string }>;
 }): Promise<Metadata> {
-  const { releaseId } = await params;
-  const r = await getReleaseMeta(releaseId);
+  const { releaseId: param } = await params;
+  const id = OBJECT_ID_RE.test(param) ? param : await resolveReleaseIdBySlug(param);
+  const r = id ? await getReleaseMeta(id) : null;
   if (!r) return { title: "Release" };
 
-  const url = absoluteUrl(`/releases/${r.id}`);
-  const artistSuffix = r.primaryArtist ? ` by ${r.primaryArtist.name}` : "";
+  const url = absoluteUrl(`/releases/${slugify(r.name)}`);
+  const artistNames = r.primaryArtists.map((a) => a.name).join(", ");
+  const artistSuffix = artistNames ? ` by ${artistNames}` : "";
   const description =
     metaDescription(r.description) ||
     `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}.`;
@@ -64,16 +77,31 @@ export default async function ReleaseLayout({
   children: React.ReactNode;
   params: Promise<{ releaseId: string }>;
 }) {
-  const { releaseId } = await params;
-  const r = await getReleaseMeta(releaseId);
+  const { releaseId: param } = await params;
+  const id = OBJECT_ID_RE.test(param) ? param : await resolveReleaseIdBySlug(param);
+  const r = id ? await getReleaseMeta(id) : null;
 
   return (
     <>
       {r ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildReleaseJsonLd(r)) }}
-        />
+        <>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(buildReleaseJsonLd(r)) }}
+          />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(
+                buildBreadcrumbJsonLd([
+                  { name: "Home", url: "/" },
+                  { name: "Releases", url: "/releases" },
+                  { name: r.name, url: `/releases/${slugify(r.name)}` },
+                ])
+              ),
+            }}
+          />
+        </>
       ) : null}
       {children}
     </>

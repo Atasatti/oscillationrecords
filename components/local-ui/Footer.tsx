@@ -70,7 +70,7 @@ const Footer = () => {
   const year = new Date().getFullYear();
 
   const navLinkCls =
-    "text-muted-foreground hover:text-foreground transition-colors";
+    "rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
@@ -101,15 +101,27 @@ const Footer = () => {
       </div>
 
       <div className="mt-10 flex flex-col-reverse items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
-        <p className="text-xs text-muted-foreground">
-          © {year} Oscillation Records. All rights reserved.
-        </p>
+        <div className="text-center text-xs text-muted-foreground sm:text-left">
+          <p>© {year} Oscillation Records. All rights reserved.</p>
+          <p className="mt-1">
+            Registered in England &amp; Wales ·{" "}
+            <a
+              href="https://find-and-update.company-information.service.gov.uk/company/15579381"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={navLinkCls}
+            >
+              Company No. 15579381
+            </a>
+          </p>
+        </div>
         <div className="flex items-center gap-5 text-xs">
           <Link href="/privacy" className={navLinkCls}>Privacy</Link>
           <Link href="/terms" className={navLinkCls}>Terms</Link>
           <Link href="/account" className={navLinkCls}>Account</Link>
           <button
             type="button"
+            aria-label="Open cookie preferences"
             onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
             className={navLinkCls}
           >

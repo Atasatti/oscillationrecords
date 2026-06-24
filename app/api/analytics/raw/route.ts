@@ -23,6 +23,55 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const liveSince = new Date(now.getTime() - 5 * 60 * 1000);
 
+    // Optional ?date=YYYY-MM-DD (UTC day) focuses the recent-plays list on a
+    // single day — matching the dashboard's UTC daily buckets — for the
+    // "see these plays" drill-down from the Plays breakdown.
+    const sp = new URL(request.url).searchParams;
+    const dateParam = sp.get("date");
+    const metricParam = sp.get("metric"); // plays | views | clicks
+    const linkTypeParam = sp.get("linkType"); // clicks of one platform (By platform)
+    const contextIdParam = sp.get("contextId"); // clicks for one release (Most-clicked / CTR)
+    const dayStart =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+        ? new Date(`${dateParam}T00:00:00.000Z`)
+        : null;
+    const dayRange =
+      dayStart && !isNaN(dayStart.getTime())
+        ? { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) }
+        : null;
+    // Which list a day-drill focuses, matching the dashboard KPIs so the drilled
+    // count lines up with the breakdown: plays = audio events, views = release-
+    // page events (both PlayEvent rows), clicks = link clicks.
+    const focusMetric = dayRange
+      ? metricParam === "views"
+        ? "views"
+        : metricParam === "clicks"
+          ? "clicks"
+          : "plays"
+      : null;
+    const playsWhere =
+      focusMetric === "plays"
+        ? { createdAt: dayRange!, contentType: { not: "release" } }
+        : focusMetric === "views"
+          ? { createdAt: dayRange!, contentType: "release" }
+          : undefined;
+    // Clicks can be focused by platform (By platform), by content (Most-clicked /
+    // Release CTR), or by day (the Link-clicks KPI).
+    const clicksWhere = linkTypeParam
+      ? { linkType: linkTypeParam }
+      : contextIdParam
+        ? { contextId: contextIdParam }
+        : focusMetric === "clicks"
+          ? { createdAt: dayRange! }
+          : undefined;
+    const focus = linkTypeParam
+      ? { metric: "clicks" as const, linkType: linkTypeParam }
+      : contextIdParam
+        ? { metric: "clicks" as const, contextId: contextIdParam }
+        : focusMetric
+          ? { metric: focusMetric, date: dateParam }
+          : null;
+
     const [
       users,
       profiles,
@@ -73,16 +122,20 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.playEvent.findMany({
+        // With a day focus, return ALL of that day's events for the focused
+        // metric (plays = audio, views = release); otherwise the recent N.
+        where: playsWhere,
         orderBy: { createdAt: "desc" },
-        take: RECENT_ROWS,
+        take: playsWhere ? 500 : RECENT_ROWS,
         select: {
           id: true, contentType: true, contentName: true, artistName: true, completed: true,
           country: true, city: true, sessionId: true, visitorId: true, userId: true, createdAt: true,
         },
       }),
       prisma.linkClick.findMany({
+        where: clicksWhere,
         orderBy: { createdAt: "desc" },
-        take: RECENT_ROWS,
+        take: clicksWhere ? 500 : RECENT_ROWS,
         select: { id: true, context: true, contextName: true, linkType: true, sessionId: true, visitorId: true, createdAt: true },
       }),
       prisma.user.findMany({ orderBy: { id: "desc" }, take: 10, select: { id: true, name: true, email: true } }),
@@ -149,6 +202,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       now: now.toISOString(),
+      // Echoes the drill focus (day / platform / content) so the page can
+      // label/scope + highlight the matching section.
+      focus,
       counts: { users, profiles, artists, releases, tracks, playEvents, pageViews, linkClicks, subscribers },
       // activeSessions is the TRUE count; items is capped for display.
       live: { activeSessions: live.length, items: live.slice(0, LIVE_ROWS) },

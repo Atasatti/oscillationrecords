@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withWriteRetry } from "@/lib/db-retry";
 import { requireAdmin } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 
@@ -23,10 +24,12 @@ export async function PUT(request: NextRequest) {
     }
     // Sequential updates — a multi-document $transaction deadlocks on MongoDB.
     for (let index = 0; index < orderedIds.length; index++) {
-      await prisma.release.update({
-        where: { id: orderedIds[index] },
-        data: { comingSoonOrder: index },
-      });
+      await withWriteRetry(() =>
+        prisma.release.update({
+          where: { id: orderedIds[index] },
+          data: { comingSoonOrder: index },
+        })
+      );
     }
     revalidatePath("/");
     return NextResponse.json({ ok: true });

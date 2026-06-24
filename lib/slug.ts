@@ -7,8 +7,11 @@
 // pretty URL. For a small curated roster that's an acceptable trade; switch to a
 // stored `slug` field if permanence across renames is ever needed.
 
-/** A 24-char hex string — a Mongo ObjectId, i.e. a legacy `/artists/<id>` URL. */
-export const ARTIST_ID_RE = /^[0-9a-fA-F]{24}$/;
+/** A 24-char hex Mongo ObjectId — i.e. a legacy id-based URL
+ *  (`/artists/<id>`, `/releases/<id>`). */
+export const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+/** Back-compat alias used by the artist routes. */
+export const ARTIST_ID_RE = OBJECT_ID_RE;
 
 /** Turn an artist name into a URL-safe slug, e.g. "BIGHECK" -> "bigheck". */
 export function slugify(name: string): string {

@@ -1,7 +1,9 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { Button } from "@/components/ui/button";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
 import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube } from "react-icons/fa";
@@ -11,6 +13,7 @@ import { RiTiktokFill } from "react-icons/ri";
 import type { ArtistDetailDTO, ReleaseCardDTO } from "@/lib/catalog-data";
 import { SITE_NAME } from "@/lib/seo";
 import { trackLinkClick } from "@/lib/track-link-click";
+import { slugify } from "@/lib/slug";
 
 type ArtistDetailViewProps = {
   artist: ArtistDetailDTO;
@@ -49,16 +52,20 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
 
             <div className="flex items-start gap-8">
               {artist.profilePicture && (
-                <img
+                <Image
                   src={artist.profilePicture}
                   // Richer alt = more disambiguating text for Google Images on a
                   // short/ambiguous name (e.g. "BSK"): name, primary genre, label.
                   alt={`${artist.name}${artist.genres?.[0] ? `, ${artist.genres[0]} artist` : ""} on ${SITE_NAME}`}
+                  width={192}
+                  height={192}
+                  placeholder="blur"
+                  blurDataURL={BLUR_DATA_URL}
                   className="w-48 h-48 rounded-2xl object-cover"
                 />
               )}
               <div className="flex-1">
-                <h1 className="text-5xl font-light tracking-tighter mb-4">{artist.name}</h1>
+                <h1 className="text-5xl font-light tracking-tighter mb-4 break-words">{artist.name}</h1>
                 <p className="text-gray-400 text-lg mb-6 max-w-3xl">{artist.biography}</p>
 
                 <div className="flex items-center gap-4">
@@ -164,10 +171,11 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                 {releases.map((rel) => (
                   <div
                     key={rel.id}
-                    onClick={() => router.push(`/releases/${rel.id}`)}
+                    onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
                     className="cursor-pointer w-72 h-84"
                   >
                     <ReleaseCardSm
+                      href={`/releases/${slugify(rel.name)}`}
                       release={{
                         id: rel.id,
                         name: rel.name,

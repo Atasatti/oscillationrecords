@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import IconButton from "../local-ui/IconButton";
 import ReleaseCardSm from "../local-ui/ReleaseCardSm";
+import { slugify } from "@/lib/slug";
 
 interface HomeRelease {
   id: string;
@@ -166,7 +167,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   }, [fetchReleases, initialReleases]);
 
   const handleReleaseClick = (release: HomeRelease) => {
-    router.push(`/releases/${release.id}`);
+    router.push(`/releases/${slugify(release.name)}`);
   };
 
   return (
@@ -215,15 +216,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
               {releases.map((release) => (
                 <div
                   key={release.id}
-                  role="button"
-                  tabIndex={0}
                   onClick={() => handleReleaseClick(release)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleReleaseClick(release);
-                    }
-                  }}
                   className="cursor-pointer relative group w-72 h-84 shrink-0"
                 >
                   {release.showLatestOnHome ? (
@@ -232,6 +225,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
                     </span>
                   ) : null}
                   <ReleaseCardSm
+                    href={`/releases/${slugify(release.name)}`}
                     release={{
                       id: release.id,
                       name: release.name,
