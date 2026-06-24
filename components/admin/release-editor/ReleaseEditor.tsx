@@ -302,11 +302,8 @@ export default function ReleaseEditor({
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    if (mode === "create" && status === "RELEASED" && form.releaseDate) {
-      if (form.releaseDate < todayStr) {
-        fieldErrors.releaseDate = "Release date can’t be in the past";
-      }
-    }
+    // RELEASED/DRAFT may be backdated — e.g. adding an older catalogue release,
+    // or re-adding one that was deleted. Only SCHEDULED (Coming Soon) is future-only.
     if (status === "SCHEDULED") {
       // Coming Soon must be in the future, never a past (or today) date.
       if (!form.releaseDate) {
