@@ -846,15 +846,15 @@ export default function AnalyticsDashboard() {
       {/* Recent activity */}
       <div className="rounded-xl border border-border bg-card p-6">
         <h3 className="mb-4 text-lg font-medium text-foreground">Recent plays</h3>
-        <div className="overflow-x-auto">
+        <div className="max-h-80 overflow-auto scroll-themed">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
-                <th className="hidden px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
+                <th className="sticky top-0 z-10 hidden bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
+                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
               </tr>
             </thead>
             <tbody>
