@@ -125,7 +125,7 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
         <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
       </Link>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
+      <nav className="scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
         {adminGroups.map((group, gi) => (
           <div key={group.header ?? "main"} className={gi > 0 ? "mt-4" : undefined}>
             {group.header ? (

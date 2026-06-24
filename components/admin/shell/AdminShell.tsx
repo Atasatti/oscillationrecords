@@ -61,13 +61,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           onClick={() => setDrawerOpen(false)}
         />
         <div
-          className={`absolute left-0 top-0 h-full w-72 max-w-[85vw] border-r border-border bg-sidebar shadow-xl transition-transform duration-300 ${
+          className={`absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-sidebar shadow-xl transition-transform duration-300 ${
             drawerOpen ? "translate-x-0" : "-translate-x-full"
           }`}
           role="dialog"
           aria-label="Admin navigation"
         >
-          <div className="flex justify-end p-2">
+          <div className="flex shrink-0 justify-end p-2">
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
@@ -77,7 +77,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <X className="h-5 w-5" />
             </button>
           </div>
-          <AdminSidebar onNavigate={() => setDrawerOpen(false)} />
+          <div className="min-h-0 flex-1">
+            <AdminSidebar onNavigate={() => setDrawerOpen(false)} />
+          </div>
         </div>
       </div>
 
