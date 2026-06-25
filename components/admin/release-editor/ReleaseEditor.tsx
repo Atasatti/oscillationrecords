@@ -441,14 +441,17 @@ export default function ReleaseEditor({
         : "Publish release"
       : "Save changes";
 
-  // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
-  // a pristine create form) keep the lighter confirmDiscard / direct navigation.
+  // Leaving with unsaved changes — in BOTH create and edit — opens the
+  // Save-as-draft / Discard / Continue-editing dialog. (Previously edit mode fell
+  // through to a discard-only confirm, so changing the status dropdown then
+  // hitting Cancel could lose the edits with no way to keep them as a draft.)
+  // Nothing dirty → just leave.
   const requestLeave = () => {
-    if (mode === "create" && dirty) {
+    if (dirty) {
       setLeaveOpen(true);
       return;
     }
-    if (confirmDiscard()) router.push("/admin/catalog/releases");
+    router.push("/admin/catalog/releases");
   };
 
   const discardAndLeave = () => {
