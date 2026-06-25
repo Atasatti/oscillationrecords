@@ -174,12 +174,15 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               <h2 className="text-2xl font-light tracking-tighter mb-6">
                 Releases <span className="text-gray-500">({releases.length})</span>
               </h2>
-              <div className="flex gap-5 items-center flex-wrap">
+              {/* Responsive grid (not fixed-width flex-wrap) so cards stretch to
+                  fill the row — no dead space on the right. Capped at 4 columns to
+                  keep card proportions close to the original. */}
+              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
                 {releases.map((rel, i) => (
                   <div
                     key={rel.id}
                     onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
-                    className={`cursor-pointer w-72 h-84 ${
+                    className={`h-84 w-full cursor-pointer ${
                       !showAllReleases && i >= INITIAL_RELEASES ? "hidden" : ""
                     }`}
                   >
