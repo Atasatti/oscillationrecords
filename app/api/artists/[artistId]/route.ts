@@ -106,7 +106,8 @@ export async function PUT(
     const artist = await prisma.artist.update({
       where: { id: artistId },
       data: {
-        name,
+        // Trim stray leading/trailing whitespace so names stay clean everywhere.
+        name: name.trim(),
         biography,
         ...(pictureInBody && { profilePicture: finalPicture }),
         composer: composer || null,

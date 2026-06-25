@@ -167,7 +167,9 @@ export async function POST(request: NextRequest) {
 
     const artist = await prisma.artist.create({
       data: {
-        name,
+        // Trim stray leading/trailing whitespace (e.g. tabs pasted on import) so
+        // names stay clean in listings, slugs and llms.txt.
+        name: name.trim(),
         biography,
         profilePicture: finalPicture,
         composer: composer || null,
