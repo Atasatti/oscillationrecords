@@ -9,14 +9,27 @@
 // while a fresh fetch revalidates in the background. It's cleared on a full page
 // reload (and can be cleared explicitly after a mutation). Keyed by request URL.
 
-const store = new Map<string, unknown>();
+// How long a cached view is considered "fresh". Within this window, revisiting
+// a page serves purely from cache with NO network call; past it, the cache is
+// still shown instantly but a background revalidation fetch runs (SWR). A write
+// (clearCached) always wins regardless of age.
+export const ADMIN_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+type Entry = { value: unknown; at: number };
+const store = new Map<string, Entry>();
 
 export function getCached<T>(key: string): T | undefined {
-  return store.get(key) as T | undefined;
+  return store.get(key)?.value as T | undefined;
 }
 
 export function setCached<T>(key: string, value: T): void {
-  store.set(key, value);
+  store.set(key, { value, at: Date.now() });
+}
+
+/** True if the cached entry exists and is younger than `maxAgeMs`. */
+export function isFresh(key: string, maxAgeMs: number = ADMIN_CACHE_TTL_MS): boolean {
+  const e = store.get(key);
+  return !!e && Date.now() - e.at < maxAgeMs;
 }
 
 /** Drop everything (call after a write so stale rows don't linger on revisit). */

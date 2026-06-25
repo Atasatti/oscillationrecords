@@ -51,7 +51,7 @@ import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
-import { getCached, setCached, clearCached } from "@/lib/admin-cache";
+import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 
 const PAGE_SIZE = 25;
 
@@ -107,6 +107,8 @@ export default function AdminArtistsPage() {
       setItems(cached.items);
       setTotal(cached.total);
       setLoading(false);
+      // Fresh enough → serve from cache only, skip the network entirely.
+      if (isFresh(cacheKey)) return;
     } else {
       setLoading(true);
     }
