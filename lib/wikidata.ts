@@ -18,15 +18,50 @@ const UA = `OscillationRecords/1.0 (${SITE_URL})`;
 const P = {
   instanceOf: "P31",
   occupation: "P106",
+  countryOfCitizenship: "P27",
   musicBrainzArtist: "P434",
   isni: "P213",
+  ipi: "P1828",
   spotifyArtist: "P1902",
   recordLabel: "P264",
+  instagram: "P2003",
+  twitter: "P2002",
+  tiktok: "P7085",
+  soundcloud: "P3040",
+  facebook: "P2013",
+  youtubeChannel: "P2397",
+  youtubeHandle: "P11245",
 } as const;
 const Q = {
   human: "Q5",
   musician: "Q639669",
 } as const;
+
+// Country string (name or ISO code, as we store it) → Wikidata QID. Only the
+// common ones; an unmapped value is simply omitted rather than guessed wrong.
+const COUNTRY_QID: Record<string, string> = {
+  "united kingdom": "Q145", uk: "Q145", gb: "Q145", gbr: "Q145",
+  england: "Q145", scotland: "Q145", wales: "Q145",
+  "united states": "Q30", "united states of america": "Q30", usa: "Q30", us: "Q30",
+  ireland: "Q27", france: "Q142", germany: "Q183", spain: "Q29", italy: "Q38",
+  netherlands: "Q55", belgium: "Q31", portugal: "Q45", canada: "Q16",
+  australia: "Q408", "new zealand": "Q664", sweden: "Q34", norway: "Q20",
+  denmark: "Q35", finland: "Q33", poland: "Q36", japan: "Q17", brazil: "Q155",
+};
+
+/** First path segment of a URL on a given host (handles, usernames), or null. */
+function handleFromUrl(url: string | null | undefined, hostFragment: string): string | null {
+  if (!url || !url.trim()) return null;
+  try {
+    const u = new URL(url.trim());
+    if (!u.hostname.toLowerCase().includes(hostFragment)) return null;
+    const seg = u.pathname.replace(/^\/+|\/+$/g, "").split("/")[0] || "";
+    const handle = seg.replace(/^@/, "");
+    return handle || null;
+  } catch {
+    return null;
+  }
+}
 
 export type WikidataMatch = {
   id: string; // Q-number
@@ -105,6 +140,14 @@ export type ArtistForWikidata = {
   spotifyId?: string | null;
   biography?: string | null;
   country?: string | null;
+  genres?: string[] | null;
+  ipis?: string[] | null;
+  instagramLink?: string | null;
+  xLink?: string | null;
+  tiktokLink?: string | null;
+  soundcloudLink?: string | null;
+  facebookLink?: string | null;
+  youtubeLink?: string | null;
 };
 
 /**
@@ -169,21 +212,45 @@ const qsEscape = (s: string) => s.replace(/[\t\n\r]/g, " ").replace(/"/g, '\\"')
  * references that justify the item.
  */
 export function buildArtistQuickStatements(artist: ArtistForWikidata): string {
-  const desc = (artist.biography || "").replace(/\s+/g, " ").trim();
-  const shortDesc = desc ? desc.slice(0, 60).replace(/\s+\S*$/, "") : "musician";
   const lines: string[] = ["CREATE"];
+  const idStmt = (prop: string, value: string | null | undefined) => {
+    if (value && value.trim()) lines.push(`LAST\t${prop}\t"${qsEscape(value)}"`);
+  };
+
+  // Label + a short, neutral description (NOT the bio — Wikidata descriptions are
+  // a disambiguating phrase, and pasting marketing prose reads as promotional).
+  const genre = (artist.genres ?? []).map((g) => g?.trim()).find(Boolean);
+  const description = genre ? `${genre.toLowerCase()} musician` : "musician";
+
   lines.push(`LAST\tLen\t"${qsEscape(artist.name)}"`);
-  lines.push(`LAST\tDen\t"${qsEscape(shortDesc)}"`);
+  lines.push(`LAST\tDen\t"${qsEscape(description)}"`);
   lines.push(`LAST\t${P.instanceOf}\t${Q.human}`); // ← review: Q215380 if a band
   lines.push(`LAST\t${P.occupation}\t${Q.musician}`);
-  if (artist.musicBrainzId?.trim()) {
-    lines.push(`LAST\t${P.musicBrainzArtist}\t"${qsEscape(artist.musicBrainzId)}"`);
-  }
+
+  const countryQid = COUNTRY_QID[(artist.country || "").trim().toLowerCase()];
+  if (countryQid) lines.push(`LAST\t${P.countryOfCitizenship}\t${countryQid}`);
+
+  // External identifiers — the references that justify the item.
+  idStmt(P.musicBrainzArtist, artist.musicBrainzId);
   const isni = artist.isni ? formatIsni(artist.isni) : null;
   if (isni) lines.push(`LAST\t${P.isni}\t"${isni}"`);
-  if (artist.spotifyId?.trim()) {
-    lines.push(`LAST\t${P.spotifyArtist}\t"${qsEscape(artist.spotifyId)}"`);
-  }
+  idStmt(P.spotifyArtist, artist.spotifyId);
+  for (const ipi of artist.ipis ?? []) idStmt(P.ipi, ipi);
+
+  // Social / streaming handles, extracted from the stored profile URLs.
+  idStmt(P.instagram, handleFromUrl(artist.instagramLink, "instagram.com"));
+  idStmt(P.twitter, handleFromUrl(artist.xLink, "twitter.com") ?? handleFromUrl(artist.xLink, "x.com"));
+  idStmt(P.tiktok, handleFromUrl(artist.tiktokLink, "tiktok.com"));
+  idStmt(P.soundcloud, handleFromUrl(artist.soundcloudLink, "soundcloud.com"));
+  idStmt(P.facebook, handleFromUrl(artist.facebookLink, "facebook.com"));
+  // YouTube: only the two unambiguous URL shapes — /channel/UC… (channel id) and
+  // /@handle (handle). Other shapes (/c/Name, /user/Name) need resolving, so skip.
+  const ytUrl = (artist.youtubeLink || "").trim();
+  const ytChannel = ytUrl.match(/\/channel\/(UC[\w-]+)/)?.[1];
+  const ytHandle = ytUrl.match(/\/@([\w.-]+)/)?.[1];
+  if (ytChannel) idStmt(P.youtubeChannel, ytChannel);
+  else if (ytHandle) idStmt(P.youtubeHandle, ytHandle);
+
   if (LABEL.wikidataId) lines.push(`LAST\t${P.recordLabel}\t${LABEL.wikidataId}`);
   return lines.join("\n");
 }

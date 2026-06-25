@@ -20,7 +20,18 @@ export async function POST(request: NextRequest) {
     const guard = await requireAdmin(request);
     if (!guard.ok) return guard.response;
 
-    const body = (await request.json().catch(() => ({}))) as Partial<ArtistForWikidata>;
+    const body = (await request.json().catch(() => ({}))) as Partial<ArtistForWikidata> & {
+      ipis?: unknown;
+      genres?: unknown;
+    };
+    // ipis/genres may arrive as a comma-separated string (the editor's form state)
+    // or an array — normalize both to a string[].
+    const toList = (v: unknown): string[] =>
+      Array.isArray(v)
+        ? v.map((x) => String(x).trim()).filter(Boolean)
+        : typeof v === "string"
+          ? v.split(",").map((x) => x.trim()).filter(Boolean)
+          : [];
     const artist: ArtistForWikidata = {
       name: typeof body.name === "string" ? body.name : "",
       musicBrainzId: body.musicBrainzId ?? null,
@@ -28,6 +39,14 @@ export async function POST(request: NextRequest) {
       spotifyId: body.spotifyId ?? null,
       biography: body.biography ?? null,
       country: body.country ?? null,
+      genres: toList(body.genres),
+      ipis: toList(body.ipis),
+      instagramLink: body.instagramLink ?? null,
+      xLink: body.xLink ?? null,
+      tiktokLink: body.tiktokLink ?? null,
+      soundcloudLink: body.soundcloudLink ?? null,
+      facebookLink: body.facebookLink ?? null,
+      youtubeLink: body.youtubeLink ?? null,
     };
     if (!artist.name.trim()) {
       return NextResponse.json({ error: "Artist name is required" }, { status: 400 });

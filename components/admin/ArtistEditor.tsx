@@ -858,6 +858,14 @@ export default function ArtistEditor({
                 spotifyId={form.spotifyId}
                 biography={form.biography}
                 country={form.country}
+                genres={form.genres}
+                ipis={form.ipis}
+                instagramLink={form.instagramLink}
+                xLink={form.xLink}
+                tiktokLink={form.tiktokLink}
+                soundcloudLink={form.soundcloudLink}
+                facebookLink={form.facebookLink}
+                youtubeLink={form.youtubeLink}
                 value={form.wikidataId}
                 onChange={(q) => setField("wikidataId", q)}
               />

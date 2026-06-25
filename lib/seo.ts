@@ -34,9 +34,9 @@ export const LABEL = {
   country: "United Kingdom",
   // TODO: set a public contact email for the label (e.g. "hello@oscillationrecords.com").
   email: null as string | null,
-  // TODO: set once the label's own Wikidata item exists (e.g. "Q12345"). Lets
-  // artist drafts cite "record label → Oscillation Records" (P264).
-  wikidataId: null as string | null,
+  // The label's own Wikidata item. Lets artist drafts cite "record label →
+  // Oscillation Records" (P264) and links the Organization schema to Wikidata.
+  wikidataId: "Q140353657" as string | null,
   // Names the label is also known by — helps reconcile name variants.
   alternateName: ["Oscillation Records Ltd", "OSCILLATION RECORDS LTD"],
   // One-line factual entity definition. Only states what's verifiable; extend
@@ -245,6 +245,8 @@ const ORG_ENTITY_REFERENCES = [
   "https://find-and-update.company-information.service.gov.uk/company/15579381",
   // MusicBrainz label entity (high-signal music database).
   "https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470",
+  // Wikidata item — the Knowledge-Graph anchor.
+  "https://www.wikidata.org/wiki/Q140353657",
 ];
 
 /** schema.org Organization for the label itself (site-wide entity). */

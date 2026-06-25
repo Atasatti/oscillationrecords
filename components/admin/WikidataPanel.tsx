@@ -39,6 +39,14 @@ export default function WikidataPanel({
   spotifyId,
   biography,
   country,
+  genres,
+  ipis,
+  instagramLink,
+  xLink,
+  tiktokLink,
+  soundcloudLink,
+  facebookLink,
+  youtubeLink,
   value,
   onChange,
 }: {
@@ -48,6 +56,14 @@ export default function WikidataPanel({
   spotifyId: string;
   biography: string;
   country: string;
+  genres: string;
+  ipis: string;
+  instagramLink: string;
+  xLink: string;
+  tiktokLink: string;
+  soundcloudLink: string;
+  facebookLink: string;
+  youtubeLink: string;
   value: string; // current form.wikidataId
   onChange: (q: string) => void;
 }) {
@@ -68,7 +84,10 @@ export default function WikidataPanel({
       const res = await fetch("/api/admin/wikidata/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, musicBrainzId, isni, spotifyId, biography, country }),
+        body: JSON.stringify({
+          name, musicBrainzId, isni, spotifyId, biography, country, genres, ipis,
+          instagramLink, xLink, tiktokLink, soundcloudLink, facebookLink, youtubeLink,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lookup failed");
