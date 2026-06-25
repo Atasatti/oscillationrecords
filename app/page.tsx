@@ -83,8 +83,11 @@ export default async function Home() {
         <p className="sr-only">
           Oscillation Records is an independent UK record label (company no.
           15579381) built on a simple principle: put artists first. It is a
-          distinct label and is not affiliated with The Oscillation, the
-          psych-rock project led by Demian Castellanos.
+          distinct entity and is not affiliated with any similarly-named act:
+          not The Oscillation (the London psych / space-rock band by Demian
+          Castellanos), not Oscillations (the London experimental-electronic
+          label by Gabriel Prokofiev), and not the Chilean tech-house duo Eban
+          Krocker and Diego Herrera who also release as Oscillation Records.
         </p>
         {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
         <HomeHeroSection />

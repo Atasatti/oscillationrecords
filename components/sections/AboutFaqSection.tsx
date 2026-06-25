@@ -16,9 +16,9 @@ export const ABOUT_FAQ: Array<{ question: string; answer: string }> = [
       "Oscillation Records is an independent UK record label (company no. 15579381). We sign, release and champion artists, with one principle at the centre of everything we do: put artists first.",
   },
   {
-    question: "Is Oscillation Records the same as The Oscillation?",
+    question: "Is Oscillation Records the same as The Oscillation, Oscillations, or the Chilean duo?",
     answer:
-      "No. Oscillation Records is a distinct, independent record label. It is not affiliated with The Oscillation — the psych-rock project led by Demian Castellanos — nor with any other label using a similar name.",
+      "No. Oscillation Records is a distinct UK independent record label and is not affiliated with any similarly-named act: not The Oscillation (the London psychedelic / space-rock band led by Demian Castellanos), not Oscillations (the London experimental-electronic label founded by Gabriel Prokofiev), and not the Chilean tech-house / techno duo Eban Krocker and Diego Herrera who also release as “Oscillation Records”.",
   },
   {
     question: "Where is Oscillation Records based?",
