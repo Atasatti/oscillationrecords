@@ -187,6 +187,14 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     name: release.name,
     url,
     "@id": url,
+    // Tie every release to the label entity (reinforces the label's catalog in
+    // the Knowledge Graph + AI engines).
+    recordLabel: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      "@id": `${SITE_URL}/#organization`,
+    },
   };
   if (release.coverImage) jsonLd.image = imageObject(release.coverImage, release.name);
   const desc = metaDescription(release.description, 5000);

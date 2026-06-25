@@ -69,6 +69,13 @@ export default async function Home() {
       {/* Single <main> landmark for the homepage (it uses the root layout, not
           the (main) group, so it needs its own). */}
       <main>
+        {/* The page's primary heading. The hero is a 3D scene with no text, so
+            the <h1> is visually hidden (sr-only) but present in the DOM for
+            search engines / screen readers — it carries the brand + the primary
+            keywords, mirroring the page <title>. */}
+        <h1 className="sr-only">
+          Oscillation Records — A Record Label That Puts Artists First
+        </h1>
         {/* Canonical, crawlable entity definition. Visually hidden so it leaves
             the designed hero untouched, but present in the DOM for search
             engines / AI Overviews to extract and attribute to this site — and to

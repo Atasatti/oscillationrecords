@@ -99,6 +99,18 @@ export default async function ArtistDetail({
   ]);
   const press = await getPressForArtist(id);
 
+  // A crisp, factual lead sentence — the clean fact AI engines lift verbatim and
+  // attribute. Visually hidden (the design hero is image-led) but in the DOM.
+  const a = data.artist;
+  const artistLead =
+    `${a.name} is a recording artist on ${SITE_NAME}, an independent UK record label` +
+    (a.city ? `, based in ${a.city}` : "") +
+    "." +
+    (a.genres?.length ? ` ${a.name}'s music spans ${a.genres.join(", ")}.` : "") +
+    (data.releases.length
+      ? ` Releases on ${SITE_NAME} include ${data.releases.slice(0, 5).map((r) => r.name).join(", ")}.`
+      : "");
+
   return (
     <>
       <script
@@ -109,6 +121,7 @@ export default async function ArtistDetail({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      <p className="sr-only">{artistLead}</p>
       <ArtistDetailView artist={data.artist} releases={data.releases} />
       {press.length > 0 ? (
         <section className="px-[10%] py-14 text-white">
