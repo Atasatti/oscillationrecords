@@ -16,6 +16,13 @@ export type ArtistExtras = {
   internalNotes: string | null;
   ipis: string[];
   isni: string | null;
+  wikidataId: string | null;
+};
+
+/** A Wikidata item id is "Q" followed by digits. Normalize case, reject junk. */
+const cleanWikidataId = (v: unknown): string | null => {
+  const s = typeof v === "string" ? v.trim().toUpperCase() : "";
+  return /^Q\d+$/.test(s) ? s : null;
 };
 
 // IPI/ISNI are digit strings; strip everything else so spaces/dashes the admin
@@ -88,5 +95,6 @@ export function extractArtistExtras(body: Record<string, unknown>): ArtistExtras
     internalNotes: cleanStr(body.internalNotes),
     ipis: normalizeIpis(body.ipis),
     isni: isni.length ? isni : null,
+    wikidataId: cleanWikidataId(body.wikidataId),
   };
 }

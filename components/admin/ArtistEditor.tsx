@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import WikidataPanel from "@/components/admin/WikidataPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +70,7 @@ type FormState = {
   internalNotes: string;
   ipis: string; // comma-separated in the UI
   isni: string;
+  wikidataId: string;
 } & Record<LinkKey, string> &
   Record<InternalKey, string>;
 
@@ -87,6 +89,7 @@ const emptyForm: FormState = {
   internalNotes: "",
   ipis: "",
   isni: "",
+  wikidataId: "",
   xLink: "",
   tiktokLink: "",
   spotifyLink: "",
@@ -193,6 +196,7 @@ export default function ArtistEditor({
           internalNotes: a.internalNotes || "",
           ipis: Array.isArray(a.ipis) ? a.ipis.join(", ") : "",
           isni: a.isni || "",
+          wikidataId: a.wikidataId || "",
           xLink: a.xLink || "",
           tiktokLink: a.tiktokLink || "",
           spotifyLink: a.spotifyLink || "",
@@ -442,6 +446,7 @@ export default function ArtistEditor({
         internalNotes: form.internalNotes,
         ipis: form.ipis,
         isni: form.isni,
+        wikidataId: form.wikidataId,
         xLink: form.xLink,
         tiktokLink: form.tiktokLink,
         spotifyLink: form.spotifyLink,
@@ -843,6 +848,19 @@ export default function ArtistEditor({
                   className="resize-none"
                 />
               </div>
+            </div>
+
+            <div className="mt-6">
+              <WikidataPanel
+                name={form.name}
+                musicBrainzId={form.musicBrainzId}
+                isni={form.isni}
+                spotifyId={form.spotifyId}
+                biography={form.biography}
+                country={form.country}
+                value={form.wikidataId}
+                onChange={(q) => setField("wikidataId", q)}
+              />
             </div>
 
             <div className="flex gap-3">

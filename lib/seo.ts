@@ -34,6 +34,9 @@ export const LABEL = {
   country: "United Kingdom",
   // TODO: set a public contact email for the label (e.g. "hello@oscillationrecords.com").
   email: null as string | null,
+  // TODO: set once the label's own Wikidata item exists (e.g. "Q12345"). Lets
+  // artist drafts cite "record label → Oscillation Records" (P264).
+  wikidataId: null as string | null,
   // Names the label is also known by — helps reconcile name variants.
   alternateName: ["Oscillation Records Ltd", "OSCILLATION RECORDS LTD"],
   // One-line factual entity definition. Only states what's verifiable; extend
@@ -62,6 +65,7 @@ type ArtistLike = {
   genres?: string[];
   isni?: string | null;
   musicBrainzId?: string | null;
+  wikidataId?: string | null;
   xLink?: string | null;
   tiktokLink?: string | null;
   spotifyLink?: string | null;
@@ -108,6 +112,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     artist.soundcloudLink,
     artist.musicBrainzId ? `https://musicbrainz.org/artist/${artist.musicBrainzId}` : null,
     artist.isni ? `https://isni.org/isni/${artist.isni}` : null,
+    artist.wikidataId ? `https://www.wikidata.org/wiki/${artist.wikidataId}` : null,
   ].filter((u): u is string => Boolean(u && u.trim()));
 
   const jsonLd: Record<string, unknown> = {

@@ -268,6 +268,7 @@ export interface ArtistDetailDTO {
   genres: string[];
   isni: string | null;
   musicBrainzId: string | null;
+  wikidataId: string | null;
   country: string | null;
   city: string | null;
   xLink: string | null;
@@ -323,6 +324,7 @@ export const getArtistDetail = cache(async (
         genres: artist.genres ?? [],
         isni: artist.isni ?? null,
         musicBrainzId: artist.musicBrainzId ?? null,
+        wikidataId: artist.wikidataId ?? null,
         country: artist.country ?? null,
         city: artist.city ?? null,
         xLink: artist.xLink ?? null,

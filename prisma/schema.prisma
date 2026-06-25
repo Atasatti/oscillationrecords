@@ -113,6 +113,10 @@ model Artist {
   ipis          String[] @default([])
   /// ISNI (International Standard Name Identifier) — one per artist identity.
   isni          String?
+  /// Wikidata item id (e.g. "Q42") once the artist is reconciled to Wikidata.
+  /// Emitted in the artist's schema.org `sameAs` so Google/AI can reconcile the
+  /// page to the Knowledge-Graph entity. Set via the admin "Wikidata" panel.
+  wikidataId    String?
   composer      String?
   lyricist      String?
   leadVocal     String?
