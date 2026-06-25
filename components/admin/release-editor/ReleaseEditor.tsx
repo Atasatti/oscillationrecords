@@ -639,7 +639,8 @@ export default function ReleaseEditor({
             <div>
               <h3 className="text-lg font-medium text-gray-200">Tracklist</h3>
               <p className="mt-1 text-sm text-gray-400">
-                Add and edit tracks, with audio uploads, on a dedicated page.
+                Add and edit each track — audio, per-track artists, features &amp;
+                credits — on a dedicated page.
               </p>
             </div>
             <Button

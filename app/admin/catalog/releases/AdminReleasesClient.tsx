@@ -398,7 +398,7 @@ function ReleasesPageInner({
             type="text"
             value={queryInput}
             onChange={(e) => setQueryInput(e.target.value)}
-            placeholder="Search releases by name or artist…"
+            placeholder="Search releases by name, artist or track…"
             aria-label="Search releases"
             className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />

@@ -376,15 +376,34 @@ export async function getReleasesPage({
   if (query) {
     const all = await prisma.release.findMany({ ...releaseCardListArgs, where });
     const cards = await mapReleasesToCards(all, { isAdmin: true });
+    // Also match on TRACK titles so searching a song name surfaces the release
+    // that contains it (the list shows releases, not individual tracks).
+    const trackRows = await prisma.track.findMany({
+      where: { releaseId: { in: all.map((r) => r.id) } },
+      select: { releaseId: true, name: true },
+    });
+    const trackNamesByRelease = new Map<string, string[]>();
+    for (const t of trackRows) {
+      const arr = trackNamesByRelease.get(t.releaseId);
+      if (arr) arr.push(t.name);
+      else trackNamesByRelease.set(t.releaseId, [t.name]);
+    }
     const ranked = cards
-      .map((c) => ({
-        c,
-        score: Math.max(
-          fuzzyScore(query, c.name),
-          fuzzyScore(query, c.primaryArtistName || ""),
-          fuzzyScore(query, c.artist || "")
-        ),
-      }))
+      .map((c) => {
+        const trackScore = (trackNamesByRelease.get(c.id) ?? []).reduce(
+          (max, n) => Math.max(max, fuzzyScore(query, n)),
+          0
+        );
+        return {
+          c,
+          score: Math.max(
+            fuzzyScore(query, c.name),
+            fuzzyScore(query, c.primaryArtistName || ""),
+            fuzzyScore(query, c.artist || ""),
+            trackScore
+          ),
+        };
+      })
       .filter((x) => x.score > 0)
       .sort((x, y) => y.score - x.score)
       .map((x) => x.c);
