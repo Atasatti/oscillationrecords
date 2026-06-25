@@ -7,7 +7,7 @@ import {
   resolveArtistIdBySlug,
 } from "@/lib/catalog-data";
 import { ARTIST_ID_RE, slugify } from "@/lib/slug";
-import PressCard from "@/components/local-ui/PressCard";
+import ArtistPressSection from "./ArtistPressSection";
 import {
   buildArtistJsonLd,
   buildBreadcrumbJsonLd,
@@ -123,16 +123,7 @@ export default async function ArtistDetail({
       />
       <p className="sr-only">{artistLead}</p>
       <ArtistDetailView artist={data.artist} releases={data.releases} />
-      {press.length > 0 ? (
-        <section className="px-[10%] py-14 text-white">
-          <h2 className="mb-6 text-2xl font-light tracking-tighter">Press &amp; Features</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {press.map((item) => (
-              <PressCard key={item.id} item={item} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <ArtistPressSection items={press} />
     </>
   );
 }
