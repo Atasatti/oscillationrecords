@@ -117,6 +117,9 @@ model Artist {
   /// Emitted in the artist's schema.org `sameAs` so Google/AI can reconcile the
   /// page to the Knowledge-Graph entity. Set via the admin "Wikidata" panel.
   wikidataId    String?
+  /// Wikipedia article URL — the single strongest Google Knowledge-Panel trigger.
+  /// Emitted in the artist's schema.org `sameAs`. Public.
+  wikipediaUrl  String?
   composer      String?
   lyricist      String?
   leadVocal     String?

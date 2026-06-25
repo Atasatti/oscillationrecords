@@ -23,11 +23,12 @@ export async function GET(
 
     const { artistId } = await params;
 
-    const artist = await prisma.artist.findUnique({
-      where: {
-        id: artistId,
-      },
-    });
+    // Load the artist and their public-release count together (the count feeds
+    // the editor's live discoverability/Knowledge-Panel score).
+    const [artist, releaseCount] = await Promise.all([
+      prisma.artist.findUnique({ where: { id: artistId } }),
+      prisma.release.count({ where: { primaryArtistIds: { has: artistId } } }),
+    ]);
 
     if (!artist) {
       return NextResponse.json(
@@ -36,7 +37,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(artist);
+    return NextResponse.json({ ...artist, releaseCount });
   } catch (error) {
     console.error("Error fetching artist:", error);
     return NextResponse.json(

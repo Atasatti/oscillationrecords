@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { fuzzyScore } from "@/lib/fuzzy";
-import { computeArtistSeo, type ArtistSeoGrade, type ArtistSeoSignals } from "@/lib/seo-score";
+import {
+  computeArtistSeo,
+  computeArtistGkp,
+  type ArtistSeoGrade,
+  type ArtistGkpGrade,
+} from "@/lib/seo-score";
 import {
   mapPressItems,
   mapReleasesToCards,
@@ -40,6 +45,13 @@ export interface AdminArtistRow {
   // "streaming links", "MusicBrainz ID", "fuller bio"). `complete` = nothing left.
   complete: boolean;
   missing: string[];
+  // Per-artist Google Knowledge Panel readiness (0–100) + weight-ordered gaps —
+  // how ready the artist is to earn a Knowledge Panel (an entity-identity score,
+  // distinct from the page-discoverability SEO score). See lib/seo-score.ts.
+  gkpScore: number;
+  gkpGrade: ArtistGkpGrade;
+  gkpComplete: boolean;
+  gkpMissing: string[];
 }
 
 export interface Page<T> {
@@ -94,7 +106,10 @@ const ROW_SELECT = {
   createdAt: true,
   genres: true,
   biography: true,
-  // Entity identifiers — strongest `sameAs` signals; scored in the SEO grade.
+  // Entity identifiers — strongest `sameAs` signals; scored in the SEO grade and
+  // (weighted more heavily) the Knowledge Panel readiness grade.
+  wikidataId: true,
+  wikipediaUrl: true,
   musicBrainzId: true,
   isni: true,
   xLink: true,
@@ -125,23 +140,39 @@ function buildWhere(filters: ArtistFilters): Prisma.ArtistWhereInput {
   return where;
 }
 
-// Roster row carrying the raw SEO signals (minus release count, not yet known)
-// so attachStats can finalise the score. The `_sig` field is internal and is
-// dropped before the row leaves attachStats.
-type RowWithSignals = AdminArtistRow & { _sig: Omit<ArtistSeoSignals, "releaseCount"> };
+// Raw per-artist signals (minus release count, not yet known) that BOTH the SEO
+// and GKP scores derive from. A superset of each score's input shape, so it can
+// be spread straight into computeArtistSeo / computeArtistGkp (extra keys are
+// ignored). The `_sig` field is internal and dropped before the row leaves
+// attachStats.
+type RawSignals = {
+  hasPhoto: boolean;
+  bioLength: number;
+  genreCount: number;
+  linkCount: number;
+  hasMusicBrainz: boolean;
+  hasIsni: boolean;
+  hasWikidata: boolean;
+  hasWikipedia: boolean;
+};
+
+type RowWithSignals = AdminArtistRow & { _sig: RawSignals };
 
 function toRow(a: ArtistSelectRow): RowWithSignals {
-  const sig: Omit<ArtistSeoSignals, "releaseCount"> = {
+  const sig: RawSignals = {
     hasPhoto: Boolean(a.profilePicture),
     bioLength: (a.biography ?? "").trim().length,
     genreCount: (a.genres ?? []).length,
     linkCount: LINK_KEYS.filter((k) => Boolean((a as Record<string, unknown>)[k])).length,
     hasMusicBrainz: Boolean(a.musicBrainzId),
     hasIsni: Boolean(a.isni),
+    hasWikidata: Boolean(a.wikidataId),
+    hasWikipedia: Boolean(a.wikipediaUrl),
   };
-  // Provisional score with releaseCount=0; attachStats refines it. This keeps
+  // Provisional scores with releaseCount=0; attachStats refines them. This keeps
   // rows valid for callers that skip attachStats (e.g. getFeaturedArtists).
   const seo = computeArtistSeo({ ...sig, releaseCount: 0 });
+  const gkp = computeArtistGkp({ ...sig, releaseCount: 0 });
 
   return {
     id: a.id,
@@ -161,6 +192,10 @@ function toRow(a: ArtistSelectRow): RowWithSignals {
     seoGrade: seo.grade,
     complete: seo.missing.length === 0,
     missing: seo.missing,
+    gkpScore: gkp.score,
+    gkpGrade: gkp.grade,
+    gkpComplete: gkp.missing.length === 0,
+    gkpMissing: gkp.missing,
     _sig: sig,
   };
 }
@@ -206,6 +241,7 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   return rows.map((r) => {
     const releaseCount = countById.get(r.id) ?? 0;
     const seo = computeArtistSeo({ ...r._sig, releaseCount });
+    const gkp = computeArtistGkp({ ...r._sig, releaseCount });
     return stripSignals({
       ...r,
       releaseCount,
@@ -215,6 +251,10 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
       seoGrade: seo.grade,
       complete: seo.missing.length === 0,
       missing: seo.missing,
+      gkpScore: gkp.score,
+      gkpGrade: gkp.grade,
+      gkpComplete: gkp.missing.length === 0,
+      gkpMissing: gkp.missing,
     });
   });
 }

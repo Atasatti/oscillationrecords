@@ -60,8 +60,8 @@ const PAGE_SIZE = 25;
 
 type StatusTab = "all" | "RELEASED" | "SCHEDULED" | "DRAFT";
 
-const STATUS_TABS: { key: StatusTab; label: string }[] = [
-  { key: "all", label: "All" },
+const STATUS_OPTIONS: { key: StatusTab; label: string }[] = [
+  { key: "all", label: "All statuses" },
   { key: "RELEASED", label: "Live" },
   { key: "SCHEDULED", label: "Scheduled" },
   { key: "DRAFT", label: "Drafts" },
@@ -126,10 +126,6 @@ function ReleasesPageInner({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [counts, setCounts] = useState<{ DRAFT: number; SCHEDULED: number }>({
-    DRAFT: 0,
-    SCHEDULED: 0,
-  });
   const [newOpen, setNewOpen] = useState(false);
   const [view, setView] = useState<"manage" | "order">("manage");
 
@@ -186,23 +182,6 @@ function ReleasesPageInner({
   useEffect(() => {
     load();
   }, [load]);
-
-  // Tab counts for the actionable statuses (Drafts / Scheduled).
-  const loadCounts = useCallback(async () => {
-    try {
-      const [d, s] = await Promise.all([
-        fetch("/api/releases?status=DRAFT&pageSize=1").then((r) => (r.ok ? r.json() : { total: 0 })),
-        fetch("/api/releases?status=SCHEDULED&pageSize=1").then((r) => (r.ok ? r.json() : { total: 0 })),
-      ]);
-      setCounts({ DRAFT: d.total || 0, SCHEDULED: s.total || 0 });
-    } catch {
-      /* counts are best-effort */
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCounts();
-  }, [loadCounts]);
 
   const toggleSort = (field: ReleaseSort) => {
     if (sort === field) setDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -288,7 +267,6 @@ function ReleasesPageInner({
       unlockBody();
       clearCached();
       load();
-      loadCounts();
     } catch {
       toast.error("Failed to delete release");
     } finally {
@@ -317,7 +295,6 @@ function ReleasesPageInner({
       unlockBody(); // clear any leftover Radix body lock (see confirmDelete)
       clearCached();
       load();
-      loadCounts();
     } catch {
       toast.error("Bulk delete failed");
     } finally {
@@ -360,7 +337,6 @@ function ReleasesPageInner({
       setSelected(new Set());
       clearCached();
       load();
-      loadCounts();
     } catch {
       toast.error("Bulk update failed");
     } finally {
@@ -414,38 +390,9 @@ function ReleasesPageInner({
         />
       ) : (
       <>
-      {/* Status tabs */}
-      <div className="mb-5 flex gap-1 border-b border-border">
-        {STATUS_TABS.map(({ key, label }) => {
-          const count = key === "DRAFT" ? counts.DRAFT : key === "SCHEDULED" ? counts.SCHEDULED : 0;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setStatusFilter(key);
-                setPage(1);
-              }}
-              className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                statusFilter === key
-                  ? "border-white text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {label}
-              {count > 0 ? (
-                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] tabular-nums text-foreground">
-                  {count}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-sm">
+      {/* Search + filters — same pattern as the Artists table */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
             type="text"
@@ -466,6 +413,22 @@ function ReleasesPageInner({
             </button>
           ) : null}
         </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value as StatusTab);
+            setPage(1);
+          }}
+          aria-label="Filter by status"
+          className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Bulk action bar */}
@@ -526,6 +489,11 @@ function ReleasesPageInner({
               <TableHead className="hidden sm:table-cell">
                 <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-release SEO score (0–100) from the fields that drive search ranking and rich results: streaming links, description, cover image, tracklist, genres, release date and primary artist. The badge shows the highest-impact gap — click it to fill it." /></span>
               </TableHead>
+              <TableHead className="hidden xl:table-cell">
+                <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
+                  Added {sortIcon("createdAt")}
+                </button>
+              </TableHead>
               <TableHead className="w-10 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -536,7 +504,7 @@ function ReleasesPageInner({
                   <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Skeleton className="h-12 w-12 rounded" />
+                      <Skeleton className="h-12 w-12 rounded-lg" />
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
@@ -546,12 +514,13 @@ function ReleasesPageInner({
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
                   {query ? `No releases match “${query}”.` : "No releases here yet."}
                 </TableCell>
               </TableRow>
@@ -638,13 +607,17 @@ function ReleasesPageInner({
                           }
                           className="cursor-pointer tabular-nums hover:opacity-80"
                         >
-                          SEO {r.seoScore}
-                          {!r.seoComplete && r.seoMissing.length ? (
-                            <span className="font-normal opacity-80">· add {r.seoMissing[0]}</span>
-                          ) : null}
+                          {r.seoScore}
                         </Badge>
                       </Link>
                     )}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                    {new Date(r.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

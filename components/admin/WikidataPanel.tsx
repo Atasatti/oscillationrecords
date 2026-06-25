@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Loader2, Search, ExternalLink, Check, Link2, X, Globe } from "lucide-react";
+import { Loader2, Search, ExternalLink, Check, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
 
@@ -151,12 +151,8 @@ export default function WikidataPanel({
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <Globe className="h-4 w-4 text-muted-foreground" />
-        Wikidata
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
+    <div>
+      <p className="text-xs text-muted-foreground">
         Link this artist to their Wikidata item so it appears in the page&apos;s{" "}
         <code className="font-mono">sameAs</code> — the strongest signal for Google to
         reconcile the entity. Creation stays a manual, reviewed step.

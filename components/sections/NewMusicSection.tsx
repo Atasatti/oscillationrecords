@@ -40,6 +40,9 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   const router = useRouter();
   const isReleasesListingPage =
     pathname === "/releases" || pathname === "/releases/";
+  // On /releases this is the page's primary heading (<h1>); on the homepage it's
+  // one section among many, so it's an <h2> there.
+  const HeadingTag = isReleasesListingPage ? "h1" : "h2";
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [releases, setReleases] = useState<HomeRelease[]>(initialReleases ?? []);
@@ -172,7 +175,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
 
   return (
     <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28">
-      <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">New Music, No Compromise.</p>
+      <HeadingTag className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">New Music, No Compromise.</HeadingTag>
       <p className="mt-4 sm:mt-5 text-muted-foreground text-base sm:text-lg md:text-xl">
         From underground hits to future anthems, our releases are about pushing
         boundaries and setting trends.

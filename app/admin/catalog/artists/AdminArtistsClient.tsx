@@ -455,6 +455,9 @@ export default function AdminArtistsClient({
               <TableHead className="hidden sm:table-cell">
                 <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-artist SEO score (0–100) from the fields that drive search ranking: streaming/social links, MusicBrainz ID, ISNI, bio, photo, genres and releases. The badge shows the highest-impact gaps — click it to fill them." /></span>
               </TableHead>
+              <TableHead className="hidden md:table-cell">
+                <span className="inline-flex items-center gap-1">GKP <InfoHint text="Google Knowledge Panel readiness (0–100): how ready this artist is to earn a Knowledge Panel — the entity info box shown beside Google results. Unlike the SEO score (page discoverability), this grades entity identity: a Wikidata item, MusicBrainz ID and ISNI, plus streaming/social links (sameAs), a release and a bio — the signals Google's Knowledge Graph uses to confirm a distinct real-world artist. The badge shows the highest-impact gap; click it to fill them in." /></span>
+              </TableHead>
               <TableHead>
                 <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
               </TableHead>
@@ -476,7 +479,7 @@ export default function AdminArtistsClient({
                   <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Skeleton className="h-10 w-10 rounded-lg" />
+                      <Skeleton className="h-12 w-12 rounded-lg" />
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
@@ -485,6 +488,7 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
                   <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
@@ -493,7 +497,7 @@ export default function AdminArtistsClient({
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="py-12 text-center text-muted-foreground">
                   {query ? `No artists match “${query}”.` : "No artists yet."}
                 </TableCell>
               </TableRow>
@@ -515,14 +519,14 @@ export default function AdminArtistsClient({
                       <img
                         src={a.profilePicture || "/placeholder.svg"}
                         alt=""
-                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
                     </Link>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     {a.genres.length ? (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex items-center gap-1">
                         {a.genres.slice(0, 2).map((g) => (
                           <Badge key={g} variant="muted">{g}</Badge>
                         ))}
@@ -569,10 +573,31 @@ export default function AdminArtistsClient({
                         }
                         className="cursor-pointer tabular-nums hover:opacity-80"
                       >
-                        SEO {a.seoScore}
-                        {!a.complete && a.missing.length ? (
-                          <span className="font-normal opacity-80">· add {a.missing[0]}</span>
-                        ) : null}
+                        {a.seoScore}
+                      </Badge>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <Link
+                      href={`/admin/catalog/artists/${a.id}/edit`}
+                      title={
+                        a.gkpComplete
+                          ? "All Knowledge Panel signals filled"
+                          : `To improve Knowledge Panel readiness, add: ${a.gkpMissing.join(", ")} — click to edit`
+                      }
+                      className="inline-flex"
+                    >
+                      <Badge
+                        variant={
+                          a.gkpGrade === "strong"
+                            ? "success"
+                            : a.gkpGrade === "good"
+                              ? "warning"
+                              : "destructive"
+                        }
+                        className="cursor-pointer tabular-nums hover:opacity-80"
+                      >
+                        {a.gkpScore}
                       </Badge>
                     </Link>
                   </TableCell>

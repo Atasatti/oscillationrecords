@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
+import { ArrowRight, Save, Loader2, Database, Eye, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
@@ -30,6 +30,7 @@ import ReleaseLinkImport, {
   type ReleaseLinkKey,
   type SpotifyAlbumPick,
 } from "./ReleaseLinkImport";
+import ReleaseScorePanel from "./ReleaseScorePanel";
 
 export type ReleaseKind = "SINGLE" | "EP" | "ALBUM";
 
@@ -59,6 +60,8 @@ export default function ReleaseEditor({
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loadedKind, setLoadedKind] = useState<ReleaseKind | null>(null);
+  // Track count for the live SEO score (the tracklist lives on its own page).
+  const [trackCount, setTrackCount] = useState(0);
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
@@ -90,6 +93,7 @@ export default function ReleaseEditor({
   // would convert linked artists to plain names) when the field actually changes.
   const initialFeatureTextRef = useRef<string>("");
   const hadLinkedFeatureArtistsRef = useRef<boolean>(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const patchForm = (patch: Partial<ReleaseDetailsValue>) => {
     setDirty(true);
@@ -171,6 +175,7 @@ export default function ReleaseEditor({
         });
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
+        setTrackCount(Array.isArray(data.tracks) ? data.tracks.length : 0);
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -202,6 +207,11 @@ export default function ReleaseEditor({
     });
     setCoverUrl(null);
     setCoverFile(null);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onPickImage(file);
   };
 
   useEffect(() => {
@@ -476,32 +486,47 @@ export default function ReleaseEditor({
     );
   }
 
+  // Live signals for the release Discoverability (SEO) panel — recomputed each
+  // render so the score updates as fields change.
+  const releaseSignals = {
+    hasCover: Boolean(imagePreview),
+    descLength: form.description.trim().length,
+    genreCount: [form.primaryGenre, form.secondaryGenre].filter((g) => g.trim()).length,
+    linkCount: [
+      form.spotifyLink,
+      form.appleMusicLink,
+      form.tidalLink,
+      form.amazonMusicLink,
+      form.youtubeLink,
+      form.soundcloudLink,
+    ].filter((u) => u.trim()).length,
+    trackCount,
+    hasReleaseDate: Boolean(form.releaseDate.trim()),
+    hasPrimaryArtist: form.primaryArtistIds.length > 0,
+  };
+
   return (
-    <div className="mx-auto max-w-6xl xl:max-w-7xl">
+    <div>
       <div className="mb-8">
-        {/* Navigation back to the list/edit lives in the breadcrumb above — no
-            duplicate back button here. This row keeps only the "View release"
-            preview action. */}
-        <div className="mb-4 flex items-center justify-end gap-2">
-          {mode === "edit" && releaseId ? (
-            <Button
-              type="button"
-              variant="outline"
-              title="View the completed release (tracklist, streaming links and all)"
-              onClick={() => {
-                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
-              }}
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View release
-            </Button>
-          ) : null}
-        </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-4xl font-light tracking-tighter">
             {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
           </h1>
+          {/* All header actions on one row — View release sits with the imports. */}
           <div className="flex flex-wrap gap-2">
+            {mode === "edit" && releaseId ? (
+              <Button
+                type="button"
+                variant="outline"
+                title="View the completed release (tracklist, streaming links and all)"
+                onClick={() => {
+                  if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
+                }}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View release
+              </Button>
+            ) : null}
             <ReleaseLinkImport
               seedName={form.name}
               seedArtist={primaryArtistName}
@@ -544,16 +569,69 @@ export default function ReleaseEditor({
         </p>
       </div>
 
-      <div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+        {/* Sidebar: live SEO score + cover image, sticky */}
+        <div>
+          <div className="space-y-6 lg:sticky lg:top-6">
+            <ReleaseScorePanel signals={releaseSignals} />
+            <div className="rounded-xl border border-border bg-card p-6">
+              <label className="mb-4 block text-sm font-medium text-muted-foreground">
+                Cover image *
+              </label>
+              <div className="space-y-4">
+                {imagePreview ? (
+                  <div className="group relative mx-auto w-full max-w-[200px]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imagePreview}
+                      alt="Cover"
+                      className="aspect-square w-full rounded-lg border border-border object-cover"
+                    />
+                    <Button
+                      type="button"
+                      onClick={onRemoveImage}
+                      variant="destructive"
+                      size="sm"
+                      className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className={`mx-auto flex aspect-square w-full max-w-[200px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed hover:border-gray-600 ${
+                      errors.coverImage ? "border-red-500/70" : "border-border"
+                    }`}
+                  >
+                    <ImageIcon className="mb-3 h-12 w-12 text-gray-500" />
+                    <p className="text-sm text-muted-foreground">Upload cover</p>
+                  </button>
+                )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                {errors.coverImage && (
+                  <p className="text-sm text-red-400">{errors.coverImage}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main column */}
+        <div className="min-w-0">
         <ReleaseDetailsPanel
           value={form}
           onChange={patchForm}
           errors={errors}
           artists={artists}
           loadingArtists={loadingArtists}
-          imagePreview={imagePreview}
-          onPickImage={onPickImage}
-          onRemoveImage={onRemoveImage}
         />
 
         {mode === "edit" && releaseId ? (
@@ -633,6 +711,7 @@ export default function ReleaseEditor({
             This saves the release details. Tracks save automatically as you edit them.
           </p>
         ) : null}
+        </div>
       </div>
 
       <Dialog

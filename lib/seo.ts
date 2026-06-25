@@ -66,6 +66,7 @@ type ArtistLike = {
   isni?: string | null;
   musicBrainzId?: string | null;
   wikidataId?: string | null;
+  wikipediaUrl?: string | null;
   xLink?: string | null;
   tiktokLink?: string | null;
   spotifyLink?: string | null;
@@ -113,6 +114,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     artist.musicBrainzId ? `https://musicbrainz.org/artist/${artist.musicBrainzId}` : null,
     artist.isni ? `https://isni.org/isni/${artist.isni}` : null,
     artist.wikidataId ? `https://www.wikidata.org/wiki/${artist.wikidataId}` : null,
+    artist.wikipediaUrl,
   ].filter((u): u is string => Boolean(u && u.trim()));
 
   const jsonLd: Record<string, unknown> = {
