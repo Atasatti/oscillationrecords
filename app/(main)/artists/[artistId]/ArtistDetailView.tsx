@@ -20,9 +20,10 @@ type ArtistDetailViewProps = {
   releases: ReleaseCardDTO[];
 };
 
-// Show this many releases before the "Show all" reveal — keeps a long catalogue
-// from making the page huge while still shipping every release in the HTML.
-const INITIAL_RELEASES = 8;
+// Show this many releases before the "Show all" reveal — two rows of three, to
+// match the Press & Features grid (same columns / count) so the page reads as
+// one consistent layout. Every release still ships in the HTML.
+const INITIAL_RELEASES = 6;
 
 export default function ArtistDetailView({ artist, releases }: ArtistDetailViewProps) {
   const router = useRouter();
@@ -174,15 +175,15 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               <h2 className="text-2xl font-light tracking-tighter mb-6">
                 Releases <span className="text-gray-500">({releases.length})</span>
               </h2>
-              {/* Responsive grid (not fixed-width flex-wrap) so cards stretch to
-                  fill the row — no dead space on the right. Capped at 4 columns to
-                  keep card proportions close to the original. */}
-              <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+              {/* Same 3-column grid + gap as the Press & Features section, so both
+                  sections share one consistent layout and fill the width evenly.
+                  Cards are square (album art) and stretch to the column width. */}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {releases.map((rel, i) => (
                   <div
                     key={rel.id}
                     onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
-                    className={`h-84 w-full cursor-pointer ${
+                    className={`aspect-square w-full cursor-pointer ${
                       !showAllReleases && i >= INITIAL_RELEASES ? "hidden" : ""
                     }`}
                   >
