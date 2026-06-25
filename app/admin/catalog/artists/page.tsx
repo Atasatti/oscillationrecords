@@ -51,6 +51,7 @@ import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
+import { getCached, setCached, clearCached } from "@/lib/admin-cache";
 
 const PAGE_SIZE = 25;
 
@@ -87,27 +88,39 @@ export default function AdminArtistsPage() {
   }, [queryInput]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+      sort,
+      dir,
+    });
+    if (query) params.set("q", query);
+    if (visFilter !== "all") params.set("visibility", visFilter);
+    if (featFilter !== "all") params.set("featured", featFilter);
+    if (genre) params.set("genre", genre);
+    const qs = params.toString();
+    // Stale-while-revalidate: if we've loaded this exact view before, paint the
+    // cached rows immediately (no spinner) and refresh in the background.
+    const cacheKey = `artists?${qs}`;
+    const cached = getCached<{ items: AdminArtistRow[]; total: number }>(cacheKey);
+    if (cached) {
+      setItems(cached.items);
+      setTotal(cached.total);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-        sort,
-        dir,
-      });
-      if (query) params.set("q", query);
-      if (visFilter !== "all") params.set("visibility", visFilter);
-      if (featFilter !== "all") params.set("featured", featFilter);
-      if (genre) params.set("genre", genre);
-      const res = await fetch(`/api/artists?${params.toString()}`);
+      const res = await fetch(`/api/artists?${qs}`);
       if (!res.ok) throw new Error("Failed to load artists");
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
       setSelected(new Set());
+      setCached(cacheKey, { items: data.items, total: data.total });
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load artists");
+      if (!cached) toast.error("Failed to load artists");
     } finally {
       setLoading(false);
     }
@@ -163,6 +176,7 @@ export default function AdminArtistsPage() {
         body: JSON.stringify({ showOnWebsite }),
       });
       if (!res.ok) throw new Error();
+      clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
       toast.error("Failed to update visibility");
@@ -182,6 +196,7 @@ export default function AdminArtistsPage() {
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
+      clearCached(); // persisted change — keep cached views honest on revisit
     } catch (e) {
       setItems(prev);
       toast.error(e instanceof Error ? e.message : "Failed to update featured");
@@ -196,6 +211,7 @@ export default function AdminArtistsPage() {
       if (!res.ok) throw new Error();
       toast.success("Artist deleted");
       setDeleteTarget(null);
+      clearCached(); // row count/pages changed — drop stale cached views
       load();
     } catch {
       toast.error("Failed to delete artist");
@@ -221,6 +237,7 @@ export default function AdminArtistsPage() {
           : `Updated ${ids.length} artist${ids.length === 1 ? "" : "s"}`
       );
       setBulkDeleteOpen(false);
+      clearCached(); // bulk show/hide/delete changed rows — invalidate cache
       load();
     } catch {
       toast.error("Bulk action failed");

@@ -52,6 +52,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import type { ReleaseCardDTO } from "@/lib/catalog-data";
 import type { ReleaseSort, SortDir } from "@/lib/admin-data";
+import { getCached, setCached, clearCached } from "@/lib/admin-cache";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 
 const PAGE_SIZE = 25;
@@ -116,28 +117,40 @@ function ReleasesPageInner() {
   }, [queryInput]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+      sort,
+      dir,
+    });
+    if (query) params.set("q", query);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    const qs = params.toString();
+    // Stale-while-revalidate: show the last-loaded view instantly on revisit,
+    // then refresh in the background instead of a blank spinner + full refetch.
+    const cacheKey = `releases?${qs}`;
+    const cached = getCached<{ items: ReleaseCardDTO[]; total: number }>(cacheKey);
+    if (cached) {
+      setItems(cached.items);
+      setTotal(cached.total);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-        sort,
-        dir,
-      });
-      if (query) params.set("q", query);
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`/api/releases?${params.toString()}`);
+      const res = await fetch(`/api/releases?${qs}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
       setSelected(new Set());
+      setCached(cacheKey, { items: data.items, total: data.total });
       // If a delete emptied the current page (e.g. the last row on the last
       // page), clamp back to the last valid page instead of a stuck empty table.
       const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
       if (page > lastPage) setPage(lastPage);
     } catch {
-      toast.error("Failed to load releases");
+      if (!cached) toast.error("Failed to load releases");
     } finally {
       setLoading(false);
     }
@@ -224,6 +237,7 @@ function ReleasesPageInner() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Failed to update");
       }
+      clearCached(); // persisted change — keep cached views honest on revisit
     } catch (e) {
       setItems(prev);
       toast.error(e instanceof Error ? e.message : "Failed to update");
@@ -241,6 +255,7 @@ function ReleasesPageInner() {
       if (!res.ok) throw new Error();
       toast.success("Release deleted");
       setDeleteTarget(null);
+      clearCached();
       load();
       loadCounts();
     } catch {
@@ -268,6 +283,7 @@ function ReleasesPageInner() {
       }
       setBulkDeleteOpen(false);
       setSelected(new Set());
+      clearCached();
       load();
       loadCounts();
     } catch {
@@ -310,6 +326,7 @@ function ReleasesPageInner() {
       if (failed) toast.error(msg);
       else toast.success(msg);
       setSelected(new Set());
+      clearCached();
       load();
       loadCounts();
     } catch {
