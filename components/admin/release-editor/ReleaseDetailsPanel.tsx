@@ -195,14 +195,13 @@ export default function ReleaseDetailsPanel({
             >
               <option value="RELEASED">Released (live)</option>
               <option value="SCHEDULED">Scheduled (Coming Soon)</option>
-              <option value="DRAFT">Draft (hidden)</option>
             </select>
             <p className="mt-1 text-xs text-gray-500">
               {value.status === "SCHEDULED"
                 ? "Shows in “Coming Soon” until the release date, then auto-publishes."
-                : value.status === "DRAFT"
-                  ? "Hidden from the public site while you work on it."
-                  : "Live on the site (subject to the release date)."}
+                : "Live on the site (subject to the release date)."}{" "}
+              Not ready? Use <span className="text-gray-400">“Save as draft”</span> to keep it
+              hidden while you finish it.
             </p>
           </div>
           {value.status === "SCHEDULED" ? (

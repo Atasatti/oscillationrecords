@@ -62,13 +62,19 @@ export default function ReleaseEditor({
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
-    // New releases default to DRAFT, but the admin can pick any status — a live
-    // release just stays hidden until its tracklist is added on the next step.
-    // An explicit initialStatus (e.g. SCHEDULED from Coming Soon) still wins.
-    base.status = mode === "create" ? initialStatus ?? "DRAFT" : "DRAFT";
+    // The status dropdown is the live TARGET only (Released / Scheduled) — Draft
+    // is the implicit "not published yet" state, set via Next / "Save as draft",
+    // never picked from the dropdown. Default the target to Released (or an
+    // explicit initialStatus, e.g. SCHEDULED from the Coming Soon page).
+    base.status =
+      initialStatus === "SCHEDULED" || initialStatus === "RELEASED" ? initialStatus : "RELEASED";
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });
+  // Whether the release is currently an unpublished draft (new releases are, and
+  // existing ones whose stored status is DRAFT). Drives the primary button label
+  // (Publish vs Save) — the dropdown no longer carries the draft state.
+  const [isDraft, setIsDraft] = useState(mode === "create");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -135,11 +141,14 @@ export default function ReleaseEditor({
         initialFeatureTextRef.current = featureLine;
         hadLinkedFeatureArtistsRef.current =
           (data.featureArtistIds || []).length > 0;
+        // A stored DRAFT has no live target yet — default the dropdown to Released
+        // (the admin picks Released/Scheduled when they publish). isDraft tracks
+        // the real stored state for the button labels.
+        setIsDraft(data.status === "DRAFT");
         setForm({
           name: data.name || "",
           description: data.description || "",
-          status:
-            (data.status as ReleaseDetailsValue["status"]) || "RELEASED",
+          status: data.status === "SCHEDULED" ? "SCHEDULED" : "RELEASED",
           preSaveUrl: data.preSaveUrl || "",
           releaseDate: data.releaseDate
             ? String(data.releaseDate).slice(0, 10)
@@ -370,15 +379,11 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        // Every new release continues to the editor to add its tracklist — a live
-        // release only appears publicly once it has tracks. (Cancel → "Save as
-        // draft" passes redirectTo to leave for the list instead.)
+        // New releases are created as drafts and continue to the tracklist. Only a
+        // bail-out "Save as draft" (which passes redirectTo to leave for the list)
+        // shows the plain "Draft saved" message.
         toast.success(
-          status === "DRAFT"
-            ? "Draft saved"
-            : status === "SCHEDULED"
-              ? "Release created — add the tracklist to finish."
-              : "Release created — add at least one track to make it live."
+          redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
         else router.replace(`/admin/catalog/releases/${created.id}/tracks`);
@@ -422,12 +427,19 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  // Create always advances to the tracklist next — whatever status the admin
-  // picks (Draft / Scheduled / Released) — so the button reads "Next". The chosen
-  // status takes effect once tracks are added (a live release stays hidden until
-  // then). Editing shows Save / Save draft; save-or-discard lives on Cancel.
-  const isNext = mode === "create";
-  const saveLabel = isNext ? "Next" : form.status === "DRAFT" ? "Save draft" : "Save";
+  // Create always advances to the tracklist next, saving the release as a draft
+  // — so the button reads "Next" and publishing happens later. In edit mode the
+  // primary button publishes to the chosen target (Publish / Schedule) when the
+  // release is still a draft, or just "Save changes" when it's already live; a
+  // separate "Save as draft" keeps/sets the draft state.
+  const isCreate = mode === "create";
+  const primaryLabel = isCreate
+    ? "Next"
+    : isDraft
+      ? form.status === "SCHEDULED"
+        ? "Schedule release"
+        : "Publish release"
+      : "Save changes";
 
   // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
   // a pristine create form) keep the lighter confirmDiscard / direct navigation.
@@ -567,10 +579,10 @@ export default function ReleaseEditor({
           </p>
         )}
 
-        <div className="mt-8 flex gap-4">
+        <div className="mt-8 flex flex-wrap gap-4">
           <Button
             type="button"
-            onClick={() => handleSave()}
+            onClick={() => (isCreate ? handleSave({ status: "DRAFT" }) : handleSave())}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
@@ -579,23 +591,36 @@ export default function ReleaseEditor({
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving…
               </>
-            ) : isNext ? (
+            ) : isCreate ? (
               <>
-                {saveLabel}
+                {primaryLabel}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </>
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {saveLabel}
+                {primaryLabel}
               </>
             )}
           </Button>
+          {/* Draft is set via this action, not the status dropdown. */}
+          {!isCreate ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSave({ status: "DRAFT" })}
+              disabled={saving || uploadingImage || artists.length === 0}
+              className="border-white/10 text-gray-300"
+              title="Keep this release hidden as a draft (no validation on incomplete fields)"
+            >
+              Save as draft
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             onClick={requestLeave}
-            className="border-white/10 text-gray-300"
+            className="text-gray-300"
           >
             Cancel
           </Button>
