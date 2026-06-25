@@ -34,12 +34,16 @@ export default function CollapsibleCard({
   const divider = tone === "warning" ? "border-amber-500/20" : "border-border";
 
   return (
-    <section className={`overflow-hidden rounded-xl border ${shell}`}>
+    // Clip to the rounded corners only while COLLAPSED. When open, allow overflow
+    // so an absolutely-positioned popover inside the body (e.g. the genre Browse
+    // dropdown) can escape the card instead of being cut off. The header keeps
+    // rounded top corners so its hover background stays within the border.
+    <section className={`rounded-xl border ${open ? "" : "overflow-hidden"} ${shell}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-white/[0.02]"
+        className="flex w-full items-center gap-3 rounded-t-xl px-5 py-4 text-left transition-colors hover:bg-white/[0.02]"
       >
         <ChevronRight
           className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
