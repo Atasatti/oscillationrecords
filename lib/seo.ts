@@ -43,6 +43,14 @@ export const LABEL = {
   // with city/genre once the TODOs above are confirmed.
   description:
     "Oscillation Records is an independent UK record label (company no. 15579381) built on a simple principle: put artists first.",
+  // schema.org disambiguatingDescription — the property purpose-built for telling
+  // similarly-named entities apart. Names the entities we're confused with so a
+  // search/AI engine has an explicit "this is NOT that" signal.
+  disambiguatingDescription:
+    "Oscillation Records is a UK-registered record label (company no. 15579381). " +
+    "It is a distinct entity and is NOT the same as, nor affiliated with, “The Oscillation” " +
+    "(the psych-rock project by Demian Castellanos), nor any other act or label using the " +
+    "name “Oscillation” or “Oscillations”.",
 } as const;
 
 export function absoluteUrl(path: string): string {
@@ -275,6 +283,7 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
     name: SITE_NAME,
     legalName: LABEL.legalName,
     description: LABEL.description,
+    disambiguatingDescription: LABEL.disambiguatingDescription,
     url: SITE_URL,
     logo: absoluteUrl("/logo-icon.svg"),
   };
