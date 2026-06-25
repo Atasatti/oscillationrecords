@@ -29,7 +29,23 @@ export async function GET(request: NextRequest) {
       await Promise.all([
         prisma.playEvent.findMany({
           where: { createdAt: { gte: startDate } },
-          include: { user: { include: { profile: true } } },
+          // Lean scalar select — NOT include:{user:{profile}}. Joining a user +
+          // profile object onto every event was the dashboard's main cost; we
+          // resolve the few logged-in profiles/users in bulk maps below instead.
+          select: {
+            id: true,
+            userId: true,
+            visitorId: true,
+            sessionId: true,
+            contentType: true,
+            contentId: true,
+            contentName: true,
+            artistName: true,
+            completed: true,
+            country: true,
+            city: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: "desc" },
         }),
         prisma.playEvent.findMany({
@@ -59,6 +75,29 @@ export async function GET(request: NextRequest) {
           select: { sessionId: true },
         }),
       ]);
+
+    // Resolve the logged-in identities once, in bulk, rather than joining a user
+    // + profile onto every event row. The id set is the number of distinct
+    // logged-in members in the window (small), not the event count.
+    const memberIds = Array.from(
+      new Set(events.map((e) => e.userId).filter((v): v is string => Boolean(v)))
+    );
+    const [profileRows, userRows] = await Promise.all([
+      memberIds.length
+        ? prisma.userProfile.findMany({
+            where: { userId: { in: memberIds } },
+            select: { userId: true, gender: true, ageRange: true, country: true, city: true },
+          })
+        : Promise.resolve([]),
+      memberIds.length
+        ? prisma.user.findMany({
+            where: { id: { in: memberIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const profileMap = new Map(profileRows.map((p) => [p.userId, p]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
 
     // Identity for an event: logged-in userId, else anonymous visitor id.
     const idOf = (e: { userId: string | null; visitorId: string | null }) =>
@@ -190,7 +229,7 @@ export async function GET(request: NextRequest) {
     const countryMap = new Map<string, number>();
     const cityMap = new Map<string, number>();
     events.forEach((e) => {
-      const profile = e.user?.profile ?? null;
+      const profile = e.userId ? profileMap.get(e.userId) ?? null : null;
       const g = (profile?.gender as GenderKey) || "unknown";
       gender[g in gender ? g : "unknown"] += 1;
       const a = (profile?.ageRange as AgeKey) || "unknown";
@@ -283,16 +322,19 @@ export async function GET(request: NextRequest) {
       campaigns,
       demographics: { gender, ageRange },
       geography: { topCountries: topList(countryMap, 50), topCities: topList(cityMap, 50) },
-      recentPlays: events.slice(0, 60).map((e) => ({
+      recentPlays: events.slice(0, 60).map((e) => {
+        const u = e.userId ? userMap.get(e.userId) : null;
+        return {
         id: e.id,
-        userName: e.user?.name || e.user?.email || "Anonymous visitor",
+        userName: u?.name || u?.email || "Anonymous visitor",
         anonymous: !e.userId,
         contentType: e.contentType,
         contentName: e.contentName,
         artistName: e.artistName,
         completed: e.completed,
         createdAt: e.createdAt,
-      })),
+        };
+      }),
     });
   } catch (error) {
     console.error("Error fetching dashboard data:", error);
