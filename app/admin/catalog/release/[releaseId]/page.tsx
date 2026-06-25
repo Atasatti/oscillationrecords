@@ -52,6 +52,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useToast } from "@/components/local-ui/Toast";
+import { unlockBody } from "@/lib/unlock-body";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -340,9 +341,10 @@ export default function AdminReleaseDetail() {
       if (res.ok) {
         setDeleteDialogOpen(false);
         toast.success("Release deleted");
-        // Back to the releases list (this release no longer exists). AdminShell
-        // clears any lingering Radix pointer-events lock on the route change, so
-        // the admin doesn't freeze when the dialog unmounts mid-navigation.
+        // Clear any leftover Radix body pointer-events lock before leaving, then
+        // go back to the list. AdminShell also unlocks on the route change — this
+        // is belt-and-suspenders so the admin can never freeze post-delete.
+        unlockBody();
         router.push("/admin/catalog/releases");
       } else {
         const err = await res.json();

@@ -53,6 +53,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import type { ReleaseCardDTO } from "@/lib/catalog-data";
 import type { ReleaseSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 
 const PAGE_SIZE = 25;
@@ -281,6 +282,10 @@ function ReleasesPageInner({
       if (!res.ok) throw new Error();
       toast.success("Release deleted");
       setDeleteTarget(null);
+      // The dialog was opened from a row dropdown; closing it during the list
+      // reload can leave Radix's body pointer-events lock behind (no route change
+      // to trigger AdminShell's unlock), freezing the page. Clear it.
+      unlockBody();
       clearCached();
       load();
       loadCounts();
@@ -309,6 +314,7 @@ function ReleasesPageInner({
       }
       setBulkDeleteOpen(false);
       setSelected(new Set());
+      unlockBody(); // clear any leftover Radix body lock (see confirmDelete)
       clearCached();
       load();
       loadCounts();
