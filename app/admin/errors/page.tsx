@@ -325,8 +325,8 @@ export default function ErrorsPage() {
                       <td className="px-2 py-2.5 text-muted-foreground">
                         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
+                      <td className="min-w-0 px-3 py-3">
+                        <div className="flex min-w-0 items-center gap-2">
                           {isLive ? (
                             <span
                               className={`inline-block h-2 w-2 shrink-0 rounded-full ${
@@ -338,7 +338,7 @@ export default function ErrorsPage() {
                             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
                           )}
                           <span
-                            className={`truncate ${isLive ? "text-foreground" : "text-muted-foreground"}`}
+                            className={`min-w-0 truncate ${isLive ? "text-foreground" : "text-muted-foreground"}`}
                             title={row.message}
                           >
                             {row.message}
@@ -350,7 +350,7 @@ export default function ErrorsPage() {
                           ) : null}
                         </div>
                         {row.path ? (
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          <span className="mt-1 block truncate text-xs text-muted-foreground">
                             {row.method ? `${row.method} ` : ""}
                             {row.path}
                           </span>
