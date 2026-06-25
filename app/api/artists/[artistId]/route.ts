@@ -27,7 +27,11 @@ export async function GET(
     // the editor's live discoverability/Knowledge-Panel score).
     const [artist, releaseCount] = await Promise.all([
       prisma.artist.findUnique({ where: { id: artistId } }),
-      prisma.release.count({ where: { primaryArtistIds: { has: artistId } } }),
+      prisma.release.count({
+        where: {
+          OR: [{ primaryArtistIds: { has: artistId } }, { featureArtistIds: { has: artistId } }],
+        },
+      }),
     ]);
 
     if (!artist) {

@@ -210,8 +210,13 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
 
   const [releases, plays] = await Promise.all([
     prisma.release.findMany({
-      where: { primaryArtistIds: { hasSome: ids } },
-      select: { primaryArtistIds: true, releaseDate: true },
+      // Count releases where the artist is a PRIMARY or FEATURE artist — matching
+      // the public artist page (getArtistDetail), so a feature-only credit (e.g.
+      // an MC featured on a track) still shows in the roster's release count.
+      where: {
+        OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
+      },
+      select: { primaryArtistIds: true, featureArtistIds: true, releaseDate: true },
     }),
     prisma.playEvent.groupBy({
       by: ["artistId"],
@@ -224,8 +229,13 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   const countById = new Map<string, number>();
   const lastById = new Map<string, Date>();
   for (const rel of releases) {
-    for (const aid of rel.primaryArtistIds) {
-      if (!idSet.has(aid)) continue;
+    // Dedupe per release so an artist credited as both primary and feature on the
+    // same release still counts once.
+    const onRelease = new Set<string>();
+    for (const aid of [...rel.primaryArtistIds, ...rel.featureArtistIds]) {
+      if (idSet.has(aid)) onRelease.add(aid);
+    }
+    for (const aid of onRelease) {
       countById.set(aid, (countById.get(aid) ?? 0) + 1);
       if (rel.releaseDate) {
         const prev = lastById.get(aid);
