@@ -243,9 +243,27 @@ export default function WikidataPanel({
 
             {showDraft ? (
               <div className="mt-2 flex flex-col gap-2">
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[0.7rem] leading-relaxed text-amber-200">
+                  <p className="font-medium">What to do in QuickStatements:</p>
+                  <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                    <li>
+                      <strong>Log in</strong> (top-right) with your Wikimedia / Wikipedia
+                      account — first time, click <em>Allow</em> to authorize it.
+                    </li>
+                    <li>
+                      Open the pre-filled link below — it drops the commands into a{" "}
+                      <strong>New batch</strong>. (Or click <em>New batch</em>, choose{" "}
+                      <em>Version 1</em>, and paste the copied text.)
+                    </li>
+                    <li>
+                      <strong>Review every line</strong>, then click <em>Import</em> →{" "}
+                      <em>Run</em>.
+                    </li>
+                  </ol>
+                </div>
                 <p className="text-[0.7rem] leading-relaxed text-muted-foreground">
-                  Review every line in QuickStatements before submitting. In particular: the
-                  draft sets <span className="font-mono">instance of → human</span> — change it to{" "}
+                  Before running: the draft sets{" "}
+                  <span className="font-mono">instance of → human</span> — change it to{" "}
                   <span className="font-mono">musical group (Q215380)</span> if this is a band.
                   Keep it factual; remove anything you can&apos;t reference.
                 </p>

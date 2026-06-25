@@ -188,7 +188,17 @@ export function buildArtistQuickStatements(artist: ArtistForWikidata): string {
   return lines.join("\n");
 }
 
-/** A pre-filled QuickStatements URL the admin opens, reviews, and submits. */
+/**
+ * A pre-filled QuickStatements URL the admin opens, reviews, and submits.
+ *
+ * The QuickStatements URL loader does NOT read literal tabs/newlines — its `v1`
+ * parameter uses `|` between fields and `||` between commands. (The copy-paste
+ * version keeps tabs/newlines, which is what the on-page text box expects.)
+ */
 export function quickStatementsUrl(commands: string): string {
-  return `https://quickstatements.toolforge.org/#/v1=${encodeURIComponent(commands)}`;
+  const compact = commands
+    .split("\n")
+    .map((line) => line.split("\t").join("|"))
+    .join("||");
+  return `https://quickstatements.toolforge.org/#/v1=${encodeURIComponent(compact)}`;
 }
