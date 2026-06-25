@@ -44,6 +44,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import type { AdminPressRow } from "@/lib/admin-data";
+import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 
 const PAGE_SIZE = 25;
 
@@ -70,18 +71,29 @@ export default function AdminPressPage() {
   }, [queryInput]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (query) params.set("q", query);
+    const qs = params.toString();
+    const cacheKey = `press?${qs}`;
+    const cached = getCached<{ items: AdminPressRow[]; total: number }>(cacheKey);
+    if (cached) {
+      setItems(cached.items);
+      setTotal(cached.total);
+      setLoading(false);
+      if (isFresh(cacheKey)) return;
+    } else {
+      setLoading(true);
+    }
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
-      if (query) params.set("q", query);
-      const res = await fetch(`/api/press?${params.toString()}`);
+      const res = await fetch(`/api/press?${qs}`);
       if (!res.ok) throw new Error("Failed to load press");
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
+      setCached(cacheKey, { items: data.items, total: data.total });
     } catch (e) {
       console.error(e);
-      toast.error("Failed to load press");
+      if (!cached) toast.error("Failed to load press");
     } finally {
       setLoading(false);
     }
@@ -101,6 +113,7 @@ export default function AdminPressPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
+      clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
       toast.error(errMsg);
@@ -115,6 +128,7 @@ export default function AdminPressPage() {
       if (!res.ok) throw new Error();
       toast.success("Press item deleted");
       setDeleteTarget(null);
+      clearCached();
       load();
     } catch {
       toast.error("Failed to delete press item");

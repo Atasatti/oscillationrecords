@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import { Search, X, Download, Trash2, Loader2 } from "lucide-react";
+import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 
 const PAGE_SIZE = 25;
 type Sub = { id: string; email: string; createdAt: string };
@@ -37,20 +38,31 @@ export default function SubscribersPage() {
   }, [queryInput]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (query) params.set("q", query);
+    const qs = params.toString();
+    const cacheKey = `subscribers?${qs}`;
+    const cached = getCached<{ items: Sub[]; total: number }>(cacheKey);
+    if (cached) {
+      setItems(cached.items);
+      setTotal(cached.total);
+      setLoading(false);
+      if (isFresh(cacheKey)) return;
+    } else {
+      setLoading(true);
+    }
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
-      if (query) params.set("q", query);
-      const res = await fetch(`/api/admin/subscribers?${params.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/subscribers?${qs}`, { cache: "no-store" });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
+      setCached(cacheKey, { items: data.items, total: data.total });
       // Clamp back if a delete emptied the current page (avoid a stuck empty table).
       const lastPage = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
       if (page > lastPage) setPage(lastPage);
     } catch {
-      toast.error("Failed to load subscribers");
+      if (!cached) toast.error("Failed to load subscribers");
     } finally {
       setLoading(false);
     }
@@ -68,6 +80,7 @@ export default function SubscribersPage() {
       if (!res.ok) throw new Error();
       toast.success("Subscriber removed");
       setDeleteTarget(null);
+      clearCached();
       load();
     } catch {
       toast.error("Failed to remove subscriber");

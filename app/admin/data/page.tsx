@@ -4,6 +4,7 @@ import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { getCached, setCached } from "@/lib/admin-cache";
 
 interface RawData {
   now: string;
@@ -114,24 +115,33 @@ export default function RawDataPage() {
   }, []);
 
   const load = useCallback(async () => {
+    const query = focus
+      ? "?" +
+        new URLSearchParams(
+          focus.linkType
+            ? { metric: "clicks", linkType: focus.linkType }
+            : focus.contextId
+              ? { metric: "clicks", contextId: focus.contextId }
+              : { metric: focus.metric, date: focus.date ?? "" }
+        ).toString()
+      : "";
+    // Live data: show the last snapshot instantly on revisit (no spinner), then
+    // always revalidate — the page also self-refreshes on an interval.
+    const cacheKey = `raw${query}`;
+    const cached = getCached<RawData>(cacheKey);
+    if (cached) {
+      setData(cached);
+      setError(false);
+      setLoading(false);
+    }
     try {
-      const query = focus
-        ? "?" +
-          new URLSearchParams(
-            focus.linkType
-              ? { metric: "clicks", linkType: focus.linkType }
-              : focus.contextId
-                ? { metric: "clicks", contextId: focus.contextId }
-                : { metric: focus.metric, date: focus.date ?? "" }
-          ).toString()
-        : "";
       const res = await fetch(`/api/analytics/raw${query}`, { cache: "no-store" });
       if (!res.ok) throw new Error();
       const json = await res.json();
       // Defensive: guarantee every array/object the UI reads exists, so a partial
       // or unexpected response can never white-screen the page (`.length`/`.map`
       // on undefined — this surfaced in the error log as a /admin/data TypeError).
-      setData({
+      const next: RawData = {
         now: json.now,
         focus: json.focus ?? null,
         counts: json.counts ?? {},
@@ -141,10 +151,12 @@ export default function RawDataPage() {
         recentClicks: json.recentClicks ?? [],
         recentSignups: json.recentSignups ?? [],
         recentSubscribers: json.recentSubscribers ?? [],
-      });
+      };
+      setData(next);
+      setCached(cacheKey, next);
       setError(false);
     } catch {
-      setError(true);
+      if (!cached) setError(true);
     } finally {
       setLoading(false);
     }

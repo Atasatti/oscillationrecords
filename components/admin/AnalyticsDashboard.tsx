@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { getCached, setCached, isFresh } from "@/lib/admin-cache";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -334,7 +335,18 @@ export default function AnalyticsDashboard() {
   const reqRef = useRef(0);
   const fetchAll = useCallback(async () => {
     const myReq = ++reqRef.current;
-    setIsLoading(true);
+    // Show the last-loaded dashboard instantly on revisit; only spin on a cold
+    // load. Within the TTL we skip the (heavy) refetch entirely.
+    const cacheKey = `dashboard?days=${days}`;
+    const cached = getCached<{ data: DashboardData; ctr: LinkClickData | null }>(cacheKey);
+    if (cached) {
+      setData(cached.data);
+      if (cached.ctr) setCtr(cached.ctr);
+      setIsLoading(false);
+      if (isFresh(cacheKey)) return;
+    } else {
+      setIsLoading(true);
+    }
     try {
       const [d, c] = await Promise.all([
         fetch(`/api/analytics/dashboard?days=${days}`, { cache: "no-store" }),
@@ -347,8 +359,9 @@ export default function AnalyticsDashboard() {
       setData(dj);
       if (cj) setCtr(cj);
       setError(null);
+      setCached(cacheKey, { data: dj, ctr: cj });
     } catch {
-      if (myReq === reqRef.current) setError("Failed to fetch dashboard data");
+      if (myReq === reqRef.current && !cached) setError("Failed to fetch dashboard data");
     } finally {
       if (myReq === reqRef.current) setIsLoading(false);
     }
