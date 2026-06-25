@@ -50,6 +50,12 @@ function computeFingerprint(i: RecordErrorInput, message: string): string {
 }
 
 export async function recordError(input: RecordErrorInput): Promise<void> {
+  // Only record in real deployments. Local dev's `.env` points at the PRODUCTION
+  // database, so without this guard every dev server (and the lead dev's) writes
+  // its development-only noise — HMR ChunkLoadErrors, Turbopack build-manifest
+  // ENOENT, transient module-load races, errors from half-saved edits — straight
+  // into the shared live error log. Production (incl. Vercel preview) still logs.
+  if (process.env.NODE_ENV !== "production") return;
   try {
     const message = String(input.message || "Unknown error").slice(0, 2000);
     const fingerprint = computeFingerprint(input, message);
