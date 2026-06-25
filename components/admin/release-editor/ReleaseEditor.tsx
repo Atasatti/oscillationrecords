@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
+import { ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
@@ -457,24 +457,17 @@ export default function ReleaseEditor({
   return (
     <div className="mx-auto max-w-6xl xl:max-w-7xl">
       <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <Button
-            variant="ghost"
-            onClick={requestLeave}
-            className="-ml-2 text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to releases
-          </Button>
+        {/* Navigation back to the list/edit lives in the breadcrumb above — no
+            duplicate back button here. This row keeps only the "View release"
+            preview action. */}
+        <div className="mb-4 flex items-center justify-end gap-2">
           {mode === "edit" && releaseId ? (
             <Button
               type="button"
               variant="outline"
               title="View the completed release (tracklist, streaming links and all)"
               onClick={() => {
-                // ?from=edit so the view page's back button returns here (to the
-                // edit section above the artwork) instead of saying "Back to catalog".
-                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}?from=edit`);
+                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
               }}
             >
               <Eye className="w-4 h-4 mr-2" />

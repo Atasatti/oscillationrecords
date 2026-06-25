@@ -20,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft,
   Download,
   FileText,
   GripVertical,
@@ -238,13 +237,6 @@ export default function AdminReleaseDetail() {
   const [allArtists, setAllArtists] = useState<ArtistSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // True when opened via the editor's "View release" button (?from=edit) — the
-  // back button then returns to the editor instead of the catalog. Read on the
-  // client (window) to avoid a Suspense boundary for useSearchParams.
-  const [fromEdit, setFromEdit] = useState(false);
-  useEffect(() => {
-    setFromEdit(new URLSearchParams(window.location.search).get("from") === "edit");
-  }, []);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusWorking, setStatusWorking] = useState(false);
   const [deleteTrackDialogOpen, setDeleteTrackDialogOpen] = useState(false);
@@ -508,18 +500,8 @@ export default function AdminReleaseDetail() {
   return (
     <div className="text-white">
       <div>
-        <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => (fromEdit ? router.push(editorHref) : router.back())}
-            className="-ml-2 text-gray-400 hover:text-white"
-            title={fromEdit ? "Return to the edit page" : "Back to the releases catalog"}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {fromEdit ? "Back to edit" : "Back to catalog"}
-          </Button>
-        </div>
-
+        {/* No back button — the breadcrumb (Admin › Releases › Edit › View) is the
+            way back, so there's a single, consistent navigation control. */}
         <div className="mb-10 max-w-6xl xl:max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 xl:gap-12 items-start">
             <div className="w-full max-w-[min(100%,320px)] mx-auto lg:mx-0 shrink-0">

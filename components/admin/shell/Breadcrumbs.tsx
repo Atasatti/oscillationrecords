@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import React from "react";
+import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
 // Friendly labels for known admin path segments. Mongo ObjectId segments (24 hex
 // chars) are shown generically since resolving names needs data we don't have here.
@@ -46,6 +47,13 @@ type Crumb = { label: string; href: string; isLast: boolean };
 
 export default function Breadcrumbs() {
   const pathname = usePathname();
+  // Breadcrumbs are the primary way back out of editors, so they must honour the
+  // unsaved-changes guard the same way the sidebar does — a plain <Link> would
+  // otherwise silently discard edits when navigating away.
+  const guard = useUnsavedChangesContext();
+  const onLinkClick = (e: React.MouseEvent) => {
+    if (guard && !guard.confirmNavigation()) e.preventDefault();
+  };
   // "catalog" is a routing group, not a place users navigate to (except when it
   // IS the page — the Homepage hub). Drop it from the trail unless it's the leaf,
   // so /admin/catalog/releases reads "Admin › Releases", not "Admin › Homepage › …".
@@ -92,13 +100,21 @@ export default function Breadcrumbs() {
         return true;
       });
 
-    crumbs = kept.map(({ seg, i }, idx) => ({
-      label: labelFor(seg),
+    crumbs = kept.map(({ seg, i }, idx) => {
+      let label = labelFor(seg);
       // Rebuild hrefs from the original path so dropped segments stay in the URL,
       // except for singular detail segments that have no index page (→ list route).
-      href: SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/"),
-      isLast: idx === kept.length - 1,
-    }));
+      let href = SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/");
+      // An id directly under the plural list (e.g. /admin/catalog/releases/<id>/tracks):
+      // the bare-id route only redirects to the editor, so label it "Edit" and link
+      // straight there — clearer than "Details", and consistent with the editor
+      // being where you return for that release.
+      if (isId(seg) && (raw[i - 1] === "releases" || raw[i - 1] === "artists")) {
+        label = "Edit";
+        href = "/" + raw.slice(0, i + 1).join("/") + "/edit";
+      }
+      return { label, href, isLast: idx === kept.length - 1 };
+    });
   }
 
   return (
@@ -114,6 +130,7 @@ export default function Breadcrumbs() {
               <>
                 <Link
                   href={c.href}
+                  onClick={onLinkClick}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {c.label}
