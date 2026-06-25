@@ -109,7 +109,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
     // Perspective wrapper — does not transform itself, just sets the 3D stage
     <div
       style={{ perspective: "800px" }}
-      className="w-72 max-w-full h-84 cursor-pointer"
+      className="h-84 w-full cursor-pointer"
       onClick={onClick}
     >
       <motion.div

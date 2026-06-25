@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
+import { getCached, setCached } from "@/lib/admin-cache";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -147,14 +148,22 @@ export default function TasksPage() {
 
   // ---- data ----
   const loadTasks = useCallback(async () => {
-    setLoading(true);
+    // Live data: paint cached tasks instantly on revisit, always revalidate.
+    const cached = getCached<Task[]>("tasks-list");
+    if (cached) {
+      setTasks(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const res = await fetch("/api/outreach/tasks?isTemplate=false");
       if (!res.ok) throw new Error();
       const data = await res.json();
       setTasks(data.items);
+      setCached("tasks-list", data.items);
     } catch {
-      toast.error("Failed to load tasks");
+      if (!cached) toast.error("Failed to load tasks");
     } finally {
       setLoading(false);
     }

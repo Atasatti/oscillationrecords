@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Save, Loader2, Database, Eye } from "lucide-react";
+import { ArrowRight, Save, Loader2, Database, Eye, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 import {
@@ -30,6 +30,7 @@ import ReleaseLinkImport, {
   type ReleaseLinkKey,
   type SpotifyAlbumPick,
 } from "./ReleaseLinkImport";
+import ReleaseScorePanel from "./ReleaseScorePanel";
 
 export type ReleaseKind = "SINGLE" | "EP" | "ALBUM";
 
@@ -59,16 +60,24 @@ export default function ReleaseEditor({
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loadedKind, setLoadedKind] = useState<ReleaseKind | null>(null);
+  // Track count for the live SEO score (the tracklist lives on its own page).
+  const [trackCount, setTrackCount] = useState(0);
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
-    // New releases default to DRAFT, but the admin can pick any status — a live
-    // release just stays hidden until its tracklist is added on the next step.
-    // An explicit initialStatus (e.g. SCHEDULED from Coming Soon) still wins.
-    base.status = mode === "create" ? initialStatus ?? "DRAFT" : "DRAFT";
+    // The status dropdown is the live TARGET only (Released / Scheduled) — Draft
+    // is the implicit "not published yet" state, set via Next / "Save as draft",
+    // never picked from the dropdown. Default the target to Released (or an
+    // explicit initialStatus, e.g. SCHEDULED from the Coming Soon page).
+    base.status =
+      initialStatus === "SCHEDULED" || initialStatus === "RELEASED" ? initialStatus : "RELEASED";
     if (initialArtistId) base.primaryArtistIds = [initialArtistId];
     return base;
   });
+  // Whether the release is currently an unpublished draft (new releases are, and
+  // existing ones whose stored status is DRAFT). Drives the primary button label
+  // (Publish vs Save) — the dropdown no longer carries the draft state.
+  const [isDraft, setIsDraft] = useState(mode === "create");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -84,6 +93,7 @@ export default function ReleaseEditor({
   // would convert linked artists to plain names) when the field actually changes.
   const initialFeatureTextRef = useRef<string>("");
   const hadLinkedFeatureArtistsRef = useRef<boolean>(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const patchForm = (patch: Partial<ReleaseDetailsValue>) => {
     setDirty(true);
@@ -135,11 +145,14 @@ export default function ReleaseEditor({
         initialFeatureTextRef.current = featureLine;
         hadLinkedFeatureArtistsRef.current =
           (data.featureArtistIds || []).length > 0;
+        // A stored DRAFT has no live target yet — default the dropdown to Released
+        // (the admin picks Released/Scheduled when they publish). isDraft tracks
+        // the real stored state for the button labels.
+        setIsDraft(data.status === "DRAFT");
         setForm({
           name: data.name || "",
           description: data.description || "",
-          status:
-            (data.status as ReleaseDetailsValue["status"]) || "RELEASED",
+          status: data.status === "SCHEDULED" ? "SCHEDULED" : "RELEASED",
           preSaveUrl: data.preSaveUrl || "",
           releaseDate: data.releaseDate
             ? String(data.releaseDate).slice(0, 10)
@@ -162,6 +175,7 @@ export default function ReleaseEditor({
         });
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
+        setTrackCount(Array.isArray(data.tracks) ? data.tracks.length : 0);
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -193,6 +207,11 @@ export default function ReleaseEditor({
     });
     setCoverUrl(null);
     setCoverFile(null);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onPickImage(file);
   };
 
   useEffect(() => {
@@ -261,26 +280,33 @@ export default function ReleaseEditor({
     status: ReleaseDetailsValue["status"] = form.status
   ): ReleaseDetailsErrors | null => {
     const fieldErrors: ReleaseDetailsErrors = {};
+    // A name is the one thing every release needs (it identifies the draft in the
+    // list). Everything else is required only when the release is going live or
+    // is scheduled — a DRAFT saves incomplete work to finish later.
     if (!form.name.trim()) fieldErrors.name = "Please enter a release name";
 
+    if (status === "DRAFT") {
+      return Object.keys(fieldErrors).length ? fieldErrors : null;
+    }
+
+    // Live (RELEASED) / Coming Soon (SCHEDULED): require the full details.
     if (!coverFile && !coverUrl) {
       fieldErrors.coverImage = "Please add a cover image";
+    }
+    if (form.primaryArtistIds.length === 0) {
+      fieldErrors.primaryArtists = "Select at least one primary artist";
     }
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    // RELEASED/DRAFT may be backdated — e.g. adding an older catalogue release,
-    // or re-adding one that was deleted. Only SCHEDULED (Coming Soon) is future-only.
+    // RELEASED may be backdated (adding an older catalogue release); only
+    // SCHEDULED (Coming Soon) is future-only.
     if (status === "SCHEDULED") {
-      // Coming Soon must be in the future, never a past (or today) date.
       if (!form.releaseDate) {
         fieldErrors.releaseDate = "Scheduled releases need a future release date";
       } else if (form.releaseDate <= todayStr) {
         fieldErrors.releaseDate = "Scheduled releases must use a future date";
       }
-    }
-    if (form.primaryArtistIds.length === 0) {
-      fieldErrors.primaryArtists = "Select at least one primary artist";
     }
     return Object.keys(fieldErrors).length ? fieldErrors : null;
   };
@@ -363,15 +389,11 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        // Every new release continues to the editor to add its tracklist — a live
-        // release only appears publicly once it has tracks. (Cancel → "Save as
-        // draft" passes redirectTo to leave for the list instead.)
+        // New releases are created as drafts and continue to the tracklist. Only a
+        // bail-out "Save as draft" (which passes redirectTo to leave for the list)
+        // shows the plain "Draft saved" message.
         toast.success(
-          status === "DRAFT"
-            ? "Draft saved"
-            : status === "SCHEDULED"
-              ? "Release created — add the tracklist to finish."
-              : "Release created — add at least one track to make it live."
+          redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
         else router.replace(`/admin/catalog/releases/${created.id}/tracks`);
@@ -415,21 +437,31 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  // Create always advances to the tracklist next — whatever status the admin
-  // picks (Draft / Scheduled / Released) — so the button reads "Next". The chosen
-  // status takes effect once tracks are added (a live release stays hidden until
-  // then). Editing shows Save / Save draft; save-or-discard lives on Cancel.
-  const isNext = mode === "create";
-  const saveLabel = isNext ? "Next" : form.status === "DRAFT" ? "Save draft" : "Save";
+  // Create always advances to the tracklist next, saving the release as a draft
+  // — so the button reads "Next" and publishing happens later. In edit mode the
+  // primary button publishes to the chosen target (Publish / Schedule) when the
+  // release is still a draft, or just "Save changes" when it's already live; a
+  // separate "Save as draft" keeps/sets the draft state.
+  const isCreate = mode === "create";
+  const primaryLabel = isCreate
+    ? "Next"
+    : isDraft
+      ? form.status === "SCHEDULED"
+        ? "Schedule release"
+        : "Publish release"
+      : "Save changes";
 
-  // Leaving the create form: prompt to save-as-draft or discard. Edit mode (and
-  // a pristine create form) keep the lighter confirmDiscard / direct navigation.
+  // Leaving with unsaved changes — in BOTH create and edit — opens the
+  // Save-as-draft / Discard / Continue-editing dialog. (Previously edit mode fell
+  // through to a discard-only confirm, so changing the status dropdown then
+  // hitting Cancel could lose the edits with no way to keep them as a draft.)
+  // Nothing dirty → just leave.
   const requestLeave = () => {
-    if (mode === "create" && dirty) {
+    if (dirty) {
       setLeaveOpen(true);
       return;
     }
-    if (confirmDiscard()) router.push("/admin/catalog/releases");
+    router.push("/admin/catalog/releases");
   };
 
   const discardAndLeave = () => {
@@ -454,37 +486,47 @@ export default function ReleaseEditor({
     );
   }
 
+  // Live signals for the release Discoverability (SEO) panel — recomputed each
+  // render so the score updates as fields change.
+  const releaseSignals = {
+    hasCover: Boolean(imagePreview),
+    descLength: form.description.trim().length,
+    genreCount: [form.primaryGenre, form.secondaryGenre].filter((g) => g.trim()).length,
+    linkCount: [
+      form.spotifyLink,
+      form.appleMusicLink,
+      form.tidalLink,
+      form.amazonMusicLink,
+      form.youtubeLink,
+      form.soundcloudLink,
+    ].filter((u) => u.trim()).length,
+    trackCount,
+    hasReleaseDate: Boolean(form.releaseDate.trim()),
+    hasPrimaryArtist: form.primaryArtistIds.length > 0,
+  };
+
   return (
-    <div className="mx-auto max-w-6xl xl:max-w-7xl">
+    <div>
       <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <Button
-            variant="ghost"
-            onClick={requestLeave}
-            className="-ml-2 text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to releases
-          </Button>
-          {mode === "edit" && releaseId ? (
-            <Button
-              type="button"
-              variant="outline"
-              title="View the completed release (tracklist, streaming links and all)"
-              onClick={() => {
-                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
-              }}
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View release
-            </Button>
-          ) : null}
-        </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-4xl font-light tracking-tighter">
             {mode === "edit" ? `Edit ${releaseLabel}` : `Create ${releaseLabel}`}
           </h1>
+          {/* All header actions on one row — View release sits with the imports. */}
           <div className="flex flex-wrap gap-2">
+            {mode === "edit" && releaseId ? (
+              <Button
+                type="button"
+                variant="outline"
+                title="View the completed release (tracklist, streaming links and all)"
+                onClick={() => {
+                  if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
+                }}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View release
+              </Button>
+            ) : null}
             <ReleaseLinkImport
               seedName={form.name}
               seedArtist={primaryArtistName}
@@ -527,16 +569,69 @@ export default function ReleaseEditor({
         </p>
       </div>
 
-      <div>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+        {/* Sidebar: live SEO score + cover image, sticky */}
+        <div>
+          <div className="space-y-6 lg:sticky lg:top-6">
+            <ReleaseScorePanel signals={releaseSignals} />
+            <div className="rounded-xl border border-border bg-card p-6">
+              <label className="mb-4 block text-sm font-medium text-muted-foreground">
+                Cover image *
+              </label>
+              <div className="space-y-4">
+                {imagePreview ? (
+                  <div className="group relative mx-auto w-full max-w-[200px]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imagePreview}
+                      alt="Cover"
+                      className="aspect-square w-full rounded-lg border border-border object-cover"
+                    />
+                    <Button
+                      type="button"
+                      onClick={onRemoveImage}
+                      variant="destructive"
+                      size="sm"
+                      className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className={`mx-auto flex aspect-square w-full max-w-[200px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed hover:border-gray-600 ${
+                      errors.coverImage ? "border-red-500/70" : "border-border"
+                    }`}
+                  >
+                    <ImageIcon className="mb-3 h-12 w-12 text-gray-500" />
+                    <p className="text-sm text-muted-foreground">Upload cover</p>
+                  </button>
+                )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+                {errors.coverImage && (
+                  <p className="text-sm text-red-400">{errors.coverImage}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main column */}
+        <div className="min-w-0">
         <ReleaseDetailsPanel
           value={form}
           onChange={patchForm}
           errors={errors}
           artists={artists}
           loadingArtists={loadingArtists}
-          imagePreview={imagePreview}
-          onPickImage={onPickImage}
-          onRemoveImage={onRemoveImage}
         />
 
         {mode === "edit" && releaseId ? (
@@ -544,7 +639,8 @@ export default function ReleaseEditor({
             <div>
               <h3 className="text-lg font-medium text-gray-200">Tracklist</h3>
               <p className="mt-1 text-sm text-gray-400">
-                Add and edit tracks, with audio uploads, on a dedicated page.
+                Add and edit each track — audio, per-track artists, features &amp;
+                credits — on a dedicated page.
               </p>
             </div>
             <Button
@@ -565,10 +661,10 @@ export default function ReleaseEditor({
           </p>
         )}
 
-        <div className="mt-8 flex gap-4">
+        <div className="mt-8 flex flex-wrap gap-4">
           <Button
             type="button"
-            onClick={() => handleSave()}
+            onClick={() => (isCreate ? handleSave({ status: "DRAFT" }) : handleSave())}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
@@ -577,23 +673,36 @@ export default function ReleaseEditor({
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving…
               </>
-            ) : isNext ? (
+            ) : isCreate ? (
               <>
-                {saveLabel}
+                {primaryLabel}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </>
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {saveLabel}
+                {primaryLabel}
               </>
             )}
           </Button>
+          {/* Draft is set via this action, not the status dropdown. */}
+          {!isCreate ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSave({ status: "DRAFT" })}
+              disabled={saving || uploadingImage || artists.length === 0}
+              className="border-white/10 text-gray-300"
+              title="Keep this release hidden as a draft (no validation on incomplete fields)"
+            >
+              Save as draft
+            </Button>
+          ) : null}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             onClick={requestLeave}
-            className="border-white/10 text-gray-300"
+            className="text-gray-300"
           >
             Cancel
           </Button>
@@ -603,6 +712,7 @@ export default function ReleaseEditor({
             This saves the release details. Tracks save automatically as you edit them.
           </p>
         ) : null}
+        </div>
       </div>
 
       <Dialog

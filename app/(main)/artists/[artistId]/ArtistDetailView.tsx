@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -20,8 +20,14 @@ type ArtistDetailViewProps = {
   releases: ReleaseCardDTO[];
 };
 
+// Show this many releases before the "Show all" reveal — two rows of three, to
+// match the Press & Features grid (same columns / count) so the page reads as
+// one consistent layout. Every release still ships in the HTML.
+const INITIAL_RELEASES = 6;
+
 export default function ArtistDetailView({ artist, releases }: ArtistDetailViewProps) {
   const router = useRouter();
+  const [showAllReleases, setShowAllReleases] = useState(false);
 
   const handleSocialClick = (
     url: string | null,
@@ -166,13 +172,20 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
 
           {releases.length > 0 ? (
             <div className="mb-12">
-              <h2 className="text-2xl font-light tracking-tighter mb-6">Releases</h2>
-              <div className="flex gap-5 items-center flex-wrap">
-                {releases.map((rel) => (
+              <h2 className="text-2xl font-light tracking-tighter mb-6">
+                Releases <span className="text-gray-500">({releases.length})</span>
+              </h2>
+              {/* Same 3-column grid + gap as the Press & Features section, so both
+                  sections share one consistent layout and fill the width evenly.
+                  Cards are square (album art) and stretch to the column width. */}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {releases.map((rel, i) => (
                   <div
                     key={rel.id}
                     onClick={() => router.push(`/releases/${slugify(rel.name)}`)}
-                    className="cursor-pointer w-72 h-84"
+                    className={`aspect-square w-full cursor-pointer ${
+                      !showAllReleases && i >= INITIAL_RELEASES ? "hidden" : ""
+                    }`}
                   >
                     <ReleaseCardSm
                       href={`/releases/${slugify(rel.name)}`}
@@ -203,6 +216,18 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   </div>
                 ))}
               </div>
+              {releases.length > INITIAL_RELEASES ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllReleases((v) => !v)}
+                  className="mt-6 rounded-full border border-white/15 px-5 py-2 text-sm text-gray-300 transition-colors hover:border-white/30 hover:text-white"
+                  aria-expanded={showAllReleases}
+                >
+                  {showAllReleases
+                    ? "Show fewer"
+                    : `Show all ${releases.length} releases`}
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="text-center py-20">

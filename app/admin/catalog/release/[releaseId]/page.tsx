@@ -20,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft,
   Download,
   FileText,
   GripVertical,
@@ -53,6 +52,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useToast } from "@/components/local-ui/Toast";
+import { unlockBody } from "@/lib/unlock-body";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -341,9 +341,10 @@ export default function AdminReleaseDetail() {
       if (res.ok) {
         setDeleteDialogOpen(false);
         toast.success("Release deleted");
-        // Back to the releases list (this release no longer exists). AdminShell
-        // clears any lingering Radix pointer-events lock on the route change, so
-        // the admin doesn't freeze when the dialog unmounts mid-navigation.
+        // Clear any leftover Radix body pointer-events lock before leaving, then
+        // go back to the list. AdminShell also unlocks on the route change — this
+        // is belt-and-suspenders so the admin can never freeze post-delete.
+        unlockBody();
         router.push("/admin/catalog/releases");
       } else {
         const err = await res.json();
@@ -501,17 +502,8 @@ export default function AdminReleaseDetail() {
   return (
     <div className="text-white">
       <div>
-        <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            className="-ml-2 text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to catalog
-          </Button>
-        </div>
-
+        {/* No back button — the breadcrumb (Admin › Releases › Edit › View) is the
+            way back, so there's a single, consistent navigation control. */}
         <div className="mb-10 max-w-6xl xl:max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 xl:gap-12 items-start">
             <div className="w-full max-w-[min(100%,320px)] mx-auto lg:mx-0 shrink-0">

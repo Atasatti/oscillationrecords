@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { buildArtistMap, combinedFeatureDisplayNames } from "@/lib/release-format";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
@@ -45,9 +44,10 @@ export default function ReleaseTracksPage() {
   const [release, setRelease] = useState<LoadedRelease | null>(null);
   const [loading, setLoading] = useState(true);
   const [tracksUnsaved, setTracksUnsaved] = useState(false);
-  const { confirmDiscard } = useUnsavedChangesGuard(tracksUnsaved);
-
-  const detailsHref = `/admin/catalog/releases/${releaseId}/edit`;
+  // Registers the unsaved-tracks state so the breadcrumb (the way back to Edit)
+  // prompts before discarding. No in-page back button — the breadcrumb is the
+  // single, consistent navigation control.
+  useUnsavedChangesGuard(tracksUnsaved);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,18 +112,8 @@ export default function ReleaseTracksPage() {
   return (
     <div className="mx-auto max-w-6xl xl:max-w-7xl">
       <div className="mb-8">
-        <div className="mb-4">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (confirmDiscard()) router.push(detailsHref);
-            }}
-            className="-ml-2 text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Release details
-          </Button>
-        </div>
+        {/* No in-page back button — the breadcrumb (Admin › Releases › Edit ›
+            Tracks) is the way back to the editor. */}
         <h1 className="text-4xl font-light tracking-tighter">Tracklist</h1>
         <p className="mt-2 text-gray-400">
           {release.name ? `${release.name} — ` : ""}tracks save automatically as you

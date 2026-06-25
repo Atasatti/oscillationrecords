@@ -55,9 +55,9 @@ const ContactFormSection = () => {
 
   return (
     <div className=" py-24">
-      <p className="font-light text-5xl tracking-tighter">
+      <h1 className="font-light text-5xl tracking-tighter">
         Let’s get your music heard.
-      </p>
+      </h1>
       <p className="text-muted-foreground text-lg mt-3 font-light">
         Artist, visionary, or just someone with big ideas? We’re here to listen.
         Let’s talk.

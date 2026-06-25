@@ -13,7 +13,7 @@ import {
 } from "@/lib/release-format";
 import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
 import { compareComingSoon } from "@/lib/coming-soon-order";
-import { slugify } from "@/lib/slug";
+import { slugify, OBJECT_ID_RE } from "@/lib/slug";
 
 /**
  * Server-side data helpers for the public catalog. These are the single source
@@ -268,6 +268,8 @@ export interface ArtistDetailDTO {
   genres: string[];
   isni: string | null;
   musicBrainzId: string | null;
+  wikidataId: string | null;
+  wikipediaUrl: string | null;
   country: string | null;
   city: string | null;
   xLink: string | null;
@@ -291,6 +293,9 @@ export interface ArtistDetailDTO {
 export const getArtistDetail = cache(async (
   artistId: string
 ): Promise<{ artist: ArtistDetailDTO; releases: ReleaseCardDTO[] } | null> => {
+  // Guard non-ObjectId ids (a slug or junk reaching here would otherwise throw a
+  // "Malformed ObjectID" DB error and spam the log — return a clean not-found).
+  if (!OBJECT_ID_RE.test(artistId)) return null;
   try {
     const [artist, releaseRows] = await Promise.all([
       prisma.artist.findUnique({ where: { id: artistId } }),
@@ -323,6 +328,8 @@ export const getArtistDetail = cache(async (
         genres: artist.genres ?? [],
         isni: artist.isni ?? null,
         musicBrainzId: artist.musicBrainzId ?? null,
+        wikidataId: artist.wikidataId ?? null,
+        wikipediaUrl: artist.wikipediaUrl ?? null,
         country: artist.country ?? null,
         city: artist.city ?? null,
         xLink: artist.xLink ?? null,
@@ -494,6 +501,7 @@ export interface ReleaseMetaDTO {
 
 /** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
 export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO | null> => {
+  if (!OBJECT_ID_RE.test(id)) return null; // non-ObjectId → clean not-found, no DB throw
   try {
     // SCHEDULED is allowed (the public Coming-Soon detail page + its SEO use this);
     // DRAFT returns null so it stays unlisted.
@@ -604,6 +612,7 @@ export interface ReleaseDetailDTO {
  */
 export const getReleaseDetail = cache(
   async (releaseId: string): Promise<ReleaseDetailDTO | null> => {
+    if (!OBJECT_ID_RE.test(releaseId)) return null; // non-ObjectId → clean not-found
     try {
       const release = await prisma.release.findUnique({
         where: { id: releaseId },
@@ -878,6 +887,24 @@ export const getAllPress = cache(async (): Promise<PressItemDTO[]> => {
     return await mapPressItems(rows, { isAdmin: false });
   } catch (e) {
     console.error("getAllPress: DB unavailable", e);
+    return [];
+  }
+});
+
+/**
+ * Public press items the admin marked "featured", in the curated featured order
+ * (`homeOrder`). Powers the Featured panel on /press — mirrors getFeaturedArtists
+ * / getFeaturedReleases. Empty (no panel) until something is featured.
+ */
+export const getFeaturedPress = cache(async (): Promise<PressItemDTO[]> => {
+  try {
+    const rows = await prisma.pressItem.findMany({
+      where: { showOnWebsite: true, featured: true },
+      orderBy: [{ homeOrder: "asc" }, { publishedAt: "desc" }, { createdAt: "desc" }],
+    });
+    return await mapPressItems(rows, { isAdmin: false });
+  } catch (e) {
+    console.error("getFeaturedPress: DB unavailable", e);
     return [];
   }
 });

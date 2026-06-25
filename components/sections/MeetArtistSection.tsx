@@ -48,6 +48,10 @@ const MeetArtistSection = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(initialArtists === undefined);
 
+  // "Meet the Artists." is the page's primary heading on /artists (so it's the
+  // <h1>); on the homepage the page <h1> lives in the hero, so here it's an <h2>.
+  const HeadingTag = variant === "artists" ? "h1" : "h2";
+
   // Keep the carousel index in range when the artist list changes (e.g. a client
   // refetch returns fewer artists) — otherwise artists[currentIndex] is undefined
   // and the spotlight crashes on .name / .profilePicture.
@@ -98,9 +102,9 @@ const MeetArtistSection = ({
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
         style={{ backgroundImage: `url('${bgHero}')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
+        <HeadingTag className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
-        </p>
+        </HeadingTag>
         <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -113,9 +117,9 @@ const MeetArtistSection = ({
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
         style={{ backgroundImage: `url('${bgHero}')` }}>
-        <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
+        <HeadingTag className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
           Meet the Artists.
-        </p>
+        </HeadingTag>
         <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
         <div className="flex justify-center mt-6 sm:mt-8">
           <IconButton text="See Who's Here" href="/artists"/>
@@ -131,9 +135,9 @@ const MeetArtistSection = ({
   return (
     <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-8 sm:py-10 md:py-12"
       style={{ backgroundImage: `url('${bgHero}')` }}>
-      <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
+      <HeadingTag className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter">
         Meet the Artists.
-      </p>
+      </HeadingTag>
       <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
       <div className="flex justify-center mt-5 sm:mt-6">
         <IconButton text="See Who's Here" href="/artists"/>

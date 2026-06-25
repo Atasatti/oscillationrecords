@@ -108,9 +108,9 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
       </div>
 
       {isLoading ? (
-        <div className="flex gap-5 items-center flex-wrap mt-14">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="w-72 max-w-full h-84 rounded-lg" />
+        <div className="mt-14 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Skeleton key={i} className="h-84 w-full rounded-lg" />
           ))}
         </div>
       ) : error ? (
@@ -129,9 +129,9 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
           <p className="text-muted-foreground">Check back later for new releases</p>
         </div>
       ) : (
-        <div className="flex gap-5 items-center flex-wrap mt-14">
+        <div className="mt-14 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
           {filteredArtists.map((artist) => (
-            <Link key={artist.id} href={`/artists/${slugify(artist.name)}`}>
+            <Link key={artist.id} href={`/artists/${slugify(artist.name)}`} className="block">
               <ArtistCard artist={artist} />
             </Link>
           ))}

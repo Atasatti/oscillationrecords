@@ -13,6 +13,38 @@ export const SITE_URL = (
 
 export const SITE_NAME = "Oscillation Records";
 
+// --- Label entity facts -----------------------------------------------------
+// Single source of truth for the label-as-entity, shared by the Organization
+// JSON-LD AND the visible About/FAQ copy so the machine-readable entity and the
+// human-readable prose never drift. Filling the `null` TODO fields in is the
+// single highest-leverage thing for entity disambiguation: it's how Google tells
+// THIS "Oscillation Records" apart from "The Oscillation" and the homonym labels.
+// Anything left null is simply omitted from the schema (never emitted as a
+// placeholder), so it's safe to ship as-is and tighten later.
+export const LABEL = {
+  legalName: "Oscillation Records Ltd",
+  // Confirmed: UK company register (also in the footer + Organization sameAs).
+  companyNumber: "15579381",
+  // TODO: set the incorporation date (YYYY-MM-DD) from Companies House.
+  foundingDate: null as string | null,
+  // TODO: set the founder's full name.
+  founder: null as string | null,
+  // TODO: set the primary city (e.g. "London").
+  city: null as string | null,
+  country: "United Kingdom",
+  // TODO: set a public contact email for the label (e.g. "hello@oscillationrecords.com").
+  email: null as string | null,
+  // The label's own Wikidata item. Lets artist drafts cite "record label →
+  // Oscillation Records" (P264) and links the Organization schema to Wikidata.
+  wikidataId: "Q140353657" as string | null,
+  // Names the label is also known by — helps reconcile name variants.
+  alternateName: ["Oscillation Records Ltd", "OSCILLATION RECORDS LTD"],
+  // One-line factual entity definition. Only states what's verifiable; extend
+  // with city/genre once the TODOs above are confirmed.
+  description:
+    "Oscillation Records is an independent UK record label (company no. 15579381) built on a simple principle: put artists first.",
+} as const;
+
 export function absoluteUrl(path: string): string {
   if (/^https?:\/\//.test(path)) return path;
   return `${SITE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -33,6 +65,8 @@ type ArtistLike = {
   genres?: string[];
   isni?: string | null;
   musicBrainzId?: string | null;
+  wikidataId?: string | null;
+  wikipediaUrl?: string | null;
   xLink?: string | null;
   tiktokLink?: string | null;
   spotifyLink?: string | null;
@@ -79,6 +113,8 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     artist.soundcloudLink,
     artist.musicBrainzId ? `https://musicbrainz.org/artist/${artist.musicBrainzId}` : null,
     artist.isni ? `https://isni.org/isni/${artist.isni}` : null,
+    artist.wikidataId ? `https://www.wikidata.org/wiki/${artist.wikidataId}` : null,
+    artist.wikipediaUrl,
   ].filter((u): u is string => Boolean(u && u.trim()));
 
   const jsonLd: Record<string, unknown> = {
@@ -153,6 +189,14 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     name: release.name,
     url,
     "@id": url,
+    // Tie every release to the label entity (reinforces the label's catalog in
+    // the Knowledge Graph + AI engines).
+    recordLabel: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      "@id": `${SITE_URL}/#organization`,
+    },
   };
   if (release.coverImage) jsonLd.image = imageObject(release.coverImage, release.name);
   const desc = metaDescription(release.description, 5000);
@@ -211,6 +255,8 @@ const ORG_ENTITY_REFERENCES = [
   "https://find-and-update.company-information.service.gov.uk/company/15579381",
   // MusicBrainz label entity (high-signal music database).
   "https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470",
+  // Wikidata item — the Knowledge-Graph anchor.
+  "https://www.wikidata.org/wiki/Q140353657",
 ];
 
 /** schema.org Organization for the label itself (site-wide entity). */
@@ -227,11 +273,52 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
     "@type": "Organization",
     "@id": `${SITE_URL}/#organization`,
     name: SITE_NAME,
+    legalName: LABEL.legalName,
+    description: LABEL.description,
     url: SITE_URL,
     logo: absoluteUrl("/logo-icon.svg"),
   };
+  if (LABEL.alternateName.length) {
+    // Drop the display name itself so we don't list it as its own alias.
+    const aliases = LABEL.alternateName.filter((n) => n && (n as string) !== SITE_NAME);
+    if (aliases.length) jsonLd.alternateName = aliases;
+  }
+  if (LABEL.foundingDate) jsonLd.foundingDate = LABEL.foundingDate;
+  if (LABEL.founder) jsonLd.founder = { "@type": "Person", name: LABEL.founder };
+  if (LABEL.city || LABEL.country) {
+    const address: Record<string, string> = {};
+    if (LABEL.city) address.addressLocality = LABEL.city;
+    if (LABEL.country) address.addressCountry = LABEL.country;
+    jsonLd.address = { "@type": "PostalAddress", ...address };
+  }
+  if (LABEL.email) {
+    jsonLd.contactPoint = {
+      "@type": "ContactPoint",
+      contactType: "A&R / general enquiries",
+      email: LABEL.email,
+    };
+  }
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
+}
+
+/**
+ * schema.org FAQPage — a recognised rich result, and high-signal for AI
+ * Overviews, which lift clean Q&A pairs almost verbatim. Pair this with the SAME
+ * questions/answers rendered as visible text on the page (Google requires the
+ * markup to match on-page content). Ideal home for entity-disambiguation Q&A
+ * ("Is Oscillation Records the same as The Oscillation?" → an explicit "No.").
+ */
+export function buildFaqJsonLd(items: Array<{ question: string; answer: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((it) => ({
+      "@type": "Question",
+      name: it.question,
+      acceptedAnswer: { "@type": "Answer", text: it.answer },
+    })),
+  };
 }
 
 /**

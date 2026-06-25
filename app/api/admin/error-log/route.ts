@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   if (resolved === "true") where.resolved = true;
   else if (resolved === "false") where.resolved = false;
 
-  const [items, total, unresolved] = await Promise.all([
+  const [items, total, unresolved, resolvedCount] = await Promise.all([
     prisma.errorLog.findMany({
       where,
       orderBy: { lastSeen: "desc" },
@@ -33,9 +33,10 @@ export async function GET(request: NextRequest) {
     }),
     prisma.errorLog.count({ where }),
     prisma.errorLog.count({ where: { resolved: false } }),
+    prisma.errorLog.count({ where: { resolved: true } }),
   ]);
 
-  return NextResponse.json({ items, total, unresolved, page, pageSize });
+  return NextResponse.json({ items, total, unresolved, resolvedCount, page, pageSize });
 }
 
 // PATCH /api/admin/error-log  { id, resolved }  — mark an error resolved/open.

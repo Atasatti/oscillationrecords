@@ -9,7 +9,8 @@
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:deploy": "node scripts/deploy-db.mjs"
+    "db:deploy": "node scripts/deploy-db.mjs",
+    "indexnow": "node scripts/indexnow-submit.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

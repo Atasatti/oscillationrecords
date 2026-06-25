@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, MoreVertical, Trash2, Pencil, Plus, ExternalLink } from "lucide-react";
+import { MoreVertical, Trash2, Pencil, Plus, ExternalLink } from "lucide-react";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
@@ -156,8 +156,8 @@ export default function AdminArtistDetail() {
 
   if (error || !artist) {
     return (
-      <div className="min-h-screen text-white">
-                <div className="px-[10%] py-14 text-center">
+      <div className="text-white">
+        <div className="max-w-6xl xl:max-w-7xl mx-auto py-14 text-center">
           <p className="text-red-400 mb-4">{error}</p>
           <Button variant="outline" className="border-gray-700" onClick={() => router.back()}>
             Back
@@ -168,16 +168,8 @@ export default function AdminArtistDetail() {
   }
 
   return (
-    <div className="min-h-screen text-white">
-            <div className="px-[10%] py-14">
-        <Button
-          variant="ghost"
-          onClick={() => router.push("/admin/catalog/artists")}
-          className="mb-6 text-gray-400 hover:text-white"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Artists
-        </Button>
+    <div className="text-white">
+      <div className="max-w-6xl xl:max-w-7xl mx-auto">
 
         <div className="flex flex-col md:flex-row gap-8 mb-12">
           {artist.profilePicture ? (

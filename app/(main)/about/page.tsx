@@ -1,8 +1,10 @@
 import AboutHeroSection from "@/components/sections/AboutHeroSection";
 import AboutMoreSection from "@/components/sections/AboutMoreSection";
 import AboutSection2 from "@/components/sections/AboutSection2";
+import AboutFaqSection, { ABOUT_FAQ } from "@/components/sections/AboutFaqSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
+import { buildFaqJsonLd } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
@@ -21,6 +23,10 @@ export const metadata: Metadata = {
 const AboutUs = () => {
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqJsonLd(ABOUT_FAQ)) }}
+      />
       <ScrollReveal3D>
         <AboutHeroSection />
       </ScrollReveal3D>
@@ -30,6 +36,9 @@ const AboutUs = () => {
       <ScrollReveal3D>
         <AboutSection2 />
       </ScrollReveal3D>
+      {/* Entity definition + disambiguation FAQ — the clean, quotable text that
+          tells search/AI which "Oscillation Records" this is. */}
+      <AboutFaqSection />
       <ScrollReveal3D>
         <MusicHeardSection
           className="mt-24 sm:mt-32 md:mt-40"

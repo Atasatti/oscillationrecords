@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -15,6 +16,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
+import WikidataPanel from "@/components/admin/WikidataPanel";
+import ArtistScorePanel from "@/components/admin/ArtistScorePanel";
+import CollapsibleCard from "@/components/admin/CollapsibleCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +73,8 @@ type FormState = {
   internalNotes: string;
   ipis: string; // comma-separated in the UI
   isni: string;
+  wikidataId: string;
+  wikipediaUrl: string;
 } & Record<LinkKey, string> &
   Record<InternalKey, string>;
 
@@ -87,6 +93,8 @@ const emptyForm: FormState = {
   internalNotes: "",
   ipis: "",
   isni: "",
+  wikidataId: "",
+  wikipediaUrl: "",
   xLink: "",
   tiktokLink: "",
   spotifyLink: "",
@@ -118,6 +126,19 @@ export default function ArtistEditor({
 
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  // Public releases crediting this artist — feeds the live discoverability score
+  // (a release strengthens the entity). Loaded with the artist in edit mode.
+  const [releaseCount, setReleaseCount] = useState(0);
+  // Which editor sections are expanded. Basics open by default; the rest collapse
+  // to a one-line status summary so the page stays short (context-aware layout).
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    basic: true,
+    links: false,
+    identity: false,
+    wikidata: false,
+  });
+  const toggleSection = (k: string) =>
+    setOpenSections((p) => ({ ...p, [k]: !p[k] }));
   const [uploading, setUploading] = useState(false);
   // Warns before discarding unsaved edits (Cancel/Back/leave). Set on any field
   // change or import, cleared on a successful save and after the initial load.
@@ -193,6 +214,8 @@ export default function ArtistEditor({
           internalNotes: a.internalNotes || "",
           ipis: Array.isArray(a.ipis) ? a.ipis.join(", ") : "",
           isni: a.isni || "",
+          wikidataId: a.wikidataId || "",
+          wikipediaUrl: a.wikipediaUrl || "",
           xLink: a.xLink || "",
           tiktokLink: a.tiktokLink || "",
           spotifyLink: a.spotifyLink || "",
@@ -206,6 +229,7 @@ export default function ArtistEditor({
         });
         setImageUrl(a.profilePicture || null);
         setImagePreview(a.profilePicture || null);
+        setReleaseCount(typeof a.releaseCount === "number" ? a.releaseCount : 0);
       } catch {
         toast.error("Failed to load artist");
         router.push("/admin/catalog/artists");
@@ -415,6 +439,8 @@ export default function ArtistEditor({
     if (!imageFile && !imageUrl) fieldErrors.image = "A profile picture is required";
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors);
+      // Make sure the section holding the error is visible (the name lives in Basics).
+      if (fieldErrors.name) setOpenSections((p) => ({ ...p, basic: true }));
       return;
     }
     setErrors({});
@@ -442,6 +468,8 @@ export default function ArtistEditor({
         internalNotes: form.internalNotes,
         ipis: form.ipis,
         isni: form.isni,
+        wikidataId: form.wikidataId,
+        wikipediaUrl: form.wikipediaUrl,
         xLink: form.xLink,
         tiktokLink: form.tiktokLink,
         spotifyLink: form.spotifyLink,
@@ -492,6 +520,44 @@ export default function ArtistEditor({
       </div>
     );
   }
+
+  // Live signals for the per-section discoverability panel (recomputed each
+  // render so the scores update as fields change).
+  const scoreSignals = {
+    hasPhoto: Boolean(imagePreview),
+    bioLength: form.biography.trim().length,
+    genreCount: form.genres.split(",").map((g) => g.trim()).filter(Boolean).length,
+    linkCount: LINK_FIELDS.filter(([k]) => Boolean(form[k].trim())).length,
+    hasMusicBrainz: Boolean(form.musicBrainzId.trim()),
+    hasIsni: Boolean(form.isni.trim()),
+    hasWikidata: Boolean(form.wikidataId.trim()),
+    hasWikipedia: Boolean(form.wikipediaUrl.trim()),
+    releaseCount,
+  };
+
+  // Live one-line status for each collapsed section header.
+  const basicSummary = form.name.trim() ? (
+    `${scoreSignals.bioLength}-char bio · ${scoreSignals.genreCount} genre${scoreSignals.genreCount === 1 ? "" : "s"}`
+  ) : (
+    <span className="text-amber-400">Name required</span>
+  );
+  const linksSummary = `${scoreSignals.linkCount}/${LINK_FIELDS.length} links${form.wikipediaUrl.trim() ? " · Wikipedia ✓" : ""}`;
+  const yn = (ok: boolean, label: string) => (
+    <span className={ok ? "text-green-400" : "text-muted-foreground"}>
+      {label} {ok ? "✓" : "—"}
+    </span>
+  );
+  const identitySummary = (
+    <>
+      {yn(Boolean(form.musicBrainzId.trim()), "MusicBrainz")} ·{" "}
+      {yn(Boolean(form.isni.trim()), "ISNI")}
+    </>
+  );
+  const wikidataSummary = form.wikidataId.trim() ? (
+    <span className="text-green-400">{form.wikidataId} ✓</span>
+  ) : (
+    "not linked"
+  );
 
   return (
     <div>
@@ -558,16 +624,18 @@ export default function ArtistEditor({
         }
       />
 
-      <form onSubmit={handleSubmit} className="max-w-4xl">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Image */}
-          <div className="lg:col-span-1">
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+          {/* Image + live discoverability / Knowledge Panel score */}
+          <div>
+            <div className="space-y-6 lg:sticky lg:top-6">
+            <ArtistScorePanel signals={scoreSignals} name={form.name} />
             <div className="rounded-xl border border-border bg-card p-6">
               <label className="mb-4 block text-sm font-medium text-muted-foreground">
                 Profile picture *
               </label>
               {imagePreview ? (
-                <div className="group relative">
+                <div className="group relative mx-auto w-full max-w-[200px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imagePreview}
@@ -595,7 +663,7 @@ export default function ArtistEditor({
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className={`flex aspect-square w-full flex-col items-center justify-center rounded-lg border-2 border-dashed ${
+                  className={`mx-auto flex aspect-square w-full max-w-[200px] flex-col items-center justify-center rounded-lg border-2 border-dashed ${
                     errors.image ? "border-red-500/70" : "border-border"
                   } cursor-pointer hover:border-gray-600`}
                 >
@@ -614,12 +682,18 @@ export default function ArtistEditor({
                 <p className="mt-2 text-sm text-red-400">{errors.image}</p>
               ) : null}
             </div>
+            </div>
           </div>
 
           {/* Fields */}
-          <div className="space-y-6 lg:col-span-2">
-            <div className="space-y-4 rounded-xl border border-border bg-card p-6">
-              <h3 className="text-lg font-medium">Basic information</h3>
+          <div className="space-y-6 min-w-0">
+            <CollapsibleCard
+              title="Basic information"
+              summary={basicSummary}
+              open={openSections.basic}
+              onToggle={() => toggleSection("basic")}
+            >
+              <div className="space-y-4">
               <div>
                 <Input
                   name="name"
@@ -673,10 +747,15 @@ export default function ArtistEditor({
                   Show on website
                 </label>
               ) : null}
-            </div>
+              </div>
+            </CollapsibleCard>
 
-            <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="mb-4 text-lg font-medium">Links</h3>
+            <CollapsibleCard
+              title="Links"
+              summary={linksSummary}
+              open={openSections.links}
+              onToggle={() => toggleSection("links")}
+            >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {LINK_FIELDS.map(([key, label, placeholder]) => (
                   <div key={key}>
@@ -706,16 +785,35 @@ export default function ArtistEditor({
                   className="font-mono text-sm"
                 />
               </div>
-            </div>
-
-            {/* Internal — never shown publicly */}
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-6">
-              <div className="mb-1 flex items-center gap-2">
-                <Lock className="h-4 w-4 text-amber-400/80" />
-                <h3 className="text-lg font-medium">Identity &amp; internal</h3>
+              <div className="mt-4">
+                <label htmlFor="wikipediaUrl" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Wikipedia article URL
+                </label>
+                <Input
+                  id="wikipediaUrl"
+                  name="wikipediaUrl"
+                  value={form.wikipediaUrl}
+                  onChange={(e) => setField("wikipediaUrl", e.target.value)}
+                  placeholder="https://en.wikipedia.org/wiki/..."
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The single strongest Knowledge-Panel signal — emitted in the page’s{" "}
+                  <code className="rounded bg-white/[0.06] px-1 py-0.5">sameAs</code>. Add it only
+                  once the artist genuinely has a Wikipedia article (premature ones get removed).
+                </p>
               </div>
+            </CollapsibleCard>
+
+            <CollapsibleCard
+              title="Identity & internal"
+              tone="warning"
+              icon={<Lock className="h-4 w-4 text-amber-400/80" />}
+              summary={identitySummary}
+              open={openSections.identity}
+              onToggle={() => toggleSection("identity")}
+            >
               <p className="mb-4 text-xs text-amber-200/70">
-                Internal — not shown publicly. For your team only.
+                Internal details aren’t shown publicly. The identifiers here (MusicBrainz, ISNI, IPI) feed your SEO &amp; Knowledge-Panel scores.
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {INTERNAL_FIELDS.map(([key, label, placeholder]) => (
@@ -761,7 +859,10 @@ export default function ArtistEditor({
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Often auto-assigned once on streaming. Use Find, or “Import from MusicBrainz” pulls it in.
+                    Often auto-assigned once on streaming. Use Find, or “Import from MusicBrainz” pulls it in.{" "}
+                    <Link href="/admin/guides/isni" className="underline hover:text-foreground">
+                      No ISNI? How to claim one →
+                    </Link>
                   </p>
                 </div>
                 <div>
@@ -843,7 +944,33 @@ export default function ArtistEditor({
                   className="resize-none"
                 />
               </div>
-            </div>
+            </CollapsibleCard>
+
+            <CollapsibleCard
+              title="Wikidata"
+              summary={wikidataSummary}
+              open={openSections.wikidata}
+              onToggle={() => toggleSection("wikidata")}
+            >
+              <WikidataPanel
+                name={form.name}
+                musicBrainzId={form.musicBrainzId}
+                isni={form.isni}
+                spotifyId={form.spotifyId}
+                biography={form.biography}
+                country={form.country}
+                genres={form.genres}
+                ipis={form.ipis}
+                instagramLink={form.instagramLink}
+                xLink={form.xLink}
+                tiktokLink={form.tiktokLink}
+                soundcloudLink={form.soundcloudLink}
+                facebookLink={form.facebookLink}
+                youtubeLink={form.youtubeLink}
+                value={form.wikidataId}
+                onChange={(q) => setField("wikidataId", q)}
+              />
+            </CollapsibleCard>
 
             <div className="flex gap-3">
               <Button type="submit" disabled={saving} className="bg-white text-black hover:bg-gray-200">

@@ -1,10 +1,9 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Image as ImageIcon } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
+import CollapsibleCard from "@/components/admin/CollapsibleCard";
 
 export interface ArtistOption {
   id: string;
@@ -75,9 +74,6 @@ export interface ReleaseDetailsPanelProps {
   errors: ReleaseDetailsErrors;
   artists: ArtistOption[];
   loadingArtists: boolean;
-  imagePreview: string | null;
-  onPickImage: (file: File) => void;
-  onRemoveImage: () => void;
 }
 
 export default function ReleaseDetailsPanel({
@@ -86,11 +82,22 @@ export default function ReleaseDetailsPanel({
   errors,
   artists,
   loadingArtists,
-  imagePreview,
-  onPickImage,
-  onRemoveImage,
 }: ReleaseDetailsPanelProps) {
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  // Collapsed sections keep the page short; Basic is open by default.
+  const [open, setOpen] = useState<Record<string, boolean>>({
+    basic: true,
+    genre: false,
+    codes: false,
+    streaming: false,
+    artists: false,
+  });
+  const toggle = (k: string) => setOpen((p) => ({ ...p, [k]: !p[k] }));
+
+  // Keep a section with a validation error expanded so the error is never hidden.
+  useEffect(() => {
+    if (errors.name || errors.releaseDate) setOpen((p) => ({ ...p, basic: true }));
+    if (errors.primaryArtists) setOpen((p) => ({ ...p, artists: true }));
+  }, [errors]);
 
   const handleInput = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -99,65 +106,41 @@ export default function ReleaseDetailsPanel({
     onChange({ [name]: v } as Partial<ReleaseDetailsValue>);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onPickImage(file);
-  };
+  // Live status summaries for the collapsed section headers.
+  const linkCount = [
+    value.spotifyLink,
+    value.appleMusicLink,
+    value.tidalLink,
+    value.amazonMusicLink,
+    value.youtubeLink,
+    value.soundcloudLink,
+  ].filter((u) => u.trim()).length;
+  const codeCount = [value.upcCode, value.catalogueNumber, value.pLine, value.cLine].filter(
+    (u) => u.trim()
+  ).length;
+  const genreCount = [value.primaryGenre, value.secondaryGenre].filter((g) => g.trim()).length;
+
+  const basicSummary = value.name.trim() ? (
+    `${value.description.trim().length}-char desc · ${value.status === "SCHEDULED" ? "Scheduled" : "Released"}`
+  ) : (
+    <span className="text-amber-400">Name required</span>
+  );
+  const artistsSummary =
+    value.primaryArtistIds.length > 0 ? (
+      `${value.primaryArtistIds.length} primary`
+    ) : (
+      <span className="text-amber-400">none selected</span>
+    );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-1">
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <label className="block text-sm font-medium text-gray-300 mb-4">
-            Cover image *
-          </label>
-          <div className="space-y-4">
-            {imagePreview ? (
-              <div className="relative group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreview}
-                  alt="Cover"
-                  className="w-full aspect-square object-cover rounded-lg border border-white/10"
-                />
-                <Button
-                  type="button"
-                  onClick={onRemoveImage}
-                  variant="destructive"
-                  size="sm"
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <div
-                onClick={() => imageInputRef.current?.click()}
-                className={`w-full aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-600 bg-[#141414]/50 ${
-                  errors.coverImage ? "border-red-500/70" : "border-white/10"
-                }`}
-              >
-                <ImageIcon className="w-12 h-12 text-gray-500 mb-3" />
-                <p className="text-sm text-gray-400">Upload cover</p>
-              </div>
-            )}
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-            {errors.coverImage && (
-              <p className="text-sm text-red-400">{errors.coverImage}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10 space-y-4">
-          <h3 className="text-lg font-medium text-gray-200">Basic</h3>
+    <div className="space-y-6">
+      <CollapsibleCard
+        title="Basic"
+        summary={basicSummary}
+        open={open.basic}
+        onToggle={() => toggle("basic")}
+      >
+        <div className="space-y-4">
           <div>
             <Input
               name="name"
@@ -165,7 +148,7 @@ export default function ReleaseDetailsPanel({
               onChange={handleInput}
               placeholder="Release name *"
               aria-invalid={errors.name ? true : undefined}
-              className={`bg-[#141414] text-white ${
+              className={`bg-black/40 text-white ${
                 errors.name ? "border-red-500/70" : "border-white/10"
               }`}
             />
@@ -195,14 +178,13 @@ export default function ReleaseDetailsPanel({
             >
               <option value="RELEASED">Released (live)</option>
               <option value="SCHEDULED">Scheduled (Coming Soon)</option>
-              <option value="DRAFT">Draft (hidden)</option>
             </select>
             <p className="mt-1 text-xs text-gray-500">
               {value.status === "SCHEDULED"
                 ? "Shows in “Coming Soon” until the release date, then auto-publishes."
-                : value.status === "DRAFT"
-                  ? "Hidden from the public site while you work on it."
-                  : "Live on the site (subject to the release date)."}
+                : "Live on the site (subject to the release date)."}{" "}
+              Not ready? Use <span className="text-gray-400">“Save as draft”</span> to keep it
+              hidden while you finish it.
             </p>
           </div>
           {value.status === "SCHEDULED" ? (
@@ -227,7 +209,7 @@ export default function ReleaseDetailsPanel({
               value={value.releaseDate}
               onChange={handleInput}
               aria-invalid={errors.releaseDate ? true : undefined}
-              className={`bg-[#141414] text-white ${
+              className={`bg-black/40 text-white ${
                 errors.releaseDate ? "border-red-500/70" : "border-white/10"
               }`}
             />
@@ -263,141 +245,155 @@ export default function ReleaseDetailsPanel({
             </div>
           </div>
         </div>
+      </CollapsibleCard>
 
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <h3 className="text-lg font-medium text-gray-200 mb-4">Genre</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <CollapsibleCard
+        title="Genre"
+        summary={genreCount ? `${genreCount}/2 set` : "none"}
+        open={open.genre}
+        onToggle={() => toggle("genre")}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            name="primaryGenre"
+            value={value.primaryGenre}
+            onChange={handleInput}
+            placeholder="Primary genre"
+            className="bg-black/40 border-white/10 text-white"
+          />
+          <Input
+            name="secondaryGenre"
+            value={value.secondaryGenre}
+            onChange={handleInput}
+            placeholder="Secondary genre (optional)"
+            className="bg-black/40 border-white/10 text-white"
+          />
+        </div>
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="Codes & copyright"
+        summary={`${codeCount}/4`}
+        open={open.codes}
+        onToggle={() => toggle("codes")}
+      >
+        <p className="mb-4 text-xs text-gray-500">
+          Label data from your distributor (Ditto) — stored for your records.
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+              UPC / barcode
+            </label>
             <Input
-              name="primaryGenre"
-              value={value.primaryGenre}
+              name="upcCode"
+              value={value.upcCode}
               onChange={handleInput}
-              placeholder="Primary genre"
+              placeholder="e.g. 012345678905"
+              className="bg-black/40 border-white/10 text-white font-mono text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+              Catalogue number
+            </label>
+            <Input
+              name="catalogueNumber"
+              value={value.catalogueNumber}
+              onChange={handleInput}
+              placeholder="e.g. OSC001"
+              className="bg-black/40 border-white/10 text-white font-mono text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+              ℗ line (recording)
+            </label>
+            <Input
+              name="pLine"
+              value={value.pLine}
+              onChange={handleInput}
+              placeholder="2024 Oscillation Records"
               className="bg-black/40 border-white/10 text-white"
             />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+              © line (composition)
+            </label>
             <Input
-              name="secondaryGenre"
-              value={value.secondaryGenre}
+              name="cLine"
+              value={value.cLine}
               onChange={handleInput}
-              placeholder="Secondary genre (optional)"
+              placeholder="2024 Oscillation Records"
               className="bg-black/40 border-white/10 text-white"
             />
           </div>
         </div>
+      </CollapsibleCard>
 
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <h3 className="text-lg font-medium text-gray-200 mb-1">
-            Codes &amp; copyright
-          </h3>
-          <p className="mb-4 text-xs text-gray-500">
-            Label data from your distributor (Ditto) — stored for your records.
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">
-                UPC / barcode
-              </label>
-              <Input
-                name="upcCode"
-                value={value.upcCode}
-                onChange={handleInput}
-                placeholder="e.g. 012345678905"
-                className="bg-black/40 border-white/10 text-white font-mono text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">
-                Catalogue number
-              </label>
-              <Input
-                name="catalogueNumber"
-                value={value.catalogueNumber}
-                onChange={handleInput}
-                placeholder="e.g. OSC001"
-                className="bg-black/40 border-white/10 text-white font-mono text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">
-                ℗ line (recording)
-              </label>
-              <Input
-                name="pLine"
-                value={value.pLine}
-                onChange={handleInput}
-                placeholder="2024 Oscillation Records"
-                className="bg-black/40 border-white/10 text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">
-                © line (composition)
-              </label>
-              <Input
-                name="cLine"
-                value={value.cLine}
-                onChange={handleInput}
-                placeholder="2024 Oscillation Records"
-                className="bg-black/40 border-white/10 text-white"
-              />
-            </div>
+      <CollapsibleCard
+        title="Streaming"
+        summary={`${linkCount}/6 links`}
+        open={open.streaming}
+        onToggle={() => toggle("streaming")}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(
+            [
+              ["spotifyLink", "Spotify"],
+              ["appleMusicLink", "Apple Music"],
+              ["tidalLink", "Tidal"],
+              ["amazonMusicLink", "Amazon Music"],
+              ["youtubeLink", "YouTube"],
+              ["soundcloudLink", "SoundCloud"],
+            ] as const
+          ).map(([k, label]) => (
+            <Input
+              key={k}
+              name={k}
+              value={value[k]}
+              onChange={handleInput}
+              placeholder={label}
+              className="bg-black/40 border-white/10 text-white"
+            />
+          ))}
+        </div>
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="Artists"
+        summary={artistsSummary}
+        open={open.artists}
+        onToggle={() => toggle("artists")}
+      >
+        {loadingArtists ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : (
+          <div className="space-y-4">
+            <MultiSelect
+              options={artists.map((a) => ({ value: a.id, label: a.name }))}
+              selected={value.primaryArtistIds}
+              onChange={(ids) => onChange({ primaryArtistIds: ids })}
+              placeholder="Primary artists *"
+            />
+            <p className="text-xs text-gray-500">
+              Select one or more — a release can have multiple primary artists.
+            </p>
+            {errors.primaryArtists ? (
+              <p className="text-sm text-red-400">{errors.primaryArtists}</p>
+            ) : null}
+            <p className="text-xs text-gray-500">Featured (optional)</p>
+            <Input
+              name="featureArtistText"
+              value={value.featureArtistText}
+              onChange={handleInput}
+              placeholder="e.g. Guest Name, Another Artist"
+              className="bg-black/40 border-white/10 text-white"
+            />
           </div>
-        </div>
-
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <h3 className="text-lg font-medium text-gray-200 mb-4">Streaming</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(
-              [
-                ["spotifyLink", "Spotify"],
-                ["appleMusicLink", "Apple Music"],
-                ["tidalLink", "Tidal"],
-                ["amazonMusicLink", "Amazon Music"],
-                ["youtubeLink", "YouTube"],
-                ["soundcloudLink", "SoundCloud"],
-              ] as const
-            ).map(([k, label]) => (
-              <Input
-                key={k}
-                name={k}
-                value={value[k]}
-                onChange={handleInput}
-                placeholder={label}
-                className="bg-black/40 border-white/10 text-white"
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-[#141414] rounded-xl p-6 border border-white/10">
-          <h3 className="text-lg font-medium text-gray-200 mb-4">Artists *</h3>
-          {loadingArtists ? (
-            <p className="text-sm text-gray-400">Loading…</p>
-          ) : (
-            <div className="space-y-4">
-              <MultiSelect
-                options={artists.map((a) => ({ value: a.id, label: a.name }))}
-                selected={value.primaryArtistIds}
-                onChange={(ids) => onChange({ primaryArtistIds: ids })}
-                placeholder="Primary artists *"
-              />
-              <p className="text-xs text-gray-500">
-                Select one or more — a release can have multiple primary artists.
-              </p>
-              {errors.primaryArtists ? (
-                <p className="text-sm text-red-400">{errors.primaryArtists}</p>
-              ) : null}
-              <p className="text-xs text-gray-500">Featured (optional)</p>
-              <Input
-                name="featureArtistText"
-                value={value.featureArtistText}
-                onChange={handleInput}
-                placeholder="e.g. Guest Name, Another Artist"
-                className="bg-black/40 border-white/10 text-white"
-              />
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </CollapsibleCard>
     </div>
   );
 }

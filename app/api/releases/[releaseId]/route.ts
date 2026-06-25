@@ -246,13 +246,43 @@ export async function PATCH(
     // scheduling this release, or changing the date of an already-scheduled one.
     // (Unrelated PATCHes — e.g. toggling "New Music" — aren't blocked.)
     const settingScheduled = status === "SCHEDULED";
-    const changingDateWhileScheduled = existing.status === "SCHEDULED" && releaseDate !== undefined;
+    // Changing the date of an already-scheduled release keeps the future-date rule
+    // — UNLESS this save moves it to DRAFT or RELEASED (it's no longer "Coming
+    // Soon", so a past/empty date is fine, e.g. publishing or parking as a draft).
+    const changingDateWhileScheduled =
+      existing.status === "SCHEDULED" &&
+      releaseDate !== undefined &&
+      status !== "DRAFT" &&
+      status !== "RELEASED";
     if (settingScheduled || changingDateWhileScheduled) {
       const effective = releaseDate !== undefined ? releaseDate : existing.releaseDate;
       const d = effective ? new Date(effective) : null;
       if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
         return NextResponse.json(
           { error: "Scheduled releases must use a future release date" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Publishing (RELEASED) or scheduling (SCHEDULED) requires complete details —
+    // a cover and at least one primary artist. DRAFT skips this so incomplete work
+    // can be saved. Falls back to the stored values for fields this patch omits,
+    // so a status-only publish still validates what's already saved.
+    const publishing = status === "RELEASED" || status === "SCHEDULED";
+    if (publishing) {
+      const effectiveCover = coverImage !== undefined ? coverImage : existing.coverImage;
+      if (!effectiveCover) {
+        return NextResponse.json(
+          { error: "A cover image is required to publish or schedule a release" },
+          { status: 400 }
+        );
+      }
+      const effectivePrimary =
+        primaryArtistIds !== undefined ? primaryArtistIds : existing.primaryArtistIds;
+      if (!Array.isArray(effectivePrimary) || effectivePrimary.length === 0) {
+        return NextResponse.json(
+          { error: "At least one primary artist is required to publish or schedule a release" },
           { status: 400 }
         );
       }
@@ -311,20 +341,24 @@ export async function PATCH(
     }
 
     if (primaryArtistIds !== undefined) {
-      if (!Array.isArray(primaryArtistIds) || primaryArtistIds.length === 0) {
+      if (!Array.isArray(primaryArtistIds)) {
         return NextResponse.json(
-          { error: "At least one primary artist is required" },
+          { error: "primaryArtistIds must be an array" },
           { status: 400 }
         );
       }
-      const primaryArtists = await prisma.artist.findMany({
-        where: { id: { in: primaryArtistIds } },
-      });
-      if (primaryArtists.length !== primaryArtistIds.length) {
-        return NextResponse.json(
-          { error: "One or more primary artists not found" },
-          { status: 404 }
-        );
+      // Empty is allowed for a DRAFT (incomplete work); the publish gate above
+      // enforces "at least one" for RELEASED/SCHEDULED. Validate any ids present.
+      if (primaryArtistIds.length > 0) {
+        const primaryArtists = await prisma.artist.findMany({
+          where: { id: { in: primaryArtistIds } },
+        });
+        if (primaryArtists.length !== primaryArtistIds.length) {
+          return NextResponse.json(
+            { error: "One or more primary artists not found" },
+            { status: 404 }
+          );
+        }
       }
     }
 
@@ -472,6 +506,13 @@ export async function PATCH(
         }
 
       }
+    }, {
+      // The default 5s interactive-transaction timeout was occasionally blown by
+      // remote-DB latency (P2028 "5239ms passed"). The body is small (one update
+      // + a deleteMany), so give it real headroom; withWriteRetry re-runs if it
+      // still times out or hits a write conflict.
+      timeout: 20_000,
+      maxWait: 10_000,
     }));
 
     // Track create/updates run OUTSIDE the interactive transaction, in small

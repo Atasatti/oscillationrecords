@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import React from "react";
+import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
 // Friendly labels for known admin path segments. Mongo ObjectId segments (24 hex
 // chars) are shown generically since resolving names needs data we don't have here.
@@ -42,35 +43,79 @@ function labelFor(seg: string) {
   return seg.charAt(0).toUpperCase() + seg.slice(1);
 }
 
+type Crumb = { label: string; href: string; isLast: boolean };
+
 export default function Breadcrumbs() {
   const pathname = usePathname();
+  // Breadcrumbs are the primary way back out of editors, so they must honour the
+  // unsaved-changes guard the same way the sidebar does — a plain <Link> would
+  // otherwise silently discard edits when navigating away.
+  const guard = useUnsavedChangesContext();
+  const onLinkClick = (e: React.MouseEvent) => {
+    if (guard && !guard.confirmNavigation()) e.preventDefault();
+  };
   // "catalog" is a routing group, not a place users navigate to (except when it
   // IS the page — the Homepage hub). Drop it from the trail unless it's the leaf,
   // so /admin/catalog/releases reads "Admin › Releases", not "Admin › Homepage › …".
   const raw = pathname.split("/").filter(Boolean); // e.g. ["admin","catalog","releases"]
   if (raw.length === 0) return null;
 
-  const kept = raw
-    .map((seg, i) => ({ seg, i }))
-    .filter(({ seg, i }) => {
-      // "catalog" is a routing group, not a place users navigate to (except when
-      // it IS the leaf — the Homepage hub). Drop it otherwise.
-      if (seg === "catalog" && i !== raw.length - 1) return false;
-      // An id segment immediately before "edit" is redundant: the bare-id URL only
-      // redirects into the editor, so the crumb would link back to the same Edit
-      // page. Drop it so the trail reads "Admin › Releases › Edit" instead of the
-      // confusing "Admin › Releases › Details › Edit".
-      if (isId(seg) && raw[i + 1] === "edit") return false;
-      return true;
-    });
+  let crumbs: Crumb[];
 
-  const crumbs = kept.map(({ seg, i }, idx) => ({
-    label: labelFor(seg),
-    // Rebuild hrefs from the original path so dropped segments stay in the URL,
-    // except for singular detail segments that have no index page (→ list route).
-    href: SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/"),
-    isLast: idx === kept.length - 1,
-  }));
+  // Special case: the singular detail/VIEW page — /admin/catalog/{release|artist}/<id>
+  // (e.g. the "View release" button from the editor). Its path has no "edit"
+  // segment, so the generic trail would read "Admin › Releases › Details" and
+  // lose the edit→view flow + the way back to the editor. Render an explicit
+  // "Admin › Releases › Edit › View" so the context and backward navigation are
+  // clear, with Edit linking to this item's editor.
+  const isDetailView =
+    raw.length === 4 &&
+    raw[0] === "admin" &&
+    raw[1] === "catalog" &&
+    (raw[2] === "release" || raw[2] === "artist") &&
+    isId(raw[3]);
+
+  if (isDetailView) {
+    const kind = raw[2]; // "release" | "artist"
+    const id = raw[3];
+    const plural = `${kind}s`; // releases | artists
+    crumbs = [
+      { label: "Admin", href: "/admin", isLast: false },
+      { label: kind === "release" ? "Releases" : "Artists", href: `/admin/catalog/${plural}`, isLast: false },
+      { label: "Edit", href: `/admin/catalog/${plural}/${id}/edit`, isLast: false },
+      { label: "View", href: pathname, isLast: true },
+    ];
+  } else {
+    const kept = raw
+      .map((seg, i) => ({ seg, i }))
+      .filter(({ seg, i }) => {
+        // "catalog" is a routing group, not a place users navigate to (except when
+        // it IS the leaf — the Homepage hub). Drop it otherwise.
+        if (seg === "catalog" && i !== raw.length - 1) return false;
+        // An id segment immediately before "edit" is redundant: the bare-id URL only
+        // redirects into the editor, so the crumb would link back to the same Edit
+        // page. Drop it so the trail reads "Admin › Releases › Edit" instead of the
+        // confusing "Admin › Releases › Details › Edit".
+        if (isId(seg) && raw[i + 1] === "edit") return false;
+        return true;
+      });
+
+    crumbs = kept.map(({ seg, i }, idx) => {
+      let label = labelFor(seg);
+      // Rebuild hrefs from the original path so dropped segments stay in the URL,
+      // except for singular detail segments that have no index page (→ list route).
+      let href = SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/");
+      // An id directly under the plural list (e.g. /admin/catalog/releases/<id>/tracks):
+      // the bare-id route only redirects to the editor, so label it "Edit" and link
+      // straight there — clearer than "Details", and consistent with the editor
+      // being where you return for that release.
+      if (isId(seg) && (raw[i - 1] === "releases" || raw[i - 1] === "artists")) {
+        label = "Edit";
+        href = "/" + raw.slice(0, i + 1).join("/") + "/edit";
+      }
+      return { label, href, isLast: idx === kept.length - 1 };
+    });
+  }
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
@@ -85,6 +130,7 @@ export default function Breadcrumbs() {
               <>
                 <Link
                   href={c.href}
+                  onClick={onLinkClick}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {c.label}

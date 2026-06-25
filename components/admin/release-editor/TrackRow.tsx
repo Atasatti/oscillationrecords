@@ -65,6 +65,13 @@ export default function TrackRow({
 
   const isrcMissing = requireIsrc && !track.isrcCode.trim();
 
+  // Resolve the track's own artists/feature for the collapsed-row summary, so it's
+  // obvious each track has its own editable artists + features (not just a name).
+  const primaryNames = track.primaryArtistIds
+    .map((id) => artists.find((a) => a.id === id)?.name)
+    .filter(Boolean) as string[];
+  const featText = track.featureArtistText.trim();
+
   return (
     <div
       ref={setNodeRef}
@@ -85,12 +92,28 @@ export default function TrackRow({
         <span className="w-5 shrink-0 text-center text-sm tabular-nums text-gray-500">
           {index + 1}
         </span>
-        <Input
-          value={track.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="Track name *"
-          className="h-9 flex-1 border-white/10 bg-black/40"
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            value={track.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="Track name *"
+            className="h-9 w-full border-white/10 bg-black/40"
+          />
+          {!track.expanded ? (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="mt-1 flex max-w-full items-center gap-1 text-left text-xs text-gray-500 hover:text-gray-300"
+            >
+              <span className="truncate">
+                {primaryNames.length || featText
+                  ? `${primaryNames.join(", ")}${featText ? ` · feat. ${featText}` : ""}`
+                  : "No artists set"}
+              </span>
+              <span className="shrink-0 text-gray-600">· edit details</span>
+            </button>
+          ) : null}
+        </div>
         <span className="hidden w-12 shrink-0 text-right text-xs tabular-nums text-gray-500 sm:block">
           {formatDuration(track.duration)}
         </span>

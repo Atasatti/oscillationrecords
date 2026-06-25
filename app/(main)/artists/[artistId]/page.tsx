@@ -7,7 +7,7 @@ import {
   resolveArtistIdBySlug,
 } from "@/lib/catalog-data";
 import { ARTIST_ID_RE, slugify } from "@/lib/slug";
-import PressCard from "@/components/local-ui/PressCard";
+import ArtistPressSection from "./ArtistPressSection";
 import {
   buildArtistJsonLd,
   buildBreadcrumbJsonLd,
@@ -99,6 +99,18 @@ export default async function ArtistDetail({
   ]);
   const press = await getPressForArtist(id);
 
+  // A crisp, factual lead sentence — the clean fact AI engines lift verbatim and
+  // attribute. Visually hidden (the design hero is image-led) but in the DOM.
+  const a = data.artist;
+  const artistLead =
+    `${a.name} is a recording artist on ${SITE_NAME}, an independent UK record label` +
+    (a.city ? `, based in ${a.city}` : "") +
+    "." +
+    (a.genres?.length ? ` ${a.name}'s music spans ${a.genres.join(", ")}.` : "") +
+    (data.releases.length
+      ? ` Releases on ${SITE_NAME} include ${data.releases.slice(0, 5).map((r) => r.name).join(", ")}.`
+      : "");
+
   return (
     <>
       <script
@@ -109,17 +121,9 @@ export default async function ArtistDetail({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      <p className="sr-only">{artistLead}</p>
       <ArtistDetailView artist={data.artist} releases={data.releases} />
-      {press.length > 0 ? (
-        <section className="px-[10%] py-14 text-white">
-          <h2 className="mb-6 text-2xl font-light tracking-tighter">Press &amp; Features</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {press.map((item) => (
-              <PressCard key={item.id} item={item} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <ArtistPressSection items={press} />
     </>
   );
 }

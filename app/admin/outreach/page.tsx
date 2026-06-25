@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BookUser, Send, AlertCircle, TrendingUp, ChevronRight } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCached, setCached } from "@/lib/admin-cache";
 
 type Summary = {
   totalContacts: number;
@@ -18,9 +19,19 @@ export default function OutreachHubPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Live data: show the last summary instantly (no spinner on revisit), but
+    // always revalidate in the background so the numbers stay current.
+    const cached = getCached<Summary>("outreach-summary");
+    if (cached) {
+      setSummary(cached);
+      setLoading(false);
+    }
     fetch("/api/outreach/summary")
       .then((r) => r.json())
-      .then(setSummary)
+      .then((d) => {
+        setSummary(d);
+        setCached("outreach-summary", d);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
