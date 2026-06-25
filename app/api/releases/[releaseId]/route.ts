@@ -472,6 +472,13 @@ export async function PATCH(
         }
 
       }
+    }, {
+      // The default 5s interactive-transaction timeout was occasionally blown by
+      // remote-DB latency (P2028 "5239ms passed"). The body is small (one update
+      // + a deleteMany), so give it real headroom; withWriteRetry re-runs if it
+      // still times out or hits a write conflict.
+      timeout: 20_000,
+      maxWait: 10_000,
     }));
 
     // Track create/updates run OUTSIDE the interactive transaction, in small
