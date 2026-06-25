@@ -289,7 +289,10 @@ export default function ErrorsPage() {
             </>
           )}
         </div>
-        <table className="w-full text-sm">
+        {/* table-fixed so a long error message truncates inside the Error column
+            instead of stretching the table wider than the page (horizontal
+            scroll). Column widths come from the <th> below. */}
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="w-8 px-2 py-2" />
