@@ -238,6 +238,13 @@ export default function AdminReleaseDetail() {
   const [allArtists, setAllArtists] = useState<ArtistSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True when opened via the editor's "View release" button (?from=edit) — the
+  // back button then returns to the editor instead of the catalog. Read on the
+  // client (window) to avoid a Suspense boundary for useSearchParams.
+  const [fromEdit, setFromEdit] = useState(false);
+  useEffect(() => {
+    setFromEdit(new URLSearchParams(window.location.search).get("from") === "edit");
+  }, []);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusWorking, setStatusWorking] = useState(false);
   const [deleteTrackDialogOpen, setDeleteTrackDialogOpen] = useState(false);
@@ -504,11 +511,12 @@ export default function AdminReleaseDetail() {
         <div className="max-w-6xl xl:max-w-7xl mx-auto mb-6">
           <Button
             variant="ghost"
-            onClick={() => router.back()}
+            onClick={() => (fromEdit ? router.push(editorHref) : router.back())}
             className="-ml-2 text-gray-400 hover:text-white"
+            title={fromEdit ? "Return to the edit page" : "Back to the releases catalog"}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to catalog
+            {fromEdit ? "Back to edit" : "Back to catalog"}
           </Button>
         </div>
 

@@ -472,7 +472,9 @@ export default function ReleaseEditor({
               variant="outline"
               title="View the completed release (tracklist, streaming links and all)"
               onClick={() => {
-                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
+                // ?from=edit so the view page's back button returns here (to the
+                // edit section above the artwork) instead of saying "Back to catalog".
+                if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}?from=edit`);
               }}
             >
               <Eye className="w-4 h-4 mr-2" />
