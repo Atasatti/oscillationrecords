@@ -261,26 +261,33 @@ export default function ReleaseEditor({
     status: ReleaseDetailsValue["status"] = form.status
   ): ReleaseDetailsErrors | null => {
     const fieldErrors: ReleaseDetailsErrors = {};
+    // A name is the one thing every release needs (it identifies the draft in the
+    // list). Everything else is required only when the release is going live or
+    // is scheduled — a DRAFT saves incomplete work to finish later.
     if (!form.name.trim()) fieldErrors.name = "Please enter a release name";
 
+    if (status === "DRAFT") {
+      return Object.keys(fieldErrors).length ? fieldErrors : null;
+    }
+
+    // Live (RELEASED) / Coming Soon (SCHEDULED): require the full details.
     if (!coverFile && !coverUrl) {
       fieldErrors.coverImage = "Please add a cover image";
+    }
+    if (form.primaryArtistIds.length === 0) {
+      fieldErrors.primaryArtists = "Select at least one primary artist";
     }
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    // RELEASED/DRAFT may be backdated — e.g. adding an older catalogue release,
-    // or re-adding one that was deleted. Only SCHEDULED (Coming Soon) is future-only.
+    // RELEASED may be backdated (adding an older catalogue release); only
+    // SCHEDULED (Coming Soon) is future-only.
     if (status === "SCHEDULED") {
-      // Coming Soon must be in the future, never a past (or today) date.
       if (!form.releaseDate) {
         fieldErrors.releaseDate = "Scheduled releases need a future release date";
       } else if (form.releaseDate <= todayStr) {
         fieldErrors.releaseDate = "Scheduled releases must use a future date";
       }
-    }
-    if (form.primaryArtistIds.length === 0) {
-      fieldErrors.primaryArtists = "Select at least one primary artist";
     }
     return Object.keys(fieldErrors).length ? fieldErrors : null;
   };

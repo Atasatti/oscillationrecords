@@ -179,43 +179,48 @@ export async function POST(request: NextRequest) {
         ? body.preSaveUrl.trim()
         : null;
 
-    if (!name || !coverImage) {
-      return NextResponse.json(
-        { error: "name and coverImage are required" },
-        { status: 400 }
-      );
+    // A name identifies the release everywhere, so it's required for every status.
+    if (!name) {
+      return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 
-    // A scheduled (Coming Soon) release must be dated in the future.
-    if (status === "SCHEDULED") {
-      const d = releaseDate ? new Date(releaseDate) : null;
-      if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+    const pids = Array.isArray(primaryArtistIds) ? primaryArtistIds : [];
+
+    // DRAFT saves incomplete work — skip the completeness checks (cover, artists,
+    // future date). RELEASED/SCHEDULED require the full, valid details.
+    if (status !== "DRAFT") {
+      if (!coverImage) {
+        return NextResponse.json({ error: "coverImage is required" }, { status: 400 });
+      }
+      if (pids.length === 0) {
         return NextResponse.json(
-          { error: "Scheduled releases must use a future release date" },
+          { error: "At least one primary artist is required" },
           { status: 400 }
         );
       }
+      // A scheduled (Coming Soon) release must be dated in the future.
+      if (status === "SCHEDULED") {
+        const d = releaseDate ? new Date(releaseDate) : null;
+        if (!d || Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+          return NextResponse.json(
+            { error: "Scheduled releases must use a future release date" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
-    if (
-      !primaryArtistIds ||
-      !Array.isArray(primaryArtistIds) ||
-      primaryArtistIds.length === 0
-    ) {
-      return NextResponse.json(
-        { error: "At least one primary artist is required" },
-        { status: 400 }
-      );
-    }
-
-    const primaryArtists = await prisma.artist.findMany({
-      where: { id: { in: primaryArtistIds } },
-    });
-    if (primaryArtists.length !== primaryArtistIds.length) {
-      return NextResponse.json(
-        { error: "One or more primary artists not found" },
-        { status: 404 }
-      );
+    // Validate any artist ids that ARE provided (drafts may have none yet).
+    if (pids.length > 0) {
+      const primaryArtists = await prisma.artist.findMany({
+        where: { id: { in: pids } },
+      });
+      if (primaryArtists.length !== pids.length) {
+        return NextResponse.json(
+          { error: "One or more primary artists not found" },
+          { status: 404 }
+        );
+      }
     }
 
     const featIds = featureArtistIds || [];
@@ -241,8 +246,9 @@ export async function POST(request: NextRequest) {
       data: {
         kind,
         name: String(name),
-        coverImage: String(coverImage),
-        primaryArtistIds,
+        // coverImage is a required column; a draft without artwork stores "".
+        coverImage: coverImage ? String(coverImage) : "",
+        primaryArtistIds: pids,
         featureArtistIds: featIds,
         featureArtistNames: featManual,
         sortOrder,
