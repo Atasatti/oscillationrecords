@@ -891,6 +891,24 @@ export const getAllPress = cache(async (): Promise<PressItemDTO[]> => {
   }
 });
 
+/**
+ * Public press items the admin marked "featured", in the curated featured order
+ * (`homeOrder`). Powers the Featured panel on /press — mirrors getFeaturedArtists
+ * / getFeaturedReleases. Empty (no panel) until something is featured.
+ */
+export const getFeaturedPress = cache(async (): Promise<PressItemDTO[]> => {
+  try {
+    const rows = await prisma.pressItem.findMany({
+      where: { showOnWebsite: true, featured: true },
+      orderBy: [{ homeOrder: "asc" }, { publishedAt: "desc" }, { createdAt: "desc" }],
+    });
+    return await mapPressItems(rows, { isAdmin: false });
+  } catch (e) {
+    console.error("getFeaturedPress: DB unavailable", e);
+    return [];
+  }
+});
+
 /** Public press items linked to one artist (for the artist page section). */
 export const getPressForArtist = cache(
   async (artistId: string): Promise<PressItemDTO[]> => {
