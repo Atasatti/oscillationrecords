@@ -10,7 +10,6 @@ import {
   Users,
   Eye,
   MousePointerClick,
-  ExternalLink,
   Globe,
   TrendingUp,
   AlertTriangle,
@@ -791,10 +790,7 @@ export default function AnalyticsDashboard() {
                           className="block w-full space-y-1.5 rounded-lg p-1 text-left transition-colors hover:bg-white/[0.03]"
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                              <span className="truncate text-sm text-foreground">{l.name}</span>
-                            </span>
+                            <span className="truncate text-sm text-foreground">{l.name}</span>
                             <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{l.clicks}</span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
