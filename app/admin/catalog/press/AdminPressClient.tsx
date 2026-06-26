@@ -281,6 +281,9 @@ export default function AdminPressClient({
                               className="h-10 w-16 shrink-0 rounded object-cover"
                             />
                             <span className="truncate font-medium group-hover:underline">{p.title}</span>
+                            {p.draft ? (
+                              <Badge variant="warning" className="shrink-0">Draft</Badge>
+                            ) : null}
                           </Link>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">

@@ -26,6 +26,7 @@ export interface AdminArtistRow {
   id: string;
   name: string;
   profilePicture: string | null;
+  draft: boolean;
   showOnWebsite: boolean;
   featuredOnHome: boolean;
   homeOrder: number;
@@ -98,6 +99,7 @@ const ROW_SELECT = {
   id: true,
   name: true,
   profilePicture: true,
+  draft: true,
   showOnWebsite: true,
   featuredOnHome: true,
   homeOrder: true,
@@ -178,6 +180,7 @@ function toRow(a: ArtistSelectRow): RowWithSignals {
     id: a.id,
     name: a.name,
     profilePicture: a.profilePicture ?? null,
+    draft: a.draft,
     showOnWebsite: a.showOnWebsite,
     featuredOnHome: a.featuredOnHome,
     homeOrder: a.homeOrder,
@@ -486,7 +489,7 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
 // ---------------------------------------------------------------------------
 
 /** Admin press row = the public DTO plus the visibility flag (admin-only). */
-export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean };
+export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean; draft: boolean };
 
 /**
  * Paginated press items for the admin manage table. Resolves linked
@@ -505,13 +508,17 @@ export async function getPressPage({
   const size = Math.min(Math.max(1, pageSize), 100);
   const query = q.trim();
 
-  // Attach the admin-only showOnWebsite flag onto each mapped DTO by id.
+  // Attach the admin-only showOnWebsite + draft flags onto each mapped DTO by id.
   const withVisibility = async (
-    rows: { id: string; showOnWebsite: boolean }[]
+    rows: { id: string; showOnWebsite: boolean; draft: boolean }[]
   ): Promise<AdminPressRow[]> => {
-    const visById = new Map(rows.map((r) => [r.id, r.showOnWebsite]));
+    const metaById = new Map(rows.map((r) => [r.id, { showOnWebsite: r.showOnWebsite, draft: r.draft }]));
     const dtos = await mapPressItems(rows as never, { isAdmin: true });
-    return dtos.map((d) => ({ ...d, showOnWebsite: visById.get(d.id) ?? true }));
+    return dtos.map((d) => ({
+      ...d,
+      showOnWebsite: metaById.get(d.id)?.showOnWebsite ?? true,
+      draft: metaById.get(d.id)?.draft ?? false,
+    }));
   };
 
   if (query) {

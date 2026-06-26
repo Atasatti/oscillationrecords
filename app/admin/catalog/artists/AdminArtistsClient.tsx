@@ -522,6 +522,9 @@ export default function AdminArtistsClient({
                         className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
+                      {a.draft ? (
+                        <Badge variant="warning" className="shrink-0">Draft</Badge>
+                      ) : null}
                     </Link>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
