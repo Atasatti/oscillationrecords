@@ -30,6 +30,8 @@ import { getCached, setCached } from "@/lib/admin-cache";
 const CATEGORIES = ["pitching", "research", "admin", "social", "sync", "radio", "catalog"] as const;
 const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 const PRIORITY_LABELS: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
+// Lower rank = more urgent → sorts to the top of the list.
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-amber-400", medium: "bg-sky-400", low: "bg-zinc-500" };
 
 // Status colour system — gives each task row an at-a-glance state: a coloured
@@ -211,11 +213,24 @@ export default function TasksPage() {
 
   const filtered = useMemo(
     () =>
-      tasks.filter(
-        (t) =>
-          (tab === "all" || t.status === tab) &&
-          (!categoryFilter || t.category === categoryFilter)
-      ),
+      tasks
+        .filter(
+          (t) =>
+            (tab === "all" || t.status === tab) &&
+            (!categoryFilter || t.category === categoryFilter)
+        )
+        // Auto-sort by urgency: completed sink to the bottom, then most-urgent
+        // priority first, then soonest/overdue due date (undated last).
+        .sort((a, b) => {
+          const aDone = a.status === "done";
+          const bDone = b.status === "done";
+          if (aDone !== bDone) return aDone ? 1 : -1;
+          const pr = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+          if (pr !== 0) return pr;
+          const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+          const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+          return aDue - bDue;
+        }),
     [tasks, tab, categoryFilter]
   );
 
