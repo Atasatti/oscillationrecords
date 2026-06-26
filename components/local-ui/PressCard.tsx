@@ -31,7 +31,7 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
           {item.publisher}
           {date ? <span className="text-gray-500"> · {date}</span> : null}
         </p>
-        <h3 className="text-lg font-medium leading-snug text-white">{item.title}</h3>
+        <h3 className="line-clamp-2 text-lg font-medium leading-snug text-white">{item.title}</h3>
         {item.summary ? (
           <p className="line-clamp-4 text-sm leading-relaxed text-gray-300">{item.summary}</p>
         ) : null}

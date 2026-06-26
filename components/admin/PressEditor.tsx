@@ -45,7 +45,9 @@ const emptyForm: FormState = {
 
 type Option = { value: string; label: string };
 
-// Mirrors PRESS_SUMMARY_MAX in lib/press-input.ts (the server caps to this too).
+// Mirror lib/press-input.ts (PRESS_TITLE_MAX / PRESS_SUMMARY_MAX) — the server
+// caps to these too, so a long headline/summary can't break the press-card layout.
+const TITLE_MAX = 120;
 const SUMMARY_MAX = 300;
 
 export default function PressEditor({
@@ -387,12 +389,26 @@ export default function PressEditor({
             <div className="space-y-4 rounded-xl border border-border bg-card p-6">
               <h3 className="text-lg font-medium">Coverage</h3>
               <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="title" className="block text-xs font-medium text-muted-foreground">
+                    Headline *
+                  </label>
+                  <span
+                    className={`shrink-0 text-xs tabular-nums ${
+                      form.title.length >= TITLE_MAX ? "text-amber-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {form.title.length}/{TITLE_MAX}
+                  </span>
+                </div>
                 <Input
+                  id="title"
                   value={form.title}
                   onChange={(e) => {
                     setField("title", e.target.value);
                     if (errors.title) setErrors((p) => ({ ...p, title: undefined }));
                   }}
+                  maxLength={TITLE_MAX}
                   placeholder="Headline of your summary *"
                   className={errors.title ? "border-red-500/70" : ""}
                 />

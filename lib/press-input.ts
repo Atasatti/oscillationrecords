@@ -4,6 +4,8 @@
 
 import { isSafeUrl } from "@/lib/url-safety";
 
+/** Max length for a press headline — enforced here, mirrored by the editor's maxLength. */
+export const PRESS_TITLE_MAX = 120;
 /** Max length for a press summary — enforced here, mirrored by the editor's maxLength. */
 export const PRESS_SUMMARY_MAX = 300;
 
@@ -85,7 +87,9 @@ export function extractPressInput(
   }
 
   return {
-    title,
+    // Hard cap on the headline so an over-length title (e.g. a direct API call
+    // bypassing the editor's maxLength) can't break the press-card layout.
+    title: title.slice(0, PRESS_TITLE_MAX),
     // Required columns — a draft stores "" for anything not yet filled in.
     publisher: publisher ?? "",
     articleUrl: articleUrl ?? "",
