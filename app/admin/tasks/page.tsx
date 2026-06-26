@@ -32,6 +32,19 @@ const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 const PRIORITY_LABELS: Record<string, string> = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
 const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-amber-400", medium: "bg-sky-400", low: "bg-zinc-500" };
 
+// Status colour system — gives each task row an at-a-glance state: a coloured
+// left accent on the row + a matching status pill on the right.
+const STATUS_ACCENT: Record<string, string> = {
+  todo: "border-l-zinc-600",
+  in_progress: "border-l-sky-500",
+  done: "border-l-emerald-500",
+};
+const STATUS_PILL: Record<string, string> = {
+  todo: "border-zinc-600/60 bg-zinc-500/10 text-zinc-200",
+  in_progress: "border-sky-500/50 bg-sky-500/10 text-sky-200",
+  done: "border-emerald-500/50 bg-emerald-500/10 text-emerald-200",
+};
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const shiftMonth = (c: { y: number; m: number }, delta: number) => {
   const d = new Date(c.y, c.m + delta, 1);
@@ -523,10 +536,12 @@ export default function TasksPage() {
                   : "No tasks yet."}
             </div>
           ) : (
-            filtered.map((t) => (
+            filtered.map((t) => {
+              const overdue = isOverdue(t);
+              return (
               <div
                 key={t.id}
-                className={`flex items-start gap-3 rounded-xl border bg-card p-4 ${isOverdue(t) ? "border-amber-500/40" : "border-border"}`}
+                className={`group flex items-center gap-3 rounded-xl border border-border border-l-[3px] bg-card px-4 py-3 transition-colors hover:bg-white/[0.02] ${STATUS_ACCENT[t.status] ?? "border-l-zinc-600"}`}
               >
                 {/* Complete toggle */}
                 <button
@@ -534,7 +549,7 @@ export default function TasksPage() {
                   onClick={() => updateStatus(t.id, t.status === "done" ? "todo" : "done")}
                   title={t.status === "done" ? "Mark as to do" : "Mark as done"}
                   aria-label={t.status === "done" ? "Mark as to do" : "Mark as done"}
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
                     t.status === "done"
                       ? "border-emerald-500 bg-emerald-500 text-black"
                       : "border-border hover:border-foreground/50"
@@ -544,33 +559,41 @@ export default function TasksPage() {
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : ""}`}>
+                  <p className={`truncate text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>
                     {t.title}
                   </p>
                   {t.description && (
-                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t.description}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{t.description}</p>
                   )}
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="muted" className="text-[10px]">{t.category}</Badge>
-                    <Badge variant={priorityVariant(t.priority)} className="text-[10px]">{PRIORITY_LABELS[t.priority]}</Badge>
+                  {/* One compact, scannable meta line: priority · category · due */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[t.priority] ?? "bg-zinc-500"}`} />
+                      {PRIORITY_LABELS[t.priority]}
+                    </span>
+                    <span className="text-border" aria-hidden>·</span>
+                    <span className="capitalize">{t.category}</span>
                     {t.dueAt && (
-                      <span className={`text-[10px] ${isOverdue(t) ? "text-amber-400" : "text-muted-foreground"}`}>
-                        Due {fmtDate(t.dueAt)}{isOverdue(t) ? " ⚠" : ""}
-                      </span>
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <span className={overdue ? "font-medium text-amber-400" : ""}>
+                          {overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}
+                        </span>
+                      </>
                     )}
                   </div>
                 </div>
 
-                {/* Status + edit + delete */}
+                {/* Status pill (coloured) + edit + delete */}
                 <div className="flex shrink-0 items-center gap-1.5">
                   <select
                     value={t.status}
                     onChange={(e) => updateStatus(t.id, e.target.value)}
                     title="Change status"
                     aria-label="Change status"
-                    className="rounded-md border border-border bg-background py-1 pl-2 pr-6 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className={`rounded-md border py-1 pl-2.5 pr-6 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${STATUS_PILL[t.status] ?? "border-border bg-background text-foreground"}`}
                   >
-                    {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                    {STATUSES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{STATUS_LABELS[s]}</option>)}
                   </select>
                   <button
                     type="button"
@@ -592,7 +615,8 @@ export default function TasksPage() {
                   </button>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
