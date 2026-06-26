@@ -12,7 +12,7 @@ import {
   getHomeArtists,
   getUpcomingReleases,
 } from "@/lib/catalog-data";
-import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/seo";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd, LABEL } from "@/lib/seo";
 import { getFooterSocialLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
 
@@ -80,15 +80,7 @@ export default async function Home() {
             the designed hero untouched, but present in the DOM for search
             engines / AI Overviews to extract and attribute to this site — and to
             disambiguate from the similarly-named "The Oscillation" project. */}
-        <p className="sr-only">
-          Oscillation Records is an independent UK record label (company no.
-          15579381) built on a simple principle: put artists first. It is a
-          distinct entity and is not affiliated with any similarly-named act:
-          not The Oscillation (the London psych / space-rock band by Demian
-          Castellanos), not Oscillations (the London experimental-electronic
-          label by Gabriel Prokofiev), and not the Chilean tech-house duo Eban
-          Krocker and Diego Herrera who also release as Oscillation Records.
-        </p>
+        <p className="sr-only">{LABEL.disambiguatingDescription}</p>
         {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
         <HomeHeroSection />
         <ScrollReveal3D>

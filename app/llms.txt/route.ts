@@ -50,6 +50,13 @@ export async function GET() {
   L.push(`- Name: ${SITE_NAME}`);
   L.push(`- Legal name: ${LABEL.legalName}`);
   L.push(`- Type: independent record label`);
+  L.push(
+    `- Model: non-exclusive — artists are free to also release elsewhere and are not explicitly signed unless stated otherwise`
+  );
+  if (LABEL.genre) L.push(`- Genre / focus: ${LABEL.genre}`);
+  if (LABEL.foundingDate) L.push(`- Founded: ${LABEL.foundingDate}`);
+  if (LABEL.founder) L.push(`- Founder: ${LABEL.founder}`);
+  if (LABEL.city) L.push(`- Based in: ${LABEL.city}, ${LABEL.country}`);
   L.push(`- Country: ${LABEL.country}`);
   L.push(`- Companies House (UK) company no.: ${LABEL.companyNumber}`);
   L.push(`- Official website: ${SITE_URL}`);

@@ -25,30 +25,34 @@ export const LABEL = {
   legalName: "Oscillation Records Ltd",
   // Confirmed: UK company register (also in the footer + Organization sameAs).
   companyNumber: "15579381",
-  // TODO: set the incorporation date (YYYY-MM-DD) from Companies House.
-  foundingDate: null as string | null,
-  // TODO: set the founder's full name.
-  founder: null as string | null,
-  // TODO: set the primary city (e.g. "London").
-  city: null as string | null,
+  // Incorporated in 2022 (year only — exact date not confirmed). schema.org
+  // foundingDate accepts a bare year.
+  foundingDate: "2022" as string | null,
+  // Founder — emitted as Organization.founder (Person).
+  founder: "Ben Sharp Knowles" as string | null,
+  // Primary city.
+  city: "Manchester" as string | null,
   country: "United Kingdom",
   // TODO: set a public contact email for the label (e.g. "hello@oscillationrecords.com").
   email: null as string | null,
+  // Primary musical focus. Not a schema.org Organization property, so it feeds the
+  // description / FAQ / llms.txt rather than a structured field.
+  genre: "EDM, dubstep, drum & bass, house and other genres" as string | null,
   // The label's own Wikidata item. Lets artist drafts cite "record label →
   // Oscillation Records" (P264) and links the Organization schema to Wikidata.
   wikidataId: "Q140353657" as string | null,
   // Names the label is also known by — helps reconcile name variants.
   alternateName: ["Oscillation Records Ltd", "OSCILLATION RECORDS LTD"],
-  // One-line factual entity definition. Only states what's verifiable; extend
-  // with city/genre once the TODOs above are confirmed.
+  // One-line factual entity definition (feeds Organization.description + llms.txt).
   description:
-    "Oscillation Records is an independent UK record label (company no. 15579381) built on a simple principle: put artists first.",
+    "Oscillation Records is an independent record label based in Manchester, United Kingdom (company no. 15579381), founded in 2022. It releases electronic music — EDM, dubstep, drum & bass and house — alongside other genres, built on a simple principle: put artists first.",
   // schema.org disambiguatingDescription — the property purpose-built for telling
   // similarly-named entities apart. Names the SPECIFIC entities search/AI engines
   // confuse us with, so each has an explicit "this is NOT that" signal.
   disambiguatingDescription:
     "Oscillation Records is a UK-registered independent record label (company no. 15579381) " +
-    "releasing hip-hop, rap and electronic music. It is a distinct entity and is NOT the same " +
+    "based in Manchester, releasing electronic music (EDM, dubstep, drum & bass and house) and other genres. " +
+    "It is a distinct entity and is NOT the same " +
     "as, nor affiliated with, any of these similarly-named acts: “The Oscillation”, the London " +
     "psychedelic / space-rock band led by Demian Castellanos; “Oscillations”, the London " +
     "experimental-electronic record label founded by Gabriel Prokofiev; or the Chilean " +
