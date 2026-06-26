@@ -26,14 +26,16 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
           loading="lazy"
         />
       ) : null}
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <p className="text-xs uppercase tracking-wide text-gray-400">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
+        <p className="break-words text-xs uppercase tracking-wide text-gray-400">
           {item.publisher}
           {date ? <span className="text-gray-500"> · {date}</span> : null}
         </p>
-        <h3 className="line-clamp-2 text-lg font-medium leading-snug text-white">{item.title}</h3>
+        {/* line-clamp bounds the height; break-words stops a long unbroken token
+            (e.g. a URL-like headline) from overflowing the card width. */}
+        <h3 className="line-clamp-2 break-words text-lg font-medium leading-snug text-white">{item.title}</h3>
         {item.summary ? (
-          <p className="line-clamp-4 text-sm leading-relaxed text-gray-300">{item.summary}</p>
+          <p className="line-clamp-4 break-words text-sm leading-relaxed text-gray-300">{item.summary}</p>
         ) : null}
 
         {(item.artists.length > 0 || item.releases.length > 0) ? (
