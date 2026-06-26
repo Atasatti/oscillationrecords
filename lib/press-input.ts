@@ -63,22 +63,35 @@ function cleanImage(input: unknown): string | null {
  * missing so the route can answer 400. The `articleUrl` must be an absolute
  * http(s) URL (link-out), not a site-relative path.
  */
-export function extractPressInput(body: Record<string, unknown>): PressInput | null {
+export function extractPressInput(
+  body: Record<string, unknown>,
+  opts?: { draft?: boolean }
+): PressInput | null {
+  const draft = opts?.draft === true;
   const title = cleanStr(body.title);
   const publisher = cleanStr(body.publisher);
   const summary = cleanStr(body.summary);
   const articleUrl = cleanStr(body.articleUrl);
 
-  if (!title || !publisher || !summary || !articleUrl) return null;
-  if (!isSafeUrl(articleUrl) || !/^https?:\/\//i.test(articleUrl)) return null;
+  // A DRAFT only needs a title — publisher / summary / article URL can be filled
+  // in before publishing. A provided URL must still be a valid absolute http(s)
+  // one; publishing requires all four.
+  if (draft) {
+    if (!title) return null;
+    if (articleUrl && (!isSafeUrl(articleUrl) || !/^https?:\/\//i.test(articleUrl))) return null;
+  } else {
+    if (!title || !publisher || !summary || !articleUrl) return null;
+    if (!isSafeUrl(articleUrl) || !/^https?:\/\//i.test(articleUrl)) return null;
+  }
 
   return {
     title,
-    publisher,
-    articleUrl,
+    // Required columns — a draft stores "" for anything not yet filled in.
+    publisher: publisher ?? "",
+    articleUrl: articleUrl ?? "",
     // Hard cap so an over-length summary (e.g. a direct API call bypassing the
     // editor's maxLength) can never be stored beyond the limit.
-    summary: summary.slice(0, PRESS_SUMMARY_MAX),
+    summary: (summary ?? "").slice(0, PRESS_SUMMARY_MAX),
     image: cleanImage(body.image),
     author: cleanStr(body.author),
     publishedAt: parseDate(body.publishedAt),

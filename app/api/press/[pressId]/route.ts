@@ -39,10 +39,15 @@ export async function PUT(
 
     const { pressId } = await params;
     const body = await request.json();
-    const input = extractPressInput(body);
+    const draft = body.draft === true;
+    const input = extractPressInput(body, { draft });
     if (!input) {
       return NextResponse.json(
-        { error: "title, publisher, summary and a valid article URL are required" },
+        {
+          error: draft
+            ? "A title is required (even for a draft)."
+            : "title, publisher, summary and a valid article URL are required",
+        },
         { status: 400 }
       );
     }
@@ -94,6 +99,7 @@ export async function PUT(
         publishedAt: input.publishedAt,
         artistIds: input.artistIds,
         releaseIds: input.releaseIds,
+        draft,
       },
     });
 

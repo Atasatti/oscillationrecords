@@ -95,9 +95,15 @@ export async function PUT(
       soundcloudLink,
     } = body;
 
-    if (!name || !biography) {
+    // A DRAFT saves incomplete work — only a name is required. Publishing
+    // (draft !== true) requires the full mandatory fields (name + biography).
+    const draft = body.draft === true;
+    if (!name || !String(name).trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    if (!draft && !biography) {
       return NextResponse.json(
-        { error: "Name and biography are required" },
+        { error: "A biography is required to publish (or save as a draft to finish later)." },
         { status: 400 }
       );
     }
@@ -127,7 +133,8 @@ export async function PUT(
       data: {
         // Trim stray leading/trailing whitespace so names stay clean everywhere.
         name: name.trim(),
-        biography,
+        biography: biography || "",
+        draft,
         ...(pictureInBody && { profilePicture: finalPicture }),
         composer: composer || null,
         lyricist: lyricist || null,

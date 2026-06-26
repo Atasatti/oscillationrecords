@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     // sections, so it must NEVER ship internal fields (realName, contact,
     // managerName, internalNotes, spotifyId, etc.). Keep keys public-safe.
     const artists = await prisma.artist.findMany({
-      ...(publicOnly ? { where: { showOnWebsite: true } } : {}),
+      ...(publicOnly ? { where: { showOnWebsite: true, draft: false } } : {}),
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       select: {
         id: true,
@@ -145,10 +145,15 @@ export async function POST(request: NextRequest) {
       soundcloudLink,
     } = body;
 
-    // Validate required fields
-    if (!name || !biography) {
+    // A DRAFT saves incomplete work — only a name is required. Publishing
+    // (draft !== true) requires the full mandatory fields (name + biography).
+    const draft = body.draft === true;
+    if (!name || !String(name).trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    if (!draft && !biography) {
       return NextResponse.json(
-        { error: "Name and biography are required" },
+        { error: "A biography is required to publish (or save as a draft to finish later)." },
         { status: 400 }
       );
     }
@@ -170,7 +175,9 @@ export async function POST(request: NextRequest) {
         // Trim stray leading/trailing whitespace (e.g. tabs pasted on import) so
         // names stay clean in listings, slugs and llms.txt.
         name: name.trim(),
-        biography,
+        // biography is a required column; a draft without one stores "".
+        biography: biography || "",
+        draft,
         profilePicture: finalPicture,
         composer: composer || null,
         lyricist: lyricist || null,
