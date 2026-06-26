@@ -23,7 +23,7 @@ type ArtistDetailViewProps = {
 // Show this many releases before the "Show all" reveal — two rows of three, to
 // match the Press & Features grid (same columns / count) so the page reads as
 // one consistent layout. Every release still ships in the HTML.
-const INITIAL_RELEASES = 6;
+const INITIAL_RELEASES = 8;
 
 export default function ArtistDetailView({ artist, releases }: ArtistDetailViewProps) {
   const router = useRouter();
@@ -175,10 +175,9 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               <h2 className="text-2xl font-light tracking-tighter mb-6">
                 Releases <span className="text-gray-500">({releases.length})</span>
               </h2>
-              {/* Same 3-column grid + gap as the Press & Features section, so both
-                  sections share one consistent layout and fill the width evenly.
-                  Cards are square (album art) and stretch to the column width. */}
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {/* DSP-style release wall: square album art, up to 4 across (2 rows of
+                  4 before "Show all"). Two-up on phones so the artwork stays large. */}
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
                 {releases.map((rel, i) => (
                   <div
                     key={rel.id}

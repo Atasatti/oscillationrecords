@@ -16,7 +16,7 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
     : null;
 
   return (
-    <article className="flex w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] transition-colors hover:border-white/20">
+    <article className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] transition-colors hover:border-white/20">
       {item.image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
