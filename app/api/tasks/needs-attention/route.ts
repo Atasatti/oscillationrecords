@@ -227,7 +227,7 @@ export async function GET(request: NextRequest) {
         type: "system",
         title: `${unhandledMessages} unread contact message${unhandledMessages > 1 ? "s" : ""}`,
         detail: "Messages submitted via the public Contact form",
-        href: "/admin/catalog",
+        href: "/admin/messages",
         priority: "high",
       });
     }
@@ -248,14 +248,30 @@ export async function GET(request: NextRequest) {
     const weakArtistIds = new Set(
       items.filter((i) => i.id.startsWith("artist-seo-")).map((i) => i.id.replace("artist-seo-", ""))
     );
+    // If a release is already flagged "weak SEO", its individual field gaps
+    // (description / genre / tracks / links) are already named in that item's
+    // detail — drop the standalone duplicates so each release appears once.
+    const weakReleaseIds = new Set(
+      items.filter((i) => i.id.startsWith("release-seo-")).map((i) => i.id.replace("release-seo-", ""))
+    );
+    const RELEASE_FIELD_PREFIXES = ["release-desc-", "release-genre-", "release-tracks-", "release-links-"];
     const deduped = items.filter((item) => {
       if (item.id.startsWith("artist-email-") && weakArtistIds.has(item.id.replace("artist-email-", ""))) return false;
+      for (const p of RELEASE_FIELD_PREFIXES) {
+        if (item.id.startsWith(p) && weakReleaseIds.has(item.id.replace(p, ""))) return false;
+      }
       return true;
     });
 
-    // Sort: high → medium → low
+    // Sort: unread contact messages first (time-sensitive inbound), then
+    // high → medium → low.
     const ORDER = { high: 0, medium: 1, low: 2 };
-    deduped.sort((a, b) => ORDER[a.priority] - ORDER[b.priority]);
+    deduped.sort((a, b) => {
+      const am = a.id === "system-messages" ? 0 : 1;
+      const bm = b.id === "system-messages" ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return ORDER[a.priority] - ORDER[b.priority];
+    });
 
     return NextResponse.json({ items: deduped, total: deduped.length }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {

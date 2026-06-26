@@ -507,14 +507,20 @@ export default function TasksPage() {
             <div className="flex flex-col gap-2">
               {attentionItems.map((item) => {
                 const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : Radio;
+                // Pin + highlight unread contact messages — time-sensitive inbound.
+                const isMessage = item.id === "system-messages";
                 return (
                   <Link
                     key={item.id}
                     href={item.href}
-                    className="group flex items-start gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
+                    className={`group flex items-start gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-white/[0.02] ${
+                      isMessage
+                        ? "border-amber-500/50 border-l-[3px] border-l-amber-500 bg-amber-500/[0.04] hover:border-amber-500/70"
+                        : "border-border hover:border-white/20"
+                    }`}
                   >
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${isMessage ? "border-amber-500/40 bg-amber-500/10" : "border-border bg-background"}`}>
+                      <Icon className={`h-4 w-4 ${isMessage ? "text-amber-400" : "text-muted-foreground"}`} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium group-hover:underline">{item.title}</span>

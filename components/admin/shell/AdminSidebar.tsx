@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, type LucideIcon } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
@@ -45,6 +45,7 @@ const adminGroups: readonly AdminGroup[] = [
     links: [
       { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"] },
       { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
+      { href: "/admin/messages", label: "Messages", icon: MessageSquare },
       { href: "/admin/subscribers", label: "Subscribers", icon: Mail },
     ],
   },
