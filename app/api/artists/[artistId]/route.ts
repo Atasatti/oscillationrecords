@@ -29,7 +29,21 @@ export async function GET(
       prisma.artist.findUnique({ where: { id: artistId } }),
       prisma.release.count({
         where: {
-          OR: [{ primaryArtistIds: { has: artistId } }, { featureArtistIds: { has: artistId } }],
+          OR: [
+            { primaryArtistIds: { has: artistId } },
+            { featureArtistIds: { has: artistId } },
+            // …or credited on a single track of the release.
+            {
+              tracks: {
+                some: {
+                  OR: [
+                    { primaryArtistIds: { has: artistId } },
+                    { featureArtistIds: { has: artistId } },
+                  ],
+                },
+              },
+            },
+          ],
         },
       }),
     ]);

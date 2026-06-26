@@ -208,15 +208,27 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   const ids = rows.map((r) => r.id);
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-  const [releases, plays] = await Promise.all([
+  const [releases, trackRows, plays] = await Promise.all([
+    // Releases that credit the artist at the RELEASE level (primary or feature).
     prisma.release.findMany({
-      // Count releases where the artist is a PRIMARY or FEATURE artist — matching
-      // the public artist page (getArtistDetail), so a feature-only credit (e.g.
-      // an MC featured on a track) still shows in the roster's release count.
       where: {
         OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
       },
-      select: { primaryArtistIds: true, featureArtistIds: true, releaseDate: true },
+      select: { id: true, primaryArtistIds: true, featureArtistIds: true, releaseDate: true },
+    }),
+    // …and TRACK-level credits — an artist on a single track of a release (e.g. an
+    // MC on one song) still "has" that release. Matches getArtistDetail so the
+    // count lines up with the artist's public page.
+    prisma.track.findMany({
+      where: {
+        OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
+      },
+      select: {
+        releaseId: true,
+        primaryArtistIds: true,
+        featureArtistIds: true,
+        release: { select: { releaseDate: true } },
+      },
     }),
     prisma.playEvent.groupBy({
       by: ["artistId"],
@@ -226,21 +238,31 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   ]);
 
   const idSet = new Set(ids);
-  const countById = new Map<string, number>();
+  // Per artist: the set of distinct releaseIds they're credited on (release- OR
+  // track-level), so the count is # of distinct releases, never double-counted.
+  const releaseIdsByArtist = new Map<string, Set<string>>();
   const lastById = new Map<string, Date>();
-  for (const rel of releases) {
-    // Dedupe per release so an artist credited as both primary and feature on the
-    // same release still counts once.
-    const onRelease = new Set<string>();
-    for (const aid of [...rel.primaryArtistIds, ...rel.featureArtistIds]) {
-      if (idSet.has(aid)) onRelease.add(aid);
+  const credit = (aid: string, releaseId: string, date: Date | null) => {
+    if (!idSet.has(aid)) return;
+    let set = releaseIdsByArtist.get(aid);
+    if (!set) {
+      set = new Set();
+      releaseIdsByArtist.set(aid, set);
     }
-    for (const aid of onRelease) {
-      countById.set(aid, (countById.get(aid) ?? 0) + 1);
-      if (rel.releaseDate) {
-        const prev = lastById.get(aid);
-        if (!prev || rel.releaseDate > prev) lastById.set(aid, rel.releaseDate);
-      }
+    set.add(releaseId);
+    if (date) {
+      const prev = lastById.get(aid);
+      if (!prev || date > prev) lastById.set(aid, date);
+    }
+  };
+  for (const rel of releases) {
+    for (const aid of new Set([...rel.primaryArtistIds, ...rel.featureArtistIds])) {
+      credit(aid, rel.id, rel.releaseDate);
+    }
+  }
+  for (const t of trackRows) {
+    for (const aid of new Set([...t.primaryArtistIds, ...t.featureArtistIds])) {
+      credit(aid, t.releaseId, t.release?.releaseDate ?? null);
     }
   }
   const playsById = new Map<string, number>();
@@ -249,7 +271,7 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   }
 
   return rows.map((r) => {
-    const releaseCount = countById.get(r.id) ?? 0;
+    const releaseCount = releaseIdsByArtist.get(r.id)?.size ?? 0;
     const seo = computeArtistSeo({ ...r._sig, releaseCount });
     const gkp = computeArtistGkp({ ...r._sig, releaseCount });
     return stripSignals({

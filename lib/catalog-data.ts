@@ -307,6 +307,17 @@ export const getArtistDetail = cache(async (
               OR: [
                 { primaryArtistIds: { has: artistId } },
                 { featureArtistIds: { has: artistId } },
+                // …or credited on a single track of the release (e.g. one song).
+                {
+                  tracks: {
+                    some: {
+                      OR: [
+                        { primaryArtistIds: { has: artistId } },
+                        { featureArtistIds: { has: artistId } },
+                      ],
+                    },
+                  },
+                },
               ],
             },
             publicReleaseWhere(),
