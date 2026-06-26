@@ -695,10 +695,15 @@ export default function AdminArtistsClient({
           <DialogHeader>
             <DialogTitle>Delete artist</DialogTitle>
             <DialogDescription>
-              Delete &quot;{deleteTarget?.name}&quot;? This also removes their releases
-              where they are the sole primary artist. This cannot be undone.
+              Delete this artist? This also removes their releases where they are
+              the sole primary artist. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {/* Name in its own bounded block so a long name can't overflow the
+              dialog or push the buttons out of reach. */}
+          <p className="line-clamp-2 break-words rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
+            {deleteTarget?.name}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
               Cancel

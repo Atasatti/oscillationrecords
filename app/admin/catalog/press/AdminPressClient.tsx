@@ -378,9 +378,15 @@ export default function AdminPressClient({
           <DialogHeader>
             <DialogTitle>Delete press item</DialogTitle>
             <DialogDescription>
-              Delete &quot;{deleteTarget?.title}&quot;? This cannot be undone.
+              Delete this press item? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {/* Title shown in its own bounded block: break-words stops a long
+              unbroken headline from overflowing the dialog, and line-clamp-3
+              caps the height so it can never push the buttons out of reach. */}
+          <p className="line-clamp-3 break-words rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
+            {deleteTarget?.title}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
               Cancel
