@@ -126,6 +126,9 @@ export default function ArtistEditor({
 
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  // Whether the artist being edited is currently a draft (drives the primary
+  // button label: Publish vs Save). New artists start as a draft conceptually.
+  const [isDraft, setIsDraft] = useState(mode === "create");
   // Public releases crediting this artist — feeds the live discoverability score
   // (a release strengthens the entity). Loaded with the artist in edit mode.
   const [releaseCount, setReleaseCount] = useState(0);
@@ -229,6 +232,7 @@ export default function ArtistEditor({
         });
         setImageUrl(a.profilePicture || null);
         setImagePreview(a.profilePicture || null);
+        setIsDraft(a.draft === true);
         setReleaseCount(typeof a.releaseCount === "number" ? a.releaseCount : 0);
       } catch {
         toast.error("Failed to load artist");
@@ -432,11 +436,13 @@ export default function ArtistEditor({
     return fileURL;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Publishing (draft=false) requires the full set — a name, a photo, and a
+  // biography (the server enforces the biography). A DRAFT only needs a name, so
+  // incomplete work can be parked and finished later.
+  const save = async (draft: boolean) => {
     const fieldErrors: typeof errors = {};
     if (!form.name.trim()) fieldErrors.name = "Artist name is required";
-    if (!imageFile && !imageUrl) fieldErrors.image = "A profile picture is required";
+    if (!draft && !imageFile && !imageUrl) fieldErrors.image = "A profile picture is required";
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors);
       // Make sure the section holding the error is visible (the name lives in Basics).
@@ -480,6 +486,7 @@ export default function ArtistEditor({
         tidalLink: form.tidalLink,
         amazonMusicLink: form.amazonMusicLink,
         soundcloudLink: form.soundcloudLink,
+        draft,
       };
 
       const res = await fetch(
@@ -503,7 +510,7 @@ export default function ArtistEditor({
         }).catch(() => {});
       }
       setDirty(false);
-      toast.success(mode === "edit" ? "Artist saved" : "Artist created");
+      toast.success(draft ? "Draft saved" : mode === "edit" ? "Artist saved" : "Artist created");
       router.push("/admin/catalog/artists");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
@@ -511,6 +518,12 @@ export default function ArtistEditor({
       setSaving(false);
       setUploading(false);
     }
+  };
+
+  // Form submit / primary button = publish (full validation).
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    save(false);
   };
 
   if (loading) {
@@ -972,7 +985,7 @@ export default function ArtistEditor({
               />
             </CollapsibleCard>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={saving} className="bg-white text-black hover:bg-gray-200">
                 {saving ? (
                   <>
@@ -982,13 +995,24 @@ export default function ArtistEditor({
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    {mode === "edit" ? "Save artist" : "Create artist"}
+                    {isDraft ? "Publish artist" : mode === "edit" ? "Save artist" : "Create artist"}
                   </>
                 )}
               </Button>
+              {/* Draft is set via this action, not a visibility toggle — saves
+                  incomplete work (only a name required) and keeps it hidden. */}
               <Button
                 type="button"
                 variant="outline"
+                disabled={saving}
+                onClick={() => save(true)}
+                title="Save incomplete work as a hidden draft to finish later"
+              >
+                Save as draft
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   if (confirmDiscard()) router.push("/admin/catalog/artists");
                 }}

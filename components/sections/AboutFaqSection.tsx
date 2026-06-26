@@ -13,23 +13,37 @@ export const ABOUT_FAQ: Array<{ question: string; answer: string }> = [
   {
     question: "What is Oscillation Records?",
     answer:
-      "Oscillation Records is an independent UK record label (company no. 15579381). We sign, release and champion artists, with one principle at the centre of everything we do: put artists first.",
+      "Oscillation Records is an independent UK record label (company no. 15579381). We release and champion the artists we work with, with one principle at the centre of everything we do: put artists first.",
   },
   {
-    question: "Is Oscillation Records the same as The Oscillation?",
+    question: "Is Oscillation Records the same as The Oscillation, Oscillations, or the Chilean duo?",
     answer:
-      "No. Oscillation Records is a distinct, independent record label. It is not affiliated with The Oscillation — the psych-rock project led by Demian Castellanos — nor with any other label using a similar name.",
+      "No. Oscillation Records is a distinct UK independent record label and is not affiliated with any similarly-named act: not The Oscillation (the London psychedelic / space-rock band led by Demian Castellanos), not Oscillations (the London experimental-electronic label founded by Gabriel Prokofiev), and not the Chilean tech-house / techno duo Eban Krocker and Diego Herrera who also release as “Oscillation Records”.",
   },
   {
     question: "Where is Oscillation Records based?",
     answer:
-      // TODO: once LABEL.city is confirmed, fold it in (e.g. "based in London").
-      "Oscillation Records is a UK-registered record label (Companies House company no. 15579381).",
+      "Oscillation Records is based in Manchester, United Kingdom. It's a UK-registered independent record label (Companies House company no. 15579381), founded in 2022.",
+  },
+  {
+    question: "What genre or kind of music does Oscillation Records release?",
+    answer:
+      "Oscillation Records is primarily an electronic label — EDM, dubstep, drum & bass and house — but we're open to all genres and release music we believe in regardless of style.",
+  },
+  {
+    question: "Is Oscillation Records an exclusive label? Do artists have to sign to it?",
+    answer:
+      "No. Oscillation Records is not an exclusive label. Artists are free to release their music elsewhere, and working with us doesn't tie an artist to the label — artists are not explicitly signed unless that has been specifically agreed. We often collaborate with artists on individual releases rather than exclusive deals.",
   },
   {
     question: "How can artists work with Oscillation Records?",
     answer:
-      "We're always listening. Reach out through our contact page to share your music, your story, or an idea — whether you're an established artist or just starting out.",
+      "We're always listening. Reach out through our contact page to share your music, your story, or an idea — whether you're an established artist or just starting out. There's no obligation, and you stay free to release music independently or with others.",
+  },
+  {
+    question: "What artists and releases are on Oscillation Records?",
+    answer:
+      "Our current roster is listed on the Artists page, and every single, EP and album we've put out is on the Releases page — both are kept up to date as new music is added.",
   },
 ];
 

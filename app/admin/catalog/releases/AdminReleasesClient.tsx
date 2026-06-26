@@ -568,7 +568,7 @@ function ReleasesPageInner({
                       disabled={!isLiveRelease(r) || pendingFlags.has(r.id)}
                       onClick={() => patchFlag(r.id, "showLatestOnHome", !r.showLatestOnHome)}
                       title={isLiveRelease(r) ? "Show the 'Latest' pill on home" : "Only released / live releases can be a Latest Release"}
-                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex w-[72px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {r.showLatestOnHome ? <Badge variant="destructive">Latest</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
@@ -579,7 +579,7 @@ function ReleasesPageInner({
                       disabled={r.status === "DRAFT" || pendingFlags.has(r.id)}
                       onClick={() => patchFlag(r.id, "showOnHome", !r.showOnHome)}
                       title={r.status === "DRAFT" ? "Publish this release before adding it to New Music" : "Feature in the New Music carousel"}
-                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex w-[64px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>

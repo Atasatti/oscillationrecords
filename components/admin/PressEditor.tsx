@@ -45,7 +45,9 @@ const emptyForm: FormState = {
 
 type Option = { value: string; label: string };
 
-// Mirrors PRESS_SUMMARY_MAX in lib/press-input.ts (the server caps to this too).
+// Mirror lib/press-input.ts (PRESS_TITLE_MAX / PRESS_SUMMARY_MAX) — the server
+// caps to these too, so a long headline/summary can't break the press-card layout.
+const TITLE_MAX = 120;
 const SUMMARY_MAX = 300;
 
 export default function PressEditor({
@@ -71,6 +73,8 @@ export default function PressEditor({
 
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  // Whether the item being edited is a draft (drives the primary button label).
+  const [isDraft, setIsDraft] = useState(mode === "create");
   const [uploading, setUploading] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -137,6 +141,7 @@ export default function PressEditor({
         });
         setImageUrl(p.image || "");
         setImagePreview(p.image || null);
+        setIsDraft(p.draft === true);
       } catch {
         toast.error("Failed to load press item");
         router.push("/admin/catalog/press");
@@ -189,15 +194,21 @@ export default function PressEditor({
     return fileURL;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Publishing requires title + publisher + a valid article URL + summary. A
+  // DRAFT only needs a title; the rest can be filled in before publishing (a URL,
+  // if provided, must still be a valid http(s) link).
+  const save = async (draft: boolean) => {
     const fieldErrors: typeof errors = {};
     if (!form.title.trim()) fieldErrors.title = "Title is required";
-    if (!form.publisher.trim()) fieldErrors.publisher = "Publisher is required";
-    if (!form.articleUrl.trim()) fieldErrors.articleUrl = "Article URL is required";
-    else if (!/^https?:\/\//i.test(form.articleUrl.trim()))
+    if (!draft) {
+      if (!form.publisher.trim()) fieldErrors.publisher = "Publisher is required";
+      if (!form.articleUrl.trim()) fieldErrors.articleUrl = "Article URL is required";
+      else if (!/^https?:\/\//i.test(form.articleUrl.trim()))
+        fieldErrors.articleUrl = "Must be a full http(s) URL";
+      if (!form.summary.trim()) fieldErrors.summary = "A short summary is required";
+    } else if (form.articleUrl.trim() && !/^https?:\/\//i.test(form.articleUrl.trim())) {
       fieldErrors.articleUrl = "Must be a full http(s) URL";
-    if (!form.summary.trim()) fieldErrors.summary = "A short summary is required";
+    }
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors);
       return;
@@ -222,6 +233,7 @@ export default function PressEditor({
         image: finalImage || null,
         artistIds: form.artistIds,
         releaseIds: form.releaseIds,
+        draft,
       };
 
       const res = await fetch(
@@ -245,7 +257,7 @@ export default function PressEditor({
         }).catch(() => {});
       }
       setDirty(false);
-      toast.success(mode === "edit" ? "Press item saved" : "Press item created");
+      toast.success(draft ? "Draft saved" : mode === "edit" ? "Press item saved" : "Press item created");
       router.push("/admin/catalog/press");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
@@ -253,6 +265,12 @@ export default function PressEditor({
       setSaving(false);
       setUploading(false);
     }
+  };
+
+  // Form submit / primary button = publish (full validation).
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    save(false);
   };
 
   // Delete the press item (edit mode only), then return to the list.
@@ -371,12 +389,26 @@ export default function PressEditor({
             <div className="space-y-4 rounded-xl border border-border bg-card p-6">
               <h3 className="text-lg font-medium">Coverage</h3>
               <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label htmlFor="title" className="block text-xs font-medium text-muted-foreground">
+                    Headline *
+                  </label>
+                  <span
+                    className={`shrink-0 text-xs tabular-nums ${
+                      form.title.length >= TITLE_MAX ? "text-amber-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {form.title.length}/{TITLE_MAX}
+                  </span>
+                </div>
                 <Input
+                  id="title"
                   value={form.title}
                   onChange={(e) => {
                     setField("title", e.target.value);
                     if (errors.title) setErrors((p) => ({ ...p, title: undefined }));
                   }}
+                  maxLength={TITLE_MAX}
                   placeholder="Headline of your summary *"
                   className={errors.title ? "border-red-500/70" : ""}
                 />
@@ -505,7 +537,7 @@ export default function PressEditor({
               ) : null}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={saving} className="bg-white text-black hover:bg-gray-200">
                 {saving ? (
                   <>
@@ -515,9 +547,19 @@ export default function PressEditor({
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    {mode === "edit" ? "Save press item" : "Create press item"}
+                    {isDraft ? "Publish press item" : mode === "edit" ? "Save press item" : "Create press item"}
                   </>
                 )}
+              </Button>
+              {/* Draft = save incomplete work (only a title required), kept hidden. */}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => save(true)}
+                title="Save incomplete work as a hidden draft to finish later"
+              >
+                Save as draft
               </Button>
               {form.articleUrl && /^https?:\/\//i.test(form.articleUrl) ? (
                 <Button type="button" variant="outline" asChild>

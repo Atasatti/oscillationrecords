@@ -26,6 +26,7 @@ export interface AdminArtistRow {
   id: string;
   name: string;
   profilePicture: string | null;
+  draft: boolean;
   showOnWebsite: boolean;
   featuredOnHome: boolean;
   homeOrder: number;
@@ -98,6 +99,7 @@ const ROW_SELECT = {
   id: true,
   name: true,
   profilePicture: true,
+  draft: true,
   showOnWebsite: true,
   featuredOnHome: true,
   homeOrder: true,
@@ -178,6 +180,7 @@ function toRow(a: ArtistSelectRow): RowWithSignals {
     id: a.id,
     name: a.name,
     profilePicture: a.profilePicture ?? null,
+    draft: a.draft,
     showOnWebsite: a.showOnWebsite,
     featuredOnHome: a.featuredOnHome,
     homeOrder: a.homeOrder,
@@ -208,10 +211,27 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   const ids = rows.map((r) => r.id);
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-  const [releases, plays] = await Promise.all([
+  const [releases, trackRows, plays] = await Promise.all([
+    // Releases that credit the artist at the RELEASE level (primary or feature).
     prisma.release.findMany({
-      where: { primaryArtistIds: { hasSome: ids } },
-      select: { primaryArtistIds: true, releaseDate: true },
+      where: {
+        OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
+      },
+      select: { id: true, primaryArtistIds: true, featureArtistIds: true, releaseDate: true },
+    }),
+    // …and TRACK-level credits — an artist on a single track of a release (e.g. an
+    // MC on one song) still "has" that release. Matches getArtistDetail so the
+    // count lines up with the artist's public page.
+    prisma.track.findMany({
+      where: {
+        OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
+      },
+      select: {
+        releaseId: true,
+        primaryArtistIds: true,
+        featureArtistIds: true,
+        release: { select: { releaseDate: true } },
+      },
     }),
     prisma.playEvent.groupBy({
       by: ["artistId"],
@@ -221,16 +241,31 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   ]);
 
   const idSet = new Set(ids);
-  const countById = new Map<string, number>();
+  // Per artist: the set of distinct releaseIds they're credited on (release- OR
+  // track-level), so the count is # of distinct releases, never double-counted.
+  const releaseIdsByArtist = new Map<string, Set<string>>();
   const lastById = new Map<string, Date>();
+  const credit = (aid: string, releaseId: string, date: Date | null) => {
+    if (!idSet.has(aid)) return;
+    let set = releaseIdsByArtist.get(aid);
+    if (!set) {
+      set = new Set();
+      releaseIdsByArtist.set(aid, set);
+    }
+    set.add(releaseId);
+    if (date) {
+      const prev = lastById.get(aid);
+      if (!prev || date > prev) lastById.set(aid, date);
+    }
+  };
   for (const rel of releases) {
-    for (const aid of rel.primaryArtistIds) {
-      if (!idSet.has(aid)) continue;
-      countById.set(aid, (countById.get(aid) ?? 0) + 1);
-      if (rel.releaseDate) {
-        const prev = lastById.get(aid);
-        if (!prev || rel.releaseDate > prev) lastById.set(aid, rel.releaseDate);
-      }
+    for (const aid of new Set([...rel.primaryArtistIds, ...rel.featureArtistIds])) {
+      credit(aid, rel.id, rel.releaseDate);
+    }
+  }
+  for (const t of trackRows) {
+    for (const aid of new Set([...t.primaryArtistIds, ...t.featureArtistIds])) {
+      credit(aid, t.releaseId, t.release?.releaseDate ?? null);
     }
   }
   const playsById = new Map<string, number>();
@@ -239,7 +274,7 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
   }
 
   return rows.map((r) => {
-    const releaseCount = countById.get(r.id) ?? 0;
+    const releaseCount = releaseIdsByArtist.get(r.id)?.size ?? 0;
     const seo = computeArtistSeo({ ...r._sig, releaseCount });
     const gkp = computeArtistGkp({ ...r._sig, releaseCount });
     return stripSignals({
@@ -454,7 +489,7 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
 // ---------------------------------------------------------------------------
 
 /** Admin press row = the public DTO plus the visibility flag (admin-only). */
-export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean };
+export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean; draft: boolean };
 
 /**
  * Paginated press items for the admin manage table. Resolves linked
@@ -473,13 +508,17 @@ export async function getPressPage({
   const size = Math.min(Math.max(1, pageSize), 100);
   const query = q.trim();
 
-  // Attach the admin-only showOnWebsite flag onto each mapped DTO by id.
+  // Attach the admin-only showOnWebsite + draft flags onto each mapped DTO by id.
   const withVisibility = async (
-    rows: { id: string; showOnWebsite: boolean }[]
+    rows: { id: string; showOnWebsite: boolean; draft: boolean }[]
   ): Promise<AdminPressRow[]> => {
-    const visById = new Map(rows.map((r) => [r.id, r.showOnWebsite]));
+    const metaById = new Map(rows.map((r) => [r.id, { showOnWebsite: r.showOnWebsite, draft: r.draft }]));
     const dtos = await mapPressItems(rows as never, { isAdmin: true });
-    return dtos.map((d) => ({ ...d, showOnWebsite: visById.get(d.id) ?? true }));
+    return dtos.map((d) => ({
+      ...d,
+      showOnWebsite: metaById.get(d.id)?.showOnWebsite ?? true,
+      draft: metaById.get(d.id)?.draft ?? false,
+    }));
   };
 
   if (query) {

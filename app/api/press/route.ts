@@ -58,10 +58,15 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
-    const input = extractPressInput(body);
+    const draft = body.draft === true;
+    const input = extractPressInput(body, { draft });
     if (!input) {
       return NextResponse.json(
-        { error: "title, publisher, summary and a valid article URL are required" },
+        {
+          error: draft
+            ? "A title is required (even for a draft)."
+            : "title, publisher, summary and a valid article URL are required",
+        },
         { status: 400 }
       );
     }
@@ -115,6 +120,7 @@ export async function POST(request: NextRequest) {
         releaseIds: input.releaseIds,
         sortOrder,
         showOnWebsite: true,
+        draft,
       },
     });
 

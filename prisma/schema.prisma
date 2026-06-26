@@ -134,6 +134,11 @@ model Artist {
   amazonMusicLink  String?
   soundcloudLink   String?
   sortOrder     Int      @default(0)
+  /// Work-in-progress flag (like a Release DRAFT). A draft is never public —
+  /// regardless of showOnWebsite — and can be saved with incomplete details;
+  /// publishing it requires the full required fields. Defaults false (existing
+  /// artists are live).
+  draft         Boolean  @default(false)
   /// When true, artist appears on the public /artists page (listed alphabetically).
   showOnWebsite Boolean  @default(true)
   /// When true, artist is featured in the home "Meet the Artists" carousel (curated subset).
@@ -255,6 +260,10 @@ model PressItem {
   artistIds   String[]  @db.ObjectId
   /// Linked releases (loose ObjectId ids).
   releaseIds  String[]  @db.ObjectId
+  /// Work-in-progress flag (like a Release DRAFT). A draft is never public —
+  /// regardless of showOnWebsite — and can be saved incomplete; publishing it
+  /// requires the full required fields. Defaults false (existing items are live).
+  draft         Boolean @default(false)
   /// When true, the item appears on the public site (/press + artist/release sections).
   showOnWebsite Boolean @default(true)
   /// Membership in a curated/featured press list (distinct from sortOrder).

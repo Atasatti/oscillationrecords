@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const [artists, releases] = await Promise.all([
       prisma.artist.findMany({
-        where: { showOnWebsite: true },
+        where: { showOnWebsite: true, draft: false },
         select: { id: true, name: true, updatedAt: true, profilePicture: true },
       }),
       prisma.release.findMany({

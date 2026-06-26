@@ -52,6 +52,7 @@ import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -234,6 +235,7 @@ export default function AdminArtistsClient({
       if (!res.ok) throw new Error();
       toast.success("Artist deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       clearCached(); // row count/pages changed — drop stale cached views
       load();
     } catch {
@@ -260,6 +262,7 @@ export default function AdminArtistsClient({
           : `Updated ${ids.length} artist${ids.length === 1 ? "" : "s"}`
       );
       setBulkDeleteOpen(false);
+      unlockBody(); // clear any leftover Radix body lock (see confirmDelete)
       clearCached(); // bulk show/hide/delete changed rows — invalidate cache
       load();
     } catch {
@@ -522,6 +525,9 @@ export default function AdminArtistsClient({
                         className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <span className="truncate font-medium group-hover:underline">{a.name}</span>
+                      {a.draft ? (
+                        <Badge variant="warning" className="shrink-0">Draft</Badge>
+                      ) : null}
                     </Link>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
@@ -606,6 +612,7 @@ export default function AdminArtistsClient({
                       type="button"
                       onClick={() => setVisibility(a.id, !a.showOnWebsite)}
                       title="Toggle visibility on the public site"
+                      className="inline-flex w-[72px] justify-start"
                     >
                       {a.showOnWebsite ? (
                         <Badge variant="success">Live</Badge>
@@ -620,7 +627,7 @@ export default function AdminArtistsClient({
                       disabled={!a.showOnWebsite}
                       onClick={() => setFeatured(a.id, !a.featuredOnHome)}
                       title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
-                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex w-[104px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {a.featuredOnHome ? (
                         <Badge variant="warning">
@@ -688,10 +695,15 @@ export default function AdminArtistsClient({
           <DialogHeader>
             <DialogTitle>Delete artist</DialogTitle>
             <DialogDescription>
-              Delete &quot;{deleteTarget?.name}&quot;? This also removes their releases
-              where they are the sole primary artist. This cannot be undone.
+              Delete this artist? This also removes their releases where they are
+              the sole primary artist. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {/* Name in its own bounded block so a long name can't overflow the
+              dialog or push the buttons out of reach. */}
+          <p className="line-clamp-2 break-words rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
+            {deleteTarget?.name}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
               Cancel

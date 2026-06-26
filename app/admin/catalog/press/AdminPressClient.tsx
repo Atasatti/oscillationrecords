@@ -45,6 +45,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import type { AdminPressRow } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -143,6 +144,7 @@ export default function AdminPressClient({
       if (!res.ok) throw new Error();
       toast.success("Press item deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       clearCached();
       load();
     } catch {
@@ -281,6 +283,9 @@ export default function AdminPressClient({
                               className="h-10 w-16 shrink-0 rounded object-cover"
                             />
                             <span className="truncate font-medium group-hover:underline">{p.title}</span>
+                            {p.draft ? (
+                              <Badge variant="warning" className="shrink-0">Draft</Badge>
+                            ) : null}
                           </Link>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
@@ -304,6 +309,7 @@ export default function AdminPressClient({
                             type="button"
                             onClick={() => patch(p.id, { showOnWebsite: !p.showOnWebsite }, "Failed to update visibility")}
                             title="Toggle visibility on the public site"
+                            className="inline-flex w-[72px] justify-start"
                           >
                             {p.showOnWebsite ? (
                               <Badge variant="success">Live</Badge>
@@ -317,6 +323,7 @@ export default function AdminPressClient({
                             type="button"
                             onClick={() => patch(p.id, { featured: !p.featured }, "Failed to update featured")}
                             title="Mark as featured"
+                            className="inline-flex w-[104px] justify-start"
                           >
                             {p.featured ? (
                               <Badge variant="warning">
@@ -371,9 +378,15 @@ export default function AdminPressClient({
           <DialogHeader>
             <DialogTitle>Delete press item</DialogTitle>
             <DialogDescription>
-              Delete &quot;{deleteTarget?.title}&quot;? This cannot be undone.
+              Delete this press item? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {/* Title shown in its own bounded block: break-words stops a long
+              unbroken headline from overflowing the dialog, and line-clamp-3
+              caps the height so it can never push the buttons out of reach. */}
+          <p className="line-clamp-3 break-words rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
+            {deleteTarget?.title}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
               Cancel
