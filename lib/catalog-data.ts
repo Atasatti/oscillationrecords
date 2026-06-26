@@ -327,7 +327,9 @@ export const getArtistDetail = cache(async (
       }),
     ]);
 
-    if (!artist) return null;
+    // Draft (work-in-progress) artists are never public — 404 like a hidden one,
+    // even via a legacy /artists/<id> URL that bypasses the slug index.
+    if (!artist || artist.draft) return null;
 
     const releases = await mapReleasesToCards(releaseRows, { isAdmin: false });
     return {
@@ -431,7 +433,7 @@ export const getArtistSlugIndex = cache(
   async (): Promise<{ id: string; name: string; slug: string }[]> => {
     try {
       const artists = await prisma.artist.findMany({
-        where: { showOnWebsite: true },
+        where: { showOnWebsite: true, draft: false },
         select: { id: true, name: true },
       });
       return artists.map((a) => ({ id: a.id, name: a.name, slug: slugify(a.name) }));
@@ -482,7 +484,7 @@ export const resolveReleaseIdBySlug = cache(
 export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
   try {
     const artists = await prisma.artist.findMany({
-      where: { showOnWebsite: true },
+      where: { showOnWebsite: true, draft: false },
       // Honour the admin's custom order; fall back to name for unplaced ties.
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
@@ -700,7 +702,7 @@ export const getReleaseDetail = cache(
 export async function getHomeArtists(): Promise<PublicArtistDTO[]> {
   try {
     const featured = await prisma.artist.findMany({
-      where: { featuredOnHome: true, showOnWebsite: true },
+      where: { featuredOnHome: true, showOnWebsite: true, draft: false },
       orderBy: [{ homeOrder: "asc" }, { name: "asc" }],
     });
     if (featured.length > 0) return featured.map(toPublicArtist);
@@ -846,7 +848,7 @@ async function mapPressItems(
       ? prisma.artist.findMany({
           where: {
             id: { in: Array.from(artistIds) },
-            ...(isAdmin ? {} : { showOnWebsite: true }),
+            ...(isAdmin ? {} : { showOnWebsite: true, draft: false }),
           },
           select: { id: true, name: true },
         })
@@ -892,7 +894,7 @@ async function mapPressItems(
 export const getAllPress = cache(async (): Promise<PressItemDTO[]> => {
   try {
     const rows = await prisma.pressItem.findMany({
-      where: { showOnWebsite: true },
+      where: { showOnWebsite: true, draft: false },
       orderBy: pressOrderBy,
     });
     return await mapPressItems(rows, { isAdmin: false });
@@ -910,7 +912,7 @@ export const getAllPress = cache(async (): Promise<PressItemDTO[]> => {
 export const getFeaturedPress = cache(async (): Promise<PressItemDTO[]> => {
   try {
     const rows = await prisma.pressItem.findMany({
-      where: { showOnWebsite: true, featured: true },
+      where: { showOnWebsite: true, draft: false, featured: true },
       orderBy: [{ homeOrder: "asc" }, { publishedAt: "desc" }, { createdAt: "desc" }],
     });
     return await mapPressItems(rows, { isAdmin: false });
@@ -925,7 +927,7 @@ export const getPressForArtist = cache(
   async (artistId: string): Promise<PressItemDTO[]> => {
     try {
       const rows = await prisma.pressItem.findMany({
-        where: { showOnWebsite: true, artistIds: { has: artistId } },
+        where: { showOnWebsite: true, draft: false, artistIds: { has: artistId } },
         orderBy: pressOrderBy,
       });
       return await mapPressItems(rows, { isAdmin: false });
@@ -941,7 +943,7 @@ export const getPressForRelease = cache(
   async (releaseId: string): Promise<PressItemDTO[]> => {
     try {
       const rows = await prisma.pressItem.findMany({
-        where: { showOnWebsite: true, releaseIds: { has: releaseId } },
+        where: { showOnWebsite: true, draft: false, releaseIds: { has: releaseId } },
         orderBy: pressOrderBy,
       });
       return await mapPressItems(rows, { isAdmin: false });

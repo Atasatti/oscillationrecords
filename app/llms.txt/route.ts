@@ -19,7 +19,7 @@ export async function GET() {
   try {
     [artists, releases] = await Promise.all([
       prisma.artist.findMany({
-        where: { showOnWebsite: true },
+        where: { showOnWebsite: true, draft: false },
         orderBy: { name: "asc" },
         select: { name: true },
       }),
