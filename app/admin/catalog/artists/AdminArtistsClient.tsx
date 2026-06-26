@@ -609,6 +609,7 @@ export default function AdminArtistsClient({
                       type="button"
                       onClick={() => setVisibility(a.id, !a.showOnWebsite)}
                       title="Toggle visibility on the public site"
+                      className="inline-flex w-[72px] justify-start"
                     >
                       {a.showOnWebsite ? (
                         <Badge variant="success">Live</Badge>
@@ -623,7 +624,7 @@ export default function AdminArtistsClient({
                       disabled={!a.showOnWebsite}
                       onClick={() => setFeatured(a.id, !a.featuredOnHome)}
                       title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
-                      className="disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex w-[104px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {a.featuredOnHome ? (
                         <Badge variant="warning">

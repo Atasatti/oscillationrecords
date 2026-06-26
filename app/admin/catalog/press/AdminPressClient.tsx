@@ -307,6 +307,7 @@ export default function AdminPressClient({
                             type="button"
                             onClick={() => patch(p.id, { showOnWebsite: !p.showOnWebsite }, "Failed to update visibility")}
                             title="Toggle visibility on the public site"
+                            className="inline-flex w-[72px] justify-start"
                           >
                             {p.showOnWebsite ? (
                               <Badge variant="success">Live</Badge>
@@ -320,6 +321,7 @@ export default function AdminPressClient({
                             type="button"
                             onClick={() => patch(p.id, { featured: !p.featured }, "Failed to update featured")}
                             title="Mark as featured"
+                            className="inline-flex w-[104px] justify-start"
                           >
                             {p.featured ? (
                               <Badge variant="warning">
