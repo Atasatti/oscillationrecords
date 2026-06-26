@@ -45,6 +45,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import type { AdminPressRow } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -143,6 +144,7 @@ export default function AdminPressClient({
       if (!res.ok) throw new Error();
       toast.success("Press item deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       clearCached();
       load();
     } catch {

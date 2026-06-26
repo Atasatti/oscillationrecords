@@ -52,6 +52,7 @@ import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
 import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -234,6 +235,7 @@ export default function AdminArtistsClient({
       if (!res.ok) throw new Error();
       toast.success("Artist deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       clearCached(); // row count/pages changed — drop stale cached views
       load();
     } catch {
@@ -260,6 +262,7 @@ export default function AdminArtistsClient({
           : `Updated ${ids.length} artist${ids.length === 1 ? "" : "s"}`
       );
       setBulkDeleteOpen(false);
+      unlockBody(); // clear any leftover Radix body lock (see confirmDelete)
       clearCached(); // bulk show/hide/delete changed rows — invalidate cache
       load();
     } catch {
