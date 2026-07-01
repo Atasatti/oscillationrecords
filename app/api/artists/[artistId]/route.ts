@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { deleteArtistCascade } from "@/lib/artist-delete";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { rehostExternalImage } from "@/lib/s3";
+import { isSafeUrl } from "@/lib/url-safety";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -124,8 +125,11 @@ export async function PUT(
     // Only touch the photo when the field is actually provided, so a PUT that
     // omits profilePicture doesn't silently wipe the existing one.
     const pictureInBody = Object.prototype.hasOwnProperty.call(body, "profilePicture");
-    const finalPicture = profilePicture
-      ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
+    // Reject unsafe schemes before rehosting — the fallback stores this original,
+    // which renders as the artist's <img src> (no javascript:/data: allowed).
+    const safePicture = isSafeUrl(profilePicture) ? profilePicture : null;
+    const finalPicture = safePicture
+      ? (await rehostExternalImage(safePicture, name)) ?? safePicture
       : null;
 
     const artist = await prisma.artist.update({

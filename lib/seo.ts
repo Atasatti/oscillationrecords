@@ -64,6 +64,27 @@ export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
+/**
+ * Serialize a JSON-LD object for safe embedding inside
+ * `<script type="application/ld+json" dangerouslySetInnerHTML>`.
+ *
+ * `JSON.stringify` does NOT HTML-escape, so any stored, admin-authored string
+ * (artist/release name, biography, description, press title) that contains
+ * `</script>` would terminate the script element early and let the following
+ * bytes parse as live markup — stored XSS on every public visitor. Escaping the
+ * breakout characters to their `\uXXXX` forms keeps the JSON valid for crawlers
+ * while making a `</script>` (or U+2028/U+2029 line-separator) breakout
+ * impossible. Use this everywhere JSON-LD is injected via dangerouslySetInnerHTML.
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 /** Trim a bio to a clean meta-description length (~160 chars, word boundary). */
 export function metaDescription(text: string | null | undefined, max = 160): string {
   const s = (text || "").replace(/\s+/g, " ").trim();

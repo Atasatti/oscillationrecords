@@ -12,7 +12,7 @@ import {
   getHomeArtists,
   getUpcomingReleases,
 } from "@/lib/catalog-data";
-import { buildOrganizationJsonLd, buildWebSiteJsonLd, LABEL } from "@/lib/seo";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd, jsonLdScript, LABEL } from "@/lib/seo";
 import { getFooterSocialLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
 
@@ -56,13 +56,13 @@ export default async function Home() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(buildOrganizationJsonLd({ sameAs: labelSameAs })),
+          __html: jsonLdScript(buildOrganizationJsonLd({ sameAs: labelSameAs })),
         }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(buildWebSiteJsonLd()),
+          __html: jsonLdScript(buildWebSiteJsonLd()),
         }}
       />
       <Navbar />

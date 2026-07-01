@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth-guard";
+import { requireUser, isSameOrigin } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,6 +12,11 @@ export const runtime = "nodejs";
 export async function DELETE(request: NextRequest) {
   const guard = await requireUser(request);
   if (!guard.ok) return guard.response;
+
+  // Irreversible erasure — add a CSRF Origin check on top of SameSite=lax.
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
+  }
 
   // token.sub is the OAuth subject, NOT our Mongo user id — delete by email (the
   // unique login key); the schema cascade removes accounts/sessions/profile/

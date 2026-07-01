@@ -8,6 +8,7 @@ import { OBJECT_ID_RE, slugify } from "@/lib/slug";
 import {
   buildReleaseJsonLd,
   buildBreadcrumbJsonLd,
+  jsonLdScript,
   metaDescription,
   absoluteUrl,
   SITE_NAME,
@@ -87,12 +88,12 @@ export default async function ReleaseLayout({
         <>
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(buildReleaseJsonLd(r)) }}
+            dangerouslySetInnerHTML={{ __html: jsonLdScript(buildReleaseJsonLd(r)) }}
           />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(
+              __html: jsonLdScript(
                 buildBreadcrumbJsonLd([
                   { name: "Home", url: "/" },
                   { name: "Releases", url: "/releases" },

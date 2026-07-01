@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
   isAudioContentType,
@@ -28,6 +29,11 @@ export async function POST(request: NextRequest) {
     if (!token?.sub || !token?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate-limit per user: this route does S3 HEAD + several DB ops and can
+    // auto-create a User, so it must not be replayable unthrottled.
+    const rl = rateLimit(`benertupload:${token.sub}`, 10, 60_000);
+    if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
     let user = await prisma.user.findUnique({
       where: { email: token.email as string },
@@ -71,10 +77,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid fileURL" }, { status: 400 });
     }
 
-    // Best-effort: confirm the uploaded object is audio and within the size cap.
-    // Fails CLOSED on a confirmed violation, OPEN if S3 metadata can't be read
-    // (e.g. HeadObject not permitted) so a misconfigured IAM policy can't block
-    // legitimate entries.
+    // Confirm the uploaded object is audio and within the size cap. Fails CLOSED:
+    // if S3 metadata can't be read we reject (ask the client to retry) rather than
+    // accept an unverified file — otherwise the audio-only / size guarantees are
+    // bypassed simply by making HeadObject error. The app's IAM role signs the
+    // PutObject for this bucket, so it must also be granted s3:HeadObject.
     if (s3Configured() && s3Client) {
       try {
         const head = await s3Client.send(
@@ -87,11 +94,18 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Uploaded file must be audio" }, { status: 400 });
         }
       } catch (e) {
-        console.warn("upload-complete: could not HEAD object for validation", e);
+        console.error("upload-complete: HEAD validation failed", e);
+        return NextResponse.json(
+          { error: "Could not verify the uploaded file. Please try again." },
+          { status: 502 }
+        );
       }
     }
 
-    const trimmedReleaseName = typeof releaseName === "string" ? releaseName.trim() : "";
+    // Cap the entrant-controlled name so it can't be stored unbounded (mirrors the
+    // analytics beacons' name caps).
+    const trimmedReleaseName =
+      typeof releaseName === "string" ? releaseName.trim().slice(0, 200) : "";
     if (!trimmedReleaseName) {
       return NextResponse.json(
         { error: "Release name is required" },

@@ -11,6 +11,7 @@ import ArtistPressSection from "./ArtistPressSection";
 import {
   buildArtistJsonLd,
   buildBreadcrumbJsonLd,
+  jsonLdScript,
   metaDescription,
   absoluteUrl,
   SITE_NAME,
@@ -115,11 +116,11 @@ export default async function ArtistDetail({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
       />
       <p className="sr-only">{artistLead}</p>
       <ArtistDetailView artist={data.artist} releases={data.releases} />

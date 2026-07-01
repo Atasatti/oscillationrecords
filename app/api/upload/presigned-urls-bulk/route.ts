@@ -50,9 +50,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!isImageContentType(imageFileType)) {
+    // Bound the batch so one request can't trigger an unbounded number of signing
+    // operations (no album realistically exceeds this).
+    if (audioFiles.length > 50) {
       return NextResponse.json(
-        { error: "imageFileType must be an image/* content type" },
+        { error: "Too many audio files in one request (max 50)" },
+        { status: 400 }
+      );
+    }
+
+    // Raster images only — reject image/svg+xml (script-capable on the public bucket).
+    if (!isImageContentType(imageFileType) || /svg/i.test(String(imageFileType))) {
+      return NextResponse.json(
+        { error: "imageFileType must be a raster image/* content type" },
         { status: 400 }
       );
     }

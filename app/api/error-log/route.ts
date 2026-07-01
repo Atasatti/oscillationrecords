@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import crypto from "node:crypto";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { recordError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+/**
+ * Trusted "server" ingest requires a DEDICATED secret (ERROR_LOG_INGEST_SECRET) —
+ * we deliberately do NOT fall back to NEXTAUTH_SECRET: that would put the session-
+ * signing secret in a plaintext request header (proxy/CDN/APM logs) and a leak
+ * would let an attacker forge admin sessions. With no dedicated secret configured,
+ * nothing is trusted and every report is rate-limited as a client. The comparison
+ * is constant-time to avoid a timing oracle on the secret.
+ */
+function isTrustedIngest(request: NextRequest): boolean {
+  const secret = process.env.ERROR_LOG_INGEST_SECRET;
+  if (!secret) return false;
+  const provided = request.headers.get("x-error-source");
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // POST /api/error-log — error ingest.
 //   • Client errors: posted by the browser ErrorLogger (public, rate-limited).
@@ -12,8 +31,7 @@ export const runtime = "nodejs";
 //     header, which is trusted to set source="server" and bypasses the per-IP
 //     limit (a client can't spoof "server" without the secret).
 export async function POST(request: NextRequest) {
-  const internalSecret = process.env.ERROR_LOG_INGEST_SECRET || process.env.NEXTAUTH_SECRET;
-  const trusted = Boolean(internalSecret) && request.headers.get("x-error-source") === internalSecret;
+  const trusted = isTrustedIngest(request);
 
   if (!trusted) {
     const rl = rateLimit(`errlog:${clientIp(request)}`, 30, 60_000);
