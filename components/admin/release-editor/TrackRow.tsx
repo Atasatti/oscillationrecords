@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -35,6 +35,7 @@ export default function TrackRow({
   onRetryStems,
   onToggleExpand,
   onCopyCreditsToAll,
+  highlight = false,
 }: {
   track: EditorTrack;
   index: number;
@@ -50,11 +51,25 @@ export default function TrackRow({
   onRetryStems: () => void;
   onToggleExpand: () => void;
   onCopyCreditsToAll?: () => void;
+  /** Flag this row (deep-link from Needs-Attention, e.g. a duplicate ISRC): a
+   * coloured ring + auto-scroll into view so the clashing tracks are obvious. */
+  highlight?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: track.rowId });
   const audioRef = useRef<HTMLInputElement>(null);
   const stemsRef = useRef<HTMLInputElement>(null);
+  // Compose dnd-kit's ref with our own so we can scroll a highlighted row into view.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = (node: HTMLDivElement | null) => {
+    setNodeRef(node);
+    rowRef.current = node;
+  };
+  useEffect(() => {
+    if (highlight && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -74,9 +89,13 @@ export default function TrackRow({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
-      className="rounded-lg border border-white/10 bg-[#141414]"
+      className={`rounded-lg border bg-[#141414] transition-colors ${
+        highlight
+          ? "border-amber-400/70 ring-2 ring-amber-400/40"
+          : "border-white/10"
+      }`}
     >
       {/* Collapsed summary row */}
       <div className="flex items-center gap-2 p-2.5">

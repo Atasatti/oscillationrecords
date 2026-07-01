@@ -29,6 +29,11 @@ const EARNED_IDENTIFIERS = new Set([
   "Wikidata item",
 ]);
 
+// Canonical ISRC key: strip formatting (hyphens/spaces) and upper-case so
+// "QZ-RP5-22-25582" and "QZRP52225582" compare equal. Also the value passed in the
+// `?isrc=` deep-link the tracks page highlights on.
+const canonIsrc = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
+
 // GET /api/tasks/needs-attention
 export async function GET(request: NextRequest) {
   try {
@@ -286,7 +291,7 @@ export async function GET(request: NextRequest) {
     const isrcByCode = new Map<string, { name: string; releaseId: string; releaseName: string }[]>();
     const gapByRelease = new Map<string, { releaseName: string; count: number }>();
     for (const t of releasedTracks) {
-      const code = (t.isrcCode ?? "").trim().toUpperCase();
+      const code = canonIsrc(t.isrcCode ?? "");
       if (!code) {
         const g = gapByRelease.get(t.releaseId) ?? { releaseName: t.release.name, count: 0 };
         g.count += 1;
@@ -305,21 +310,27 @@ export async function GET(request: NextRequest) {
         type: "release",
         title: `"${g.releaseName}" — ${g.count} track${g.count > 1 ? "s" : ""} missing an ISRC`,
         detail: "ISRCs identify each recording for royalty tracking and neighbouring-rights claims.",
-        href: `/admin/catalog/releases/${releaseId}/tracks`,
+        // `?isrc=none` → the tracks page highlights the tracks with no ISRC.
+        href: `/admin/catalog/releases/${releaseId}/tracks?isrc=none`,
         priority: "medium",
       });
       isrcGapItems += 1;
     }
     for (const [code, arr] of isrcByCode) {
-      const distinctNames = new Set(arr.map((a) => a.name.trim().toLowerCase()));
-      if (arr.length > 1 && distinctNames.size > 1) {
+      const distinctNames = [...new Set(arr.map((a) => a.name.trim()))];
+      if (arr.length > 1 && distinctNames.length > 1) {
         const releaseNames = [...new Set(arr.map((a) => a.releaseName))];
         items.push({
           id: `isrc-dup-${code}`,
           type: "release",
-          title: `Duplicate ISRC ${code} on ${arr.length} different tracks`,
-          detail: `Shared across ${releaseNames.slice(0, 3).join(", ")}. Each distinct recording needs its own ISRC.`,
-          href: `/admin/catalog/releases/${arr[0].releaseId}/tracks`,
+          // Name the actual clashing tracks so it's obvious which to fix, and deep-
+          // link with `?isrc=` so the tracks page highlights + scrolls to them.
+          title: `Duplicate ISRC ${code} on tracks: ${distinctNames.join(" · ")}`,
+          detail:
+            releaseNames.length > 1
+              ? `Clashing across ${releaseNames.slice(0, 3).join(", ")}. Each distinct recording needs its own ISRC.`
+              : `On "${releaseNames[0]}". Each distinct recording needs its own ISRC — give one of them a new code.`,
+          href: `/admin/catalog/releases/${arr[0].releaseId}/tracks?isrc=${encodeURIComponent(code)}`,
           priority: "high",
         });
       }
