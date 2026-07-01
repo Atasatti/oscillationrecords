@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { prismaKindToApi, normalizeFeatureArtistNamesInput, serializeTrack } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;

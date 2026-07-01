@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,17 +9,21 @@ export const runtime = "nodejs";
 // GET /api/outreach/tasks?status=&category=&isTemplate=
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "";
     const category = searchParams.get("category") || "";
+    const assigneeId = searchParams.get("assigneeId");
     const isTemplate = searchParams.get("isTemplate");
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (category) where.category = category;
+    // assigneeId=none → unassigned tasks; a specific id → that assignee's tasks.
+    if (assigneeId === "none") where.assigneeId = null;
+    else if (assigneeId) where.assigneeId = assigneeId;
     if (isTemplate !== null) where.isTemplate = isTemplate === "true";
 
     const tasks = await prisma.outreachTask.findMany({
@@ -41,11 +46,11 @@ export async function GET(request: NextRequest) {
 // POST /api/outreach/tasks
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
-    const { title, description, category, priority, status, artistIds, releaseIds, dueAt, notes, isTemplate } = body;
+    const { title, description, category, priority, status, assigneeId, artistIds, releaseIds, dueAt, notes, isTemplate } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -58,12 +63,20 @@ export async function POST(request: NextRequest) {
         category: category.trim(),
         priority: priority || "medium",
         status: status || "todo",
+        assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
         artistIds: Array.isArray(artistIds) ? artistIds : [],
         releaseIds: Array.isArray(releaseIds) ? releaseIds : [],
         dueAt: dueAt ? new Date(dueAt) : null,
         notes: notes?.trim() || null,
         isTemplate: isTemplate === true,
       },
+    });
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "task",
+      resourceId: task.id,
+      summary: `Created task "${task.title}"`,
     });
 
     return NextResponse.json(task, { status: 201 });

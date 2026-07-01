@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { isSafeUrl } from "@/lib/url-safety";
 import { savePageMedia } from "@/lib/page-media";
 import {
@@ -19,7 +19,7 @@ const SINGLE_KEYS = new Set(PAGE_IMAGE_FIELDS.map((f) => f.key));
 // validated (safe http(s) URL or site-relative path) before being stored; an
 // empty string clears the override (the public site then shows the default).
 export async function PUT(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:write");
   if (!guard.ok) return guard.response;
 
   let body: unknown;

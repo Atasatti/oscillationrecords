@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { deleteArtistCascade } from "@/lib/artist-delete";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 // POST /api/admin/artists/bulk — { ids: string[], action: "show" | "hide" | "delete" }
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();

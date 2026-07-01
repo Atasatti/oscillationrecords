@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { requireUser, requireAdmin } from "@/lib/auth-guard";
+import { requireUser, requirePermission } from "@/lib/auth-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
@@ -27,10 +27,11 @@ export async function POST(request: NextRequest) {
   try {
     const guard = await requireUser(request);
     if (!guard.ok) return guard.response;
-    // Authoritative, DB-revocation-aware admin check (a demoted admin's stale JWT
-    // must NOT keep the privileged upload path — token-only isAdmin wouldn't catch
-    // that). Non-admins fall through to the confined competition path below.
-    const adminGuard = await requireAdmin(request);
+    // Authoritative, DB-revocation-aware catalog-upload check (a demoted user's
+    // stale JWT must NOT keep the privileged upload path — a token-only check
+    // wouldn't catch that). Callers without catalog:write (e.g. competition
+    // entrants) fall through to the confined competition path below.
+    const adminGuard = await requirePermission(request, "catalog:write");
     const isAdmin = adminGuard.ok;
 
     if (!s3Configured() || !s3Client) {

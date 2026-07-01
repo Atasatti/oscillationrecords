@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 import { isReleasePublic } from "@/lib/catalog-data";
 
@@ -45,7 +45,7 @@ export async function PATCH(
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { trackId } = await params;
@@ -174,7 +174,7 @@ export async function DELETE(
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { trackId } = await params;

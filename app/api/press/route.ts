@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
 import { getAllPress, getPressForArtist, getPressForRelease } from "@/lib/catalog-data";
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     if (searchParams.has("page") || searchParams.has("pageSize")) {
-      const guard = await requireAdmin(request);
+      const guard = await requirePermission(request, "catalog:read");
       if (!guard.ok) return guard.response;
       const page = parseInt(searchParams.get("page") || "1", 10) || 1;
       const pageSize = parseInt(searchParams.get("pageSize") || "25", 10) || 25;
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
 // POST /api/press — create a press item (admin only).
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -122,6 +123,13 @@ export async function POST(request: NextRequest) {
         showOnWebsite: true,
         draft,
       },
+    });
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "press",
+      resourceId: press.id,
+      summary: `Added press "${press.title}"`,
     });
 
     return NextResponse.json(press, { status: 201 });

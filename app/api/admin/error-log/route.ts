@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // GET /api/admin/error-log?page=&pageSize=&source=&level=&resolved=
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:read");
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH /api/admin/error-log  { id, resolved }  — mark an error resolved/open.
 export async function PATCH(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:write");
   if (!guard.ok) return guard.response;
 
   const body = await request.json().catch(() => null);
@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/error-log?id=...  or  ?all=true
 export async function DELETE(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:write");
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);

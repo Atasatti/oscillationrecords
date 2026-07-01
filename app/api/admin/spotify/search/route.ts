@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { isConfigured, searchArtists, searchAlbums } from "@/lib/spotify";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 // credentials are absent (NOT an error — the editors read it to hide the Import
 // button); 502 only if a *configured* Spotify call actually fails.
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;
 
   if (!isConfigured()) {

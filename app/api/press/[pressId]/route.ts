@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
 
@@ -13,7 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ pressId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:read");
     if (!guard.ok) return guard.response;
 
     const { pressId } = await params;
@@ -34,7 +35,7 @@ export async function PUT(
   { params }: { params: Promise<{ pressId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { pressId } = await params;
@@ -103,6 +104,13 @@ export async function PUT(
       },
     });
 
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "press",
+      resourceId: press.id,
+      summary: `Updated press "${press.title}"`,
+    });
+
     return NextResponse.json(press);
   } catch (error) {
     console.error("Error updating press item:", error);
@@ -117,7 +125,7 @@ export async function PATCH(
   { params }: { params: Promise<{ pressId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { pressId } = await params;
@@ -161,19 +169,25 @@ export async function DELETE(
   { params }: { params: Promise<{ pressId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { pressId } = await params;
     const existing = await prisma.pressItem.findUnique({
       where: { id: pressId },
-      select: { id: true },
+      select: { id: true, title: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Press item not found" }, { status: 404 });
     }
 
     await prisma.pressItem.delete({ where: { id: pressId } });
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "press",
+      resourceId: pressId,
+      summary: `Deleted press "${existing.title}"`,
+    });
     return NextResponse.json({ message: "Press item deleted successfully" });
   } catch (error) {
     console.error("Error deleting press item:", error);

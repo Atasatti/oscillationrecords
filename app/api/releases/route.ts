@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { mapReleasesToCards, releaseCardListArgs, publicReleaseWhere } from "@/lib/catalog-data";
 import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
 import {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     // otherwise the response stays the existing bare array (public site, carousel).
     if (searchParams.has("page") || searchParams.has("pageSize")) {
       // Admin-only data view (maps with isAdmin:true, exposes DRAFT + upcCode).
-      const guard = await requireAdmin(request);
+      const guard = await requirePermission(request, "catalog:read");
       if (!guard.ok) return guard.response;
       const statusParam = searchParams.get("status");
       const result = await getReleasesPage({
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
 // POST /api/releases — create release shell (tracks added separately)
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -300,6 +301,13 @@ export async function POST(request: NextRequest) {
     const artists = await prisma.artist.findMany({
       where: { id: { in: allArtistIds } },
       select: { id: true, name: true, profilePicture: true },
+    });
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "release",
+      resourceId: release.id,
+      summary: `Created ${prismaKindToApi(release.kind)} "${release.name}" (${release.status})`,
     });
 
     return NextResponse.json(

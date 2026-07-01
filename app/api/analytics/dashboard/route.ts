@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
@@ -15,7 +15,7 @@ type AgeKey = "18-24" | "25-34" | "35-44" | "45-54" | "55+" | "unknown";
 // series for charts, geography, audience, momentum and recent activity.
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);

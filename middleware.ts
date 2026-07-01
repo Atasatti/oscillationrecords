@@ -1,6 +1,25 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isAdminToken, getAuthToken } from "@/lib/auth-session";
+import { isAdminToken, isStaffToken, tokenCan, getAuthToken } from "@/lib/auth-session";
+import type { Permission } from "@/lib/permissions";
+
+// Per-section page gating for /admin, mirroring the sidebar. A path needs either
+// "owner" (owner-only), a specific Permission, or null (any staff). Owners always
+// pass. This is TOKEN-level (edge, no DB) — eventual-consistency page gating; the
+// hard, revocation-aware enforcement is per-route in the API (requirePermission).
+function requiredForAdminPath(pathname: string): Permission | "owner" | null {
+  if (pathname.startsWith("/admin/settings")) return "owner";
+  if (pathname.startsWith("/admin/audit")) return "owner";
+  if (pathname.startsWith("/admin/catalog")) return "catalog:read";
+  if (pathname.startsWith("/admin/data")) return "analytics:read";
+  if (pathname.startsWith("/admin/errors")) return "analytics:read";
+  if (pathname.startsWith("/admin/outreach")) return "outreach:read";
+  if (pathname.startsWith("/admin/tasks")) return "outreach:read";
+  if (pathname.startsWith("/admin/messages")) return "outreach:read";
+  if (pathname.startsWith("/admin/subscribers")) return "outreach:read";
+  // /admin dashboard (and anything unmapped) → any staff role.
+  return null;
+}
 
 // ENFORCED in production; REPORT-ONLY in development so it never blocks the dev
 // server's HMR (which uses eval). 'unsafe-eval' is added in dev ONLY.
@@ -66,9 +85,22 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Authenticated but not an admin (by role or bootstrap email) → home.
-    if (!isAdminToken(token)) {
-      return NextResponse.redirect(new URL("/", request.url));
+    // The benert-remix admin stays OWNER-only (not part of the scoped-role model).
+    if (pathname.startsWith("/benert-remix/admin")) {
+      if (!isAdminToken(token)) return NextResponse.redirect(new URL("/", request.url));
+    } else {
+      // /admin/* : must be staff at all, then must have access to this section.
+      if (!isStaffToken(token)) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+      const need = requiredForAdminPath(pathname);
+      const allowed =
+        need === null ? true : need === "owner" ? isAdminToken(token) : tokenCan(token, need);
+      // Staff without access to this section → bounce to the dashboard (which any
+      // staff role can see), not off the site entirely.
+      if (!allowed) {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
     }
   }
 

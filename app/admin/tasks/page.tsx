@@ -313,8 +313,8 @@ type Task = {
   isTemplate: boolean;
 };
 
-// The assignable pool = admins (from /api/admin/users). Only entries with a real
-// User id can own a task, so the picker filters out bootstrap admins who've never
+// The assignable pool = staff (from /api/admin/staff). Only entries with a real
+// User id can own a task, so the picker filters out bootstrap owners who've never
 // signed in (id === null).
 type Assignee = { id: string; name: string | null; email: string; image: string | null };
 
@@ -499,16 +499,17 @@ export default function TasksPage() {
     }
   }, []);
 
-  // Assignable people = admins who've signed in (have a User id). Reuses the admin
-  // users endpoint so there's one source of truth for "who can access the admin".
+  // Assignable people = staff who've signed in (have a User id). Uses the
+  // staff-readable directory (/api/admin/staff), so a scoped Outreach/PA user can
+  // still assign tasks to teammates (the owner-only /api/admin/users would 403).
   const loadAssignees = useCallback(async () => {
     const cached = getCached<Assignee[]>("task-assignees");
     if (cached) setAssignees(cached);
     try {
-      const res = await fetch("/api/admin/users");
+      const res = await fetch("/api/admin/staff");
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const list: Assignee[] = (data.admins ?? [])
+      const list: Assignee[] = (data.staff ?? [])
         .filter((a: { id: string | null }) => a.id)
         .map((a: { id: string; name: string | null; email: string; image: string | null }) => ({
           id: a.id, name: a.name, email: a.email, image: a.image,

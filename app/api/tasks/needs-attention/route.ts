@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { computeArtistSeo, computeReleaseSeo } from "@/lib/seo-score";
 import { countReleasesByArtist } from "@/lib/admin-data";
 
@@ -37,7 +37,7 @@ const canonIsrc = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
 // GET /api/tasks/needs-attention
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const items: AttentionItem[] = [];

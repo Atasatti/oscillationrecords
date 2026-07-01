@@ -506,6 +506,10 @@ model OutreachTask {
   priority    String   @default("medium")
   /// "todo" | "in_progress" | "done"
   status      String   @default("todo")
+  /// The admin this task is assigned to (User.id). Null = unassigned. Optional so
+  /// existing tasks (created before assignment) read back as null, and so a task
+  /// survives its assignee losing admin access — the UI just shows it unassigned.
+  assigneeId  String?  @db.ObjectId
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
@@ -519,6 +523,7 @@ model OutreachTask {
   @@index([category])
   @@index([isTemplate])
   @@index([dueAt])
+  @@index([assigneeId])
 }
 
 // ---------------------------------------------------------------------------
@@ -548,4 +553,30 @@ model ErrorLog {
   @@index([resolved, lastSeen])
   @@index([lastSeen])
   @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+
+/// Admin activity / audit trail. One row per meaningful admin action (create /
+/// update / delete / role change), written best-effort AFTER the action succeeds
+/// so a logging failure never blocks the request. Actor identity is denormalized
+/// (email + role at the time) so the entry stays meaningful even if the user is
+/// later removed or re-roled. Surfaced read-only in the admin "Audit log" view.
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  at          DateTime @default(now())
+  actorId     String?  @db.ObjectId // User.id of who performed it (null if unknown)
+  actorEmail  String?               // denormalized actor email (survives user deletion)
+  actorRole   String?               // the actor's role at the time of the action
+  action      String                // "create" | "update" | "delete" | "role.change" | …
+  resource    String                // "release" | "artist" | "press" | "task" | "user" | …
+  resourceId  String?               // id of the affected record, when applicable
+  summary     String                // human-readable one-line description
+  metadata    Json?                 // optional structured context (e.g. before/after)
+  ip          String?
+  userAgent   String?
+
+  @@index([at])
+  @@index([resource, at])
+  @@index([actorId, at])
 }

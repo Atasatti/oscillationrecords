@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { rehostExternalImage } from "@/lib/s3";
 import { isSafeUrl } from "@/lib/url-safety";
 import {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     // `pageSize` is present do we return the paginated envelope.
     if (searchParams.has("page") || searchParams.has("pageSize")) {
       // Admin-only management view (hidden artists, play stats, SEO internals).
-      const guard = await requireAdmin(request);
+      const guard = await requirePermission(request, "catalog:read");
       if (!guard.ok) return guard.response;
       const page = parseInt(searchParams.get("page") || "1", 10) || 1;
       const pageSize = parseInt(searchParams.get("pageSize") || "25", 10) || 25;
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
 // POST /api/artists - Create a new artist
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -214,6 +215,13 @@ export async function POST(request: NextRequest) {
         sortOrder,
         showOnWebsite: true,
       },
+    });
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "artist",
+      resourceId: artist.id,
+      summary: `Created artist "${artist.name}"${draft ? " (draft)" : ""}`,
     });
 
     return NextResponse.json(artist, { status: 201 });
