@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { requireAdmin } from "@/lib/auth-guard";
 import { rehostExternalImage } from "@/lib/s3";
+import { isSafeUrl } from "@/lib/url-safety";
 import {
   getArtistsPage,
   type ArtistSort,
@@ -52,7 +54,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const q = (searchParams.get("q") || "").trim();
+    // Cap query length — the fuzzy scan is O(query·name) over the whole roster.
+    const q = (searchParams.get("q") || "").trim().slice(0, 64);
+    // Rate-limit the public fuzzy search per IP: it loads the full roster and
+    // scores it in memory, and unique `?q=` values defeat the CDN.
+    if (q.length > 0) {
+      const rl = rateLimit(`artistsearch:${clientIp(request)}`, 30, 60_000);
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: "Too many requests" },
+          { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+        );
+      }
+    }
     const publicOnly = searchParams.get("public") === "1";
     const limitRaw = searchParams.get("limit");
     let take: number | undefined;
@@ -166,9 +180,13 @@ export async function POST(request: NextRequest) {
     // Re-host any external photo (e.g. a Spotify i.scdn.co URL from import) onto
     // our own S3 so the image file is ours — best-effort, keeps the original URL
     // if the copy fails. See rehostExternalImage in lib/s3.ts.
-    const finalPicture = profilePicture
-      ? (await rehostExternalImage(profilePicture, name)) ?? profilePicture
-      : profilePicture;
+    // Only accept a safe http(s)/site-relative URL — the rehost may fall back to
+    // storing this original, so it must never be a javascript:/data: scheme that
+    // would execute when rendered as the artist's <img src>.
+    const safePicture = isSafeUrl(profilePicture) ? profilePicture : null;
+    const finalPicture = safePicture
+      ? (await rehostExternalImage(safePicture, name)) ?? safePicture
+      : null;
 
     const artist = await prisma.artist.create({
       data: {

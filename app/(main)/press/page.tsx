@@ -3,7 +3,7 @@ import { Star } from "lucide-react";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import PressCard from "@/components/local-ui/PressCard";
 import { getAllPress, getFeaturedPress } from "@/lib/catalog-data";
-import { buildPressListJsonLd, SITE_NAME } from "@/lib/seo";
+import { buildPressListJsonLd, jsonLdScript, SITE_NAME } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Press & Features",
@@ -35,7 +35,7 @@ export default async function PressPage() {
       {jsonLd ? (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
         />
       ) : null}
 

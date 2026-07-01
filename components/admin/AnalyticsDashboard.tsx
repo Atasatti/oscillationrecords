@@ -873,42 +873,45 @@ export default function AnalyticsDashboard() {
         </div>
       ) : null}
 
-      {/* Recent activity */}
+      {/* Recent activity — a short teaser; the full, filterable table lives in Live & raw data */}
       <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-4 text-lg font-medium text-foreground">Recent plays</h3>
-        <div className="max-h-80 overflow-auto scroll-themed">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
-                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
-                <th className="sticky top-0 z-10 hidden bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
-                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="sticky top-0 z-10 bg-card px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recentPlays.filter((p) => p.contentType !== "release").slice(0, 20).map((p) => (
-                <tr key={p.id} className="border-b border-border hover:bg-white/[0.02]">
-                  <td className="px-4 py-2.5 text-sm text-muted-foreground">
-                    {p.anonymous ? <span className="text-muted-foreground/80">Anonymous</span> : p.userName}
-                  </td>
-                  <td className="px-4 py-2.5 text-sm text-foreground">{p.contentName}</td>
-                  <td className="hidden px-4 py-2.5 text-sm text-muted-foreground sm:table-cell">{p.artistName || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <Badge variant={p.completed ? "success" : "warning"}>{p.completed ? "Completed" : "Partial"}</Badge>
-                  </td>
-                  <td className="px-4 py-2.5 text-sm text-muted-foreground">{new Date(p.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-              {data.recentPlays.filter((p) => p.contentType !== "release").length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No recent plays.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-medium text-foreground">Recent plays</h3>
+          <Link href="/admin/data#recent-plays" className="whitespace-nowrap text-xs text-muted-foreground hover:text-foreground">
+            View all in Live Data →
+          </Link>
         </div>
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Listener</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Content</th>
+              <th className="hidden px-4 py-2 text-left text-sm font-medium text-muted-foreground sm:table-cell">Artist</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Status</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-muted-foreground">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.recentPlays.filter((p) => p.contentType !== "release").slice(0, 5).map((p) => (
+              <tr key={p.id} className="border-b border-border hover:bg-white/[0.02]">
+                <td className="px-4 py-2.5 text-sm text-muted-foreground">
+                  {p.anonymous ? <span className="text-muted-foreground/80">Anonymous</span> : p.userName}
+                </td>
+                <td className="px-4 py-2.5 text-sm text-foreground">{p.contentName}</td>
+                <td className="hidden px-4 py-2.5 text-sm text-muted-foreground sm:table-cell">{p.artistName || "—"}</td>
+                <td className="px-4 py-2.5">
+                  <Badge variant={p.completed ? "success" : "warning"}>{p.completed ? "Completed" : "Partial"}</Badge>
+                </td>
+                <td className="px-4 py-2.5 text-sm text-muted-foreground">{new Date(p.createdAt).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {data.recentPlays.filter((p) => p.contentType !== "release").length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No recent plays.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </div>
 
       {/* Content detail dialog */}
@@ -1164,7 +1167,7 @@ export default function AnalyticsDashboard() {
                     <DialogHeader>
                       <DialogTitle>{detail.title}</DialogTitle>
                     </DialogHeader>
-                    <ol className="mt-2 max-h-[60vh] divide-y divide-border overflow-y-auto">
+                    <ol className="mt-2 max-h-[60vh] divide-y divide-border overflow-y-auto scroll-themed pr-3">
                       {detail.rows.map((r, i) => (
                         <li key={`${r.label}-${i}`} className="flex items-center justify-between gap-3 py-2">
                           <span className="flex min-w-0 items-baseline gap-2">

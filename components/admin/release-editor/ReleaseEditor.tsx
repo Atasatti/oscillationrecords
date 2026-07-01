@@ -17,6 +17,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
   normalizeFeatureArtistNamesInput,
+  RELEASE_DESCRIPTION_MAX,
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
@@ -285,6 +286,12 @@ export default function ReleaseEditor({
     // is scheduled — a DRAFT saves incomplete work to finish later.
     if (!form.name.trim()) fieldErrors.name = "Please enter a release name";
 
+    // The description cap is a data-integrity rule, so enforce it for every status
+    // (drafts included) — not just when going live.
+    if (form.description.length > RELEASE_DESCRIPTION_MAX) {
+      fieldErrors.description = `Description must be ${RELEASE_DESCRIPTION_MAX} characters or fewer`;
+    }
+
     if (status === "DRAFT") {
       return Object.keys(fieldErrors).length ? fieldErrors : null;
     }
@@ -389,9 +396,11 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        // New releases are created as drafts and continue to the tracklist. Only a
-        // bail-out "Save as draft" (which passes redirectTo to leave for the list)
-        // shows the plain "Draft saved" message.
+        // A new release is created with the admin's chosen status (Released/Scheduled),
+        // or as a DRAFT via "Save as draft"; either way it continues to the tracklist.
+        // A trackless Released release stays hidden until it has tracks, so it is never
+        // prematurely public (see publicReleaseWhere). Only the Cancel-dialog draft save
+        // (which passes redirectTo to leave for the list) shows the "Draft saved" message.
         toast.success(
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
@@ -664,7 +673,7 @@ export default function ReleaseEditor({
         <div className="mt-8 flex flex-wrap gap-4">
           <Button
             type="button"
-            onClick={() => (isCreate ? handleSave({ status: "DRAFT" }) : handleSave())}
+            onClick={() => handleSave()}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
@@ -685,19 +694,21 @@ export default function ReleaseEditor({
               </>
             )}
           </Button>
-          {/* Draft is set via this action, not the status dropdown. */}
-          {!isCreate ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleSave({ status: "DRAFT" })}
-              disabled={saving || uploadingImage || artists.length === 0}
-              className="border-white/10 text-gray-300"
-              title="Keep this release hidden as a draft (no validation on incomplete fields)"
-            >
-              Save as draft
-            </Button>
-          ) : null}
+          {/* Draft is set via this action, not the status dropdown. Available on
+              create too, so a release can be started with incomplete details and
+              finished later — the primary action honours the chosen status and
+              validates it (matching the server), so it can't silently save a
+              Scheduled/Released pick as a draft. */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleSave({ status: "DRAFT" })}
+            disabled={saving || uploadingImage || artists.length === 0}
+            className="border-white/10 text-gray-300"
+            title="Keep this release hidden as a draft (no validation on incomplete fields)"
+          >
+            Save as draft
+          </Button>
           <Button
             type="button"
             variant="ghost"

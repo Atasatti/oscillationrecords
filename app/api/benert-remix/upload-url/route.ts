@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +17,11 @@ export async function POST(request: NextRequest) {
     if (!token?.sub || !token?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate-limit per user so this session-authed route can't be replayed to churn
+    // user-row creation / competition reads unthrottled.
+    const rl = rateLimit(`benertupload:${token.sub}`, 10, 60_000);
+    if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
     let user = await prisma.user.findUnique({
       where: { email: token.email as string },

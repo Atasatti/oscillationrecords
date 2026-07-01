@@ -4,7 +4,7 @@ import AboutSection2 from "@/components/sections/AboutSection2";
 import AboutFaqSection, { ABOUT_FAQ } from "@/components/sections/AboutFaqSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
-import { buildFaqJsonLd } from "@/lib/seo";
+import { buildFaqJsonLd, jsonLdScript } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
@@ -25,7 +25,7 @@ const AboutUs = () => {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqJsonLd(ABOUT_FAQ)) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(buildFaqJsonLd(ABOUT_FAQ)) }}
       />
       <ScrollReveal3D>
         <AboutHeroSection />

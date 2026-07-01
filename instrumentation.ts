@@ -24,7 +24,11 @@ function ingestTarget(): { url: string; secret?: string } | null {
   if (!base) return null;
   return {
     url: `${base}/api/error-log`,
-    secret: process.env.ERROR_LOG_INGEST_SECRET || process.env.NEXTAUTH_SECRET,
+    // Dedicated ingest secret only — never NEXTAUTH_SECRET (that would ship the
+    // session-signing key in a plaintext header). If unset, reports are sent
+    // without the header and the ingest endpoint treats them as rate-limited
+    // client reports, which is the safe default.
+    secret: process.env.ERROR_LOG_INGEST_SECRET,
   };
 }
 

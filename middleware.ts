@@ -40,6 +40,12 @@ function buildCsp(nonce?: string): string {
   return directives.join("; ");
 }
 
+// NOTE: the static security headers (X-Frame-Options, X-Content-Type-Options,
+// Referrer-Policy, Strict-Transport-Security, Permissions-Policy) are set once,
+// site-wide, in next.config.ts `headers()` (source "/:path*"). We deliberately do
+// NOT duplicate them here — the CSP is the only security header the middleware
+// owns, because it needs the per-request admin nonce.
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 

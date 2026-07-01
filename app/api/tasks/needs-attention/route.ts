@@ -15,6 +15,19 @@ export type AttentionItem = {
   priority: "high" | "medium" | "low";
 };
 
+// "Earned" external identifiers an artist can't just create on demand — a
+// Wikipedia article has to be merited, an ISNI requires registration, and a
+// MusicBrainz / Wikidata entry depends on outside catalogues. They still feed
+// the SEO/GKP scores, but we don't surface them as action items in "Needs
+// attention" (nor list them among a weak page's fixable gaps), since they're
+// not something the label can sit down and do.
+const EARNED_IDENTIFIERS = new Set([
+  "MusicBrainz ID",
+  "ISNI",
+  "Wikipedia article",
+  "Wikidata item",
+]);
+
 // GET /api/tasks/needs-attention
 export async function GET(request: NextRequest) {
   try {
@@ -96,45 +109,29 @@ export async function GET(request: NextRequest) {
         releaseCount: releasesByArtist.get(a.id) ?? 0,
       });
 
+      // Only show gaps the label can actually act on — drop the earned external
+      // identifiers (MusicBrainz / ISNI / Wikipedia / Wikidata) from the list.
+      const actionableMissing = seo.missing.filter((m) => !EARNED_IDENTIFIERS.has(m));
+
       if (seo.grade === "weak") {
         items.push({
           id: `artist-seo-${a.id}`,
           type: "artist",
           title: `${a.name} — weak SEO (${seo.score}/100)`,
-          detail: `Missing: ${seo.missing.slice(0, 3).join(", ")}`,
+          detail: actionableMissing.length
+            ? `Missing: ${actionableMissing.slice(0, 3).join(", ")}`
+            : "Add more profile detail to strengthen the page",
           href: `/admin/catalog/artists/${a.id}/edit`,
           priority: "high",
         });
-      } else if (seo.grade === "good" && seo.missing.length > 0) {
+      } else if (seo.grade === "good" && actionableMissing.length > 0) {
         items.push({
           id: `artist-seo-good-${a.id}`,
           type: "artist",
           title: `${a.name} — SEO could be stronger (${seo.score}/100)`,
-          detail: `Quick wins: ${seo.missing.slice(0, 2).join(", ")}`,
+          detail: `Quick wins: ${actionableMissing.slice(0, 2).join(", ")}`,
           href: `/admin/catalog/artists/${a.id}/edit`,
           priority: "medium",
-        });
-      }
-
-      if (!a.musicBrainzId) {
-        items.push({
-          id: `artist-mb-${a.id}`,
-          type: "artist",
-          title: `${a.name} — missing MusicBrainz ID`,
-          detail: "Links to the global music metadata graph and improves entity recognition",
-          href: `/admin/catalog/artists/${a.id}/edit`,
-          priority: "medium",
-        });
-      }
-
-      if (!a.isni) {
-        items.push({
-          id: `artist-isni-${a.id}`,
-          type: "artist",
-          title: `${a.name} — no ISNI`,
-          detail: "International Standard Name Identifier — needed for rights, distribution and PRO registration",
-          href: `/admin/catalog/artists/${a.id}/edit`,
-          priority: "low",
         });
       }
 
@@ -230,7 +227,7 @@ export async function GET(request: NextRequest) {
         type: "system",
         title: `${unhandledMessages} unread contact message${unhandledMessages > 1 ? "s" : ""}`,
         detail: "Messages submitted via the public Contact form",
-        href: "/admin/catalog",
+        href: "/admin/messages",
         priority: "high",
       });
     }
@@ -246,21 +243,35 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Deduplicate: if an artist already has a "weak SEO" item, skip the individual
-    // MusicBrainz/ISNI items for that same artist (already covered in the detail)
+    // Deduplicate: if an artist already has a "weak SEO" item, skip the separate
+    // "no contact email" nudge for that same artist (it's a low-value extra).
     const weakArtistIds = new Set(
       items.filter((i) => i.id.startsWith("artist-seo-")).map((i) => i.id.replace("artist-seo-", ""))
     );
+    // If a release is already flagged "weak SEO", its individual field gaps
+    // (description / genre / tracks / links) are already named in that item's
+    // detail — drop the standalone duplicates so each release appears once.
+    const weakReleaseIds = new Set(
+      items.filter((i) => i.id.startsWith("release-seo-")).map((i) => i.id.replace("release-seo-", ""))
+    );
+    const RELEASE_FIELD_PREFIXES = ["release-desc-", "release-genre-", "release-tracks-", "release-links-"];
     const deduped = items.filter((item) => {
-      if (item.id.startsWith("artist-mb-") && weakArtistIds.has(item.id.replace("artist-mb-", ""))) return false;
-      if (item.id.startsWith("artist-isni-") && weakArtistIds.has(item.id.replace("artist-isni-", ""))) return false;
       if (item.id.startsWith("artist-email-") && weakArtistIds.has(item.id.replace("artist-email-", ""))) return false;
+      for (const p of RELEASE_FIELD_PREFIXES) {
+        if (item.id.startsWith(p) && weakReleaseIds.has(item.id.replace(p, ""))) return false;
+      }
       return true;
     });
 
-    // Sort: high → medium → low
+    // Sort: unread contact messages first (time-sensitive inbound), then
+    // high → medium → low.
     const ORDER = { high: 0, medium: 1, low: 2 };
-    deduped.sort((a, b) => ORDER[a.priority] - ORDER[b.priority]);
+    deduped.sort((a, b) => {
+      const am = a.id === "system-messages" ? 0 : 1;
+      const bm = b.id === "system-messages" ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return ORDER[a.priority] - ORDER[b.priority];
+    });
 
     return NextResponse.json({ items: deduped, total: deduped.length }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {

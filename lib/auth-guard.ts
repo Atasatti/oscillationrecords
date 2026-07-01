@@ -98,3 +98,21 @@ export async function requireUser(req: NextRequest): Promise<Guard> {
 export function tokenIsAdmin(token: JWT | null | undefined): boolean {
   return isAdminToken(token);
 }
+
+/**
+ * Defense-in-depth CSRF check for destructive, cookie-authenticated routes.
+ * Same-origin browser requests always send an `Origin` header on state-changing
+ * methods (POST/PUT/PATCH/DELETE), so a request whose `Origin` is present but
+ * doesn't match the `Host` is rejected. An absent `Origin` (same-origin GET or a
+ * server-to-server caller) is allowed so non-browser clients aren't broken. This
+ * complements the session cookie's SameSite=lax attribute.
+ */
+export function isSameOrigin(req: NextRequest): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === req.headers.get("host");
+  } catch {
+    return false;
+  }
+}

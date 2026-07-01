@@ -7,6 +7,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import { buildArtistMap, combinedFeatureDisplayNames } from "@/lib/release-format";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import TrackList from "@/components/admin/release-editor/TrackList";
+import PublishReleasePanel from "@/components/admin/release-editor/PublishReleasePanel";
 import type {
   ArtistOption,
   ReleaseStatus,
@@ -28,6 +29,7 @@ function releaseIsLiveFrom(status: string, releaseDate: string | null): boolean 
 interface LoadedRelease {
   name: string;
   status: ReleaseStatus;
+  releaseDate: string | null;
   primaryArtistIds: string[];
   featureArtistText: string;
   releaseIsLive: boolean;
@@ -44,6 +46,10 @@ export default function ReleaseTracksPage() {
   const [release, setRelease] = useState<LoadedRelease | null>(null);
   const [loading, setLoading] = useState(true);
   const [tracksUnsaved, setTracksUnsaved] = useState(false);
+  // Signals the tracklist surfaces so the publish panel can gate "go live":
+  // an in-flight upload/save (busy) and the saved track count + unresolved issues.
+  const [tracksBusy, setTracksBusy] = useState(false);
+  const [validity, setValidity] = useState({ trackCount: 0, issueCount: 0 });
   // Registers the unsaved-tracks state so the breadcrumb (the way back to Edit)
   // prompts before discarding. No in-page back button — the breadcrumb is the
   // single, consistent navigation control.
@@ -82,6 +88,7 @@ export default function ReleaseTracksPage() {
         setRelease({
           name: data.name || "",
           status: (data.status as ReleaseStatus) || "DRAFT",
+          releaseDate,
           primaryArtistIds: data.primaryArtistIds || [],
           featureArtistText: featureLine,
           releaseIsLive: releaseIsLiveFrom(data.status, releaseDate),
@@ -117,7 +124,8 @@ export default function ReleaseTracksPage() {
         <h1 className="text-4xl font-light tracking-tighter">Tracklist</h1>
         <p className="mt-2 text-gray-400">
           {release.name ? `${release.name} — ` : ""}tracks save automatically as you
-          edit them. A released album only goes live once it has tracks.
+          edit them. When they&rsquo;re ready, publish or schedule the release below —
+          no need to go back to the details page.
         </p>
       </div>
 
@@ -131,8 +139,32 @@ export default function ReleaseTracksPage() {
           releaseIsLive={release.releaseIsLive}
           initialTracks={release.initialTracks}
           onUnsavedChange={setTracksUnsaved}
+          onActivityChange={setTracksBusy}
+          onValidityChange={setValidity}
         />
       </div>
+
+      <PublishReleasePanel
+        releaseId={releaseId}
+        status={release.status}
+        releaseDate={release.releaseDate}
+        trackCount={validity.trackCount}
+        issueCount={validity.issueCount}
+        busy={tracksBusy}
+        unsaved={tracksUnsaved}
+        onChanged={({ status, releaseDate }) =>
+          setRelease((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status,
+                  releaseDate,
+                  releaseIsLive: releaseIsLiveFrom(status, releaseDate),
+                }
+              : prev
+          )
+        }
+      />
     </div>
   );
 }

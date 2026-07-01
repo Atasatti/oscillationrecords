@@ -42,9 +42,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
     }
 
-    if (!isImageContentType(imageFileType)) {
+    // Raster images only — reject image/svg+xml (and non-image types): an SVG
+    // served from the public bucket can execute script when navigated directly.
+    if (!isImageContentType(imageFileType) || /svg/i.test(String(imageFileType))) {
       return NextResponse.json(
-        { error: "imageFileType must be an image/* content type" },
+        { error: "imageFileType must be a raster image/* content type" },
         { status: 400 }
       );
     }

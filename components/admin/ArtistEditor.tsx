@@ -548,6 +548,15 @@ export default function ArtistEditor({
     releaseCount,
   };
 
+  // Carry the artist context into the ISNI guide so its breadcrumb reads
+  // "Admin › Artists › Edit › ISNI" (and its back link returns to this editor)
+  // instead of the context-less, 404-prone "Admin › Guides › ISNI". No id in
+  // create mode yet, so it falls back to the plain guide.
+  const isniGuideHref =
+    mode === "edit" && artistId
+      ? `/admin/guides/isni?artist=${artistId}`
+      : "/admin/guides/isni";
+
   // Live one-line status for each collapsed section header.
   const basicSummary = form.name.trim() ? (
     `${scoreSignals.bioLength}-char bio · ${scoreSignals.genreCount} genre${scoreSignals.genreCount === 1 ? "" : "s"}`
@@ -642,7 +651,7 @@ export default function ArtistEditor({
           {/* Image + live discoverability / Knowledge Panel score */}
           <div>
             <div className="space-y-6 lg:sticky lg:top-6">
-            <ArtistScorePanel signals={scoreSignals} name={form.name} />
+            <ArtistScorePanel signals={scoreSignals} name={form.name} isniGuideHref={isniGuideHref} />
             <div className="rounded-xl border border-border bg-card p-6">
               <label className="mb-4 block text-sm font-medium text-muted-foreground">
                 Profile picture *
@@ -873,7 +882,7 @@ export default function ArtistEditor({
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Often auto-assigned once on streaming. Use Find, or “Import from MusicBrainz” pulls it in.{" "}
-                    <Link href="/admin/guides/isni" className="underline hover:text-foreground">
+                    <Link href={isniGuideHref} className="underline hover:text-foreground">
                       No ISNI? How to claim one →
                     </Link>
                   </p>

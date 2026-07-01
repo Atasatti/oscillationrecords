@@ -32,8 +32,11 @@ function substringEditDistance(needle: string, haystack: string): number {
 // and diacritics ("bigheck" matches "Big Heck"), and tolerates typos scaled
 // to query length (1 edit for 5–8 chars, 2 edits above that).
 export function fuzzyScore(query: string, target: string): number {
-  const q = strip(query);
-  const t = strip(target);
+  // Hard-cap both sides so a caller can't force an O(needle·haystack) blow-up
+  // with a huge query (defense-in-depth: the public search routes also cap `q`).
+  // Real search terms and catalog names are far shorter than these bounds.
+  const q = strip(query).slice(0, 64);
+  const t = strip(target).slice(0, 256);
   if (!q || !t) return 0;
   if (t === q) return 100;
   if (t.startsWith(q)) return 90;

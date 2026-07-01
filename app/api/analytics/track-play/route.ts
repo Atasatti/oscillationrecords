@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { publicReleaseWhere } from "@/lib/catalog-data";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import {
   VISITOR_COOKIE,
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     const consent = request.cookies.get(CONSENT_COOKIE)?.value || null;
 
     const body = await request.json();
-    const { contentType, contentId, contentName, artistId, artistName, playDuration, completed } = body;
+    const { contentType, contentId, contentName, artistId, artistName, playDuration } = body;
     if (!contentType || !contentId || !contentName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -69,6 +70,28 @@ export async function POST(request: NextRequest) {
     // who rejected non-essential cookies must not be tracked, matching the cookie
     // banner and the admin panel's "only visitors who accepted analytics" wording.
     if (!hasAnalyticsConsent(consent)) {
+      return NextResponse.json({ success: false, skipped: true });
+    }
+
+    // Integrity: only record plays for content that actually exists AND is
+    // publicly visible. Without this, an ObjectId-shaped contentId is accepted
+    // blindly, letting anyone inflate play counts / completion rates for arbitrary
+    // (or non-public) releases. A track is public only if its release is public.
+    const contentExistsPublic =
+      contentType === "track"
+        ? Boolean(
+            await prisma.track.findFirst({
+              where: { id: contentId, release: publicReleaseWhere() },
+              select: { id: true },
+            })
+          )
+        : Boolean(
+            await prisma.release.findFirst({
+              where: { AND: [{ id: contentId }, publicReleaseWhere()] },
+              select: { id: true },
+            })
+          );
+    if (!contentExistsPublic) {
       return NextResponse.json({ success: false, skipped: true });
     }
 
@@ -110,7 +133,10 @@ export async function POST(request: NextRequest) {
         artistId: artistId || null,
         artistName: safeArtistName,
         playDuration: safeDuration,
-        completed: completed === true,
+        // Never trust client-declared completion on create — a caller could POST
+        // completed:true to inflate the completion rate without ever playing. The
+        // event starts incomplete; only the finalize PATCH may mark it completed.
+        completed: false,
       },
     });
 

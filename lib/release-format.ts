@@ -2,6 +2,22 @@ import type { Artist, Release, Track } from "@prisma/client";
 
 export type ApiReleaseKind = "single" | "ep" | "album";
 
+/**
+ * Hard cap on a release description. Kept short enough to make a clean meta
+ * description / OpenGraph body and to stop long copy blowing out the "About"
+ * panel on the release page. Enforced end-to-end: the admin form shows a live
+ * counter + validation, the API truncates on save, and the public page truncates
+ * defensively at render time — all via {@link truncateReleaseDescription}.
+ */
+export const RELEASE_DESCRIPTION_MAX = 600;
+
+/** Trim and hard-cap a description to {@link RELEASE_DESCRIPTION_MAX}; null when empty. */
+export function truncateReleaseDescription(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  return text.length > RELEASE_DESCRIPTION_MAX ? text.slice(0, RELEASE_DESCRIPTION_MAX) : text;
+}
+
 export function prismaKindToApi(kind: Release["kind"]): ApiReleaseKind {
   switch (kind) {
     case "SINGLE":

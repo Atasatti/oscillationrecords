@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { VISITOR_COOKIE } from "@/lib/consent";
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate-limit like the other analytics beacons — the finalize is also a write.
+    const rl = rateLimit(`playevent:${clientIp(request)}`, 120, 60_000);
+    if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
     if (!process.env.NEXTAUTH_SECRET) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
@@ -24,10 +29,14 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { completed, playDuration } = body;
-    const data = {
-      ...(typeof completed === "boolean" && { completed }),
-      ...(typeof playDuration === "number" && playDuration > 0 && { playDuration }),
-    };
+    // Integrity: `completed` is one-way (only ever mark complete, never un-complete)
+    // and `playDuration` is clamped to 0..24h so a caller can't skew completion-rate
+    // / average-listen metrics with a fabricated true + a giant duration.
+    const data: { completed?: boolean; playDuration?: number } = {};
+    if (completed === true) data.completed = true;
+    if (typeof playDuration === "number" && Number.isFinite(playDuration) && playDuration > 0) {
+      data.playDuration = Math.min(Math.trunc(playDuration), 86_400);
+    }
 
     // Scope the update to the caller's own event.
     let where: { id: string; userId?: string; visitorId?: string };

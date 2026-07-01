@@ -21,6 +21,7 @@ import ReleasePressSection from "@/components/local-ui/ReleasePressSection";
 import {
   buildArtistMap,
   combinedFeatureDisplayNames,
+  truncateReleaseDescription,
 } from "@/lib/release-format";
 import type { ReleaseDetailDTO, ReleaseDetailTrackDTO } from "@/lib/catalog-data";
 
@@ -333,7 +334,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         </div>
                         {release.description ? (
                           <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-wrap border-t border-white/5 pt-4">
-                            {release.description}
+                            {truncateReleaseDescription(release.description)}
                           </p>
                         ) : null}
                       </div>
