@@ -31,14 +31,25 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-export default function IsniGuidePage() {
+export default async function IsniGuidePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ artist?: string }>;
+}) {
+  // Reached from an artist's editor with ?artist=<id> — return there (not the
+  // list) so the back link mirrors the breadcrumb's artist context.
+  const { artist } = await searchParams;
+  const hasArtist = typeof artist === "string" && /^[0-9a-f]{24}$/i.test(artist);
+  const backHref = hasArtist ? `/admin/catalog/artists/${artist}/edit` : "/admin/catalog/artists";
+  const backLabel = hasArtist ? "Back to artist" : "Back to artists";
+
   return (
     <div className="max-w-3xl">
       <Link
-        href="/admin/catalog/artists"
+        href={backHref}
         className="mb-3 -ml-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to artists
+        <ArrowLeft className="h-4 w-4" /> {backLabel}
       </Link>
 
       <PageHeader

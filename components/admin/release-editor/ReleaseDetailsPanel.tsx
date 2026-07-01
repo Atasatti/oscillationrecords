@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
 import CollapsibleCard from "@/components/admin/CollapsibleCard";
+import { RELEASE_DESCRIPTION_MAX } from "@/lib/release-format";
 
 export interface ArtistOption {
   id: string;
@@ -63,6 +64,7 @@ export function emptyReleaseDetails(): ReleaseDetailsValue {
 
 export interface ReleaseDetailsErrors {
   name?: string;
+  description?: string;
   coverImage?: string;
   releaseDate?: string;
   primaryArtists?: string;
@@ -95,7 +97,7 @@ export default function ReleaseDetailsPanel({
 
   // Keep a section with a validation error expanded so the error is never hidden.
   useEffect(() => {
-    if (errors.name || errors.releaseDate) setOpen((p) => ({ ...p, basic: true }));
+    if (errors.name || errors.description || errors.releaseDate) setOpen((p) => ({ ...p, basic: true }));
     if (errors.primaryArtists) setOpen((p) => ({ ...p, artists: true }));
   }, [errors]);
 
@@ -119,6 +121,10 @@ export default function ReleaseDetailsPanel({
     (u) => u.trim()
   ).length;
   const genreCount = [value.primaryGenre, value.secondaryGenre].filter((g) => g.trim()).length;
+  // Live description length drives the counter, the over-limit styling and the
+  // save-blocking validation in ReleaseEditor. Count the raw value the user sees.
+  const descLength = value.description.length;
+  const descOverLimit = descLength > RELEASE_DESCRIPTION_MAX;
 
   const basicSummary = value.name.trim() ? (
     `${value.description.trim().length}-char desc · ${value.status === "SCHEDULED" ? "Scheduled" : "Released"}`
@@ -156,14 +162,39 @@ export default function ReleaseDetailsPanel({
               <p className="mt-1 text-sm text-red-400">{errors.name}</p>
             )}
           </div>
-          <Textarea
-            name="description"
-            value={value.description}
-            onChange={handleInput}
-            placeholder="Description"
-            rows={4}
-            className="bg-black/40 border-white/10 text-white resize-none"
-          />
+          <div>
+            <Textarea
+              name="description"
+              value={value.description}
+              onChange={handleInput}
+              placeholder="Description"
+              rows={4}
+              aria-invalid={descOverLimit ? true : undefined}
+              className={`bg-black/40 text-white resize-none ${
+                descOverLimit ? "border-red-500/70" : "border-white/10"
+              }`}
+            />
+            <div className="mt-1 flex items-center justify-between gap-2">
+              {descOverLimit ? (
+                <p className="text-sm text-red-400">
+                  Description is {descLength - RELEASE_DESCRIPTION_MAX} character
+                  {descLength - RELEASE_DESCRIPTION_MAX === 1 ? "" : "s"} over the limit — it
+                  will be trimmed to {RELEASE_DESCRIPTION_MAX} when saved.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Shown on the release page and used as the meta description.
+                </p>
+              )}
+              <span
+                className={`shrink-0 text-xs tabular-nums ${
+                  descOverLimit ? "text-red-400" : "text-gray-500"
+                }`}
+              >
+                {descLength}/{RELEASE_DESCRIPTION_MAX}
+              </span>
+            </div>
+          </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-gray-400">
               Status
@@ -209,7 +240,7 @@ export default function ReleaseDetailsPanel({
               value={value.releaseDate}
               onChange={handleInput}
               aria-invalid={errors.releaseDate ? true : undefined}
-              className={`bg-black/40 text-white ${
+              className={`bg-black/40 text-white [color-scheme:dark] ${
                 errors.releaseDate ? "border-red-500/70" : "border-white/10"
               }`}
             />

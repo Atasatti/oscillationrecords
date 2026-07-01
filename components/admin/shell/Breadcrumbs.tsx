@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import React from "react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
@@ -47,6 +47,7 @@ type Crumb = { label: string; href: string; isLast: boolean };
 
 export default function Breadcrumbs() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   // Breadcrumbs are the primary way back out of editors, so they must honour the
   // unsaved-changes guard the same way the sidebar does — a plain <Link> would
   // otherwise silently discard edits when navigating away.
@@ -62,6 +63,14 @@ export default function Breadcrumbs() {
 
   let crumbs: Crumb[];
 
+  // Special case: the ISNI guide (/admin/guides/isni). It's reached from the
+  // artist editor's "Claim ISNI" links, which pass ?artist=<id> to keep context.
+  // The generic trail would read "Admin › Guides › Isni" with a "Guides" crumb
+  // that 404s (there's no /admin/guides index). Render the artist flow instead —
+  // "Admin › Artists › Edit › ISNI" — with Edit linking back to that artist's
+  // editor (dropped when there's no artist context, e.g. from the create form).
+  const isIsniGuide = pathname === "/admin/guides/isni";
+
   // Special case: the singular detail/VIEW page — /admin/catalog/{release|artist}/<id>
   // (e.g. the "View release" button from the editor). Its path has no "edit"
   // segment, so the generic trail would read "Admin › Releases › Details" and
@@ -75,7 +84,17 @@ export default function Breadcrumbs() {
     (raw[2] === "release" || raw[2] === "artist") &&
     isId(raw[3]);
 
-  if (isDetailView) {
+  if (isIsniGuide) {
+    const artistId = searchParams.get("artist");
+    crumbs = [
+      { label: "Admin", href: "/admin", isLast: false },
+      { label: "Artists", href: "/admin/catalog/artists", isLast: false },
+      ...(artistId && isId(artistId)
+        ? [{ label: "Edit", href: `/admin/catalog/artists/${artistId}/edit`, isLast: false }]
+        : []),
+      { label: "ISNI", href: pathname, isLast: true },
+    ];
+  } else if (isDetailView) {
     const kind = raw[2]; // "release" | "artist"
     const id = raw[3];
     const plural = `${kind}s`; // releases | artists

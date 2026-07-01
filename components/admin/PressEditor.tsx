@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Image as ImageIcon, Loader2, ExternalLink, Trash2 } from "lucide-react";
+import { Save, Image as ImageIcon, Loader2, ExternalLink, Trash2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -300,16 +300,6 @@ export default function PressEditor({
 
   return (
     <div>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (confirmDiscard()) router.push("/admin/catalog/press");
-        }}
-        className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to press
-      </Button>
-
       <PageHeader title={mode === "edit" ? "Edit press item" : "New press item"} />
 
       <form onSubmit={handleSubmit} className="max-w-4xl">

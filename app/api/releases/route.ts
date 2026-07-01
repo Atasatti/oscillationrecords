@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
 import { mapReleasesToCards, releaseCardListArgs, publicReleaseWhere } from "@/lib/catalog-data";
 import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
@@ -8,6 +9,7 @@ import {
   apiKindToPrisma,
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
+  truncateReleaseDescription,
 } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +56,22 @@ export async function GET(request: NextRequest) {
     }
 
     const carouselOnly = searchParams.get("carousel") === "1";
-    const qParam = (searchParams.get("q") || "").trim();
+    // Cap the query length: the fuzzy scan is O(query·name) over the whole catalog,
+    // so an unbounded `q` is a CPU-amplification vector (see also lib/fuzzy.ts).
+    const qParam = (searchParams.get("q") || "").trim().slice(0, 64);
+
+    // Rate-limit the public fuzzy-search path per IP: it loads the full catalog and
+    // scores it in memory, and `force-dynamic` + unique `?q=` defeats the CDN, so
+    // it's cheap to abuse anonymously. Admins (data view) are exempt.
+    if (!isAdmin && qParam.length > 0) {
+      const rl = rateLimit(`relsearch:${clientIp(request)}`, 30, 60_000);
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: "Too many requests" },
+          { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+        );
+      }
+    }
 
     // Shared with the Server Components via lib/catalog-data so the card shape
     // can't drift between the initial HTML and client fetches.
@@ -253,7 +270,7 @@ export async function POST(request: NextRequest) {
         featureArtistNames: featManual,
         sortOrder,
         releaseDate: releaseDate ? new Date(releaseDate) : null,
-        description: description ? String(description) : null,
+        description: truncateReleaseDescription(description),
         primaryGenre: primaryGenre ? String(primaryGenre) : null,
         secondaryGenre: secondaryGenre ? String(secondaryGenre) : null,
         spotifyLink: spotifyLink || null,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import AdminSidebar from "./AdminSidebar";
@@ -94,7 +94,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Breadcrumbs />
+          {/* Suspense boundary: Breadcrumbs reads useSearchParams (for the ISNI
+              guide's artist context), which requires one to avoid a CSR bailout. */}
+          <Suspense fallback={null}>
+            <Breadcrumbs />
+          </Suspense>
         </header>
 
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>

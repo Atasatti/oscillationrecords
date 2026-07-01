@@ -10,6 +10,7 @@ import {
   prismaKindToApi,
   serializeTrack,
   serializeTrackForPublic,
+  truncateReleaseDescription,
 } from "@/lib/release-format";
 
 export const dynamic = "force-dynamic";
@@ -427,7 +428,7 @@ export async function PATCH(
             releaseDate: releaseDate ? new Date(releaseDate) : null,
           }),
           ...(description !== undefined && {
-            description: description ? String(description) : null,
+            description: truncateReleaseDescription(description),
           }),
           ...(primaryGenre !== undefined && {
             primaryGenre: primaryGenre ? String(primaryGenre) : null,
