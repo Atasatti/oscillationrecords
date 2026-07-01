@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { isSafeUrl } from "@/lib/url-safety";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,6 +51,13 @@ export async function PUT(request: NextRequest) {
     });
 
     revalidatePath("/");
+
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "settings",
+      resourceId: "site",
+      summary: "Updated studio photos",
+    });
 
     return NextResponse.json({ photos });
   } catch (error) {

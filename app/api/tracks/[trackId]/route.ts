@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 import { isReleasePublic } from "@/lib/catalog-data";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -187,6 +188,14 @@ export async function DELETE(
     }
 
     await prisma.track.delete({ where: { id: trackId } });
+
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "track",
+      resourceId: trackId,
+      summary: `Deleted track "${existing.name ?? trackId}"`,
+    });
+
     return NextResponse.json({ message: "Track deleted successfully" });
   } catch (error) {
     console.error("Error deleting track:", error);

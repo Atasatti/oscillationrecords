@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -100,6 +101,13 @@ export async function POST(request: NextRequest) {
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
     }
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "pitch",
+      resourceId: pitch.id,
+      summary: `Created pitch for "${contact.outlet || contact.name || pitch.id}"`,
+    });
 
     return NextResponse.json(pitch, { status: 201 });
   } catch (error) {

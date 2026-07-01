@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,6 +59,13 @@ export async function PUT(
       },
     });
 
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "contact",
+      resourceId: contact.id,
+      summary: `Updated contact "${contact.name}"`,
+    });
+
     return NextResponse.json(contact);
   } catch (error) {
     console.error("Error updating contact:", error);
@@ -106,10 +114,18 @@ export async function DELETE(
     if (!guard.ok) return guard.response;
 
     const { contactId } = await params;
-    const existing = await prisma.outreachContact.findUnique({ where: { id: contactId }, select: { id: true } });
+    const existing = await prisma.outreachContact.findUnique({ where: { id: contactId }, select: { id: true, name: true } });
     if (!existing) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
 
     await prisma.outreachContact.delete({ where: { id: contactId } });
+
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "contact",
+      resourceId: existing.id,
+      summary: `Deleted contact "${existing.name || existing.id}"`,
+    });
+
     return NextResponse.json({ message: "Contact deleted" });
   } catch (error) {
     console.error("Error deleting contact:", error);

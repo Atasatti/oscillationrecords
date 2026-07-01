@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { DEFAULT_STACKED_HERO_IMAGES } from "@/lib/site-settings-defaults";
 import { normalizeFooterUrl } from "@/lib/footer-settings";
 
@@ -39,6 +40,13 @@ export async function PUT(request: NextRequest) {
     });
 
     revalidatePath("/");
+
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "settings",
+      resourceId: "site",
+      summary: "Updated footer settings",
+    });
 
     return NextResponse.json({
       xLink: data.footerXLink,

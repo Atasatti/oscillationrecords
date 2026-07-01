@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { isSafeUrl } from "@/lib/url-safety";
 import { savePageMedia } from "@/lib/page-media";
 import {
@@ -76,6 +77,11 @@ export async function PUT(request: NextRequest) {
     revalidatePath("/");
     revalidatePath("/about");
     revalidatePath("/contact");
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "settings",
+      summary: "Updated page media",
+    });
     return NextResponse.json(media);
   } catch (error) {
     console.error("Error saving page media:", error);
