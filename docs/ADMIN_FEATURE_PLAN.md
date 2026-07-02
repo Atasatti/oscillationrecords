@@ -107,7 +107,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 ### Phase 4 — Automation & inbox (Atera)
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 17 | **Automation rules ("when X → do Y")** | L | Pitch = Accepted → create press task; release −3 weeks → spawn campaign checklist; new message → create ticket. Turns "needs attention" from reactive to active. |
+| 17 | ◑ **Automation rules ("when X → do Y")** | L | **Shipped (2 rules)** at `/admin/automations`: pitch Accepted → follow-up task (event); scheduled release within N days → pre-release campaign task (run via "Run now"/cron). Extensible registry (`lib/automations.ts`) + idempotent fire ledger. More triggers/actions can be added. |
 | 18 | ◑ **Unified Inbox / ticketing** | M–L | **Mostly shipped.** `ContactMessage` → status (open/in-progress/resolved) + assignee + priority + status filters (`handled` kept in sync). *Reply thread* still TODO. |
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
