@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send,
+  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -31,6 +31,7 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
+import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
@@ -315,6 +316,7 @@ type Task = {
   assigneeId: string | null;
   recurrence: string | null;
   checklist: ChecklistItem[];
+  attachments?: Attachment[];
   commentCount?: number;
   releaseIds: string[];
   artistIds: string[];
@@ -559,6 +561,102 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
           {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
+    </div>
+  );
+}
+
+const EXT_TYPE: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  webp: "image/webp", gif: "image/gif", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv", txt: "text/plain", zip: "application/zip",
+};
+function fileTypeOf(file: File): string {
+  if (file.type && isAllowedAttachmentType(file.type)) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_TYPE[ext] ?? file.type ?? "";
+}
+function fmtBytes(n: number | null): string {
+  if (n === null) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// File attachments for one task, shown in the edit dialog. Uploads go presign →
+// PUT to S3 → record metadata. Reports changes up so the row's paperclip count
+// stays in sync.
+function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initial: Attachment[]; onChange: (a: Attachment[]) => void }) {
+  const toast = useToast();
+  const [items, setItems] = useState<Attachment[]>(initial);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const apply = (next: Attachment[]) => { setItems(next); onChange(next); };
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const type = fileTypeOf(file);
+    if (!isAllowedAttachmentType(type)) { toast.error("That file type isn't allowed"); return; }
+    if (file.size > MAX_ATTACHMENT_BYTES) { toast.error("File too large (max 25MB)"); return; }
+    setUploading(true);
+    try {
+      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type }) });
+      if (!p.ok) { const d = await p.json().catch(() => ({})); throw new Error(d.error || "Upload not allowed"); }
+      const { uploadURL, fileURL } = await p.json();
+      const put = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": type }, body: file });
+      if (!put.ok) throw new Error("Upload failed");
+      const m = await fetch(`/api/outreach/tasks/${taskId}/attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, url: fileURL, size: file.size, type }) });
+      if (!m.ok) throw new Error("Failed to save attachment");
+      const { attachment } = await m.json();
+      apply([...items, attachment]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    try {
+      const res = await fetch(`/api/outreach/tasks/${taskId}/attachments?attachmentId=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      apply(items.filter((a) => a.id !== id));
+    } catch {
+      toast.error("Couldn't remove attachment");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium">Attachments</label>
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {items.map((a) => (
+            <li key={a.id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">{a.name}</a>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{fmtBytes(a.size)}</span>
+              <button type="button" onClick={() => remove(a.id)} aria-label="Remove attachment" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-950/20 hover:text-red-400">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} onChange={onPick} className="hidden" />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground disabled:opacity-50"
+      >
+        {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {uploading ? "Uploading…" : "Add file"}
+      </button>
     </div>
   );
 }
@@ -917,6 +1015,12 @@ export default function TasksPage() {
       toast.error("Failed to update checklist");
       loadTasks();
     }
+  };
+
+  // Sync a task's attachments into the list (so the row's 📎 count updates).
+  const applyAttachments = (taskId: string, attachments: Attachment[]) => {
+    setTasks((list) => list.map((t) => (t.id === taskId ? { ...t, attachments } : t)));
+    setCached("tasks-list", tasks.map((t) => (t.id === taskId ? { ...t, attachments } : t)));
   };
 
   // ---- bulk selection ----
@@ -1354,6 +1458,14 @@ export default function TasksPage() {
                         </span>
                       </>
                     ) : null}
+                    {t.attachments?.length ? (
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}
+                        </span>
+                      </>
+                    ) : null}
                   </div>
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -1638,7 +1750,13 @@ export default function TasksPage() {
             )}
           </div>
           {editingId ? (
-            <div className="mt-1 border-t border-border pt-4">
+            <div className="mt-1 flex flex-col gap-4 border-t border-border pt-4">
+              <TaskAttachments
+                key={editingId}
+                taskId={editingId}
+                initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
+                onChange={(a) => applyAttachments(editingId, a)}
+              />
               <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
             </div>
           ) : null}

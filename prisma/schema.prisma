@@ -527,6 +527,9 @@ model OutreachTask {
   /// Sub-task checklist — an array of { id, text, done }. Shape/validation in
   /// lib/task-checklist.ts. The row shows progress (n/total); items tick inline.
   checklist   Json?
+  /// File attachments — an array of { id, name, url, size, type } on our S3.
+  /// Shape/validation in lib/task-attachments.ts.
+  attachments Json?
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
