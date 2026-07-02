@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
@@ -223,6 +225,13 @@ export async function POST(request: NextRequest) {
       resourceId: artist.id,
       summary: `Created artist "${artist.name}"${draft ? " (draft)" : ""}`,
     });
+
+    // A non-draft artist is public immediately (created with showOnWebsite: true) —
+    // ping IndexNow so Bing/etc pick up the new page + the roster listing.
+    if (!draft) {
+      const slug = slugify(artist.name);
+      after(() => submitToIndexNow([`/artists/${slug}`, "/artists"]));
+    }
 
     return NextResponse.json(artist, { status: 201 });
   } catch (error) {

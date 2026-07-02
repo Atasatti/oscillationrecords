@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
@@ -6,6 +6,8 @@ import { deleteArtistCascade } from "@/lib/artist-delete";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { rehostExternalImage } from "@/lib/s3";
 import { isSafeUrl } from "@/lib/url-safety";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -165,6 +167,12 @@ export async function PUT(
       summary: `Updated artist "${artist.name}"`,
     });
 
+    // Public now (shown on site + not a draft) → ping IndexNow to recrawl the page.
+    if (artist.showOnWebsite && !artist.draft) {
+      const slug = slugify(artist.name);
+      after(() => submitToIndexNow([`/artists/${slug}`, "/artists"]));
+    }
+
     return NextResponse.json(artist);
   } catch (error) {
     console.error("Error updating artist:", error);
@@ -236,6 +244,14 @@ export async function PATCH(
     }
 
     const artist = await prisma.artist.update({ where: { id: artistId }, data });
+
+    // Visibility toggled (either direction) → ask IndexNow to recrawl: a newly
+    // shown artist gets indexed; a hidden one gets re-fetched and dropped.
+    if (data.showOnWebsite !== undefined) {
+      const slug = slugify(artist.name);
+      after(() => submitToIndexNow([`/artists/${slug}`, "/artists"]));
+    }
+
     return NextResponse.json(artist);
   } catch (error) {
     console.error("Error updating artist:", error);

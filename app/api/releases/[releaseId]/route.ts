@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withWriteRetry } from "@/lib/db-retry";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { isReleasePublic } from "@/lib/catalog-data";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
@@ -626,6 +628,14 @@ export async function PATCH(
       resourceId: releaseId,
       summary: `Updated release "${release?.name ?? existing.name}"`,
     });
+
+    // If this update leaves the release publicly live (RELEASED/past-scheduled AND
+    // has a tracklist), ping IndexNow so Bing/etc recrawl the page + the listings
+    // it now appears on. Runs after the response — never blocks the publish.
+    if (nextIsLive && tracks.length > 0) {
+      const slug = slugify(release?.name ?? existing.name);
+      after(() => submitToIndexNow([`/releases/${slug}`, "/releases", "/"]));
+    }
 
     return NextResponse.json({
       ...release,
