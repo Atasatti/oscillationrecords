@@ -5,27 +5,59 @@ plus the wider label-operations tooling. Benchmarked against **Atera** (ticketin
 automation, SLAs, dashboards) and **Notion** (flexible databases, views, relations,
 templates), then extended with label-specific operations.
 
-This is a **planning document only** — no code has been written. It's the menu we pick
-from, sequenced so each build makes the next one easier.
+It's the menu we pick from, sequenced so each build makes the next one easier.
+**Several items are now shipped — see "Shipped so far" below; the roadmap tables mark
+done items with ✅.**
 
 > **Design principle:** don't rebuild Atera or Notion. Cherry-pick the handful of patterns
 > that fit a small independent label and connect the data we already store.
 
 ---
 
-## What already exists (the starting point)
+## Shipped so far (2026-07 · local branch `admin-press-errors-page-media`, unpushed)
 
-- **Tasks** (`/admin/tasks`): List + Calendar views, "Needs attention" tab, 26 suggested
-  tasks, categories (pitching/research/admin/social/sync/radio/catalog), priorities with
-  auto-sort, todo/in-progress/done, due dates + overdue, create/edit/delete, client caching.
+Built in the plan's recommended order (assignees → roles+audit → relations → verticals):
+
+- ✅ **#1 Assignees + My tasks** — inline avatar picker + assignee filter (`OutreachTask.assigneeId`).
+- ✅ **#36 Granular roles + permissions** — Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware page-gating + role-filtered sidebar.
+- ✅ **#37 Audit log** — `AuditLog` model + owner-only viewer at `/admin/audit`; logs role changes and catalog/outreach create·update·delete.
+- ✅ **#8–10 Relations + rollups** — task↔release/artist linking (chips) + tasks / pitches / press rollup panels on the release & artist **editors**.
+- ✅ **#28 Release pipeline** — schedule board at `/admin/catalog/pipeline`.
+- ✅ **#24 Royalty & split tracking (+ #27 payouts)** — per-release splits → revenue → owed → payouts → outstanding, plus a cross-release "who's owed" rollup at `/admin/catalog/royalties`.
+- ✅ **#20 Ops dashboard** — tasks / pipeline / royalties overview cards on `/admin`.
+
+Also fixed two **Needs-attention** bugs (false "needs a release"; duplicate artist rows).
+
+**Deviation:** a metadata "readiness" panel + delivery/sign-off checklist (#30) was built,
+then **removed** — it duplicated the existing release SEO score.
+
+**Data note:** implemented as `Release.splits` / `revenue` / `payments` (JSON) + `User.role`
+scoped roles + `AuditLog` — not the fuller `Royalty`/`Split`/`Payout` models originally
+sketched below (JSON-on-Release was enough for a small catalog).
+
+---
+
+## What already exists
+
+*Baseline (pre-July 2026):*
+- **Tasks** (`/admin/tasks`): List + Calendar views, "Needs attention" tab, suggested
+  tasks, categories, priorities with auto-sort, todo/in-progress/done, due dates + overdue,
+  create/edit/delete, client caching.
 - **Outreach** (`/admin/outreach`): Contacts (mini-CRM) + Pitch tracker (`PitchLog`).
 - **Messages** (`/admin/messages`): inbound contact form → `ContactMessage` (`handled` boolean only).
 - **Catalog**: Releases (with `upcCode`, `catalogueNumber`, `isrcCode`, `pLine`, `cLine`,
   `credits` JSON), Artists (`wikidataId`, `wikipediaUrl`), Press.
 - **Subscribers**, **Live data** (audience analytics: `PlayEvent`, `LinkClick`), **Errors**.
-- Auth: roles are effectively **admin / user** (coarse). S3 for media.
+- Per-release/artist **SEO score** (`lib/seo-score.ts`) — completeness/discoverability signal.
 
-Two instincts are already in the codebase and worth deepening:
+*Added July 2026 (this session — see "Shipped so far"):*
+- **Tasks**: assignees + "My tasks", links to releases/artists (chips).
+- **Roles**: granular Owner + scoped roles (was coarse admin/user), enforced server + client.
+- **Audit log** (`/admin/audit`), **Pipeline** (`/admin/catalog/pipeline`),
+  **Royalties** (`/admin/catalog/royalties`), **Ops overview** on the dashboard.
+- Release **editors** now carry royalties + tasks/pitches/press rollup panels.
+
+Two instincts already in the codebase and still worth deepening:
 - **"Needs attention" ≈ Atera monitoring → alerts.**
 - **Tasks List + Calendar ≈ Notion multi-view.**
 
@@ -41,7 +73,7 @@ The core upgrades that make Tasks usable by a team.
 
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 1 | **Assignees + "My tasks"** | S–M | Add `assigneeId` to `OutreachTask` + user picker + filter. Prereq for reminders, digests, roles. |
+| 1 | ✅ **Assignees + "My tasks"** | S–M | **Shipped.** `assigneeId` + inline avatar picker + assignee filter. |
 | 2 | **Recurring tasks** | M | "Repeat weekly/monthly" — regenerate on completion. |
 | 3 | **Subtasks / checklists** | S | Nested items with their own done-state; progress %. |
 | 4 | **Blocked / waiting status** | S | Extend status enum beyond todo/in-progress/done. |
@@ -54,9 +86,9 @@ The single highest-leverage architectural change. Everything downstream gets bet
 
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 8 | **Relations + rollups** | L | Connect Tasks ↔ Releases ↔ Artists ↔ Pitches ↔ Press. We already store `artistIds`/`releaseIds` — surface them as navigable, two-way links with rollups. |
-| 9 | **Per-release rollup view** | M | On a Release: its tasks (progress %), pitches (accepted count), press coverage. |
-| 10 | **Per-artist rollup view** | M | On an Artist: releases, tasks, coverage, (later) royalties. |
+| 8 | ✅ **Relations + rollups** | L | **Shipped.** Task↔release/artist linking (chips) + rollup panels on the editors. |
+| 9 | ✅ **Per-release rollup view** | M | **Shipped.** Release editor shows its tasks (progress %), pitches, press. |
+| 10 | ✅ **Per-artist rollup view** | M | **Shipped.** Artist editor shows linked tasks, pitches, press. |
 | 11 | **Grouping (by assignee / release / category)** | S | First-class group-by, not just a single filter. |
 
 ### Phase 3 — Views & flexibility (Notion)
@@ -74,7 +106,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 17 | **Automation rules ("when X → do Y")** | L | Pitch = Accepted → create press task; release −3 weeks → spawn campaign checklist; new message → create ticket. Turns "needs attention" from reactive to active. |
 | 18 | **Unified Inbox / ticketing** | M–L | Upgrade `ContactMessage` from `handled` boolean → status (open/in-progress/resolved) + assignee + priority + reply thread. |
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
-| 20 | **Ops dashboard ("Today / This week")** | M | One morning screen: tasks due/overdue, pitches awaiting follow-up, unanswered messages, active-campaign progress. |
+| 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
 | 21 | **Smarter alert thresholds** | M | Extend needs-attention: release <7 days out missing artwork/links; pitch "sent" 14+ days no follow-up; artist idle N months. |
 | 22 | **Reminders / daily digest** | M | Email/in-app: your tasks due today, overdue, breaches. Needs assignees (#1). |
 | 23 | **Notifications center (in-app bell)** | S–M | Surfaces mentions, assignments, alerts. |
@@ -84,17 +116,17 @@ Nothing in the current admin covers this. Highest business value.
 
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 24 | **Royalty & split tracking** | L | Per release, splits between artists/collaborators, owed vs. paid. Builds on `credits`, `pLine`/`cLine`, ISRC/UPC. |
+| 24 | ✅ **Royalty & split tracking** | L | **Shipped.** `Release.splits`/`revenue`/`payments` → owed/paid/outstanding + cross-release rollup at `/admin/catalog/royalties`. |
 | 25 | **Campaign budget & spend** | M | Per-campaign budget-vs-actual (SubmitHub/Groover/ads). Suggestions already reference "budget €50–100". |
 | 26 | **Agreements / terms store** | M | Given the **non-exclusive** model: which release is under what terms (split %, rights, duration) per artist. |
-| 27 | **Invoicing / payout statements** | M | Generate statements per artist from #24. |
+| 27 | ◑ **Invoicing / payout statements** | M | Partial: **payouts + outstanding tracked** (#24). Still missing: generated per-artist statements. |
 
 ### Phase 6 — Release operations
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 28 | **Release pipeline + distribution checklist** | M | Pipeline board of upcoming releases with delivery checklist: UPC/ISRC assigned, metadata complete, delivered, live-on-DSP confirmed. |
+| 28 | ✅ **Release pipeline** | M | **Shipped** as the schedule board at `/admin/catalog/pipeline` (scheduled + drafts). The *distribution checklist* half was built then removed (dup of SEO score — see #30). |
 | 29 | **Asset library (DAM)** | M–L | Central store (S3) for masters, artwork, stems, press photos, EPKs per release/artist. |
-| 30 | **Approval / sign-off gate** | S–M | "Release-ready" checklist that must pass before publish (artwork approved, links added, metadata done). |
+| 30 | ✗ **Approval / sign-off gate** | S–M | Built (delivery checklist + "signed off"), then **removed** — duplicated the SEO score. Revisit only if a *distinct* workflow (delivered-to-DSP etc.) is wanted. |
 
 ### Phase 7 — A&R & artists
 | # | Feature | Effort | Notes |
@@ -112,8 +144,8 @@ Nothing in the current admin covers this. Highest business value.
 ### Phase 9 — Team & security *(pairs with the current security audit)*
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 36 | **Granular roles + permissions** | M | Scoped roles (Outreach-only, Catalog-editor, Read-only) vs. today's admin/all. Staff/PA see only what they need. |
-| 37 | **Admin activity / audit log** | M | Who changed/deleted what across the admin — accountability + security trail. Extends the existing error log. |
+| 36 | ✅ **Granular roles + permissions** | M | **Shipped.** Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware + sidebar. |
+| 37 | ✅ **Admin activity / audit log** | M | **Shipped.** `AuditLog` + viewer at `/admin/audit`; logs role changes + catalog/outreach CRUD. |
 | 38 | **@mentions** | S | Mention a teammate in a comment → notify/assign. Needs comments (#6) + notifications (#23). |
 
 ---
@@ -123,15 +155,20 @@ Nothing in the current admin covers this. Highest business value.
 
 ---
 
-## Recommended starting order
+## Recommended starting order — ✅ followed & complete
 
-1. **Assignees (#1)** — tiny, unblocks reminders, digests, roles, "my tasks".
-2. **Roles + audit log (#36, #37)** — directly supports the in-progress security audit; small-to-medium.
-3. **Relations + rollups (#8)** — the structural leap; every dashboard/automation/campaign feature is better once entities are connected.
-4. Then pick a vertical that delivers visible value fast: **Release pipeline + checklist (#28)** or **Royalty & split tracking (#24)**.
+1. ✅ **Assignees (#1)**
+2. ✅ **Roles + audit log (#36, #37)**
+3. ✅ **Relations + rollups (#8–10)** — the structural leap.
+4. ✅ **Both verticals shipped:** Release pipeline (#28) *and* Royalty & split tracking (#24).
+5. ✅ Bonus: Ops dashboard (#20).
 
-Rationale: 1–2 are cheap and timely, 3 is the multiplier, 4 is the first big win the label
-will *feel*.
+### Suggested next (not yet started)
+- **Task depth:** recurring (#2), subtasks (#3), bulk actions (#5), comments/activity (#6).
+- **Automation & inbox:** message ticketing (#18), reminders/digest (#22), automation rules (#17).
+- **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27).
+- **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), placement tracker (#33),
+  content calendar (#34), newsletter campaigns (#35).
 
 ---
 
@@ -152,5 +189,5 @@ New/changed models implied by the above (to spec in detail when a phase is chose
 
 ---
 
-*Last updated: 2026-07-01. No implementation started — awaiting selection of the first
-phase to build.*
+*Last updated: 2026-07-02. Shipped this session: #1, #8–10, #20, #24 (+#27 partial), #28,
+#36, #37 (all local/unpushed on `admin-press-errors-page-media`). #30 built then removed.*
