@@ -475,6 +475,10 @@ export default function TasksPage() {
   const [working, setWorking] = useState(false);
   // Task ids whose checklist is expanded inline in the list.
   const [expandedChecklists, setExpandedChecklists] = useState<Set<string>>(new Set());
+  // Bulk selection.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
 
   // ---- data ----
   const loadTasks = useCallback(async () => {
@@ -781,6 +785,39 @@ export default function TasksPage() {
     }
   };
 
+  // ---- bulk selection ----
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  const clearSelection = () => setSelected(new Set());
+  const selectAllFiltered = () => setSelected(new Set(filtered.map((t) => t.id)));
+
+  const runBulk = async (payload: Record<string, unknown>) => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBulkWorking(true);
+    try {
+      const res = await fetch("/api/outreach/tasks/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, ...payload }),
+      });
+      if (!res.ok) throw new Error();
+      const { count } = await res.json();
+      toast.success(`${count} task${count === 1 ? "" : "s"} updated`);
+      clearSelection();
+      setBulkDeleteOpen(false);
+      loadTasks();
+    } catch {
+      toast.error("Bulk action failed");
+    } finally {
+      setBulkWorking(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setWorking(true);
@@ -1038,6 +1075,45 @@ export default function TasksPage() {
         /* TASK LIST                                                       */
         /* -------------------------------------------------------------- */
         <div className="flex flex-col gap-2">
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm">
+              <span className="font-medium">{selected.size} selected</span>
+              <button type="button" onClick={selectAllFiltered} className="text-xs text-muted-foreground hover:text-foreground">
+                Select all ({filtered.length})
+              </button>
+              <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden />
+              <select
+                defaultValue=""
+                onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) runBulk({ status: v }); }}
+                aria-label="Set status for selected"
+                disabled={bulkWorking}
+                className="rounded-md border border-border bg-background py-1 pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+              >
+                <option value="" disabled>Set status…</option>
+                {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+              <select
+                defaultValue=""
+                onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__none") runBulk({ assigneeId: null }); else if (v) runBulk({ assigneeId: v }); }}
+                aria-label="Assign selected"
+                disabled={bulkWorking}
+                className="rounded-md border border-border bg-background py-1 pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+              >
+                <option value="" disabled>Assign to…</option>
+                <option value="__none">Unassigned</option>
+                {assignees.map((a) => <option key={a.id} value={a.id}>{displayName(a)}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={bulkWorking}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-950/20 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </button>
+              <button type="button" onClick={clearSelection} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Clear</button>
+            </div>
+          )}
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border bg-card p-4">
@@ -1059,8 +1135,23 @@ export default function TasksPage() {
               return (
               <div
                 key={t.id}
-                className={`group flex items-center gap-3 rounded-xl border border-border border-l-[3px] bg-card px-4 py-3 transition-colors hover:bg-white/[0.02] ${STATUS_ACCENT[t.status] ?? "border-l-zinc-600"}`}
+                className={`group flex items-center gap-3 rounded-xl border border-l-[3px] bg-card px-4 py-3 transition-colors hover:bg-white/[0.02] ${STATUS_ACCENT[t.status] ?? "border-l-zinc-600"} ${selected.has(t.id) ? "border-primary/50 bg-primary/[0.03]" : "border-border"}`}
               >
+                {/* Bulk-select checkbox (appears on hover; stays when selected) */}
+                <button
+                  type="button"
+                  onClick={() => toggleSelect(t.id)}
+                  aria-label={selected.has(t.id) ? "Deselect task" : "Select task"}
+                  aria-pressed={selected.has(t.id)}
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
+                    selected.has(t.id)
+                      ? "border-primary bg-primary text-primary-foreground opacity-100"
+                      : "border-border opacity-0 group-hover:opacity-100"
+                  }`}
+                >
+                  {selected.has(t.id) ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                </button>
+
                 {/* Complete toggle */}
                 <button
                   type="button"
@@ -1421,6 +1512,19 @@ export default function TasksPage() {
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => !o && setBulkDeleteOpen(false)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete {selected.size} task{selected.size === 1 ? "" : "s"}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Delete the {selected.size} selected task{selected.size === 1 ? "" : "s"}? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkWorking}>Cancel</Button>
+            <Button variant="destructive" onClick={() => runBulk({ delete: true })} disabled={bulkWorking}>
+              {bulkWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
             </Button>
           </DialogFooter>
         </DialogContent>
