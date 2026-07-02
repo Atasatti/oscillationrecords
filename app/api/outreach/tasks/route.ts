@@ -44,7 +44,15 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return NextResponse.json({ items: tasks, total: tasks.length }, { headers: { "Cache-Control": "private, no-store" } });
+    // Attach a comment count per task (one groupBy, no N+1) so rows can show it.
+    const ids = tasks.map((t) => t.id);
+    const counts = ids.length
+      ? await prisma.taskComment.groupBy({ by: ["taskId"], where: { taskId: { in: ids } }, _count: { _all: true } })
+      : [];
+    const countByTask = new Map(counts.map((c) => [c.taskId, c._count._all]));
+    const items = tasks.map((t) => ({ ...t, commentCount: countByTask.get(t.id) ?? 0 }));
+
+    return NextResponse.json({ items, total: items.length }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });

@@ -543,6 +543,20 @@ model OutreachTask {
   @@index([assigneeId])
 }
 
+/// A comment on an OutreachTask — a discussion thread for staff. Author identity
+/// is denormalized (id + email) so it survives the author's User being removed;
+/// the UI resolves the display name/avatar from the staff directory.
+model TaskComment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId      String   @db.ObjectId
+  authorId    String?  @db.ObjectId
+  authorEmail String?
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
 // ---------------------------------------------------------------------------
 
 /// Site-wide error tracking (server + client), surfaced in the admin "Errors"

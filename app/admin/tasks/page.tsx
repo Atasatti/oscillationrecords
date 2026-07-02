@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks,
+  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -315,6 +315,7 @@ type Task = {
   assigneeId: string | null;
   recurrence: string | null;
   checklist: ChecklistItem[];
+  commentCount?: number;
   releaseIds: string[];
   artistIds: string[];
   dueAt: string | null;
@@ -427,6 +428,113 @@ function AssigneePicker({
 function fmtDate(iso: string | null) {
   if (!iso) return null;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
+
+// A comment thread for one task, shown in the edit dialog. Posts immediately
+// (independent of the task form's Save). Resolves author name/avatar from the
+// staff directory; you can delete your own comments.
+function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: Assignee[]; myId?: string }) {
+  const toast = useToast();
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const byId = useMemo(() => new Map(assignees.map((a) => [a.id, a])), [assignees]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`/api/outreach/tasks/${taskId}/comments`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => { if (alive) setComments(d.comments ?? []); })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [taskId]);
+
+  const add = async () => {
+    const body = text.trim();
+    if (!body) return;
+    setPosting(true);
+    try {
+      const res = await fetch(`/api/outreach/tasks/${taskId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) throw new Error();
+      const { comment } = await res.json();
+      setComments((c) => [...c, comment]);
+      setText("");
+    } catch {
+      toast.error("Couldn't post comment");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    try {
+      const res = await fetch(`/api/outreach/tasks/${taskId}/comments?commentId=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setComments((c) => c.filter((x) => x.id !== id));
+    } catch {
+      toast.error("Couldn't delete comment");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium">Comments</label>
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No comments yet.</p>
+      ) : (
+        <ul className="flex max-h-56 flex-col gap-3 overflow-y-auto pr-1">
+          {comments.map((c) => {
+            const author = c.authorId ? byId.get(c.authorId) ?? null : null;
+            const name = author ? displayName(author) : c.authorEmail ?? "Unknown";
+            const mine = !!myId && c.authorId === myId;
+            return (
+              <li key={c.id} className="flex gap-2">
+                <AssigneeAvatar user={author} size={24} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-xs font-medium text-foreground">{name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(c.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    {mine ? (
+                      <button type="button" onClick={() => remove(c.id)} aria-label="Delete comment" className="ml-auto text-muted-foreground hover:text-red-400">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{c.body}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="flex items-end gap-2">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
+          rows={2}
+          placeholder="Add a comment… (⌘/Ctrl+Enter to post)"
+          className="flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <Button type="button" onClick={add} disabled={posting || !text.trim()} size="sm" className="bg-white text-black hover:bg-gray-200">
+          {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
@@ -1212,6 +1320,14 @@ export default function TasksPage() {
                         </button>
                       </>
                     ) : null}
+                    {t.commentCount ? (
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3" aria-hidden /> {t.commentCount}
+                        </span>
+                      </>
+                    ) : null}
                   </div>
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -1495,6 +1611,11 @@ export default function TasksPage() {
               </div>
             )}
           </div>
+          {editingId ? (
+            <div className="mt-1 border-t border-border pt-4">
+              <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+            </div>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
             <Button onClick={save} disabled={saving} className="bg-white text-black hover:bg-gray-200">
