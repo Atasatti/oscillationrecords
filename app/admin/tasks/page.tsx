@@ -28,8 +28,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
+import type { CatalogRef } from "@/lib/catalog-refs";
 import { getCached, setCached } from "@/lib/admin-cache";
 
 // ---------------------------------------------------------------------------
@@ -309,6 +311,8 @@ type Task = {
   priority: string;
   status: string;
   assigneeId: string | null;
+  releaseIds: string[];
+  artistIds: string[];
   dueAt: string | null;
   isTemplate: boolean;
 };
@@ -421,7 +425,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -452,6 +456,11 @@ export default function TasksPage() {
   const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
   const [attentionLoading, setAttentionLoading] = useState(false);
   const [attentionLoaded, setAttentionLoaded] = useState(false);
+
+  // Catalog refs (id + name) for linking a task to releases / artists. Loaded from
+  // the staff-readable endpoint so Outreach staff can link without catalog perms.
+  const [releaseRefs, setReleaseRefs] = useState<CatalogRef[]>([]);
+  const [artistRefs, setArtistRefs] = useState<CatalogRef[]>([]);
 
   // Create / edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -521,11 +530,33 @@ export default function TasksPage() {
     }
   }, []);
 
+  // Releases + artists to link tasks to. Cached like the other lookups.
+  const loadCatalogRefs = useCallback(async () => {
+    const cached = getCached<{ releases: CatalogRef[]; artists: CatalogRef[] }>("task-catalog-refs");
+    if (cached) { setReleaseRefs(cached.releases); setArtistRefs(cached.artists); }
+    try {
+      const res = await fetch("/api/admin/catalog-refs");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const refs = { releases: data.releases ?? [], artists: data.artists ?? [] };
+      setReleaseRefs(refs.releases);
+      setArtistRefs(refs.artists);
+      setCached("task-catalog-refs", refs);
+    } catch {
+      // non-fatal: the link pickers just show nothing to pick
+    }
+  }, []);
+
   useEffect(() => {
     loadTasks();
     loadAttention();
     loadAssignees();
-  }, [loadTasks, loadAttention, loadAssignees]);
+    loadCatalogRefs();
+  }, [loadTasks, loadAttention, loadAssignees, loadCatalogRefs]);
+
+  // id -> name lookups for rendering linked chips on task rows.
+  const releaseNameById = useMemo(() => new Map(releaseRefs.map((r) => [r.id, r.name])), [releaseRefs]);
+  const artistNameById = useMemo(() => new Map(artistRefs.map((a) => [a.id, a.name])), [artistRefs]);
 
   // ---- derived ----
   // Non-status filters (category + assignee), shared by the list, the tab counts
@@ -612,6 +643,7 @@ export default function TasksPage() {
 
   // ---- actions ----
   const setField = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+  const setLinks = (f: "releaseIds" | "artistIds", v: string[]) => setForm((p) => ({ ...p, [f]: v }));
 
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
   const openEdit = (t: Task) => {
@@ -623,6 +655,8 @@ export default function TasksPage() {
       priority: t.priority,
       status: t.status,
       assigneeId: t.assigneeId ?? "",
+      releaseIds: t.releaseIds ?? [],
+      artistIds: t.artistIds ?? [],
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
     });
     setDialogOpen(true);
@@ -1028,6 +1062,26 @@ export default function TasksPage() {
                       </>
                     )}
                   </div>
+                  {(t.releaseIds?.length || t.artistIds?.length) ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {t.releaseIds?.map((id) => {
+                        const name = releaseNameById.get(id);
+                        return name ? (
+                          <span key={`r-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            <Music2 className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
+                          </span>
+                        ) : null;
+                      })}
+                      {t.artistIds?.map((id) => {
+                        const name = artistNameById.get(id);
+                        return name ? (
+                          <span key={`a-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            <UserRound className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Assignee + status pill (coloured) + edit + delete */}
@@ -1180,6 +1234,24 @@ export default function TasksPage() {
                   <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
                 ))}
               </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <MultiSelect
+                options={releaseRefs.map((r) => ({ value: r.id, label: r.name }))}
+                selected={form.releaseIds}
+                onChange={(v) => setLinks("releaseIds", v)}
+                placeholder="Link this task to releases…"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
+              <MultiSelect
+                options={artistRefs.map((a) => ({ value: a.id, label: a.name }))}
+                selected={form.artistIds}
+                onChange={(v) => setLinks("artistIds", v)}
+                placeholder="Link this task to artists…"
+              />
             </div>
             {editingId ? (
               <div className="grid grid-cols-2 gap-3">
