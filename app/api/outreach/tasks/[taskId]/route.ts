@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { isRecurrence, nextDueDate } from "@/lib/task-recurrence";
+import { normalizeChecklist } from "@/lib/task-checklist";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -75,7 +77,7 @@ export async function PUT(
 
     const { taskId } = await params;
     const body = await request.json();
-    const { title, description, category, priority, status, assigneeId, recurrence, artistIds, releaseIds, dueAt, notes } = body;
+    const { title, description, category, priority, status, assigneeId, recurrence, checklist, artistIds, releaseIds, dueAt, notes } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -94,6 +96,7 @@ export async function PUT(
         status: status || "todo",
         assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
         recurrence: isRecurrence(recurrence) ? recurrence : null,
+        checklist: normalizeChecklist(checklist) as unknown as Prisma.InputJsonValue,
         artistIds: Array.isArray(artistIds) ? artistIds : [],
         releaseIds: Array.isArray(releaseIds) ? releaseIds : [],
         dueAt: dueAt ? new Date(dueAt) : null,
@@ -138,6 +141,10 @@ export async function PATCH(
     // assigneeId: a non-empty string sets the assignee; null / "" clears it.
     if ("assigneeId" in body) {
       data.assigneeId = typeof body.assigneeId === "string" && body.assigneeId.trim() ? body.assigneeId.trim() : null;
+    }
+    // checklist: full array replace (used by inline item toggling on a row).
+    if ("checklist" in body) {
+      data.checklist = normalizeChecklist(body.checklist) as unknown as Prisma.InputJsonValue;
     }
 
     if (!Object.keys(data).length) {

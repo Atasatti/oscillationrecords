@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat,
+  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
+import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
@@ -313,6 +314,7 @@ type Task = {
   status: string;
   assigneeId: string | null;
   recurrence: string | null;
+  checklist: ChecklistItem[];
   releaseIds: string[];
   artistIds: string[];
   dueAt: string | null;
@@ -427,7 +429,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -471,6 +473,8 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  // Task ids whose checklist is expanded inline in the list.
+  const [expandedChecklists, setExpandedChecklists] = useState<Set<string>>(new Set());
 
   // ---- data ----
   const loadTasks = useCallback(async () => {
@@ -646,6 +650,11 @@ export default function TasksPage() {
   // ---- actions ----
   const setField = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
   const setLinks = (f: "releaseIds" | "artistIds", v: string[]) => setForm((p) => ({ ...p, [f]: v }));
+  // Checklist editing inside the dialog (operates on form.checklist).
+  const addChecklistItem = () => setForm((p) => ({ ...p, checklist: [...p.checklist, { id: crypto.randomUUID(), text: "", done: false }] }));
+  const updateChecklistText = (id: string, text: string) => setForm((p) => ({ ...p, checklist: p.checklist.map((it) => (it.id === id ? { ...it, text } : it)) }));
+  const toggleFormChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.map((it) => (it.id === id ? { ...it, done: !it.done } : it)) }));
+  const removeChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.filter((it) => it.id !== id) }));
 
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
   const openEdit = (t: Task) => {
@@ -658,6 +667,7 @@ export default function TasksPage() {
       status: t.status,
       assigneeId: t.assigneeId ?? "",
       recurrence: t.recurrence ?? "",
+      checklist: t.checklist ?? [],
       releaseIds: t.releaseIds ?? [],
       artistIds: t.artistIds ?? [],
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
@@ -742,6 +752,31 @@ export default function TasksPage() {
       if (!res.ok) throw new Error();
     } catch {
       toast.error("Failed to reassign task");
+      loadTasks();
+    }
+  };
+
+  const toggleChecklistExpanded = (id: string) =>
+    setExpandedChecklists((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+
+  // Tick/untick a checklist item inline on a row — optimistic, PATCH the full list.
+  const toggleTaskChecklistItem = async (task: Task, itemId: string) => {
+    const next = (task.checklist ?? []).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it));
+    setTasks((list) => list.map((t) => (t.id === task.id ? { ...t, checklist: next } : t)));
+    setCached("tasks-list", tasks.map((t) => (t.id === task.id ? { ...t, checklist: next } : t)));
+    try {
+      const res = await fetch(`/api/outreach/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Failed to update checklist");
       loadTasks();
     }
   };
@@ -1072,6 +1107,20 @@ export default function TasksPage() {
                         </span>
                       </>
                     )}
+                    {t.checklist?.length ? (
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleChecklistExpanded(t.id)}
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                          aria-label="Toggle checklist"
+                        >
+                          <ListChecks className="h-3 w-3" aria-hidden />
+                          {checklistProgress(t.checklist).done}/{checklistProgress(t.checklist).total}
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -1092,6 +1141,23 @@ export default function TasksPage() {
                         ) : null;
                       })}
                     </div>
+                  ) : null}
+                  {expandedChecklists.has(t.id) && t.checklist?.length ? (
+                    <ul className="mt-2 flex flex-col gap-1.5">
+                      {t.checklist.map((it) => (
+                        <li key={it.id} className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleTaskChecklistItem(t, it.id)}
+                            aria-label={it.done ? "Mark not done" : "Mark done"}
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
+                          >
+                            {it.done ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                          </button>
+                          <span className={`text-xs ${it.done ? "text-muted-foreground line-through" : "text-foreground"}`}>{it.text}</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </div>
 
@@ -1256,6 +1322,46 @@ export default function TasksPage() {
               {form.recurrence ? (
                 <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
               ) : null}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>
+              {form.checklist.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  {form.checklist.map((it) => (
+                    <div key={it.id} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleFormChecklistItem(it.id)}
+                        aria-label={it.done ? "Mark not done" : "Mark done"}
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
+                      >
+                        {it.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                      </button>
+                      <input
+                        value={it.text}
+                        onChange={(e) => updateChecklistText(it.id, e.target.value)}
+                        placeholder="Checklist item…"
+                        className={`flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${it.done ? "text-muted-foreground line-through" : ""}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeChecklistItem(it.id)}
+                        aria-label="Remove item"
+                        className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={addChecklistItem}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add item
+              </button>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>

@@ -524,6 +524,9 @@ model OutreachTask {
   /// recurring task is completed, the API spawns the next occurrence with an
   /// advanced due date. See lib/task-recurrence.ts.
   recurrence  String?
+  /// Sub-task checklist — an array of { id, text, done }. Shape/validation in
+  /// lib/task-checklist.ts. The row shows progress (n/total); items tick inline.
+  checklist   Json?
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
