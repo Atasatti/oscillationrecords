@@ -33,6 +33,49 @@ export interface ReleaseReadinessResult {
   ready: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Persisted delivery / sign-off checklist.
+//
+// The above readiness is DERIVED (metadata completeness). These steps are the
+// human-tracked delivery workflow — ticked manually and stored on the release
+// (Release.deliveryChecklist, a { key: boolean } map). The step set lives here so
+// the API and UI agree; the release only stores which keys are done. The final
+// step ("signedOff") is the publish sign-off gate.
+// ---------------------------------------------------------------------------
+
+export const DELIVERY_STEPS = [
+  { key: "metadata", label: "Metadata finalised" },
+  { key: "artwork", label: "Artwork approved" },
+  { key: "delivered", label: "Delivered to distributor" },
+  { key: "liveOnDsps", label: "Live on DSPs" },
+  { key: "presave", label: "Pre-save / smart link set up" },
+  { key: "promo", label: "Promo assets ready" },
+  { key: "signedOff", label: "Approved / signed off" },
+] as const;
+
+export type DeliveryStepKey = (typeof DELIVERY_STEPS)[number]["key"];
+export const DELIVERY_STEP_KEYS: readonly string[] = DELIVERY_STEPS.map((s) => s.key);
+export const SIGN_OFF_KEY: DeliveryStepKey = "signedOff";
+
+export interface DeliveryChecklistResult {
+  steps: { key: string; label: string; done: boolean }[];
+  doneCount: number;
+  total: number;
+  signedOff: boolean;
+}
+
+/** Coerce a stored deliveryChecklist Json into a resolved result over the known steps. */
+export function resolveDeliveryChecklist(raw: unknown): DeliveryChecklistResult {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const steps = DELIVERY_STEPS.map((s) => ({ key: s.key, label: s.label, done: obj[s.key] === true }));
+  return {
+    steps,
+    doneCount: steps.filter((s) => s.done).length,
+    total: steps.length,
+    signedOff: obj[SIGN_OFF_KEY] === true,
+  };
+}
+
 export function computeReleaseReadiness(s: ReleaseReadinessInput): ReleaseReadinessResult {
   const items: ReadinessItem[] = [
     { key: "cover", label: "Cover artwork", done: s.hasCover },
