@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { onPitchAccepted } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
         where: { id: contactId },
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
+    }
+
+    // Automation: a pitch logged retroactively as already "accepted" should also
+    // spawn the follow-up task (the update routes only see transitions).
+    if (pitch.status === "accepted") {
+      await onPitchAccepted(pitch);
     }
 
     await recordAudit(request, guard.token, {

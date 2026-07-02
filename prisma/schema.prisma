@@ -564,6 +564,37 @@ model OutreachTask {
   @@index([assigneeId])
 }
 
+/// An automation rule ("when X → do Y"). One row per built-in rule key (see
+/// lib/automations.ts); rows are created lazily the first time a rule is toggled,
+/// so a missing row means "disabled with defaults". `config` holds per-rule
+/// settings (e.g. { daysBefore } for the pre-release campaign rule); `lastRunAt`
+/// timestamps the last scheduled sweep.
+model AutomationRule {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  key       String    @unique
+  enabled   Boolean   @default(false)
+  config    Json?
+  lastRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+/// Idempotency ledger for automations — one row per (rule, entity) that has fired,
+/// so a rule creates its task at most once per pitch/release even when evaluated
+/// repeatedly. `taskId` links the OutreachTask that was created, for traceability.
+/// The unique index is enforced at deploy (db push); runtime also checks first.
+model AutomationFire {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  ruleKey    String
+  entityType String
+  entityId   String   @db.ObjectId
+  taskId     String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  @@unique([ruleKey, entityType, entityId])
+  @@index([ruleKey])
+}
+
 /// A comment on an OutreachTask — a discussion thread for staff. Author identity
 /// is denormalized (id + email) so it survives the author's User being removed;
 /// the UI resolves the display name/avatar from the staff directory.
