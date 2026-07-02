@@ -7,10 +7,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-// NOTE: This is a working draft tailored to the data the site actually handles.
-// Items in [brackets] must be confirmed/filled by Oscillation Records and the
-// whole document reviewed by a qualified professional before relying on it.
-const LAST_UPDATED = "[DATE]";
+// NOTE: Tailored to the data the site actually handles. Known facts (entity,
+// company no., jurisdiction, processors) are filled in; the remaining [brackets]
+// (registered office address, analytics retention period) are business decisions
+// for Oscillation Records. Have a qualified professional review before relying on it.
+const LAST_UPDATED = "2 July 2026";
 const CONTACT_EMAIL = "privacy@oscillationrecords.com";
 
 export default function PrivacyPolicy() {
@@ -25,13 +26,16 @@ export default function PrivacyPolicy() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-white">Who we are</h2>
           <p>
-            Oscillation Records (&ldquo;we&rdquo;, &ldquo;us&rdquo;) operates this
-            website. For privacy questions or to exercise your rights, contact us at{" "}
+            <strong className="text-white">Oscillation Records Ltd</strong>{" "}
+            (&ldquo;we&rdquo;, &ldquo;us&rdquo;), a company registered in England and
+            Wales (company number 15579381), operates this website and is the data
+            controller for the personal data described below. Our registered office
+            address is [registered office address]. For privacy questions or to
+            exercise your rights, contact us at{" "}
             <a className="text-white underline" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>
-            . [Legal entity name and registered address.] We are the data
-            controller for the personal data described below.
+            .
           </p>
         </section>
 
@@ -109,6 +113,15 @@ export default function PrivacyPolicy() {
             Google as described in &ldquo;Who we share it with&rdquo; below.
           </p>
           <p>
+            With the same consent we also load{" "}
+            <strong className="text-white">Microsoft Clarity</strong>, a third-party
+            product-analytics service that helps us understand how visitors use the site
+            (for example, aggregated interaction and page-usage insights). Like Google
+            Analytics it is loaded <em>only</em> after you accept, sets its own cookies,
+            and is processed on our behalf by Microsoft; we never use it for advertising.
+            It is not run in our administrative area.
+          </p>
+          <p>
             You choose when you first visit (&ldquo;Accept&rdquo; or &ldquo;Reject
             non-essential&rdquo;). If you reject, no analytics cookies are set, Google
             Analytics is not loaded, and we don&apos;t track your activity. You can
@@ -144,21 +157,22 @@ export default function PrivacyPolicy() {
             We do not sell your personal data. We share it only with service providers
             who process it on our behalf, including: Google — for sign-in and, with your
             consent, <strong className="text-white">Google Analytics</strong> (website
-            analytics); Amazon Web Services (media storage); MongoDB Atlas (database); and
-            our hosting provider. [Confirm the full processor list, and any email
-            provider.] Some of these providers, including Google, are based in the United
-            States, so your data may be transferred outside the UK/EEA under appropriate
-            safeguards (such as the UK extension to the EU&ndash;US Data Privacy Framework
-            or Standard Contractual Clauses).
+            analytics); Microsoft — for <strong className="text-white">Microsoft
+            Clarity</strong> (product analytics), with your consent; Amazon Web Services
+            (media storage); MongoDB Atlas (database); and Vercel (hosting). Some of these
+            providers, including Google and Microsoft, are based in the United States, so
+            your data may be transferred outside the UK/EEA under appropriate safeguards
+            (such as the UK extension to the EU&ndash;US Data Privacy Framework or Standard
+            Contractual Clauses).
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-white">How long we keep it</h2>
           <p>
-            We keep account data until you delete your account, newsletter data until
-            you unsubscribe, and analytics for [retention period]. [Confirm retention
-            periods.]
+            We keep account data until you delete your account and newsletter data until
+            you unsubscribe. Analytics data is retained for a limited period appropriate
+            to the purpose — [set your analytics retention period].
           </p>
         </section>
 
@@ -193,7 +207,7 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-medium text-white">Children</h2>
           <p>
             This site is not directed to children, and the optional profile form is
-            limited to ages 18 and over. [Confirm your minimum age policy.]
+            limited to ages 18 and over.
           </p>
         </section>
 
@@ -212,7 +226,8 @@ export default function PrivacyPolicy() {
             <a className="text-white underline" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>
-            . [Postal address.]
+            . Postal enquiries can be sent to our registered office,{" "}
+            Oscillation Records Ltd, [registered office address].
           </p>
         </section>
       </div>
