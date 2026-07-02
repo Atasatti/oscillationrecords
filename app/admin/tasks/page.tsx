@@ -1616,22 +1616,42 @@ export default function TasksPage() {
 
       {/* Create / edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle></DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Title <span className="text-destructive">*</span></label>
-              <input value={form.title} onChange={(e) => setField("title", e.target.value)}
-                placeholder="What needs to be done?"
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Description</label>
-              <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
-                placeholder="How to do it, what to look for…"
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <DialogContent className="flex max-h-[calc(100dvh-3rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-b border-border px-6 py-4">
+            <DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Title <span className="text-destructive">*</span></label>
+                <input value={form.title} onChange={(e) => setField("title", e.target.value)}
+                  placeholder="What needs to be done?"
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Description</label>
+                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
+                  placeholder="How to do it, what to look for…"
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <MultiSelect
+                  options={releaseRefs.map((r) => ({ value: r.id, label: r.name }))}
+                  selected={form.releaseIds}
+                  onChange={(v) => setLinks("releaseIds", v)}
+                  placeholder="Link this task to releases…"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <MultiSelect
+                  options={artistRefs.map((a) => ({ value: a.id, label: a.name }))}
+                  selected={form.artistIds}
+                  onChange={(v) => setLinks("artistIds", v)}
+                  placeholder="Link this task to artists…"
+                />
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Category</label>
                 <select value={form.category} onChange={(e) => setField("category", e.target.value)}
@@ -1646,88 +1666,28 @@ export default function TasksPage() {
                   {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
                 </select>
               </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Assignee</label>
-              <select value={form.assigneeId} onChange={(e) => setField("assigneeId", e.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">Unassigned</option>
-                {assignees.map((a) => (
-                  <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Repeat</label>
-              <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">Doesn&apos;t repeat</option>
-                {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {form.recurrence ? (
-                <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>
-              {form.checklist.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  {form.checklist.map((it) => (
-                    <div key={it.id} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleFormChecklistItem(it.id)}
-                        aria-label={it.done ? "Mark not done" : "Mark done"}
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
-                      >
-                        {it.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-                      </button>
-                      <input
-                        value={it.text}
-                        onChange={(e) => updateChecklistText(it.id, e.target.value)}
-                        placeholder="Checklist item…"
-                        className={`flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${it.done ? "text-muted-foreground line-through" : ""}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeChecklistItem(it.id)}
-                        aria-label="Remove item"
-                        className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Assignee</label>
+                <select value={form.assigneeId} onChange={(e) => setField("assigneeId", e.target.value)}
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">Unassigned</option>
+                  {assignees.map((a) => (
+                    <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
                   ))}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={addChecklistItem}
-                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add item
-              </button>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
-              <MultiSelect
-                options={releaseRefs.map((r) => ({ value: r.id, label: r.name }))}
-                selected={form.releaseIds}
-                onChange={(v) => setLinks("releaseIds", v)}
-                placeholder="Link this task to releases…"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
-              <MultiSelect
-                options={artistRefs.map((a) => ({ value: a.id, label: a.name }))}
-                selected={form.artistIds}
-                onChange={(v) => setLinks("artistIds", v)}
-                placeholder="Link this task to artists…"
-              />
-            </div>
-            {editingId ? (
-              <div className="grid grid-cols-2 gap-3">
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Repeat</label>
+                <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">Doesn&apos;t repeat</option>
+                  {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {form.recurrence ? (
+                  <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
+                ) : null}
+              </div>
+              {editingId ? (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Status</label>
                   <select value={form.status} onChange={(e) => setField("status", e.target.value)}
@@ -1735,32 +1695,66 @@ export default function TasksPage() {
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">Due date</label>
-                  <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
-                    className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
+              ) : null}
+              <div className={`flex flex-col gap-1.5 ${editingId ? "" : "sm:col-span-2"}`}>
                 <label className="text-sm font-medium">Due date <span className="font-normal text-muted-foreground">(optional)</span></label>
                 <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
-            )}
-          </div>
-          {editingId ? (
-            <div className="mt-1 flex flex-col gap-4 border-t border-border pt-4">
-              <TaskAttachments
-                key={editingId}
-                taskId={editingId}
-                initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
-                onChange={(a) => applyAttachments(editingId, a)}
-              />
-              <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>
+                {form.checklist.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    {form.checklist.map((it) => (
+                      <div key={it.id} className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleFormChecklistItem(it.id)}
+                          aria-label={it.done ? "Mark not done" : "Mark done"}
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
+                        >
+                          {it.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                        </button>
+                        <input
+                          value={it.text}
+                          onChange={(e) => updateChecklistText(it.id, e.target.value)}
+                          placeholder="Checklist item…"
+                          className={`flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${it.done ? "text-muted-foreground line-through" : ""}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeChecklistItem(it.id)}
+                          aria-label="Remove item"
+                          className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={addChecklistItem}
+                  className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add item
+                </button>
+              </div>
             </div>
-          ) : null}
-          <DialogFooter>
+            {editingId ? (
+              <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
+                <TaskAttachments
+                  key={editingId}
+                  taskId={editingId}
+                  initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
+                  onChange={(a) => applyAttachments(editingId, a)}
+                />
+                <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="border-t border-border px-6 py-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
             <Button onClick={save} disabled={saving} className="bg-white text-black hover:bg-gray-200">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {editingId ? "Save changes" : "Add task"}
