@@ -19,6 +19,10 @@ done items with ✅.**
 Built in the plan's recommended order (assignees → roles+audit → relations → verticals):
 
 - ✅ **#1 Assignees + My tasks** — inline avatar picker + assignee filter (`OutreachTask.assigneeId`).
+- ✅ **#2/#3/#5/#6/#7 Task depth** — recurring tasks, checklists (+progress %), bulk actions, per-task comments, S3 attachments.
+- ✅ **#18 Message inbox → tickets** — `ContactMessage` gains status/assignee/priority + status filters (`handled` kept in sync). Reply thread still pending.
+- ✅ **#23/#38 Notifications + @mentions** — topbar bell (overdue/due-today tasks + unread mentions); @mention a teammate in a task comment.
+- ✅ **New/Edit task dialog rework** — 2-col, viewport-capped, pinned header/footer + scroll body (no longer overflows the screen).
 - ✅ **#36 Granular roles + permissions** — Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware page-gating + role-filtered sidebar.
 - ✅ **#37 Audit log** — `AuditLog` model + owner-only viewer at `/admin/audit`; logs role changes and catalog/outreach create·update·delete.
 - ✅ **#8–10 Relations + rollups** — task↔release/artist linking (chips) + tasks / pitches / press rollup panels on the release & artist **editors**.
@@ -74,12 +78,12 @@ The core upgrades that make Tasks usable by a team.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 1 | ✅ **Assignees + "My tasks"** | S–M | **Shipped.** `assigneeId` + inline avatar picker + assignee filter. |
-| 2 | **Recurring tasks** | M | "Repeat weekly/monthly" — regenerate on completion. |
-| 3 | **Subtasks / checklists** | S | Nested items with their own done-state; progress %. |
+| 2 | ✅ **Recurring tasks** | M | **Shipped.** "Repeat" select (`recurrence`); regenerates the next occurrence on completion. |
+| 3 | ✅ **Subtasks / checklists** | S | **Shipped.** Per-task checklist with done-state + progress %. |
 | 4 | **Blocked / waiting status** | S | Extend status enum beyond todo/in-progress/done. |
-| 5 | **Bulk actions** | S | Multi-select → set status/assignee/due/delete. |
-| 6 | **Comments + activity log (per task)** | M | Thread + who-changed-what. Foundation for @mentions. |
-| 7 | **Attachments** | S | Files on a task (S3 already available). |
+| 5 | ✅ **Bulk actions** | S | **Shipped.** Multi-select checkboxes + toolbar (bulk delete). |
+| 6 | ✅ **Comments (per task)** | M | **Shipped.** Comment thread (`TaskComment`) + @mentions (#38). |
+| 7 | ✅ **Attachments** | S | **Shipped.** S3 file attachments on a task. |
 
 ### Phase 2 — Connect the data (Notion relations)
 The single highest-leverage architectural change. Everything downstream gets better.
@@ -104,12 +108,12 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 17 | **Automation rules ("when X → do Y")** | L | Pitch = Accepted → create press task; release −3 weeks → spawn campaign checklist; new message → create ticket. Turns "needs attention" from reactive to active. |
-| 18 | **Unified Inbox / ticketing** | M–L | Upgrade `ContactMessage` from `handled` boolean → status (open/in-progress/resolved) + assignee + priority + reply thread. |
+| 18 | ◑ **Unified Inbox / ticketing** | M–L | **Mostly shipped.** `ContactMessage` → status (open/in-progress/resolved) + assignee + priority + status filters (`handled` kept in sync). *Reply thread* still TODO. |
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
 | 21 | **Smarter alert thresholds** | M | Extend needs-attention: release <7 days out missing artwork/links; pitch "sent" 14+ days no follow-up; artist idle N months. |
-| 22 | **Reminders / daily digest** | M | Email/in-app: your tasks due today, overdue, breaches. Needs assignees (#1). |
-| 23 | **Notifications center (in-app bell)** | S–M | Surfaces mentions, assignments, alerts. |
+| 22 | ◑ **Reminders / daily digest** | M | **Partial:** in-app reminders via the bell (#23). *Email digest* still TODO. |
+| 23 | ✅ **Notifications center (in-app bell)** | S–M | **Shipped.** Topbar bell surfaces overdue/due-today tasks + unread @mentions. |
 
 ### Phase 5 — Money & rights (biggest label-specific gap)
 Nothing in the current admin covers this. Highest business value.
@@ -146,7 +150,7 @@ Nothing in the current admin covers this. Highest business value.
 |---|---------|--------|-------|
 | 36 | ✅ **Granular roles + permissions** | M | **Shipped.** Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware + sidebar. |
 | 37 | ✅ **Admin activity / audit log** | M | **Shipped.** `AuditLog` + viewer at `/admin/audit`; logs role changes + catalog/outreach CRUD. |
-| 38 | **@mentions** | S | Mention a teammate in a comment → notify/assign. Needs comments (#6) + notifications (#23). |
+| 38 | ✅ **@mentions** | S | **Shipped.** Mention a teammate in a task comment → surfaced in the notifications bell. |
 
 ---
 
@@ -164,11 +168,11 @@ Nothing in the current admin covers this. Highest business value.
 5. ✅ Bonus: Ops dashboard (#20).
 
 ### Suggested next (not yet started)
-- **Task depth:** recurring (#2), subtasks (#3), bulk actions (#5), comments/activity (#6).
-- **Automation & inbox:** message ticketing (#18), reminders/digest (#22), automation rules (#17).
-- **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27).
-- **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), placement tracker (#33),
-  content calendar (#34), newsletter campaigns (#35).
+- **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
+- **Views (Notion):** kanban board (#12), timeline/Gantt (#13), saved views (#14), custom properties (#15), templates (#16).
+- **Automation & inbox:** automation rules (#17), SLA targets (#19), smarter alert thresholds (#21), message **reply thread** (#18 remainder), **email digest** (#22 remainder).
+- **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27 remainder).
+- **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
 
 ---
 
@@ -189,5 +193,7 @@ New/changed models implied by the above (to spec in detail when a phase is chose
 
 ---
 
-*Last updated: 2026-07-02. Shipped this session: #1, #8–10, #20, #24 (+#27 partial), #28,
-#36, #37 (all local/unpushed on `admin-press-errors-page-media`). #30 built then removed.*
+*Last updated: 2026-07-02. Shipped (local/unpushed on `admin-press-errors-page-media`):
+#1, #2, #3, #5, #6, #7 (task depth), #8–10 (relations), #18 (inbox — reply thread pending),
+#20, #23, #24 (+#27 partial), #28, #36, #37, #38 (+ New/Edit task dialog rework).
+#30 built then removed.*
