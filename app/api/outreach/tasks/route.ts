@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "";
     const category = searchParams.get("category") || "";
     const assigneeId = searchParams.get("assigneeId");
+    const releaseId = searchParams.get("releaseId");
+    const artistId = searchParams.get("artistId");
     const isTemplate = searchParams.get("isTemplate");
 
     const where: Record<string, unknown> = {};
@@ -24,6 +26,9 @@ export async function GET(request: NextRequest) {
     // assigneeId=none → unassigned tasks; a specific id → that assignee's tasks.
     if (assigneeId === "none") where.assigneeId = null;
     else if (assigneeId) where.assigneeId = assigneeId;
+    // Rollup filters: tasks linked to a given release / artist.
+    if (releaseId) where.releaseIds = { has: releaseId };
+    if (artistId) where.artistIds = { has: artistId };
     if (isTemplate !== null) where.isTemplate = isTemplate === "true";
 
     const tasks = await prisma.outreachTask.findMany({

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
+import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -289,6 +290,8 @@ export default function AdminArtistDetail() {
             })}
           </div>
         )}
+
+        <LinkedTasksPanel artistId={artistId} />
 
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">

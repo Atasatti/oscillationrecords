@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
+import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -741,6 +742,10 @@ export default function AdminReleaseDetail() {
             </SortableContext>
           </DndContext>
         )}
+
+        <div className="mt-12">
+          <LinkedTasksPanel releaseId={releaseId} />
+        </div>
 
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent className="bg-[#141414] border-white/10 text-white">
