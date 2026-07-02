@@ -279,6 +279,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     sizes="(max-width: 1024px) 320px, 320px"
                     placeholder="blur"
                     blurDataURL={BLUR_DATA_URL}
+                    priority
                     className="object-cover"
                   />
                 </div>

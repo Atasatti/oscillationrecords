@@ -1,0 +1,4 @@
+Contact: mailto:security@oscillationrecords.com
+Expires: 2027-07-02T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://www.oscillationrecords.com/.well-known/security.txt

@@ -127,6 +127,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Baseline keyboard focus ring on the dark theme — guarantees every focusable
+     element (links, buttons, inputs, custom widgets) shows a visible ring even
+     where an author forgot one. Only for keyboard/AT focus, never mouse clicks.
+     :focus-visible is used so it never fights per-component focus styling. */
+  :focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.75);
+    outline-offset: 2px;
+  }
   body {
     @apply bg-background text-foreground font-[family-name:var(--font-lato)];
     /* padding: 0 5%; */

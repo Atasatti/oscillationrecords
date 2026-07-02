@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Lato } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -54,6 +54,18 @@ export const metadata: Metadata = {
     description: "A Record Label That Puts Artists First",
     images: ["/og-default.png"],
   },
+};
+
+// The site is dark-only. `colorScheme: "dark"` tells the browser so form controls
+// and the pre-hydration background match (no white flash). `viewportFit: "cover"`
+// lets `env(safe-area-inset-*)` resolve so fixed chrome (music player, nav) clears
+// notches/home indicators. `themeColor` tints mobile browser chrome to match.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0a0a",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
