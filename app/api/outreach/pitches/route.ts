@@ -16,9 +16,14 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const pageSize = Math.min(100, parseInt(searchParams.get("pageSize") || "25", 10) || 25);
     const status = searchParams.get("status") || "";
+    const releaseId = searchParams.get("releaseId");
+    const artistId = searchParams.get("artistId");
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
+    // Rollup filters: pitches linked to a given release / artist.
+    if (releaseId) where.releaseIds = { has: releaseId };
+    if (artistId) where.artistIds = { has: artistId };
 
     const [total, rows] = await Promise.all([
       prisma.pitchLog.count({ where }),

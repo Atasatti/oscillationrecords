@@ -5,6 +5,8 @@ import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
 import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
+import LinkedPitchesPanel from "@/components/admin/LinkedPitchesPanel";
+import LinkedPressPanel from "@/components/admin/LinkedPressPanel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -745,6 +747,8 @@ export default function AdminReleaseDetail() {
 
         <div className="mt-12">
           <LinkedTasksPanel releaseId={releaseId} />
+          <LinkedPitchesPanel releaseId={releaseId} />
+          <LinkedPressPanel releaseId={releaseId} />
         </div>
 
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
