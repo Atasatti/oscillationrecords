@@ -345,11 +345,19 @@ export default function AdminPressClient({
                               <DropdownMenuItem onClick={() => router.push(`/admin/catalog/press/${p.id}/edit`)}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <a href={p.articleUrl} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="mr-2 h-4 w-4" /> Open article
-                                </a>
-                              </DropdownMenuItem>
+                              {p.isOwned ? (
+                                <DropdownMenuItem asChild>
+                                  <a href={`/press/${p.slug}`} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" /> View post
+                                  </a>
+                                </DropdownMenuItem>
+                              ) : p.articleUrl ? (
+                                <DropdownMenuItem asChild>
+                                  <a href={p.articleUrl} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="mr-2 h-4 w-4" /> Open article
+                                  </a>
+                                </DropdownMenuItem>
+                              ) : null}
                               <DropdownMenuItem
                                 variant="destructive"
                                 className="text-red-400 focus:text-red-300 focus:bg-red-950/20"

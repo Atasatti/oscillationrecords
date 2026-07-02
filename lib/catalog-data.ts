@@ -791,8 +791,10 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
 export interface PressItemDTO {
   id: string;
   title: string;
-  publisher: string;
-  articleUrl: string;
+  /** URL slug for an owned post's own page (/press/<slug>); derived from title. */
+  slug: string;
+  publisher: string | null;
+  articleUrl: string | null;
   summary: string;
   image: string | null;
   author: string | null;
@@ -801,15 +803,23 @@ export interface PressItemDTO {
   releases: { id: string; name: string }[];
   sortOrder: number;
   featured: boolean;
+  /** True when this is OUR OWN hosted post (has a body + its own page) vs a link-out. */
+  isOwned: boolean;
   createdAt: string; // ISO
+}
+
+/** An owned post with its full Markdown body (for the detail page). */
+export interface PressDetailDTO extends PressItemDTO {
+  body: string;
 }
 
 type PressRow = {
   id: string;
   title: string;
-  publisher: string;
-  articleUrl: string;
+  publisher: string | null;
+  articleUrl: string | null;
   summary: string;
+  body: string | null;
   image: string | null;
   author: string | null;
   publishedAt: Date | null;
@@ -872,8 +882,9 @@ async function mapPressItems(
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
-    publisher: r.publisher,
-    articleUrl: r.articleUrl,
+    slug: slugify(r.title),
+    publisher: r.publisher ?? null,
+    articleUrl: r.articleUrl ?? null,
     summary: r.summary,
     image: r.image ?? null,
     author: r.author ?? null,
@@ -886,6 +897,7 @@ async function mapPressItems(
       .map((id) => ({ id, name: releaseById.get(id)! })),
     sortOrder: r.sortOrder,
     featured: r.featured,
+    isOwned: Boolean(r.body),
     createdAt: r.createdAt.toISOString(),
   }));
 }
@@ -950,6 +962,34 @@ export const getPressForRelease = cache(
     } catch (e) {
       console.error("getPressForRelease: DB unavailable", e);
       return [];
+    }
+  }
+);
+
+/**
+ * One public OWNED press post (a hosted article) by slug — powers /press/[slug].
+ * Only owned posts (with a body) that are public resolve; external-coverage items
+ * and drafts return null. Accepts a slugified title, or a raw ObjectId (legacy /
+ * id-based links) which the page 308-redirects to the slug.
+ */
+export const getPressDetail = cache(
+  async (slugOrId: string): Promise<PressDetailDTO | null> => {
+    try {
+      const publicOwned = { showOnWebsite: true, draft: false, body: { not: null } };
+      let row = OBJECT_ID_RE.test(slugOrId)
+        ? await prisma.pressItem.findFirst({ where: { id: slugOrId, ...publicOwned } })
+        : null;
+      if (!row) {
+        // Slug = slugify(title). The owned-post set is tiny, so scan for a match.
+        const owned = await prisma.pressItem.findMany({ where: publicOwned, orderBy: pressOrderBy });
+        row = owned.find((r) => slugify(r.title) === slugOrId) ?? null;
+      }
+      if (!row || !row.body) return null;
+      const [mapped] = await mapPressItems([row], { isAdmin: false });
+      return { ...mapped, body: row.body };
+    } catch (e) {
+      console.error("getPressDetail: DB unavailable", e);
+      return null;
     }
   }
 );

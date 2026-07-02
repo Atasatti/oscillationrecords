@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ArrowRight } from "lucide-react";
 import type { PressItemDTO } from "@/lib/catalog-data";
 import { slugify } from "@/lib/slug";
 
@@ -27,9 +27,15 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
         />
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
-        <p className="break-words text-xs uppercase tracking-wide text-gray-400">
-          {item.publisher}
-          {date ? <span className="text-gray-500"> · {date}</span> : null}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 break-words text-xs uppercase tracking-wide text-gray-400">
+          {item.isOwned ? (
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium tracking-wide text-white">
+              Oscillation Records
+            </span>
+          ) : (
+            <span>{item.publisher}</span>
+          )}
+          {date ? <span className="text-gray-500">· {date}</span> : null}
         </p>
         {/* line-clamp bounds the height; break-words stops a long unbroken token
             (e.g. a URL-like headline) from overflowing the card width. */}
@@ -61,14 +67,23 @@ export default function PressCard({ item }: { item: PressItemDTO }) {
           </div>
         ) : null}
 
-        <a
-          href={item.articleUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-white hover:underline"
-        >
-          Read full article <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+        {item.isOwned ? (
+          <Link
+            href={`/press/${item.slug}`}
+            className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-white hover:underline"
+          >
+            Read post <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        ) : item.articleUrl ? (
+          <a
+            href={item.articleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-white hover:underline"
+          >
+            Read full article <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
       </div>
     </article>
   );

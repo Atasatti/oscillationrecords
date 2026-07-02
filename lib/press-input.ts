@@ -8,12 +8,18 @@ import { isSafeUrl } from "@/lib/url-safety";
 export const PRESS_TITLE_MAX = 120;
 /** Max length for a press summary — enforced here, mirrored by the editor's maxLength. */
 export const PRESS_SUMMARY_MAX = 300;
+/** Max length for an owned-post Markdown body — generous; guards against abuse. */
+export const PRESS_BODY_MAX = 50_000;
 
 export type PressInput = {
   title: string;
-  publisher: string;
-  articleUrl: string;
+  /** Null for an owned post (published by us); the outlet name for external coverage. */
+  publisher: string | null;
+  /** Null for an owned post (its page is the article); external link for coverage. */
+  articleUrl: string | null;
   summary: string;
+  /** Markdown body — non-null makes this an OWNED post with its own page. */
+  body: string | null;
   image: string | null;
   author: string | null;
   publishedAt: Date | null;
@@ -65,6 +71,9 @@ function cleanImage(input: unknown): string | null {
  * missing so the route can answer 400. The `articleUrl` must be an absolute
  * http(s) URL (link-out), not a site-relative path.
  */
+/** An absolute http(s) URL (also blocks javascript:/data: via isSafeUrl). */
+const isHttpUrl = (u: string) => isSafeUrl(u) && /^https?:\/\//i.test(u);
+
 export function extractPressInput(
   body: Record<string, unknown>,
   opts?: { draft?: boolean }
@@ -74,28 +83,35 @@ export function extractPressInput(
   const publisher = cleanStr(body.publisher);
   const summary = cleanStr(body.summary);
   const articleUrl = cleanStr(body.articleUrl);
+  const postBody = typeof body.body === "string" ? body.body.trim() : "";
+  // A body makes this OUR OWN post (hosted, with its own page); otherwise it's a
+  // link-out to external coverage. The two have different required fields.
+  const isOwned = postBody.length > 0;
 
-  // A DRAFT only needs a title — publisher / summary / article URL can be filled
-  // in before publishing. A provided URL must still be a valid absolute http(s)
-  // one; publishing requires all four.
   if (draft) {
+    // A DRAFT only needs a title; the rest can be filled before publishing. A
+    // provided external URL must still be a valid absolute http(s) one.
     if (!title) return null;
-    if (articleUrl && (!isSafeUrl(articleUrl) || !/^https?:\/\//i.test(articleUrl))) return null;
+    if (articleUrl && !isHttpUrl(articleUrl)) return null;
+  } else if (isOwned) {
+    // Owned post: needs a title, an excerpt (summary) and a body. Publisher and an
+    // external URL are optional (an owned post may still cross-link somewhere).
+    if (!title || !summary || !postBody) return null;
+    if (articleUrl && !isHttpUrl(articleUrl)) return null;
   } else {
-    if (!title || !publisher || !summary || !articleUrl) return null;
-    if (!isSafeUrl(articleUrl) || !/^https?:\/\//i.test(articleUrl)) return null;
+    // External coverage: needs title, outlet, summary and a valid article URL.
+    if (!title || !publisher || !summary || !articleUrl || !isHttpUrl(articleUrl)) return null;
   }
 
   return {
     // Hard cap on the headline so an over-length title (e.g. a direct API call
     // bypassing the editor's maxLength) can't break the press-card layout.
     title: title.slice(0, PRESS_TITLE_MAX),
-    // Required columns — a draft stores "" for anything not yet filled in.
-    publisher: publisher ?? "",
-    articleUrl: articleUrl ?? "",
-    // Hard cap so an over-length summary (e.g. a direct API call bypassing the
-    // editor's maxLength) can never be stored beyond the limit.
+    publisher: publisher || null,
+    articleUrl: articleUrl || null,
+    // Hard cap so an over-length summary can never be stored beyond the limit.
     summary: (summary ?? "").slice(0, PRESS_SUMMARY_MAX),
+    body: isOwned ? postBody.slice(0, PRESS_BODY_MAX) : null,
     image: cleanImage(body.image),
     author: cleanStr(body.author),
     publishedAt: parseDate(body.publishedAt),

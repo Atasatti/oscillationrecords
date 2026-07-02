@@ -12,8 +12,8 @@ import { ListChecks } from "lucide-react";
  */
 type LinkedTask = { id: string; title: string; status: string; dueAt: string | null };
 
-const STATUS_LABEL: Record<string, string> = { todo: "To do", in_progress: "In progress", done: "Done" };
-const STATUS_DOT: Record<string, string> = { todo: "bg-zinc-500", in_progress: "bg-sky-400", done: "bg-emerald-500" };
+const STATUS_LABEL: Record<string, string> = { todo: "To do", in_progress: "In progress", blocked: "Blocked", done: "Done" };
+const STATUS_DOT: Record<string, string> = { todo: "bg-zinc-500", in_progress: "bg-sky-400", blocked: "bg-amber-400", done: "bg-emerald-500" };
 
 export default function LinkedTasksPanel({ releaseId, artistId }: { releaseId?: string; artistId?: string }) {
   const [tasks, setTasks] = useState<LinkedTask[]>([]);

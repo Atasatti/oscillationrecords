@@ -377,12 +377,15 @@ export function buildWebSiteJsonLd() {
 type PressItemLike = {
   id: string;
   title: string;
-  publisher: string;
-  articleUrl: string;
+  publisher?: string | null;
+  articleUrl?: string | null;
   summary?: string | null;
   image?: string | null;
   author?: string | null;
   publishedAt?: string | null;
+  /** Owned post (hosted on our site, has its own page) vs external coverage. */
+  isOwned?: boolean;
+  slug?: string;
   artists?: { id: string; name: string }[];
   releases?: { id: string; name: string }[];
 };
@@ -396,13 +399,20 @@ type PressItemLike = {
  * own machine-readable ratings violates Google's review-snippet rules).
  */
 function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
+  // An owned post lives on its own page and is authored by us; external coverage is
+  // our summary node that links out to the outlet's Article via isBasedOn/citation.
+  const isOwned = item.isOwned === true;
+  const ownUrl = item.slug ? absoluteUrl(`/press/${item.slug}`) : pageUrl;
   const node: Record<string, unknown> = {
     "@type": "BlogPosting",
     headline: item.title,
-    author: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+    author: item.author
+      ? { "@type": "Person", name: item.author }
+      : { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
     publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
-    mainEntityOfPage: pageUrl,
+    mainEntityOfPage: isOwned ? ownUrl : pageUrl,
   };
+  if (isOwned) node.url = ownUrl;
   const desc = metaDescription(item.summary, 5000);
   if (desc) node.description = desc;
   if (item.image) node.image = absoluteUrl(item.image);
@@ -411,15 +421,18 @@ function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
     if (!isNaN(d.getTime())) node.datePublished = d.toISOString().slice(0, 10);
   }
 
-  const article: Record<string, unknown> = {
-    "@type": "Article",
-    headline: item.title,
-    url: item.articleUrl,
-    publisher: { "@type": "Organization", name: item.publisher },
-  };
-  if (item.author) article.author = { "@type": "Person", name: item.author };
-  node.isBasedOn = article;
-  node.citation = article;
+  // Only external coverage models a separate outlet Article (with its URL/outlet).
+  if (!isOwned && item.articleUrl) {
+    const article: Record<string, unknown> = {
+      "@type": "Article",
+      headline: item.title,
+      url: item.articleUrl,
+      publisher: { "@type": "Organization", name: item.publisher ?? undefined },
+    };
+    if (item.author) article.author = { "@type": "Person", name: item.author };
+    node.isBasedOn = article;
+    node.citation = article;
+  }
 
   const mentions = [
     ...(item.artists ?? []).map((a) => ({
@@ -435,6 +448,65 @@ function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
   ];
   if (mentions.length) node.mentions = mentions;
   return node;
+}
+
+/**
+ * schema.org BlogPosting for ONE owned press post (its own /press/<slug> page).
+ * Unlike buildPressListJsonLd's external-coverage nodes, WE are the author and
+ * publisher here — it's our content hosted on our page — so mainEntityOfPage is
+ * this page and there's no isBasedOn/citation to an outside outlet.
+ */
+export function buildPressPostJsonLd(post: {
+  title: string;
+  slug: string;
+  summary?: string | null;
+  body?: string | null;
+  image?: string | null;
+  author?: string | null;
+  publishedAt?: string | null;
+  artists?: { name: string }[];
+  releases?: { name: string }[];
+}) {
+  const url = absoluteUrl(`/press/${post.slug}`);
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    url,
+    "@id": url,
+    mainEntityOfPage: url,
+    author: post.author
+      ? { "@type": "Person", name: post.author }
+      : { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      "@id": `${SITE_URL}/#organization`,
+    },
+  };
+  if (post.image) jsonLd.image = imageObject(post.image, post.title);
+  const desc = metaDescription(post.summary, 5000);
+  if (desc) jsonLd.description = desc;
+  if (post.body && post.body.trim()) jsonLd.articleBody = post.body.trim();
+  if (post.publishedAt) {
+    const d = new Date(post.publishedAt);
+    if (!isNaN(d.getTime())) jsonLd.datePublished = d.toISOString();
+  }
+  const mentions = [
+    ...(post.artists ?? []).map((a) => ({
+      "@type": "MusicGroup",
+      name: a.name,
+      url: absoluteUrl(`/artists/${slugify(a.name)}`),
+    })),
+    ...(post.releases ?? []).map((r) => ({
+      "@type": "MusicAlbum",
+      name: r.name,
+      url: absoluteUrl(`/releases/${slugify(r.name)}`),
+    })),
+  ];
+  if (mentions.length) jsonLd.mentions = mentions;
+  return jsonLd;
 }
 
 /** schema.org CollectionPage for the /press index, with each item as a BlogPosting. */

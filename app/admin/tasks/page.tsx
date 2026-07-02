@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
+import { TASK_STATUSES } from "@/lib/task-status";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { useToast } from "@/components/local-ui/Toast";
@@ -53,11 +54,13 @@ const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-a
 const STATUS_ACCENT: Record<string, string> = {
   todo: "border-l-zinc-600",
   in_progress: "border-l-sky-500",
+  blocked: "border-l-amber-500",
   done: "border-l-emerald-500",
 };
 const STATUS_PILL: Record<string, string> = {
   todo: "border-zinc-600/60 bg-zinc-500/10 text-zinc-200",
   in_progress: "border-sky-500/50 bg-sky-500/10 text-sky-200",
+  blocked: "border-amber-500/50 bg-amber-500/10 text-amber-200",
   done: "border-emerald-500/50 bg-emerald-500/10 text-emerald-200",
 };
 
@@ -67,16 +70,27 @@ const shiftMonth = (c: { y: number; m: number }, delta: number) => {
   return { y: d.getFullYear(), m: d.getMonth() };
 };
 
-const STATUSES = ["todo", "in_progress", "done"] as const;
-const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", done: "Done" };
+const STATUSES = TASK_STATUSES;
+const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "todo", label: "To Do" },
   { key: "in_progress", label: "In Progress" },
+  { key: "blocked", label: "Blocked" },
   { key: "done", label: "Done" },
 ] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number]["key"];
 type Tab = "attention" | StatusFilter;
+
+// Group-by (list view): partition the filtered tasks under section headers.
+const GROUP_OPTIONS = [
+  { key: "none", label: "No grouping" },
+  { key: "status", label: "Status" },
+  { key: "assignee", label: "Assignee" },
+  { key: "category", label: "Category" },
+  { key: "priority", label: "Priority" },
+] as const;
+type GroupKey = (typeof GROUP_OPTIONS)[number]["key"];
 
 const ATTENTION_HELP =
   "Issues we found automatically in your live catalog — releases or settings that need fixing (e.g. missing artwork, streaming links or metadata). Click any to jump straight to it. These aren't tasks you create; they clear once fixed.";
@@ -680,6 +694,7 @@ export default function TasksPage() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [view, setView] = useState<"list" | "calendar">("list");
+  const [groupBy, setGroupBy] = useState<GroupKey>("none");
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -817,7 +832,7 @@ export default function TasksPage() {
   );
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, done: 0 };
+    const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, blocked: 0, done: 0 };
     for (const t of tasks) {
       if (!matchesFilters(t)) continue;
       c.all++;
@@ -855,6 +870,57 @@ export default function TasksPage() {
         }),
     [tasks, tab, matchesFilters]
   );
+
+  // Group-by: partition the already-filtered/sorted list into ordered sections.
+  // null when grouping is off (the list renders flat). Each task falls in exactly
+  // one section (grouping keys are all single-valued), so counts still add up.
+  const grouped = useMemo(() => {
+    if (groupBy === "none") return null;
+    const keyOf = (t: Task) =>
+      groupBy === "assignee" ? (t.assigneeId || "__none")
+        : groupBy === "status" ? t.status
+        : groupBy === "category" ? t.category
+        : t.priority;
+    const map = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const k = keyOf(t);
+      const bucket = map.get(k);
+      if (bucket) bucket.push(t);
+      else map.set(k, [t]);
+    }
+    const order: string[] =
+      groupBy === "status" ? [...STATUSES]
+        : groupBy === "priority" ? [...PRIORITIES].sort((a, b) => (PRIORITY_RANK[a] ?? 99) - (PRIORITY_RANK[b] ?? 99))
+        : groupBy === "category" ? [...CATEGORIES]
+        : [...assignees.map((a) => a.id), "__none"];
+    const labelOf = (k: string) =>
+      groupBy === "status" ? (STATUS_LABELS[k] ?? k)
+        : groupBy === "priority" ? (PRIORITY_LABELS[k] ?? k)
+        : groupBy === "category" ? (k.charAt(0).toUpperCase() + k.slice(1))
+        : k === "__none" ? "Unassigned" : (() => { const a = assignees.find((x) => x.id === k); return a ? displayName(a) : "Unknown"; })();
+    const sections: { key: string; label: string; tasks: Task[] }[] = [];
+    const seen = new Set<string>();
+    for (const k of order) {
+      const ts = map.get(k);
+      if (ts && ts.length) { sections.push({ key: k, label: labelOf(k), tasks: ts }); seen.add(k); }
+    }
+    // Any keys not in the canonical order (defensive) go last, insertion order.
+    for (const [k, ts] of map) if (!seen.has(k)) sections.push({ key: k, label: labelOf(k), tasks: ts });
+    return sections;
+  }, [groupBy, filtered, assignees]);
+
+  // Flatten grouping into one render list: header rows interleaved with task rows,
+  // so the list body maps once whether grouping is on or off.
+  type ListItem = { kind: "header"; key: string; label: string; count: number } | { kind: "task"; t: Task };
+  const listItems = useMemo<ListItem[]>(() => {
+    if (!grouped) return filtered.map((t) => ({ kind: "task", t }));
+    const out: ListItem[] = [];
+    for (const s of grouped) {
+      out.push({ kind: "header", key: `h-${s.key}`, label: s.label, count: s.tasks.length });
+      for (const t of s.tasks) out.push({ kind: "task", t });
+    }
+    return out;
+  }, [grouped, filtered]);
 
   // Calendar: group dated tasks by their due day (category + assignee filters
   // apply; all statuses shown). Undated tasks get their own strip below the grid.
@@ -1249,6 +1315,16 @@ export default function TasksPage() {
               {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
             </select>
             {assigneeFilterSelect}
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupKey)}
+              aria-label="Group tasks by"
+              className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {GROUP_OPTIONS.map((g) => (
+                <option key={g.key} value={g.key}>{g.key === "none" ? "Group: Off" : `Group: ${g.label}`}</option>
+              ))}
+            </select>
           </>
         )}
       </div>
@@ -1368,7 +1444,15 @@ export default function TasksPage() {
                   : "No tasks yet."}
             </div>
           ) : (
-            filtered.map((t) => {
+            listItems.map((item) => {
+              if (item.kind === "header") return (
+                <div key={item.key} className="mt-1 flex items-center gap-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</h2>
+                  <span className="text-xs tabular-nums text-muted-foreground">{item.count}</span>
+                  <span className="h-px flex-1 bg-border" aria-hidden />
+                </div>
+              );
+              const t = item.t;
               const overdue = isOverdue(t);
               return (
               <div

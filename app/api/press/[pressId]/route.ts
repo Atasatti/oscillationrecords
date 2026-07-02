@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,7 +49,7 @@ export async function PUT(
         {
           error: draft
             ? "A title is required (even for a draft)."
-            : "title, publisher, summary and a valid article URL are required",
+            : "A published item needs a title and summary, plus either a body (owned post) or a publisher and a valid article URL (external coverage).",
         },
         { status: 400 }
       );
@@ -95,6 +97,7 @@ export async function PUT(
         publisher: input.publisher,
         articleUrl: input.articleUrl,
         summary: input.summary,
+        body: input.body,
         image: finalImage,
         author: input.author,
         publishedAt: input.publishedAt,
@@ -110,6 +113,12 @@ export async function PUT(
       resourceId: press.id,
       summary: `Updated press "${press.title}"`,
     });
+
+    // A published owned post has its own page — recrawl it (and the feed) on edit.
+    if (!draft && input.body) {
+      const slug = slugify(input.title);
+      after(() => submitToIndexNow([`/press/${slug}`, "/press"]));
+    }
 
     return NextResponse.json(press);
   } catch (error) {

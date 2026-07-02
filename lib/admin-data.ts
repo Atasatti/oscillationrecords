@@ -549,7 +549,7 @@ export async function getPressPage({
     const ranked = all
       .map((r) => ({
         r,
-        score: Math.max(fuzzyScore(query, r.title), fuzzyScore(query, r.publisher)),
+        score: Math.max(fuzzyScore(query, r.title), fuzzyScore(query, r.publisher ?? "")),
       }))
       .filter((x) => x.score > 0)
       .sort((x, y) => y.score - x.score)

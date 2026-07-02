@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const [artists, releases] = await Promise.all([
+    const [artists, releases, ownedPosts] = await Promise.all([
       prisma.artist.findMany({
         where: { showOnWebsite: true, draft: false },
         select: { id: true, name: true, updatedAt: true, profilePicture: true },
@@ -29,6 +29,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       prisma.release.findMany({
         where: publicReleaseWhere(),
         select: { id: true, name: true, updatedAt: true, coverImage: true },
+      }),
+      // Owned press posts (hosted articles with a body) each have their own page.
+      prisma.pressItem.findMany({
+        where: { showOnWebsite: true, draft: false, body: { not: null } },
+        select: { title: true, updatedAt: true, image: true },
       }),
     ]);
 
@@ -51,6 +56,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "monthly" as const,
         priority: 0.6,
         ...(r.coverImage ? { images: [absoluteUrl(r.coverImage)] } : {}),
+      })),
+      ...ownedPosts.map((p) => ({
+        url: `${SITE_URL}/press/${slugify(p.title)}`,
+        lastModified: p.updatedAt,
+        changeFrequency: "monthly" as const,
+        priority: 0.6,
+        ...(p.image ? { images: [absoluteUrl(p.image)] } : {}),
       })),
     ];
   } catch (e) {

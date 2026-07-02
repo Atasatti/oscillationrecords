@@ -251,15 +251,21 @@ model Release {
 /// same loose `String[] @db.ObjectId` convention as Release (no Prisma relation).
 model PressItem {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  /// Headline of our summary post.
+  /// Headline of the post / summary.
   title       String
-  /// Outlet/blog name, e.g. "Stereogum". Shown on the card and used as the
-  /// `publisher` of the nested external-article node in JSON-LD.
-  publisher   String
-  /// Canonical external link ("Read full article"). Always link out; never embed.
-  articleUrl  String
-  /// OUR original blurb about the coverage — NOT the article body.
+  /// Outlet/blog name, e.g. "Stereogum" (external coverage). Optional: an OWNED
+  /// post (see `body`) is published by us, so it has no external outlet.
+  publisher   String?
+  /// External link ("Read full article") for coverage we link out to. Optional:
+  /// an owned post lives on our own site (its page IS the article), so it has none.
+  articleUrl  String?
+  /// OUR original blurb. For external coverage it's a summary of what was said; for
+  /// an owned post it's the excerpt/standfirst shown on the card and in metadata.
   summary     String
+  /// Owned-post body in Markdown. When present, this PressItem is OUR OWN hosted
+  /// article (a release post / press release) with its own page on the site — not a
+  /// link-out to external coverage — so articleUrl/publisher aren't needed for it.
+  body        String?
   /// Rehosted OG image (S3 url). Optional; falls back to original on rehost failure.
   image       String?
   /// Article publish date (for display + the nested Article node's datePublished).

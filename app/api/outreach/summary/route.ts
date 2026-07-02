@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       prisma.outreachContact.count(),
       prisma.pitchLog.count({ where: { status: { in: ["not_sent", "sent", "followed_up"] } } }),
-      prisma.outreachTask.count({ where: { isTemplate: false, status: { in: ["todo", "in_progress"] } } }),
+      prisma.outreachTask.count({ where: { isTemplate: false, status: { not: "done" } } }),
       prisma.pitchLog.count({ where: { status: "sent", followUpDueAt: { lte: now } } }),
       prisma.outreachTask.count({ where: { isTemplate: false, status: { not: "done" }, dueAt: { lte: now } } }),
       prisma.pitchLog.count({ where: { status: "accepted" } }),

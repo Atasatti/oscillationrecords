@@ -2,12 +2,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Image as ImageIcon, Loader2, ExternalLink, Trash2 } from "lucide-react";
+import { Save, Image as ImageIcon, Loader2, ExternalLink, Trash2, Eye, Pencil } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/ui/multi-select";
+import Markdown from "@/components/local-ui/Markdown";
 import {
   Dialog,
   DialogContent,
@@ -19,25 +20,33 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
+// "owned" = our own hosted post (Markdown body, its own page); "external" = a
+// link-out to third-party coverage (the original behaviour).
+type PostKind = "owned" | "external";
+
 type FormState = {
+  kind: PostKind;
   title: string;
   publisher: string;
   articleUrl: string;
   author: string;
   publishedAt: string; // yyyy-mm-dd in the UI
   summary: string;
+  body: string; // Markdown (owned posts only)
   showOnWebsite: boolean;
   artistIds: string[];
   releaseIds: string[];
 };
 
 const emptyForm: FormState = {
+  kind: "owned",
   title: "",
   publisher: "",
   articleUrl: "",
   author: "",
   publishedAt: "",
   summary: "",
+  body: "",
   showOnWebsite: true,
   artistIds: [],
   releaseIds: [],
@@ -78,7 +87,9 @@ export default function PressEditor({
   const [uploading, setUploading] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [errors, setErrors] = useState<{ title?: string; publisher?: string; articleUrl?: string; summary?: string }>({});
+  const [errors, setErrors] = useState<{ title?: string; publisher?: string; articleUrl?: string; summary?: string; body?: string }>({});
+  // Toggle the Markdown body between edit and rendered preview (owned posts).
+  const [showPreview, setShowPreview] = useState(false);
 
   const [dirty, setDirty] = useState(false);
   const { confirmDiscard } = useUnsavedChangesGuard(dirty);
@@ -129,12 +140,15 @@ export default function PressEditor({
         const p = await res.json();
         if (cancelled) return;
         setForm({
+          // An item with a body is one of our own posts; otherwise it's external coverage.
+          kind: p.body ? "owned" : "external",
           title: p.title || "",
           publisher: p.publisher || "",
           articleUrl: p.articleUrl || "",
           author: p.author || "",
           publishedAt: p.publishedAt ? String(p.publishedAt).slice(0, 10) : "",
           summary: p.summary || "",
+          body: p.body || "",
           showOnWebsite: p.showOnWebsite !== false,
           artistIds: Array.isArray(p.artistIds) ? p.artistIds : [],
           releaseIds: Array.isArray(p.releaseIds) ? p.releaseIds : [],
@@ -199,15 +213,22 @@ export default function PressEditor({
   // if provided, must still be a valid http(s) link).
   const save = async (draft: boolean) => {
     const fieldErrors: typeof errors = {};
+    const isOwned = form.kind === "owned";
     if (!form.title.trim()) fieldErrors.title = "Title is required";
-    if (!draft) {
-      if (!form.publisher.trim()) fieldErrors.publisher = "Publisher is required";
-      if (!form.articleUrl.trim()) fieldErrors.articleUrl = "Article URL is required";
-      else if (!/^https?:\/\//i.test(form.articleUrl.trim()))
-        fieldErrors.articleUrl = "Must be a full http(s) URL";
-      if (!form.summary.trim()) fieldErrors.summary = "A short summary is required";
-    } else if (form.articleUrl.trim() && !/^https?:\/\//i.test(form.articleUrl.trim())) {
+    // A provided external link must always be a valid http(s) URL (both kinds).
+    if (form.articleUrl.trim() && !/^https?:\/\//i.test(form.articleUrl.trim())) {
       fieldErrors.articleUrl = "Must be a full http(s) URL";
+    }
+    // Publishing needs the full fields; a draft needs only a title.
+    if (!draft) {
+      if (isOwned) {
+        if (!form.summary.trim()) fieldErrors.summary = "An excerpt is required";
+        if (!form.body.trim()) fieldErrors.body = "A post body is required";
+      } else {
+        if (!form.publisher.trim()) fieldErrors.publisher = "Publisher is required";
+        if (!form.articleUrl.trim()) fieldErrors.articleUrl = "Article URL is required";
+        if (!form.summary.trim()) fieldErrors.summary = "A short summary is required";
+      }
     }
     if (Object.keys(fieldErrors).length) {
       setErrors(fieldErrors);
@@ -225,11 +246,14 @@ export default function PressEditor({
 
       const payload = {
         title: form.title,
-        publisher: form.publisher,
+        // Owned posts have no external outlet/link (the server derives the kind
+        // from a non-empty body); external coverage keeps publisher + articleUrl.
+        publisher: form.kind === "owned" ? "" : form.publisher,
         articleUrl: form.articleUrl,
         author: form.author,
         publishedAt: form.publishedAt || null,
         summary: form.summary,
+        body: form.kind === "owned" ? form.body : "",
         image: finalImage || null,
         artistIds: form.artistIds,
         releaseIds: form.releaseIds,
@@ -377,7 +401,34 @@ export default function PressEditor({
           {/* Fields */}
           <div className="space-y-6 lg:col-span-2">
             <div className="space-y-4 rounded-xl border border-border bg-card p-6">
-              <h3 className="text-lg font-medium">Coverage</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-medium">{form.kind === "owned" ? "Post" : "Coverage"}</h3>
+                <div className="inline-flex rounded-lg border border-border p-0.5 text-sm">
+                  {(["owned", "external"] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        markDirty();
+                        setForm((p) => ({ ...p, kind: k }));
+                        setErrors({});
+                      }}
+                      className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                        form.kind === k
+                          ? "bg-white/10 text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {k === "owned" ? "Our own post" : "External coverage"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {form.kind === "owned"
+                  ? "A press release / blog post hosted on our site, with its own page. Write the body in Markdown below."
+                  : "A link-out to third-party coverage: we store a short summary and link to the original article."}
+              </p>
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <label htmlFor="title" className="block text-xs font-medium text-muted-foreground">
@@ -405,28 +456,30 @@ export default function PressEditor({
                 {errors.title ? <p className="mt-1 text-sm text-red-400">{errors.title}</p> : null}
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Input
-                    value={form.publisher}
-                    onChange={(e) => {
-                      setField("publisher", e.target.value);
-                      if (errors.publisher) setErrors((p) => ({ ...p, publisher: undefined }));
-                    }}
-                    placeholder="Publisher / blog *"
-                    className={errors.publisher ? "border-red-500/70" : ""}
-                  />
-                  {errors.publisher ? <p className="mt-1 text-sm text-red-400">{errors.publisher}</p> : null}
-                </div>
+                {form.kind === "external" ? (
+                  <div>
+                    <Input
+                      value={form.publisher}
+                      onChange={(e) => {
+                        setField("publisher", e.target.value);
+                        if (errors.publisher) setErrors((p) => ({ ...p, publisher: undefined }));
+                      }}
+                      placeholder="Publisher / blog *"
+                      className={errors.publisher ? "border-red-500/70" : ""}
+                    />
+                    {errors.publisher ? <p className="mt-1 text-sm text-red-400">{errors.publisher}</p> : null}
+                  </div>
+                ) : null}
                 <Input
                   value={form.author}
                   onChange={(e) => setField("author", e.target.value)}
-                  placeholder="Author (optional)"
+                  placeholder={form.kind === "owned" ? "Author / byline (optional)" : "Author (optional)"}
                 />
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <label htmlFor="articleUrl" className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    Article URL *
+                    {form.kind === "owned" ? "External link (optional)" : "Article URL *"}
                   </label>
                   <Input
                     id="articleUrl"
@@ -455,7 +508,12 @@ export default function PressEditor({
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <label htmlFor="summary" className="block text-xs font-medium text-muted-foreground">
-                    Summary * <span className="font-normal">(our own words — do not paste the article)</span>
+                    {form.kind === "owned" ? "Excerpt *" : "Summary *"}{" "}
+                    <span className="font-normal">
+                      {form.kind === "owned"
+                        ? "(a short standfirst shown on the card & link previews)"
+                        : "(our own words — do not paste the article)"}
+                    </span>
                   </label>
                   <span
                     className={`shrink-0 text-xs tabular-nums ${
@@ -473,12 +531,65 @@ export default function PressEditor({
                     if (errors.summary) setErrors((p) => ({ ...p, summary: undefined }));
                   }}
                   maxLength={SUMMARY_MAX}
-                  placeholder="A short, original summary of what the coverage said and why it matters…"
+                  placeholder={
+                    form.kind === "owned"
+                      ? "A short standfirst that introduces the post…"
+                      : "A short, original summary of what the coverage said and why it matters…"
+                  }
                   rows={5}
                   className={`resize-none ${errors.summary ? "border-red-500/70" : ""}`}
                 />
                 {errors.summary ? <p className="mt-1 text-sm text-red-400">{errors.summary}</p> : null}
               </div>
+
+              {/* Markdown body — owned posts only. Toggle between editing the raw
+                  Markdown and a rendered preview of exactly how it will appear. */}
+              {form.kind === "owned" ? (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label htmlFor="body" className="block text-xs font-medium text-muted-foreground">
+                      Body * <span className="font-normal">(Markdown — headings, links, lists, images)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPreview((v) => !v)}
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {showPreview ? (
+                        <>
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-3.5 w-3.5" /> Preview
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {showPreview ? (
+                    <div className="min-h-[260px] rounded-md border border-border bg-background p-4">
+                      {form.body.trim() ? (
+                        <Markdown content={form.body} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Nothing to preview yet.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <Textarea
+                      id="body"
+                      value={form.body}
+                      onChange={(e) => {
+                        setField("body", e.target.value);
+                        if (errors.body) setErrors((p) => ({ ...p, body: undefined }));
+                      }}
+                      placeholder={"## A heading\n\nWrite the story here. Use **bold**, _italics_, [links](https://…), lists and images.\n\n- point one\n- point two"}
+                      rows={16}
+                      className={`resize-y font-mono text-sm leading-relaxed ${errors.body ? "border-red-500/70" : ""}`}
+                    />
+                  )}
+                  {errors.body ? <p className="mt-1 text-sm text-red-400">{errors.body}</p> : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-4 rounded-xl border border-border bg-card p-6">
