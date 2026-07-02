@@ -1,7 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
 import ReleaseEditor from "@/components/admin/release-editor/ReleaseEditor";
-import ReleaseReadinessPanel from "@/components/admin/ReleaseReadinessPanel";
 import ReleaseSplitsPanel from "@/components/admin/ReleaseSplitsPanel";
 import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import LinkedPitchesPanel from "@/components/admin/LinkedPitchesPanel";
@@ -20,7 +19,6 @@ export default function EditReleasePage() {
           tasks/pitches/press rollups — below the editor so they're on the surface
           people actually work on. */}
       <div className="mt-16">
-        <ReleaseReadinessPanel releaseId={releaseId} />
         <ReleaseSplitsPanel releaseId={releaseId} />
         <LinkedTasksPanel releaseId={releaseId} />
         <LinkedPitchesPanel releaseId={releaseId} />

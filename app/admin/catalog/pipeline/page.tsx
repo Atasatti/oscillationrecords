@@ -7,7 +7,7 @@ import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/local-ui/Toast";
 import { getCached, setCached } from "@/lib/admin-cache";
-import { CalendarClock, FileEdit, CheckCircle2, Disc3 } from "lucide-react";
+import { CalendarClock, FileEdit, Disc3 } from "lucide-react";
 import type { PipelineItem } from "@/app/api/releases/pipeline/route";
 
 type Pipeline = { scheduled: PipelineItem[]; drafts: PipelineItem[] };
@@ -28,14 +28,12 @@ function relDays(iso: string | null): { label: string; overdue: boolean } | null
 }
 
 function PipelineCard({ item }: { item: PipelineItem }) {
-  const pct = Math.round((item.readiness.doneCount / item.readiness.total) * 100);
-  const missing = item.readiness.items.filter((i) => !i.done).map((i) => i.label);
   const date = fmtDate(item.releaseDate);
   const rel = item.status === "SCHEDULED" ? relDays(item.releaseDate) : null;
 
   return (
     <Link
-      href={`/admin/catalog/release/${item.id}`}
+      href={`/admin/catalog/releases/${item.id}/edit`}
       className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
     >
       {item.coverImage ? (
@@ -52,21 +50,6 @@ function PipelineCard({ item }: { item: PipelineItem }) {
           {item.artistNames.length ? item.artistNames.join(", ") : "No artist"}
           {date ? <> · {date}{rel ? <span className={rel.overdue ? " text-amber-400" : ""}> ({rel.label})</span> : null}</> : null}
         </p>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/5">
-            <div className={`h-full rounded-full ${item.readiness.ready ? "bg-emerald-500" : "bg-sky-500"}`} style={{ width: `${pct}%` }} />
-          </div>
-          {item.readiness.ready ? (
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Ready
-            </span>
-          ) : (
-            <span className="truncate text-xs text-muted-foreground">
-              {item.readiness.doneCount}/{item.readiness.total} · missing {missing.slice(0, 2).join(", ")}
-              {missing.length > 2 ? ` +${missing.length - 2}` : ""}
-            </span>
-          )}
-        </div>
       </div>
     </Link>
   );
@@ -115,7 +98,7 @@ export default function PipelinePage() {
     <div>
       <PageHeader
         title="Release pipeline"
-        description="Upcoming releases — scheduled and in-progress — with delivery readiness at a glance."
+        description="Upcoming releases — scheduled and in-progress. Click through to the editor."
       />
 
       {loading ? (

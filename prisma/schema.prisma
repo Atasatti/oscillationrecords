@@ -221,11 +221,6 @@ model Release {
   /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
   /// each other. Optional: rows never ordered there are treated as last (+∞).
   comingSoonOrder  Int?
-  /// Persisted delivery/sign-off checklist — a { stepKey: boolean } map ticked by
-  /// staff (delivered to distributor, live on DSPs, artwork approved, signed off,
-  /// …). The step set is defined in code (lib/release-readiness.ts DELIVERY_STEPS);
-  /// this stores only which are done. Distinct from the derived metadata-readiness.
-  deliveryChecklist Json?
   /// Revenue-split agreement — an array of { payee, percent } recording who is owed
   /// what share of this release's income. Shape/validation in lib/release-splits.ts.
   /// A tracking aid, not authoritative accounting.
