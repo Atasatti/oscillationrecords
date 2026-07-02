@@ -1,0 +1,41 @@
+// Per-release revenue splits — who is owed what share of a release's income.
+// Stored on Release.splits (Json). A tracking aid, not authoritative accounting.
+// Pure — safe on server or client.
+
+export interface Split {
+  /** Payee name (a roster artist, collaborator, producer, the label, …). */
+  payee: string;
+  /** Percentage share, 0–100 (two decimals). */
+  percent: number;
+}
+
+export interface SplitsSummary {
+  splits: Split[];
+  /** Sum of all percentages (rounded to 2dp). */
+  total: number;
+  /** True when the shares add up to exactly 100%. */
+  balanced: boolean;
+}
+
+const clampPercent = (n: number) =>
+  Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n * 100) / 100)) : 0;
+
+/** Coerce arbitrary stored/submitted data into a clean Split[] (drops blank payees). */
+export function normalizeSplits(raw: unknown): Split[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Split[] = [];
+  for (const s of raw) {
+    if (!s || typeof s !== "object") continue;
+    const o = s as Record<string, unknown>;
+    const payee = typeof o.payee === "string" ? o.payee.trim() : "";
+    if (!payee) continue;
+    const percent = clampPercent(typeof o.percent === "number" ? o.percent : Number(o.percent));
+    out.push({ payee, percent });
+  }
+  return out;
+}
+
+export function summarizeSplits(splits: Split[]): SplitsSummary {
+  const total = Math.round(splits.reduce((a, s) => a + s.percent, 0) * 100) / 100;
+  return { splits, total, balanced: total === 100 };
+}

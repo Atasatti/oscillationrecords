@@ -226,6 +226,10 @@ model Release {
   /// …). The step set is defined in code (lib/release-readiness.ts DELIVERY_STEPS);
   /// this stores only which are done. Distinct from the derived metadata-readiness.
   deliveryChecklist Json?
+  /// Revenue-split agreement — an array of { payee, percent } recording who is owed
+  /// what share of this release's income. Shape/validation in lib/release-splits.ts.
+  /// A tracking aid, not authoritative accounting.
+  splits            Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
