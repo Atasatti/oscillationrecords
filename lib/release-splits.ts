@@ -91,3 +91,62 @@ export function revenueTotal(entries: RevenueEntry[]): number {
 export function computeOwed(splits: Split[], total: number): OwedRow[] {
   return splits.map((s) => ({ payee: s.payee, percent: s.percent, amount: round2((total * s.percent) / 100) }));
 }
+
+// ---------------------------------------------------------------------------
+// Payouts + ledger. Payments made to payees (Release.payments) are subtracted
+// from each payee's owed share to give what's still outstanding.
+// ---------------------------------------------------------------------------
+
+export interface Payment {
+  id: string;
+  payee: string;
+  amount: number;
+  date: string | null;
+  note: string | null;
+}
+
+export interface LedgerRow {
+  payee: string;
+  percent: number;
+  owed: number;
+  paid: number;
+  outstanding: number;
+}
+
+/** Coerce arbitrary stored/submitted data into clean Payment[]. */
+export function normalizePayments(raw: unknown): Payment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Payment[] = [];
+  for (const p of raw) {
+    if (!p || typeof p !== "object") continue;
+    const o = p as Record<string, unknown>;
+    const payee = typeof o.payee === "string" ? o.payee.trim() : "";
+    const amount = typeof o.amount === "number" ? o.amount : Number(o.amount);
+    if (!payee || !Number.isFinite(amount)) continue;
+    out.push({
+      id: typeof o.id === "string" && o.id ? o.id : "",
+      payee,
+      amount: round2(amount),
+      date: typeof o.date === "string" && o.date ? o.date : null,
+      note: typeof o.note === "string" && o.note.trim() ? o.note.trim() : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Per-payee ledger: owed (revenue × split %), paid (matching payouts) and what's
+ * still outstanding. Rows follow the split agreement; payments are matched to a
+ * split payee by exact (trimmed) name.
+ */
+export function computeLedger(splits: Split[], total: number, payments: Payment[]): LedgerRow[] {
+  const paidByPayee = new Map<string, number>();
+  for (const p of payments) {
+    paidByPayee.set(p.payee, round2((paidByPayee.get(p.payee) ?? 0) + p.amount));
+  }
+  return splits.map((s) => {
+    const owed = round2((total * s.percent) / 100);
+    const paid = round2(paidByPayee.get(s.payee) ?? 0);
+    return { payee: s.payee, percent: s.percent, owed, paid, outstanding: round2(owed - paid) };
+  });
+}

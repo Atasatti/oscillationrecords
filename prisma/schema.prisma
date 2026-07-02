@@ -228,6 +228,9 @@ model Release {
   /// Recorded income for this release — an array of { id, amount, date, note }.
   /// Combined with `splits` to compute who's owed what. See lib/release-splits.ts.
   revenue           Json?
+  /// Payouts made to payees — an array of { id, payee, amount, date, note }.
+  /// Subtracted from each payee's owed share to give outstanding. Tracking aid.
+  payments          Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
