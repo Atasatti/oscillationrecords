@@ -2,9 +2,48 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { isRecurrence, nextDueDate } from "@/lib/task-recurrence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// When a recurring task is completed, create its next occurrence (a fresh "todo")
+// with an advanced due date. Best-effort — a failure here won't fail completion.
+async function spawnNextOccurrence(task: {
+  title: string;
+  description: string | null;
+  category: string;
+  priority: string;
+  assigneeId: string | null;
+  recurrence: string | null;
+  artistIds: string[];
+  releaseIds: string[];
+  dueAt: Date | null;
+  notes: string | null;
+}) {
+  if (!isRecurrence(task.recurrence)) return;
+  try {
+    const dueAt = nextDueDate(task.recurrence, task.dueAt, new Date());
+    await prisma.outreachTask.create({
+      data: {
+        title: task.title,
+        description: task.description,
+        category: task.category,
+        priority: task.priority,
+        status: "todo",
+        assigneeId: task.assigneeId,
+        recurrence: task.recurrence,
+        artistIds: task.artistIds,
+        releaseIds: task.releaseIds,
+        dueAt,
+        notes: task.notes,
+        isTemplate: false,
+      },
+    });
+  } catch (e) {
+    console.error("spawnNextOccurrence failed:", e);
+  }
+}
 
 // GET /api/outreach/tasks/[taskId]
 export async function GET(
@@ -36,7 +75,7 @@ export async function PUT(
 
     const { taskId } = await params;
     const body = await request.json();
-    const { title, description, category, priority, status, assigneeId, artistIds, releaseIds, dueAt, notes } = body;
+    const { title, description, category, priority, status, assigneeId, recurrence, artistIds, releaseIds, dueAt, notes } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -54,6 +93,7 @@ export async function PUT(
         priority: priority || "medium",
         status: status || "todo",
         assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
+        recurrence: isRecurrence(recurrence) ? recurrence : null,
         artistIds: Array.isArray(artistIds) ? artistIds : [],
         releaseIds: Array.isArray(releaseIds) ? releaseIds : [],
         dueAt: dueAt ? new Date(dueAt) : null,
@@ -67,6 +107,11 @@ export async function PUT(
       resourceId: task.id,
       summary: `Updated task "${task.title}"`,
     });
+
+    // Completing a recurring task spawns its next occurrence.
+    if (existing.status !== "done" && task.status === "done") {
+      await spawnNextOccurrence(task);
+    }
 
     return NextResponse.json(task);
   } catch (error) {
@@ -103,6 +148,12 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     const task = await prisma.outreachTask.update({ where: { id: taskId }, data });
+
+    // Completing a recurring task spawns its next occurrence.
+    if (data.status === "done" && existing.status !== "done") {
+      await spawnNextOccurrence(existing);
+    }
+
     return NextResponse.json(task);
   } catch (error) {
     console.error("Error patching task:", error);

@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound,
+  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
@@ -311,6 +312,7 @@ type Task = {
   priority: string;
   status: string;
   assigneeId: string | null;
+  recurrence: string | null;
   releaseIds: string[];
   artistIds: string[];
   dueAt: string | null;
@@ -425,7 +427,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -655,6 +657,7 @@ export default function TasksPage() {
       priority: t.priority,
       status: t.status,
       assigneeId: t.assigneeId ?? "",
+      recurrence: t.recurrence ?? "",
       releaseIds: t.releaseIds ?? [],
       artistIds: t.artistIds ?? [],
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
@@ -1061,6 +1064,14 @@ export default function TasksPage() {
                         </span>
                       </>
                     )}
+                    {isRecurrence(t.recurrence) && (
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}
+                        </span>
+                      </>
+                    )}
                   </div>
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -1234,6 +1245,17 @@ export default function TasksPage() {
                   <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
                 ))}
               </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Repeat</label>
+              <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
+                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">Doesn&apos;t repeat</option>
+                {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {form.recurrence ? (
+                <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
+              ) : null}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>

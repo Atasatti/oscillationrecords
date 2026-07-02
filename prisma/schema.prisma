@@ -520,6 +520,10 @@ model OutreachTask {
   /// existing tasks (created before assignment) read back as null, and so a task
   /// survives its assignee losing admin access — the UI just shows it unassigned.
   assigneeId  String?  @db.ObjectId
+  /// Repeat cadence: "weekly" | "biweekly" | "monthly" (null = one-off). When a
+  /// recurring task is completed, the API spawns the next occurrence with an
+  /// advanced due date. See lib/task-recurrence.ts.
+  recurrence  String?
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
