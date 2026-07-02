@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import IconButton from "../local-ui/IconButton";
 import Image from "next/image";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube } from "react-icons/fa";
 import { SiAmazonmusic, SiTidal } from "react-icons/si";
@@ -161,6 +162,8 @@ const MeetArtistSection = ({
                 width={500}
                 height={600}
                 alt={currentArtist.name}
+                placeholder="blur"
+                blurDataURL={BLUR_DATA_URL}
                 className="rounded-[18px] object-cover w-full h-full"
               />
             </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import {
   findWikidataMatches,
   artistNotabilitySignals,
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 // signals. Writes NOTHING to Wikidata — creation stays a human action.
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:read");
     if (!guard.ok) return guard.response;
 
     const body = (await request.json().catch(() => ({}))) as Partial<ArtistForWikidata> & {

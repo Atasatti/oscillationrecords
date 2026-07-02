@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // GET /api/admin/error-log?page=&pageSize=&source=&level=&resolved=
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:read");
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH /api/admin/error-log  { id, resolved }  — mark an error resolved/open.
 export async function PATCH(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:write");
   if (!guard.ok) return guard.response;
 
   const body = await request.json().catch(() => null);
@@ -62,12 +63,18 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/error-log?id=...  or  ?all=true
 export async function DELETE(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "analytics:write");
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);
   if (searchParams.get("all") === "true") {
     const r = await prisma.errorLog.deleteMany({});
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "error",
+      summary: "Cleared error-log entries",
+      metadata: { deleted: r.count },
+    });
     return NextResponse.json({ ok: true, deleted: r.count });
   }
   const id = searchParams.get("id");
@@ -76,6 +83,12 @@ export async function DELETE(request: NextRequest) {
   }
   try {
     await prisma.errorLog.delete({ where: { id } });
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "error",
+      resourceId: id,
+      summary: "Cleared error-log entries",
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

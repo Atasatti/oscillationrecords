@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ pitchId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const { pitchId } = await params;
@@ -30,7 +31,7 @@ export async function PUT(
   { params }: { params: Promise<{ pitchId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { pitchId } = await params;
@@ -71,6 +72,13 @@ export async function PUT(
       });
     }
 
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "pitch",
+      resourceId: pitch.id,
+      summary: `Updated pitch ${pitch.id}`,
+    });
+
     return NextResponse.json(pitch);
   } catch (error) {
     console.error("Error updating pitch:", error);
@@ -84,7 +92,7 @@ export async function PATCH(
   { params }: { params: Promise<{ pitchId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { pitchId } = await params;
@@ -130,7 +138,7 @@ export async function DELETE(
   { params }: { params: Promise<{ pitchId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { pitchId } = await params;
@@ -138,6 +146,14 @@ export async function DELETE(
     if (!existing) return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
 
     await prisma.pitchLog.delete({ where: { id: pitchId } });
+
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "pitch",
+      resourceId: pitchId,
+      summary: `Deleted pitch ${pitchId}`,
+    });
+
     return NextResponse.json({ message: "Pitch deleted" });
   } catch (error) {
     console.error("Error deleting pitch:", error);

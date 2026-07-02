@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import { buildArtistMap, combinedFeatureDisplayNames } from "@/lib/release-format";
@@ -41,6 +41,10 @@ export default function ReleaseTracksPage() {
   const releaseId = params.releaseId as string;
   const router = useRouter();
   const toast = useToast();
+  // Deep-link from "Needs attention": ?isrc=<code> highlights the tracks sharing
+  // that ISRC; ?isrc=none highlights tracks with no ISRC yet.
+  const searchParams = useSearchParams();
+  const highlightIsrc = searchParams.get("isrc");
 
   const [artists, setArtists] = useState<ArtistOption[]>([]);
   const [release, setRelease] = useState<LoadedRelease | null>(null);
@@ -138,6 +142,7 @@ export default function ReleaseTracksPage() {
           requireIsrc={release.status === "RELEASED"}
           releaseIsLive={release.releaseIsLive}
           initialTracks={release.initialTracks}
+          highlightIsrc={highlightIsrc}
           onUnsavedChange={setTracksUnsaved}
           onActivityChange={setTracksBusy}
           onValidityChange={setValidity}

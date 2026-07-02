@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Image from "next/image";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import Link from "next/link";
 import StreamingLinks from "./StreamingLinks";
 import ExplicitBadge from "./ExplicitBadge";
@@ -94,6 +95,8 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string }> 
             alt={release.name}
             fill
             sizes="288px"
+            placeholder="blur"
+            blurDataURL={BLUR_DATA_URL}
             className="object-cover"
           />
         </div>

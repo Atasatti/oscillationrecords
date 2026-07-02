@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +29,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => null);
+
+    // Honeypot: the form renders a hidden "company" field a human never sees or
+    // fills. A non-empty value means a bot — answer with a fake success and drop
+    // it silently, so the trap isn't revealed.
+    if (clean(body?.company, 100)) {
+      return NextResponse.json({ ok: true });
+    }
+
     const name = clean(body?.name, MAX.name);
     const email = clean(body?.email, MAX.email);
     const message = clean(body?.message, MAX.message);
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
 
 // GET /api/contact — admin-only list of submissions, newest first.
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "outreach:read");
   if (!guard.ok) return guard.response;
 
   const messages = await prisma.contactMessage.findMany({

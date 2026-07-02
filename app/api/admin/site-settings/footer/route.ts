@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { DEFAULT_STACKED_HERO_IMAGES } from "@/lib/site-settings-defaults";
 import { normalizeFooterUrl } from "@/lib/footer-settings";
 
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function PUT(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -39,6 +40,13 @@ export async function PUT(request: NextRequest) {
     });
 
     revalidatePath("/");
+
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "settings",
+      resourceId: "site",
+      summary: "Updated footer settings",
+    });
 
     return NextResponse.json({
       xLink: data.footerXLink,

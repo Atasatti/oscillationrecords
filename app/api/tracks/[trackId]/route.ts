@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
 import { isReleasePublic } from "@/lib/catalog-data";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,7 +46,7 @@ export async function PATCH(
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { trackId } = await params;
@@ -174,7 +175,7 @@ export async function DELETE(
   { params }: { params: Promise<{ trackId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { trackId } = await params;
@@ -187,6 +188,14 @@ export async function DELETE(
     }
 
     await prisma.track.delete({ where: { id: trackId } });
+
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "track",
+      resourceId: trackId,
+      summary: `Deleted track "${existing.name ?? trackId}"`,
+    });
+
     return NextResponse.json({ message: "Track deleted successfully" });
   } catch (error) {
     console.error("Error deleting track:", error);

@@ -65,10 +65,17 @@ export default async function Home() {
           __html: jsonLdScript(buildWebSiteJsonLd()),
         }}
       />
+      {/* WCAG bypass block (the (main) group has its own; the homepage needs one). */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[9999] focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-black"
+      >
+        Skip to content
+      </a>
       <Navbar />
       {/* Single <main> landmark for the homepage (it uses the root layout, not
           the (main) group, so it needs its own). */}
-      <main>
+      <main id="main" tabIndex={-1}>
         {/* The page's primary heading. The hero is a 3D scene with no text, so
             the <h1> is visually hidden (sr-only) but present in the DOM for
             search engines / screen readers — it carries the brand + the primary

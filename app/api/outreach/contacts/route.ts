@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 // GET /api/outreach/contacts?page=&pageSize=&q=&type=&status=
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
 // POST /api/outreach/contacts
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -83,6 +84,13 @@ export async function POST(request: NextRequest) {
         notes: notes?.trim() || null,
         relationshipStatus: "cold",
       },
+    });
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "contact",
+      resourceId: contact.id,
+      summary: `Created outreach contact "${contact.name || contact.outlet}"`,
     });
 
     return NextResponse.json(contact, { status: 201 });

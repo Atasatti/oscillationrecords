@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Image from "next/image";
+import { BLUR_DATA_URL } from "@/lib/image-blur";
 import {
   motion,
   useMotionValue,
@@ -138,6 +139,8 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           alt={artist.name}
           fill
           sizes="288px"
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
           className="object-cover rounded-lg"
           style={{ zIndex: 0 }}
         />

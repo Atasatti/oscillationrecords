@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { deleteArtistCascade } from "@/lib/artist-delete";
 import { extractArtistExtras } from "@/lib/artist-input";
 import { rehostExternalImage } from "@/lib/s3";
 import { isSafeUrl } from "@/lib/url-safety";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -19,7 +22,7 @@ export async function GET(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:read");
     if (!guard.ok) return guard.response;
 
     const { artistId } = await params;
@@ -72,7 +75,7 @@ export async function PUT(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { artistId } = await params;
@@ -157,6 +160,19 @@ export async function PUT(
       },
     });
 
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "artist",
+      resourceId: artist.id,
+      summary: `Updated artist "${artist.name}"`,
+    });
+
+    // Public now (shown on site + not a draft) → ping IndexNow to recrawl the page.
+    if (artist.showOnWebsite && !artist.draft) {
+      const slug = slugify(artist.name);
+      after(() => submitToIndexNow([`/artists/${slug}`, "/artists"]));
+    }
+
     return NextResponse.json(artist);
   } catch (error) {
     console.error("Error updating artist:", error);
@@ -175,7 +191,7 @@ export async function PATCH(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { artistId } = await params;
@@ -228,6 +244,14 @@ export async function PATCH(
     }
 
     const artist = await prisma.artist.update({ where: { id: artistId }, data });
+
+    // Visibility toggled (either direction) → ask IndexNow to recrawl: a newly
+    // shown artist gets indexed; a hidden one gets re-fetched and dropped.
+    if (data.showOnWebsite !== undefined) {
+      const slug = slugify(artist.name);
+      after(() => submitToIndexNow([`/artists/${slug}`, "/artists"]));
+    }
+
     return NextResponse.json(artist);
   } catch (error) {
     console.error("Error updating artist:", error);
@@ -244,15 +268,27 @@ export async function DELETE(
   { params }: { params: Promise<{ artistId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { artistId } = await params;
 
+    // Capture the name before the cascade so the audit entry reads nicely.
+    const before = await prisma.artist.findUnique({
+      where: { id: artistId },
+      select: { name: true },
+    });
     const deleted = await deleteArtistCascade(artistId);
     if (!deleted) {
       return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
+
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "artist",
+      resourceId: artistId,
+      summary: `Deleted artist "${before?.name ?? artistId}"`,
+    });
 
     return NextResponse.json({ message: "Artist deleted successfully" });
   } catch (error) {

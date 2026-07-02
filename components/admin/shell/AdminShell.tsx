@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import AdminSidebar from "./AdminSidebar";
 import Breadcrumbs from "./Breadcrumbs";
+import AdminReminders from "@/components/admin/AdminReminders";
 
 /**
  * Persistent admin shell: a fixed left sidebar on desktop, a slide-out drawer on
@@ -99,6 +100,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Suspense fallback={null}>
             <Breadcrumbs />
           </Suspense>
+          <div className="ml-auto flex items-center">
+            <AdminReminders />
+          </div>
         </header>
 
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>

@@ -1,9 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
+import { isRecurrence, nextDueDate } from "@/lib/task-recurrence";
+import { normalizeChecklist } from "@/lib/task-checklist";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// When a recurring task is completed, create its next occurrence (a fresh "todo")
+// with an advanced due date. Best-effort — a failure here won't fail completion.
+async function spawnNextOccurrence(task: {
+  title: string;
+  description: string | null;
+  category: string;
+  priority: string;
+  assigneeId: string | null;
+  recurrence: string | null;
+  artistIds: string[];
+  releaseIds: string[];
+  dueAt: Date | null;
+  notes: string | null;
+}) {
+  if (!isRecurrence(task.recurrence)) return;
+  try {
+    const dueAt = nextDueDate(task.recurrence, task.dueAt, new Date());
+    await prisma.outreachTask.create({
+      data: {
+        title: task.title,
+        description: task.description,
+        category: task.category,
+        priority: task.priority,
+        status: "todo",
+        assigneeId: task.assigneeId,
+        recurrence: task.recurrence,
+        artistIds: task.artistIds,
+        releaseIds: task.releaseIds,
+        dueAt,
+        notes: task.notes,
+        isTemplate: false,
+      },
+    });
+  } catch (e) {
+    console.error("spawnNextOccurrence failed:", e);
+  }
+}
 
 // GET /api/outreach/tasks/[taskId]
 export async function GET(
@@ -11,7 +53,7 @@ export async function GET(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const { taskId } = await params;
@@ -30,12 +72,12 @@ export async function PUT(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { taskId } = await params;
     const body = await request.json();
-    const { title, description, category, priority, status, artistIds, releaseIds, dueAt, notes } = body;
+    const { title, description, category, priority, status, assigneeId, recurrence, checklist, artistIds, releaseIds, dueAt, notes } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -52,12 +94,27 @@ export async function PUT(
         category: category.trim(),
         priority: priority || "medium",
         status: status || "todo",
+        assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
+        recurrence: isRecurrence(recurrence) ? recurrence : null,
+        checklist: normalizeChecklist(checklist) as unknown as Prisma.InputJsonValue,
         artistIds: Array.isArray(artistIds) ? artistIds : [],
         releaseIds: Array.isArray(releaseIds) ? releaseIds : [],
         dueAt: dueAt ? new Date(dueAt) : null,
         notes: notes?.trim() || null,
       },
     });
+
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "task",
+      resourceId: task.id,
+      summary: `Updated task "${task.title}"`,
+    });
+
+    // Completing a recurring task spawns its next occurrence.
+    if (existing.status !== "done" && task.status === "done") {
+      await spawnNextOccurrence(task);
+    }
 
     return NextResponse.json(task);
   } catch (error) {
@@ -72,7 +129,7 @@ export async function PATCH(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { taskId } = await params;
@@ -81,6 +138,14 @@ export async function PATCH(
     const data: Record<string, unknown> = {};
     if (typeof body.status === "string") data.status = body.status;
     if (typeof body.priority === "string") data.priority = body.priority;
+    // assigneeId: a non-empty string sets the assignee; null / "" clears it.
+    if ("assigneeId" in body) {
+      data.assigneeId = typeof body.assigneeId === "string" && body.assigneeId.trim() ? body.assigneeId.trim() : null;
+    }
+    // checklist: full array replace (used by inline item toggling on a row).
+    if ("checklist" in body) {
+      data.checklist = normalizeChecklist(body.checklist) as unknown as Prisma.InputJsonValue;
+    }
 
     if (!Object.keys(data).length) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
@@ -90,6 +155,12 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     const task = await prisma.outreachTask.update({ where: { id: taskId }, data });
+
+    // Completing a recurring task spawns its next occurrence.
+    if (data.status === "done" && existing.status !== "done") {
+      await spawnNextOccurrence(existing);
+    }
+
     return NextResponse.json(task);
   } catch (error) {
     console.error("Error patching task:", error);
@@ -103,14 +174,20 @@ export async function DELETE(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const { taskId } = await params;
-    const existing = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { id: true } });
+    const existing = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { id: true, title: true } });
     if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     await prisma.outreachTask.delete({ where: { id: taskId } });
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "task",
+      resourceId: taskId,
+      summary: `Deleted task "${existing.title}"`,
+    });
     return NextResponse.json({ message: "Task deleted" });
   } catch (error) {
     console.error("Error deleting task:", error);

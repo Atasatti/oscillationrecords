@@ -46,6 +46,9 @@ import ApplyToAllDialog, { type ApplyToAllValue } from "./ApplyToAllDialog";
 
 type ArtistOpt = { id: string; name: string };
 
+// Canonical ISRC (strip formatting) so highlight matching is format-insensitive.
+const canonIsrc = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
+
 export default function TrackList({
   releaseId,
   artists,
@@ -54,6 +57,7 @@ export default function TrackList({
   requireIsrc,
   releaseIsLive,
   initialTracks,
+  highlightIsrc,
   onActivityChange,
   onUnsavedChange,
   onValidityChange,
@@ -69,6 +73,9 @@ export default function TrackList({
    * mid-upload — which would briefly show the public an empty/broken release. */
   releaseIsLive: boolean;
   initialTracks: Record<string, unknown>[];
+  /** Deep-link highlight from Needs-Attention: an ISRC to flag (tracks sharing it),
+   * or "none" to flag tracks with no ISRC yet. */
+  highlightIsrc?: string | null;
   /** Reports whether uploads/saves are in flight (used to gate publishing). */
   onActivityChange?: (active: boolean) => void;
   /** Reports whether leaving now would lose track work — an in-flight
@@ -513,6 +520,11 @@ export default function TrackList({
                   audioItem={queue.items[`${track.rowId}:audio`]}
                   stemsItem={queue.items[`${track.rowId}:stems`]}
                   requireIsrc={requireIsrc}
+                  highlight={
+                    highlightIsrc === "none"
+                      ? !track.isrcCode.trim()
+                      : !!highlightIsrc && canonIsrc(track.isrcCode) === canonIsrc(highlightIsrc)
+                  }
                   onChange={(patch) => updateRow(track.rowId, patch)}
                   onRemove={() => removeRow(track.rowId)}
                   onReplaceAudio={(file) => replaceAudio(track.rowId, file)}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ function csvCell(value: string): string {
 // GET /api/admin/subscribers?q=&page=&pageSize=  (JSON list)
 //     /api/admin/subscribers?format=csv          (CSV download of all matches)
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "outreach:read");
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);
@@ -62,12 +63,22 @@ export async function GET(request: NextRequest) {
 
 // DELETE /api/admin/subscribers?id=...  (GDPR: remove a subscriber)
 export async function DELETE(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "outreach:write");
   if (!guard.ok) return guard.response;
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   try {
+    const existing = await prisma.newsletterSubscriber.findUnique({
+      where: { id },
+      select: { email: true },
+    });
     await prisma.newsletterSubscriber.delete({ where: { id } });
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "subscriber",
+      resourceId: id,
+      summary: `Deleted subscriber ${existing?.email ?? id}`,
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });

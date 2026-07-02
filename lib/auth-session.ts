@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getToken, type JWT } from "next-auth/jwt";
+import { isStaffRole, type Permission, roleCan } from "@/lib/permissions";
 
 /**
  * Accounts allowed into the admin area (bootstrap allowlist). Add a lowercase
@@ -19,13 +20,39 @@ export function isAdminEmail(email?: string | null): boolean {
 }
 
 /**
- * Token-level admin check (no DB): bootstrap email OR a JWT `role` of "admin".
- * Used by edge middleware (page gating) and read-gating. The authoritative,
- * revocation-aware check for mutations lives in requireAdmin (lib/auth-guard.ts).
+ * Token-level OWNER check (no DB): bootstrap email OR a JWT `role` of "admin".
+ * "admin" is the owner role (full access). Used by edge middleware (page gating)
+ * and read-gating. The authoritative, revocation-aware check for mutations lives
+ * in requireAdmin (lib/auth-guard.ts).
  */
 export function isAdminToken(token: { email?: string | null; role?: string } | null | undefined): boolean {
   if (!token) return false;
   return token.role === "admin" || isAdminEmail(token.email);
+}
+
+/**
+ * Token-level STAFF check (no DB): can this token enter the admin area at all?
+ * True for owners (bootstrap email or role "admin") OR any scoped staff role
+ * (catalog / promotion / analytics / viewer). Used by middleware to admit staff;
+ * per-page and per-route permission checks then narrow what they can see/do.
+ */
+export function isStaffToken(token: { email?: string | null; role?: string } | null | undefined): boolean {
+  if (!token) return false;
+  return isAdminEmail(token.email) || isStaffRole(token.role);
+}
+
+/**
+ * Token-level PERMISSION check (no DB): owners (bootstrap or role "admin") get
+ * everything; scoped roles are checked against the policy map. Edge/middleware
+ * page-gating only — the DB-revocation-aware enforcement is requirePermission.
+ */
+export function tokenCan(
+  token: { email?: string | null; role?: string } | null | undefined,
+  perm: Permission
+): boolean {
+  if (!token) return false;
+  if (isAdminToken(token)) return true;
+  return roleCan(token.role, perm);
 }
 
 /** Must match NextAuth default session cookie names (see next-auth/core/lib/cookie). */

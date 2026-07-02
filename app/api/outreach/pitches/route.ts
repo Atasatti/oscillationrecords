@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,16 +9,21 @@ export const runtime = "nodejs";
 // GET /api/outreach/pitches?page=&pageSize=&q=&status=
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:read");
     if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const pageSize = Math.min(100, parseInt(searchParams.get("pageSize") || "25", 10) || 25);
     const status = searchParams.get("status") || "";
+    const releaseId = searchParams.get("releaseId");
+    const artistId = searchParams.get("artistId");
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
+    // Rollup filters: pitches linked to a given release / artist.
+    if (releaseId) where.releaseIds = { has: releaseId };
+    if (artistId) where.artistIds = { has: artistId };
 
     const [total, rows] = await Promise.all([
       prisma.pitchLog.count({ where }),
@@ -67,7 +73,7 @@ export async function GET(request: NextRequest) {
 // POST /api/outreach/pitches
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "outreach:write");
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
@@ -100,6 +106,13 @@ export async function POST(request: NextRequest) {
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
     }
+
+    await recordAudit(request, guard.token, {
+      action: "create",
+      resource: "pitch",
+      resourceId: pitch.id,
+      summary: `Created pitch for "${contact.outlet || contact.name || pitch.id}"`,
+    });
 
     return NextResponse.json(pitch, { status: 201 });
   } catch (error) {

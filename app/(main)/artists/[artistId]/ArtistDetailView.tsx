@@ -67,6 +67,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   height={192}
                   placeholder="blur"
                   blurDataURL={BLUR_DATA_URL}
+                  priority
                   className="w-48 h-48 rounded-2xl object-cover"
                 />
               )}

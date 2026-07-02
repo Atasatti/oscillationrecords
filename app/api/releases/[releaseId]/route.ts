@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withWriteRetry } from "@/lib/db-retry";
-import { isAdminRequest, requireAdmin } from "@/lib/auth-guard";
+import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
+import { recordAudit } from "@/lib/audit";
 import { isReleasePublic } from "@/lib/catalog-data";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
 import {
   normalizeFeatureArtistNamesInput,
@@ -200,7 +203,7 @@ export async function PATCH(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
@@ -619,6 +622,21 @@ export async function PATCH(
 
     const tracks = release?.tracks.map(serializeTrack) || [];
 
+    await recordAudit(request, guard.token, {
+      action: "update",
+      resource: "release",
+      resourceId: releaseId,
+      summary: `Updated release "${release?.name ?? existing.name}"`,
+    });
+
+    // If this update leaves the release publicly live (RELEASED/past-scheduled AND
+    // has a tracklist), ping IndexNow so Bing/etc recrawl the page + the listings
+    // it now appears on. Runs after the response — never blocks the publish.
+    if (nextIsLive && tracks.length > 0) {
+      const slug = slugify(release?.name ?? existing.name);
+      after(() => submitToIndexNow([`/releases/${slug}`, "/releases", "/"]));
+    }
+
     return NextResponse.json({
       ...release,
       type: release ? prismaKindToApi(release.kind) : undefined,
@@ -638,7 +656,7 @@ export async function DELETE(
   { params }: { params: Promise<{ releaseId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "catalog:write");
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
@@ -647,6 +665,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
     await prisma.release.delete({ where: { id: releaseId } });
+    await recordAudit(request, guard.token, {
+      action: "delete",
+      resource: "release",
+      resourceId: releaseId,
+      summary: `Deleted release "${existing.name}"`,
+    });
     return NextResponse.json({ message: "Release deleted successfully" });
   } catch (error) {
     console.error("Error deleting release:", error);

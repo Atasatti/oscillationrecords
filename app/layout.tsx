@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Lato } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -8,6 +8,7 @@ import UserDemographicsCollector from "@/components/user/UserDemographicsCollect
 import CookieConsent from "@/components/local-ui/CookieConsent";
 import PageViewTracker from "@/components/local-ui/PageViewTracker";
 import GoogleAnalytics from "@/components/local-ui/GoogleAnalytics";
+import MicrosoftClarity from "@/components/local-ui/MicrosoftClarity";
 import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
 import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
@@ -55,6 +56,18 @@ export const metadata: Metadata = {
   },
 };
 
+// The site is dark-only. `colorScheme: "dark"` tells the browser so form controls
+// and the pre-hydration background match (no white flash). `viewportFit: "cover"`
+// lets `env(safe-area-inset-*)` resolve so fixed chrome (music player, nav) clears
+// notches/home indicators. `themeColor` tints mobile browser chrome to match.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0a0a",
+  colorScheme: "dark",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -71,6 +84,7 @@ export default function RootLayout({
             <CookieConsent />
             <PageViewTracker />
             <GoogleAnalytics />
+            <MicrosoftClarity />
             <ClientErrorLogger />
             <NewsletterPrompt />
           </MusicProvider>

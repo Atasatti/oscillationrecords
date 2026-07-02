@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: Promise<{ contentId: string }> }
 ) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
 
     // Safely await params - handle build-time scenarios

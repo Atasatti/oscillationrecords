@@ -203,15 +203,21 @@ function toRow(a: ArtistSelectRow): RowWithSignals {
   };
 }
 
-// Attach per-page roster stats with exactly TWO extra queries (no N+1):
-// one over Releases touching these artists, one PlayEvent groupBy (last 90d).
-// Also finalises each row's SEO score now that the release count is known.
-async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
-  if (rows.length === 0) return rows.map(stripSignals);
-  const ids = rows.map((r) => r.id);
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+// The single source of truth for "which releases credit an artist". An artist is
+// credited on a release if they appear at the RELEASE level (primary or feature)
+// OR on any TRACK of it (primary or feature) — so an MC on one song still "has"
+// that release. This matches the artist's public page, so the roster/editor SEO
+// score and the "needs attention" checks all agree on whether an artist has a
+// release. Returns, per artist id, the set of distinct release ids they're
+// credited on plus their most recent release date. Two queries, no N+1.
+export async function collectReleaseCreditsByArtist(
+  ids: string[]
+): Promise<Map<string, { releaseIds: Set<string>; lastReleaseDate: Date | null }>> {
+  const byArtist = new Map<string, { releaseIds: Set<string>; lastReleaseDate: Date | null }>();
+  if (ids.length === 0) return byArtist;
+  const idSet = new Set(ids);
 
-  const [releases, trackRows, plays] = await Promise.all([
+  const [releases, trackRows] = await Promise.all([
     // Releases that credit the artist at the RELEASE level (primary or feature).
     prisma.release.findMany({
       where: {
@@ -220,8 +226,7 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
       select: { id: true, primaryArtistIds: true, featureArtistIds: true, releaseDate: true },
     }),
     // …and TRACK-level credits — an artist on a single track of a release (e.g. an
-    // MC on one song) still "has" that release. Matches getArtistDetail so the
-    // count lines up with the artist's public page.
+    // MC on one song) still "has" that release.
     prisma.track.findMany({
       where: {
         OR: [{ primaryArtistIds: { hasSome: ids } }, { featureArtistIds: { hasSome: ids } }],
@@ -233,30 +238,17 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
         release: { select: { releaseDate: true } },
       },
     }),
-    prisma.playEvent.groupBy({
-      by: ["artistId"],
-      where: { artistId: { in: ids }, createdAt: { gte: since } },
-      _count: { _all: true },
-    }),
   ]);
 
-  const idSet = new Set(ids);
-  // Per artist: the set of distinct releaseIds they're credited on (release- OR
-  // track-level), so the count is # of distinct releases, never double-counted.
-  const releaseIdsByArtist = new Map<string, Set<string>>();
-  const lastById = new Map<string, Date>();
   const credit = (aid: string, releaseId: string, date: Date | null) => {
     if (!idSet.has(aid)) return;
-    let set = releaseIdsByArtist.get(aid);
-    if (!set) {
-      set = new Set();
-      releaseIdsByArtist.set(aid, set);
+    let entry = byArtist.get(aid);
+    if (!entry) {
+      entry = { releaseIds: new Set(), lastReleaseDate: null };
+      byArtist.set(aid, entry);
     }
-    set.add(releaseId);
-    if (date) {
-      const prev = lastById.get(aid);
-      if (!prev || date > prev) lastById.set(aid, date);
-    }
+    entry.releaseIds.add(releaseId);
+    if (date && (!entry.lastReleaseDate || date > entry.lastReleaseDate)) entry.lastReleaseDate = date;
   };
   for (const rel of releases) {
     for (const aid of new Set([...rel.primaryArtistIds, ...rel.featureArtistIds])) {
@@ -268,20 +260,51 @@ async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
       credit(aid, t.releaseId, t.release?.releaseDate ?? null);
     }
   }
+  return byArtist;
+}
+
+// Distinct release count per artist — the "does this artist have a release?"
+// signal shared by the roster/editor SEO score and the needs-attention checks so
+// they never disagree. Built on collectReleaseCreditsByArtist.
+export async function countReleasesByArtist(ids: string[]): Promise<Map<string, number>> {
+  const credits = await collectReleaseCreditsByArtist(ids);
+  const counts = new Map<string, number>();
+  for (const [aid, entry] of credits) counts.set(aid, entry.releaseIds.size);
+  return counts;
+}
+
+// Attach per-page roster stats with a couple of extra queries (no N+1): the
+// release-credit lookup (release- + track-level) and one PlayEvent groupBy (last
+// 90d). Also finalises each row's SEO score now that the release count is known.
+async function attachStats(rows: RowWithSignals[]): Promise<AdminArtistRow[]> {
+  if (rows.length === 0) return rows.map(stripSignals);
+  const ids = rows.map((r) => r.id);
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const [credits, plays] = await Promise.all([
+    collectReleaseCreditsByArtist(ids),
+    prisma.playEvent.groupBy({
+      by: ["artistId"],
+      where: { artistId: { in: ids }, createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+  ]);
+
   const playsById = new Map<string, number>();
   for (const p of plays) {
     if (p.artistId) playsById.set(p.artistId, p._count._all);
   }
 
   return rows.map((r) => {
-    const releaseCount = releaseIdsByArtist.get(r.id)?.size ?? 0;
+    const entry = credits.get(r.id);
+    const releaseCount = entry?.releaseIds.size ?? 0;
     const seo = computeArtistSeo({ ...r._sig, releaseCount });
     const gkp = computeArtistGkp({ ...r._sig, releaseCount });
     return stripSignals({
       ...r,
       releaseCount,
       playsLast90d: playsById.get(r.id) ?? 0,
-      lastReleaseDate: lastById.get(r.id)?.toISOString() ?? null,
+      lastReleaseDate: entry?.lastReleaseDate?.toISOString() ?? null,
       seoScore: seo.score,
       seoGrade: seo.grade,
       complete: seo.missing.length === 0,

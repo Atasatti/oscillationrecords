@@ -118,6 +118,7 @@ const Footer = () => {
         <div className="flex items-center gap-5 text-xs">
           <Link href="/privacy" className={navLinkCls}>Privacy</Link>
           <Link href="/terms" className={navLinkCls}>Terms</Link>
+          <Link href="/accessibility" className={navLinkCls}>Accessibility</Link>
           <Link href="/account" className={navLinkCls}>Account</Link>
           <button
             type="button"

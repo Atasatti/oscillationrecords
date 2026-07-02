@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withWriteRetry } from "@/lib/db-retry";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 // section. Uses its own field (not sortOrder) so it never collides with the
 // Custom-order panel, which writes sortOrder over all releases.
 export async function PUT(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:write");
   if (!guard.ok) return guard.response;
   try {
     const body = await request.json();

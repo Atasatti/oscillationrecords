@@ -15,6 +15,8 @@ const ContactFormSection = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  // Honeypot — stays empty for real users; a bot that fills every field trips it.
+  const [company, setCompany] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   // Point inputs at the status message only when one is shown, so screen
@@ -35,7 +37,7 @@ const ContactFormSection = () => {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, message }),
+        body: JSON.stringify({ name, email, message, company }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -118,6 +120,21 @@ const ContactFormSection = () => {
           className="placeholder:font-light min-h-[120px] max-h-[200px] resize-none no-scrollbar rounded-3xl !py-5"
           rows={5}
         />
+
+        {/* Honeypot: off-screen and hidden from assistive tech; only bots fill it.
+            A submission with this set is silently dropped server-side. */}
+        <div aria-hidden="true" className="absolute left-[-9999px] h-px w-px overflow-hidden">
+          <label htmlFor="contact-company">Company</label>
+          <input
+            id="contact-company"
+            name="company"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+          />
+        </div>
       </form>
 
       {status.kind === "success" ? (

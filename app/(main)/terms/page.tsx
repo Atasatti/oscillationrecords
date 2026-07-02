@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
-// NOTE: Working draft. Items in [brackets] must be confirmed by Oscillation
-// Records and the document reviewed by a qualified professional before use.
-const LAST_UPDATED = "[DATE]";
+// NOTE: Known facts (governing-law jurisdiction, date) are filled in. Have a
+// qualified professional review this before relying on it.
+const LAST_UPDATED = "2 July 2026";
 const CONTACT_EMAIL = "hello@oscillationrecords.com";
 
 export default function TermsOfService() {
@@ -93,7 +93,8 @@ export default function TermsOfService() {
           <p>
             To the fullest extent permitted by law, Oscillation Records will not be liable
             for any indirect, incidental, or consequential damages arising from your use
-            of the Service. [Confirm liability wording for your jurisdiction.]
+            of the Service. Nothing in these Terms limits any liability that cannot be
+            limited or excluded under applicable law.
           </p>
         </section>
 
@@ -108,8 +109,8 @@ export default function TermsOfService() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-white">10. Governing law</h2>
           <p>
-            These Terms are governed by the laws of [jurisdiction], and disputes are
-            subject to the courts of [jurisdiction].
+            These Terms are governed by the laws of England and Wales, and disputes are
+            subject to the exclusive jurisdiction of the courts of England and Wales.
           </p>
         </section>
 

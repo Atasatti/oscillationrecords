@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { searchIsni } from "@/lib/isni";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 // SRU API, free, no key). Returns { matches: IsniMatch[] } for the editor to
 // pick from. Best-effort: returns [] rather than erroring.
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;
 
   const q = new URL(request.url).searchParams.get("q") || "";

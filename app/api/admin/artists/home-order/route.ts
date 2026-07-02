@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withWriteRetry } from "@/lib/db-retry";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import { getFeaturedArtists } from "@/lib/admin-data";
 import { revalidatePath } from "next/cache";
 
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 // GET — featured artists in home-carousel order.
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;
   try {
     const items = await getFeaturedArtists();
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
 // PUT — { orderedIds: string[] } sets homeOrder = index for the featured set.
 export async function PUT(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:write");
   if (!guard.ok) return guard.response;
   try {
     const body = await request.json();

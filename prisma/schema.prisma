@@ -221,6 +221,16 @@ model Release {
   /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
   /// each other. Optional: rows never ordered there are treated as last (+∞).
   comingSoonOrder  Int?
+  /// Revenue-split agreement — an array of { payee, percent } recording who is owed
+  /// what share of this release's income. Shape/validation in lib/release-splits.ts.
+  /// A tracking aid, not authoritative accounting.
+  splits            Json?
+  /// Recorded income for this release — an array of { id, amount, date, note }.
+  /// Combined with `splits` to compute who's owed what. See lib/release-splits.ts.
+  revenue           Json?
+  /// Payouts made to payees — an array of { id, payee, amount, date, note }.
+  /// Subtracted from each payee's owed share to give outstanding. Tracking aid.
+  payments          Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -506,6 +516,17 @@ model OutreachTask {
   priority    String   @default("medium")
   /// "todo" | "in_progress" | "done"
   status      String   @default("todo")
+  /// The admin this task is assigned to (User.id). Null = unassigned. Optional so
+  /// existing tasks (created before assignment) read back as null, and so a task
+  /// survives its assignee losing admin access — the UI just shows it unassigned.
+  assigneeId  String?  @db.ObjectId
+  /// Repeat cadence: "weekly" | "biweekly" | "monthly" (null = one-off). When a
+  /// recurring task is completed, the API spawns the next occurrence with an
+  /// advanced due date. See lib/task-recurrence.ts.
+  recurrence  String?
+  /// Sub-task checklist — an array of { id, text, done }. Shape/validation in
+  /// lib/task-checklist.ts. The row shows progress (n/total); items tick inline.
+  checklist   Json?
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
@@ -519,6 +540,21 @@ model OutreachTask {
   @@index([category])
   @@index([isTemplate])
   @@index([dueAt])
+  @@index([assigneeId])
+}
+
+/// A comment on an OutreachTask — a discussion thread for staff. Author identity
+/// is denormalized (id + email) so it survives the author's User being removed;
+/// the UI resolves the display name/avatar from the staff directory.
+model TaskComment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId      String   @db.ObjectId
+  authorId    String?  @db.ObjectId
+  authorEmail String?
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([taskId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -548,4 +584,30 @@ model ErrorLog {
   @@index([resolved, lastSeen])
   @@index([lastSeen])
   @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+
+/// Admin activity / audit trail. One row per meaningful admin action (create /
+/// update / delete / role change), written best-effort AFTER the action succeeds
+/// so a logging failure never blocks the request. Actor identity is denormalized
+/// (email + role at the time) so the entry stays meaningful even if the user is
+/// later removed or re-roled. Surfaced read-only in the admin "Audit log" view.
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  at          DateTime @default(now())
+  actorId     String?  @db.ObjectId // User.id of who performed it (null if unknown)
+  actorEmail  String?               // denormalized actor email (survives user deletion)
+  actorRole   String?               // the actor's role at the time of the action
+  action      String                // "create" | "update" | "delete" | "role.change" | …
+  resource    String                // "release" | "artist" | "press" | "task" | "user" | …
+  resourceId  String?               // id of the affected record, when applicable
+  summary     String                // human-readable one-line description
+  metadata    Json?                 // optional structured context (e.g. before/after)
+  ip          String?
+  userAgent   String?
+
+  @@index([at])
+  @@index([resource, at])
+  @@index([actorId, at])
 }

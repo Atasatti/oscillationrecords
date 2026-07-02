@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 import {
   searchArtists,
   getArtistDetails,
@@ -19,7 +19,7 @@ export const runtime = "nodejs";
 // Admin-only free streaming-link enrichment. No API key required, so it's
 // always "available" (unlike Spotify).
 export async function GET(request: NextRequest) {
-  const guard = await requireAdmin(request);
+  const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;
 
   const params = new URL(request.url).searchParams;

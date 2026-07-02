@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requirePermission } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ const LIVE_SCAN = 1000; // max raw events scanned to compute live presence
 // addresses (we don't store them — see the dashboard notes).
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireAdmin(request);
+    const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
 
     const now = new Date();
