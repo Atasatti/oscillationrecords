@@ -117,12 +117,13 @@ export async function GET(
 function parseTrackInput(
   t: Record<string, unknown>,
   index: number,
-  isNew: boolean
+  isNew: boolean,
+  enforcePublish: boolean
 ): {
   id?: string;
   name: string;
   image: string | null;
-  audioFile: string;
+  audioFile: string | null;
   duration: number;
   releaseDate: Date | null;
   composer: string | null;
@@ -152,23 +153,24 @@ function parseTrackInput(
   if (!name) {
     throw new Error(`Track ${index + 1}: name is required`);
   }
-  if (isNew && (!audioFile || !Number.isFinite(duration) || duration < 0)) {
-    throw new Error(
-      `Track ${index + 1}: audioFile and duration are required for new tracks`
-    );
+  // Audio and a primary artist are required only when PUBLISHING the release
+  // (RELEASED). A draft (or Coming-Soon) track can be saved with just a name and
+  // completed before it goes live.
+  if (enforcePublish && isNew && !audioFile) {
+    throw new Error(`Track ${index + 1}: audio is required to publish`);
   }
   const primaryArtistIds = Array.isArray(t.primaryArtistIds)
     ? (t.primaryArtistIds as string[])
     : [];
-  if (primaryArtistIds.length === 0) {
-    throw new Error(`Track ${index + 1}: at least one primary artist is required`);
+  if (enforcePublish && primaryArtistIds.length === 0) {
+    throw new Error(`Track ${index + 1}: at least one primary artist is required to publish`);
   }
   return {
     id,
     name,
     image: t.image !== undefined && t.image !== null ? String(t.image) : null,
-    audioFile,
-    duration: Number.isFinite(duration) ? duration : 0,
+    audioFile: audioFile || null,
+    duration: audioFile && Number.isFinite(duration) ? duration : 0,
     releaseDate: t.releaseDate ? new Date(String(t.releaseDate)) : null,
     composer: t.composer ? String(t.composer) : null,
     lyricist: t.lyricist ? String(t.lyricist) : null,
@@ -392,9 +394,12 @@ export async function PATCH(
       if (tracksRaw.length === 0) {
         clearAllTracks = true;
       } else {
+        // Per-track audio/artist are enforced only when the release is going fully
+        // live (RELEASED); drafts and Coming-Soon save freely.
+        const enforceTrackPublishRules = nextStatus === "RELEASED";
         try {
           parsedTracks = tracksRaw.map((t: Record<string, unknown>, i: number) =>
-            parseTrackInput(t, i, !t.id)
+            parseTrackInput(t, i, !t.id, enforceTrackPublishRules)
           );
         } catch (e) {
           return NextResponse.json(
@@ -417,6 +422,24 @@ export async function PATCH(
             { status: 404 }
           );
         }
+      }
+    }
+
+    // Going fully live (RELEASED) requires a playable tracklist: at least one track,
+    // all with audio. Drafts and Coming-Soon may be audio-less. Also catches a
+    // status-only publish (the tracklist "Publish" panel sends no tracks) by
+    // checking what's already stored; for a publish that also sends tracks, a track
+    // keeping its stored audio (empty audio + existing id) still counts.
+    if (nextStatus === "RELEASED") {
+      const storedAudio = new Map(existing.tracks.map((t) => [String(t.id), t.audioFile]));
+      const effectiveAudio = parsedTracks
+        ? parsedTracks.map((t) => t.audioFile ?? (t.id ? storedAudio.get(t.id) ?? null : null))
+        : existing.tracks.map((t) => t.audioFile);
+      if (effectiveAudio.length === 0 || effectiveAudio.some((a) => !a)) {
+        return NextResponse.json(
+          { error: "Every track needs audio before this release can go live." },
+          { status: 400 }
+        );
       }
     }
 

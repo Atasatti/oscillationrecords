@@ -382,13 +382,11 @@ export function trackPublishIssues(row: EditorTrack, requireIsrc: boolean): stri
   return issues;
 }
 
-/** True once a row can be persisted as a track (new rows need audio first). */
+/** True once a row can be persisted as a track. A track only needs a NAME to be
+ *  saved onto a draft — audio, a primary artist and ISRC are required at PUBLISH
+ *  time (see trackPublishIssues), not to save work in progress. */
 export function trackIsPersistable(row: EditorTrack): boolean {
-  if (!row.name.trim()) return false;
-  if (row.primaryArtistIds.length === 0) return false;
-  // Existing tracks may keep their audio implicitly; new ones need a fileURL.
-  if (!row.id && (!row.audioFile || row.duration <= 0)) return false;
-  return true;
+  return row.name.trim().length > 0;
 }
 
 /** Build the PATCH track payload (matches parseTrackInput on the server). */
@@ -401,8 +399,9 @@ export function buildTrackPayload(
   const payload: Record<string, unknown> = {
     name: row.name.trim(),
     image: row.image,
-    audioFile: row.audioFile,
-    duration: row.duration,
+    // Null (not "") when no audio yet — the release can be a draft without it.
+    audioFile: row.audioFile || null,
+    duration: row.audioFile ? row.duration : 0,
     composer: composerJoined,
     lyricist: null,
     leadVocal: null,

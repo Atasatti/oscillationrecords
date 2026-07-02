@@ -298,8 +298,11 @@ model Track {
   sortOrder        Int      @default(0)
   name             String
   image            String?
-  audioFile        String
-  duration         Int
+  // Optional so a track can be saved on a DRAFT release before its audio is
+  // uploaded. Required (enforced in the API + publish gate) only when the release
+  // is published/scheduled. duration stays 0 until audio exists.
+  audioFile        String?
+  duration         Int          @default(0)
   releaseDate      DateTime?
   composer         String?
   lyricist         String?
