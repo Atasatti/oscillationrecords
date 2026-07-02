@@ -36,9 +36,15 @@ const cspHeaderKey = isDev
  * dynamically (see app/admin/layout.tsx `force-dynamic`).
  */
 function buildCsp(nonce?: string): string {
+  // Public (non-admin) analytics script hosts: Google Analytics (gtag) and
+  // Microsoft Clarity. Both are loaded client-side, consent-gated, and only on
+  // public pages — without these in the source list the enforced prod CSP would
+  // block the external scripts. Not needed in the admin nonce policy: analytics is
+  // excluded from /admin, and 'strict-dynamic' ignores host-source allowlists.
+  const analyticsHosts = "https://www.googletagmanager.com https://*.clarity.ms";
   const scriptSrc = nonce
     ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`
-    : `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`;
+    : `script-src 'self' 'unsafe-inline' ${analyticsHosts}${isDev ? " 'unsafe-eval'" : ""}`;
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",

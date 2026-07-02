@@ -8,6 +8,7 @@ import UserDemographicsCollector from "@/components/user/UserDemographicsCollect
 import CookieConsent from "@/components/local-ui/CookieConsent";
 import PageViewTracker from "@/components/local-ui/PageViewTracker";
 import GoogleAnalytics from "@/components/local-ui/GoogleAnalytics";
+import MicrosoftClarity from "@/components/local-ui/MicrosoftClarity";
 import ClientErrorLogger from "@/components/local-ui/ClientErrorLogger";
 import NewsletterPrompt from "@/components/local-ui/NewsletterPrompt";
 import { SITE_URL, SITE_NAME } from "@/lib/seo";
@@ -71,6 +72,7 @@ export default function RootLayout({
             <CookieConsent />
             <PageViewTracker />
             <GoogleAnalytics />
+            <MicrosoftClarity />
             <ClientErrorLogger />
             <NewsletterPrompt />
           </MusicProvider>
