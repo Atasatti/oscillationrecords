@@ -2,6 +2,7 @@
 import { useParams } from "next/navigation";
 import ReleaseEditor from "@/components/admin/release-editor/ReleaseEditor";
 import ReleaseSplitsPanel from "@/components/admin/ReleaseSplitsPanel";
+import ReleaseRevenuePanel from "@/components/admin/ReleaseRevenuePanel";
 import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import LinkedPitchesPanel from "@/components/admin/LinkedPitchesPanel";
 import LinkedPressPanel from "@/components/admin/LinkedPressPanel";
@@ -20,6 +21,7 @@ export default function EditReleasePage() {
           people actually work on. */}
       <div className="mt-16">
         <ReleaseSplitsPanel releaseId={releaseId} />
+        <ReleaseRevenuePanel releaseId={releaseId} />
         <LinkedTasksPanel releaseId={releaseId} />
         <LinkedPitchesPanel releaseId={releaseId} />
         <LinkedPressPanel releaseId={releaseId} />

@@ -225,6 +225,9 @@ model Release {
   /// what share of this release's income. Shape/validation in lib/release-splits.ts.
   /// A tracking aid, not authoritative accounting.
   splits            Json?
+  /// Recorded income for this release — an array of { id, amount, date, note }.
+  /// Combined with `splits` to compute who's owed what. See lib/release-splits.ts.
+  revenue           Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
