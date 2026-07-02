@@ -384,10 +384,19 @@ model ContactMessage {
   email     String
   message   String
   handled   Boolean  @default(false)
+  /// Ticket status: "open" | "in_progress" | "resolved". Kept in sync with
+  /// `handled` (resolved == handled) so the "unread" needs-attention count still
+  /// works. Existing rows default to "open".
+  status     String  @default("open")
+  /// Staff member (User.id) triaging this ticket. Null = unassigned.
+  assigneeId String? @db.ObjectId
+  /// "low" | "medium" | "high".
+  priority   String  @default("medium")
   createdAt DateTime @default(now())
 
   @@index([createdAt])
   @@index([handled, createdAt])
+  @@index([status, createdAt])
 }
 
 model PlayEvent {
