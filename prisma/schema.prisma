@@ -552,9 +552,13 @@ model TaskComment {
   authorId    String?  @db.ObjectId
   authorEmail String?
   body        String
+  /// Mentioned staff (User.id) — matched from @tokens in the body at post time.
+  /// Surfaced to each mentioned person in the reminders bell.
+  mentions    String[] @db.ObjectId
   createdAt   DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([mentions])
 }
 
 // ---------------------------------------------------------------------------

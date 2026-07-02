@@ -432,6 +432,32 @@ function fmtDate(iso: string | null) {
 
 type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
 
+// Match @tokens in a comment body against staff → their User ids (mentioned).
+function extractMentionIds(body: string, staff: Assignee[]): string[] {
+  const tokens = (body.match(/@([a-zA-Z][\w.-]*)/g) ?? []).map((t) => t.slice(1).toLowerCase());
+  if (!tokens.length) return [];
+  const ids = new Set<string>();
+  for (const tok of tokens) {
+    for (const s of staff) {
+      const name = (s.name || "").toLowerCase();
+      const emailLocal = (s.email || "").split("@")[0].toLowerCase();
+      if (name.split(/\s+/).some((w) => w === tok) || name.startsWith(tok) || (tok.length >= 2 && emailLocal.startsWith(tok))) {
+        ids.add(s.id);
+      }
+    }
+  }
+  return [...ids];
+}
+
+// Render a comment body with @tokens visually highlighted.
+function renderCommentBody(body: string) {
+  return body.split(/(@[a-zA-Z][\w.-]*)/g).map((p, i) =>
+    p.startsWith("@")
+      ? <span key={i} className="rounded bg-primary/15 px-0.5 font-medium text-foreground">{p}</span>
+      : <span key={i}>{p}</span>
+  );
+}
+
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
@@ -462,7 +488,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
       const res = await fetch(`/api/outreach/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, mentions: extractMentionIds(body, assignees) }),
       });
       if (!res.ok) throw new Error();
       const { comment } = await res.json();
@@ -513,7 +539,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
                       </button>
                     ) : null}
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{c.body}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{renderCommentBody(c.body)}</p>
                 </div>
               </li>
             );
@@ -526,7 +552,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
           rows={2}
-          placeholder="Add a comment… (⌘/Ctrl+Enter to post)"
+          placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
           className="flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         <Button type="button" onClick={add} disabled={posting || !text.trim()} size="sm" className="bg-white text-black hover:bg-gray-200">

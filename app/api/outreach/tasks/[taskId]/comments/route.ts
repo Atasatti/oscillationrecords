@@ -39,6 +39,10 @@ export async function POST(
     const raw = await request.json().catch(() => ({}));
     const body = typeof raw.body === "string" ? raw.body.trim().slice(0, 5000) : "";
     if (!body) return NextResponse.json({ error: "Comment can't be empty" }, { status: 400 });
+    // Mentioned staff ids (matched client-side from @tokens); validate as ObjectIds.
+    const mentions: string[] = Array.isArray(raw.mentions)
+      ? [...new Set((raw.mentions as unknown[]).filter((m): m is string => typeof m === "string" && OBJECT_ID.test(m)))]
+      : [];
 
     // Confirm the task exists (avoid orphan comments).
     const task = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { id: true } });
@@ -51,6 +55,7 @@ export async function POST(
         authorId: sub && OBJECT_ID.test(sub) ? sub : null,
         authorEmail: typeof guard.token.email === "string" ? guard.token.email : null,
         body,
+        mentions,
       },
     });
     return NextResponse.json({ comment }, { status: 201 });
