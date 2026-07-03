@@ -123,7 +123,7 @@ Nothing in the current admin covers this. Highest business value.
 | 24 | ✅ **Royalty & split tracking** | L | **Shipped.** `Release.splits`/`revenue`/`payments` → owed/paid/outstanding + cross-release rollup at `/admin/catalog/royalties`. |
 | 25 | ✅ **Campaign budget & spend** | M | **Shipped.** Per-release budget target + spend-by-category (`Release.budget`/`spend`), a budget panel on the editor + a cross-release rollup at `/admin/catalog/budgets`. |
 | 26 | ✅ **Agreements / terms store** | M | **Shipped.** Per-release licensing terms (type, territory, rights, term dates, notes) on the editor (`Release.terms`); expiring agreements feed needs-attention. |
-| 27 | ◑ **Invoicing / payout statements** | M | Partial: **payouts + outstanding tracked** (#24). Still missing: generated per-artist statements. |
+| 27 | ✅ **Invoicing / payout statements** | M | **Shipped.** Payouts/outstanding tracked (#24) + downloadable per-artist statement CSVs (and an all-payees export) on the royalties page. |
 
 ### Phase 6 — Release operations
 | # | Feature | Effort | Notes |
@@ -171,7 +171,7 @@ Nothing in the current admin covers this. Highest business value.
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
 - **Views (Notion):** custom properties (#15) — only Phase 3 item left. *(kanban #12, timeline #13, saved views #14, templates #16 shipped.)*
 - **Automation & inbox:** SLA targets (#19), message **reply thread** (#18 remainder), **email digest** (#22 remainder). *(automation rules #17, smarter alerts #21 shipped.)*
-- **Money:** per-artist statements (#27 remainder). *(royalties #24, campaign budgets #25, agreements/terms #26 shipped — Phase 5 essentially complete.)*
+- **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
 
 ---
