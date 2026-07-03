@@ -111,7 +111,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 18 | ◑ **Unified Inbox / ticketing** | M–L | **Mostly shipped.** `ContactMessage` → status (open/in-progress/resolved) + assignee + priority + status filters (`handled` kept in sync). *Reply thread* still TODO. |
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
-| 21 | **Smarter alert thresholds** | M | Extend needs-attention: release <7 days out missing artwork/links; pitch "sent" 14+ days no follow-up; artist idle N months. |
+| 21 | ✅ **Smarter alert thresholds** | M | **Shipped.** Needs-attention now flags imminent scheduled releases missing artwork/tracks, pitches sent 14+ days ago with no follow-up set, and artists idle 6+ months. |
 | 22 | ◑ **Reminders / daily digest** | M | **Partial:** in-app reminders via the bell (#23). *Email digest* still TODO. |
 | 23 | ✅ **Notifications center (in-app bell)** | S–M | **Shipped.** Topbar bell surfaces overdue/due-today tasks + unread @mentions. |
 
@@ -170,7 +170,7 @@ Nothing in the current admin covers this. Highest business value.
 ### Suggested next (not yet started)
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
 - **Views (Notion):** timeline/Gantt (#13), saved views (#14), custom properties (#15), templates (#16). *(kanban #12 shipped.)*
-- **Automation & inbox:** automation rules (#17), SLA targets (#19), smarter alert thresholds (#21), message **reply thread** (#18 remainder), **email digest** (#22 remainder).
+- **Automation & inbox:** SLA targets (#19), message **reply thread** (#18 remainder), **email digest** (#22 remainder). *(automation rules #17, smarter alerts #21 shipped.)*
 - **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27 remainder).
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
 
