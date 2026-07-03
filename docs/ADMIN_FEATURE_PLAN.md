@@ -98,7 +98,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 ### Phase 3 — Views & flexibility (Notion)
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 12 | **Board (kanban) view** | M | Columns by status/category; drag to move. |
+| 12 | ✅ **Board (kanban) view** | M | **Shipped.** Status columns (To&nbsp;Do / In&nbsp;Progress / Blocked / Done) + HTML5 drag-to-move on the Tasks page (List/Calendar still available). |
 | 13 | **Timeline / Gantt view** | M | Release rollout across weeks — ideal for campaigns. |
 | 14 | **Saved views** | M | Persist per-user filtered views ("My overdue", "This week's pitching", "<Release> campaign"). |
 | 15 | **Custom properties** | M | Lightweight extra fields: tags, effort estimate, budget. (Not fully dynamic — a few structured additions.) |
@@ -169,7 +169,7 @@ Nothing in the current admin covers this. Highest business value.
 
 ### Suggested next (not yet started)
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
-- **Views (Notion):** kanban board (#12), timeline/Gantt (#13), saved views (#14), custom properties (#15), templates (#16).
+- **Views (Notion):** timeline/Gantt (#13), saved views (#14), custom properties (#15), templates (#16). *(kanban #12 shipped.)*
 - **Automation & inbox:** automation rules (#17), SLA targets (#19), smarter alert thresholds (#21), message **reply thread** (#18 remainder), **email digest** (#22 remainder).
 - **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27 remainder).
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
