@@ -34,6 +34,14 @@ const EARNED_IDENTIFIERS = new Set([
 // `?isrc=` deep-link the tracks page highlights on.
 const canonIsrc = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
 
+// Proactive-alert thresholds (#21) — surface problems before they bite.
+const SCHEDULED_SOON_DAYS = 7; // a Coming Soon release this close should be ready
+const PITCH_STALE_DAYS = 14; // a "sent" pitch left this long with no follow-up set
+const ARTIST_IDLE_MONTHS = 6; // an artist with no release (past or scheduled) this long
+
+const DAY_MS = 86_400_000;
+const daysBetween = (from: Date, to: Date) => Math.floor((to.getTime() - from.getTime()) / DAY_MS);
+
 // GET /api/tasks/needs-attention
 export async function GET(request: NextRequest) {
   try {
@@ -45,6 +53,12 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     // "Stale" inbound = unanswered for 3+ weeks (the A&R reputation-risk threshold).
     const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const scheduledHorizon = new Date(now.getTime() + SCHEDULED_SOON_DAYS * DAY_MS);
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const pitchStaleBefore = new Date(now.getTime() - PITCH_STALE_DAYS * DAY_MS);
+    const idleBefore = new Date(now);
+    idleBefore.setMonth(idleBefore.getMonth() - ARTIST_IDLE_MONTHS);
 
     const [
       artists,
@@ -55,6 +69,10 @@ export async function GET(request: NextRequest) {
       duePitchCount,
       duePitchesTop,
       releasedTracks,
+      scheduledSoon,
+      stalePitchesTop,
+      stalePitchCount,
+      datedReleases,
     ] = await Promise.all([
       prisma.artist.findMany({
         where: { showOnWebsite: true },
@@ -115,7 +133,40 @@ export async function GET(request: NextRequest) {
         where: { release: { status: "RELEASED" } },
         select: { id: true, name: true, isrcCode: true, releaseId: true, release: { select: { name: true } } },
       }),
+      // Coming Soon releases landing between today and a week out — checked for
+      // readiness below. Lower-bounded to today so a release stuck in SCHEDULED long
+      // past its date (its status is never auto-flipped to RELEASED) doesn't fire
+      // "is due now" forever.
+      prisma.release.findMany({
+        where: { status: "SCHEDULED", releaseDate: { gte: startOfToday, lte: scheduledHorizon } },
+        select: { id: true, name: true, coverImage: true, releaseDate: true, tracks: { select: { id: true } } },
+      }),
+      // Pitches sent 14+ days ago with NO follow-up scheduled (the follow-up-due
+      // check needs a date, so these forgotten ones would otherwise be invisible).
+      prisma.pitchLog.findMany({
+        where: { status: "sent", followUpDueAt: null, sentAt: { lte: pitchStaleBefore } },
+        select: { id: true, sentAt: true, contact: { select: { name: true, outlet: true } } },
+        orderBy: { sentAt: "asc" },
+        take: 6,
+      }),
+      prisma.pitchLog.count({ where: { status: "sent", followUpDueAt: null, sentAt: { lte: pitchStaleBefore } } }),
+      // Dated releases (past or scheduled) → latest activity per artist, for idle detection.
+      prisma.release.findMany({
+        where: { status: { in: ["RELEASED", "SCHEDULED"] }, releaseDate: { not: null } },
+        select: { releaseDate: true, primaryArtistIds: true, featureArtistIds: true },
+      }),
     ]);
+
+    // Most recent release date per artist (primary or feature; past or scheduled),
+    // so an artist with an upcoming release isn't flagged idle.
+    const latestReleaseByArtist = new Map<string, Date>();
+    for (const r of datedReleases) {
+      if (!r.releaseDate) continue;
+      for (const id of [...r.primaryArtistIds, ...r.featureArtistIds]) {
+        const cur = latestReleaseByArtist.get(id);
+        if (!cur || r.releaseDate > cur) latestReleaseByArtist.set(id, r.releaseDate);
+      }
+    }
 
     // Release count per artist — via the SAME definition the roster/editor SEO
     // score uses (release- OR track-level, primary OR feature, any status), so an
@@ -144,6 +195,12 @@ export async function GET(request: NextRequest) {
       // identifiers (MusicBrainz / ISNI / Wikipedia / Wikidata) from the list.
       const actionableMissing = seo.missing.filter((m) => !EARNED_IDENTIFIERS.has(m));
 
+      // Idle = has a dated release (past or scheduled) but none since the threshold
+      // (a future scheduled release keeps `latestRelease` recent, so upcoming work
+      // isn't flagged).
+      const latestRelease = latestReleaseByArtist.get(a.id);
+      const idle = latestRelease !== undefined && latestRelease < idleBefore;
+
       if (seo.grade === "weak") {
         items.push({
           id: `artist-seo-${a.id}`,
@@ -154,6 +211,23 @@ export async function GET(request: NextRequest) {
             : "Add more profile detail to strengthen the page",
           href: `/admin/catalog/artists/${a.id}/edit`,
           priority: "high",
+        });
+      } else if (idle && latestRelease) {
+        // Released before but gone quiet — a momentum nudge. Placed after weak-SEO
+        // (fix the page first) but before the SEO-polish / email nudges.
+        // Calendar-month gap, matching the `idleBefore` gate (setMonth) so the label
+        // and the threshold agree.
+        const months = Math.max(
+          1,
+          (now.getFullYear() - latestRelease.getFullYear()) * 12 + (now.getMonth() - latestRelease.getMonth())
+        );
+        items.push({
+          id: `artist-idle-${a.id}`,
+          type: "artist",
+          title: `${a.name} — no release in ${months} months`,
+          detail: "Keep the momentum going: plan the next single or check in with the artist.",
+          href: `/admin/catalog/artists/${a.id}/edit`,
+          priority: "medium",
         });
       } else if (seo.grade === "good" && actionableMissing.length > 0) {
         items.push({
@@ -252,6 +326,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Coming Soon: a scheduled release landing within a week that isn't ready
+    // (missing artwork or with no tracks yet) — the imminent-drop fire drills.
+    for (const r of scheduledSoon) {
+      const gaps: string[] = [];
+      if (!r.coverImage) gaps.push("cover art");
+      if (r.tracks.length === 0) gaps.push("tracks");
+      if (gaps.length === 0) continue;
+      const days = r.releaseDate
+        ? Math.ceil((new Date(r.releaseDate).getTime() - now.getTime()) / DAY_MS)
+        : 0;
+      const when = days <= 0 ? "is due now" : days === 1 ? "goes live tomorrow" : `goes live in ${days} days`;
+      items.push({
+        id: `sched-soon-${r.id}`,
+        type: "release",
+        title: `"${r.name}" ${when} — missing ${gaps.join(" & ")}`,
+        detail: "A scheduled release needs its artwork and tracklist ready before the date.",
+        href: `/admin/catalog/releases/${r.id}/edit`,
+        priority: "high",
+      });
+    }
+
     // Outreach: pitch follow-ups due (status "sent" with a past follow-up date).
     // Surface the actual pitches (not just the hub count) so they're one click to
     // action. A short list shows each pitch; a long one collapses to a summary.
@@ -280,6 +375,33 @@ export async function GET(request: NextRequest) {
           detail: `Oldest is ${days} day${days > 1 ? "s" : ""} overdue${oldest?.contact?.name ? ` (${oldest.contact.name})` : ""}.`,
           href: "/admin/outreach/pitches",
           priority: "high",
+        });
+      }
+    }
+
+    // Outreach: pitches marked "sent" 14+ days ago with NO follow-up scheduled —
+    // the forgotten ones the follow-up-due check (which needs a date) can't see.
+    if (stalePitchCount > 0) {
+      if (stalePitchCount <= 6) {
+        for (const p of stalePitchesTop) {
+          const days = p.sentAt ? daysBetween(new Date(p.sentAt), now) : PITCH_STALE_DAYS;
+          items.push({
+            id: `pitch-stale-${p.id}`,
+            type: "system",
+            title: `No follow-up set: ${p.contact?.name ?? "pitch"}${p.contact?.outlet ? ` · ${p.contact.outlet}` : ""}`,
+            detail: `Sent ${days} days ago with no follow-up date scheduled.`,
+            href: `/admin/outreach/pitches/${p.id}/edit`,
+            priority: "medium",
+          });
+        }
+      } else {
+        items.push({
+          id: "pitch-stale-all",
+          type: "system",
+          title: `${stalePitchCount} pitches sent with no follow-up`,
+          detail: "Each was sent 14+ days ago and has no follow-up scheduled — set dates or close them out.",
+          href: "/admin/outreach/pitches",
+          priority: "medium",
         });
       }
     }

@@ -1517,7 +1517,7 @@ export default function TasksPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {attentionItems.map((item) => {
-                const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : Radio;
+                const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : item.type === "artist" ? UserRound : Radio;
                 // Pin + highlight unread contact messages — time-sensitive inbound.
                 const isMessage = item.id === "system-messages";
                 return (
