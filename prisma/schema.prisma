@@ -452,6 +452,30 @@ model Demo {
   @@index([stage, createdAt])
 }
 
+/// A planned social / content post in the marketing calendar — distinct from the
+/// task board (#12) and the release timeline (#13). Optionally tied to a release
+/// (releaseId, no hard relation — resolved by lookup). Shape/validation in
+/// lib/content-post.ts.
+model ContentPost {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  releaseId    String?  @db.ObjectId
+  title        String
+  /// "instagram" | "tiktok" | "twitter" | "youtube" | "facebook" | "newsletter" | "other"
+  platform     String   @default("instagram")
+  /// The calendar day the post is planned for, stored at UTC midnight so it pins
+  /// to the same day for every viewer regardless of timezone.
+  scheduledFor DateTime
+  /// "idea" | "drafted" | "scheduled" | "published"
+  status       String   @default("idea")
+  copy         String?
+  assetLink    String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([scheduledFor])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId

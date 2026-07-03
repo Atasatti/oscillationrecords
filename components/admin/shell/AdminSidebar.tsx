@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ClipboardList, Headphones, ScrollText, Rocket, CalendarRange, Wallet, Coins, Zap, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ClipboardList, Headphones, ScrollText, Rocket, CalendarRange, CalendarDays, Wallet, Coins, Zap, type LucideIcon } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
@@ -65,6 +65,7 @@ const adminGroups: readonly AdminGroup[] = [
       { href: "/admin/tasks", label: "Tasks", icon: ListChecks, perm: "outreach:read" },
       { href: "/admin/automations", label: "Automations", icon: Zap, perm: "outreach:write" },
       { href: "/admin/outreach/templates", label: "Templates", icon: ClipboardList, perm: "outreach:write" },
+      { href: "/admin/content/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
       { href: "/admin/messages", label: "Messages", icon: MessageSquare, perm: "outreach:read" },
       { href: "/admin/subscribers", label: "Subscribers", icon: Mail, perm: "outreach:read" },
     ],
