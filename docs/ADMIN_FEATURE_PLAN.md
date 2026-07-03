@@ -141,7 +141,7 @@ Nothing in the current admin covers this. Highest business value.
 ### Phase 8 — Marketing & reach
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 33 | **Placement tracker** | M | Log playlist adds (+ follower counts), blog/press coverage, radio adds — a running "wins" record for future pitching. |
+| 33 | ✅ **Placement tracker** | M | **Shipped** at `/admin/outreach/placements`: an internal wins log — playlist adds (+ reach), radio spins, press/blog coverage — with outlet, playlist/show/article, date, and optional release/artist links. Type filter + combined-reach headline. CRUD API (outreach-gated + audited). Distinct from the public Press feature. |
 | 34 | ✅ **Content / social calendar** | M | **Shipped** at `/admin/content/calendar`: a month-grid calendar of planned posts (click a day to plan, a post to edit). Platform-tagged (colour-coded), status funnel (Idea → Drafted → Scheduled → Published), optional release link, per-platform month filter. UTC-pinned dates + local "today". CRUD API (outreach-gated + audited). |
 | 35 | **Newsletter campaigns** | M–L | Composer + scheduler + open/click stats over existing `Subscriber` list. |
 
@@ -168,11 +168,11 @@ Nothing in the current admin covers this. Highest business value.
 5. ✅ Bonus: Ops dashboard (#20).
 
 ### Suggested next (not yet started)
-- **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
+- **Small task wins (S):** ✅ blocked/waiting status (#4) + first-class group-by (#11) shipped.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
 - **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), placement tracker (#33), newsletter campaigns (#35). *(A&R demo pipeline #31 + content calendar #34 shipped.)*
+- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), newsletter campaigns (#35 — needs email infra). *(A&R demo pipeline #31 + content calendar #34 + placement tracker #33 shipped.)*
 
 ---
 
