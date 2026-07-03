@@ -102,7 +102,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 13 | **Timeline / Gantt view** | M | Release rollout across weeks — ideal for campaigns. |
 | 14 | ✅ **Saved views** | M | **Shipped.** Named per-user snapshots of the Tasks tab / filters / group-by / layout (`SavedView` model), applied from a "Views" bar. |
 | 15 | **Custom properties** | M | Lightweight extra fields: tags, effort estimate, budget. (Not fully dynamic — a few structured additions.) |
-| 16 | **Templates** | M | Release-campaign checklist templates, artist-onboarding templates, pitch-email templates. Extends today's 26 suggestions. |
+| 16 | ✅ **Templates** | M | **Shipped.** Reusable task templates (`TaskTemplate`) — build a named set of tasks, apply in one click. Manager at `/admin/outreach/templates`. |
 
 ### Phase 4 — Automation & inbox (Atera)
 | # | Feature | Effort | Notes |
@@ -169,7 +169,7 @@ Nothing in the current admin covers this. Highest business value.
 
 ### Suggested next (not yet started)
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
-- **Views (Notion):** timeline/Gantt (#13), custom properties (#15), templates (#16). *(kanban #12, saved views #14 shipped.)*
+- **Views (Notion):** timeline/Gantt (#13), custom properties (#15). *(kanban #12, saved views #14, templates #16 shipped.)*
 - **Automation & inbox:** SLA targets (#19), message **reply thread** (#18 remainder), **email digest** (#22 remainder). *(automation rules #17, smarter alerts #21 shipped.)*
 - **Money:** per-artist statements (#27 remainder). *(royalties #24, campaign budgets #25, agreements/terms #26 shipped — Phase 5 essentially complete.)*
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
