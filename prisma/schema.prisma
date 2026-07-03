@@ -237,6 +237,11 @@ model Release {
   /// Campaign spend — an array of { id, amount, category, date, note }. Totalled
   /// and compared against `budget`. Shape/validation in lib/release-budget.ts.
   spend             Json?
+  /// Licensing/deal terms for this release — a single object { type, territory,
+  /// rights, startDate, endDate, notes }. Given the label's non-exclusive model,
+  /// records what each release is licensed under. Shape/validation in
+  /// lib/release-terms.ts; `endDate` powers the "agreement expiring" alert.
+  terms             Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt

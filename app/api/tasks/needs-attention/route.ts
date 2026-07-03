@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { computeArtistSeo, computeReleaseSeo } from "@/lib/seo-score";
 import { countReleasesByArtist } from "@/lib/admin-data";
+import { normalizeTerms, daysUntilExpiry } from "@/lib/release-terms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,6 +39,7 @@ const canonIsrc = (s: string) => s.replace(/[^a-z0-9]/gi, "").toUpperCase();
 const SCHEDULED_SOON_DAYS = 7; // a Coming Soon release this close should be ready
 const PITCH_STALE_DAYS = 14; // a "sent" pitch left this long with no follow-up set
 const ARTIST_IDLE_MONTHS = 6; // an artist with no release (past or scheduled) this long
+const AGREEMENT_EXPIRY_DAYS = 30; // a licensing agreement ending within this many days
 
 const DAY_MS = 86_400_000;
 const daysBetween = (from: Date, to: Date) => Math.floor((to.getTime() - from.getTime()) / DAY_MS);
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
       stalePitchesTop,
       stalePitchCount,
       datedReleases,
+      termsReleases,
     ] = await Promise.all([
       prisma.artist.findMany({
         where: { showOnWebsite: true },
@@ -154,6 +157,12 @@ export async function GET(request: NextRequest) {
       prisma.release.findMany({
         where: { status: { in: ["RELEASED", "SCHEDULED"] }, releaseDate: { not: null } },
         select: { releaseDate: true, primaryArtistIds: true, featureArtistIds: true },
+      }),
+      // Licensing terms → surface agreements ending soon (or already expired).
+      // Scoped like the other release queries — a draft doesn't need a renewal alarm.
+      prisma.release.findMany({
+        where: { status: { in: ["RELEASED", "SCHEDULED"] } },
+        select: { id: true, name: true, terms: true },
       }),
     ]);
 
@@ -344,6 +353,25 @@ export async function GET(request: NextRequest) {
         detail: "A scheduled release needs its artwork and tracklist ready before the date.",
         href: `/admin/catalog/releases/${r.id}/edit`,
         priority: "high",
+      });
+    }
+
+    // Licensing agreements ending within a month (or lapsed in the last quarter) —
+    // renew, re-license, or let them lapse deliberately rather than get caught out.
+    for (const r of termsReleases) {
+      const days = daysUntilExpiry(normalizeTerms(r.terms), now);
+      if (days === null || days > AGREEMENT_EXPIRY_DAYS || days < -90) continue;
+      const when =
+        days < 0 ? `expired ${Math.abs(days)} day${days === -1 ? "" : "s"} ago`
+          : days === 0 ? "expires today"
+          : `expires in ${days} day${days === 1 ? "" : "s"}`;
+      items.push({
+        id: `terms-expiry-${r.id}`,
+        type: "release",
+        title: `"${r.name}" — agreement ${when}`,
+        detail: "Review the licensing terms and renew or re-license before it lapses.",
+        href: `/admin/catalog/releases/${r.id}/edit`,
+        priority: days <= 7 ? "high" : "medium",
       });
     }
 
