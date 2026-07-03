@@ -621,6 +621,18 @@ model SavedView {
   @@index([userId])
 }
 
+/// A reusable task template — a named set of task specs (title/category/priority)
+/// that spawn tasks in one click (e.g. a pre-release campaign or artist onboarding).
+/// Team-shared (not per-user). Items shape/validation in lib/task-template.ts.
+model TaskTemplate {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  items       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 /// A comment on an OutreachTask — a discussion thread for staff. Author identity
 /// is denormalized (id + email) so it survives the author's User being removed;
 /// the UI resolves the display name/avatar from the staff directory.
