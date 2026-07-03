@@ -108,7 +108,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 17 | ◑ **Automation rules ("when X → do Y")** | L | **Shipped (2 rules)** at `/admin/automations`: pitch Accepted → follow-up task (event); scheduled release within N days → pre-release campaign task (run via "Run now"/cron). Extensible registry (`lib/automations.ts`) + idempotent fire ledger. More triggers/actions can be added. |
-| 18 | ◑ **Unified Inbox / ticketing** | M–L | **Mostly shipped.** `ContactMessage` → status (open/in-progress/resolved) + assignee + priority + status filters (`handled` kept in sync). *Reply thread* still TODO. |
+| 18 | ✅ **Unified Inbox / ticketing** | M–L | **Shipped.** `ContactMessage` → status + assignee + priority + status filters, plus an internal reply/notes thread per ticket (`MessageReply`). |
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
 | 21 | ✅ **Smarter alert thresholds** | M | **Shipped.** Needs-attention now flags imminent scheduled releases missing artwork/tracks, pitches sent 14+ days ago with no follow-up set, and artists idle 6+ months. |
@@ -170,7 +170,7 @@ Nothing in the current admin covers this. Highest business value.
 ### Suggested next (not yet started)
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
 - **Views (Notion):** custom properties (#15) — only Phase 3 item left. *(kanban #12, timeline #13, saved views #14, templates #16 shipped.)*
-- **Automation & inbox:** SLA targets (#19), message **reply thread** (#18 remainder), **email digest** (#22 remainder). *(automation rules #17, smarter alerts #21 shipped.)*
+- **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
 
