@@ -135,7 +135,7 @@ Nothing in the current admin covers this. Highest business value.
 ### Phase 7 — A&R & artists
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 31 | **Demo / A&R pipeline** | M | Inbound demos → funnel: Received → Reviewing → Passed / Offer → Releasing, with a rating field. |
+| 31 | ✅ **Demo / A&R pipeline** | M | **Shipped** at `/admin/outreach/demos`: log inbound demos (artist, contact, link, genre, source), rate 1–5 stars, move through Received → Reviewing → Offer → Signed/releasing / Passed. Stage tabs + counts, inline quick-edits, CRUD API (outreach-gated + audited, http(s)-only link). |
 | 32 | **Artist onboarding checklist** | S–M | On add-artist: collect bio, photos, ISNI/IPI/MusicBrainz IDs, payout details. |
 
 ### Phase 8 — Marketing & reach
@@ -172,7 +172,7 @@ Nothing in the current admin covers this. Highest business value.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
 - **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
+- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35). *(A&R demo pipeline #31 shipped.)*
 
 ---
 
