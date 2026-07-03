@@ -6,12 +6,61 @@ import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/local-ui/Toast";
 import { getCached, setCached } from "@/lib/admin-cache";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { PayeeRollup } from "@/app/api/releases/royalties/route";
 
 type Data = { payees: PayeeRollup[]; totals: { owed: number; paid: number; outstanding: number } };
 
 const money = (n: number) => (n < 0 ? "-£" + Math.abs(n).toFixed(2) : "£" + n.toFixed(2));
+
+// ---- CSV statement export (client-side, from the already-loaded rollup) ----
+const csvField = (v: string | number) => {
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "payee";
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+function downloadCsv(filename: string, rows: (string | number)[][]) {
+  const content = rows.map((r) => r.map(csvField).join(",")).join("\r\n");
+  // Prepend a BOM so Excel opens the £ signs / UTF-8 correctly.
+  const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function payeeStatement(p: PayeeRollup) {
+  const rows: (string | number)[][] = [
+    ["Royalty statement", p.payee],
+    ["Generated", todayIso()],
+    [],
+    ["Release", "Owed (£)", "Paid (£)", "Outstanding (£)"],
+    ...p.releases.map((r) => [r.name, r.owed.toFixed(2), r.paid.toFixed(2), r.outstanding.toFixed(2)]),
+    ["Total", p.owed.toFixed(2), p.paid.toFixed(2), p.outstanding.toFixed(2)],
+  ];
+  downloadCsv(`statement-${slug(p.payee)}-${todayIso()}.csv`, rows);
+}
+
+function allStatements(payees: PayeeRollup[]) {
+  const rows: (string | number)[][] = [
+    ["Royalty statement — all payees"],
+    ["Generated", todayIso()],
+    [],
+    ["Payee", "Release", "Owed (£)", "Paid (£)", "Outstanding (£)"],
+    ...payees.flatMap((p) => [
+      ...p.releases.map((r) => [p.payee, r.name, r.owed.toFixed(2), r.paid.toFixed(2), r.outstanding.toFixed(2)]),
+      [p.payee, "— Total —", p.owed.toFixed(2), p.paid.toFixed(2), p.outstanding.toFixed(2)],
+    ]),
+  ];
+  downloadCsv(`royalty-statements-${todayIso()}.csv`, rows);
+}
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "owed" | "paid" | "outstanding" }) {
   const color = tone === "outstanding" ? (value > 0 ? "text-amber-400" : "text-emerald-400") : "text-foreground";
@@ -61,6 +110,13 @@ export default function RoyaltiesPage() {
       <PageHeader
         title="Royalties"
         description="Who's owed what across every release — owed (revenue × split), paid, and still outstanding. A tracking aid, not accounting."
+        actions={
+          data && data.payees.length > 0 ? (
+            <Button variant="outline" onClick={() => allStatements(data.payees)}>
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+          ) : null
+        }
       />
 
       {loading ? (
@@ -133,6 +189,15 @@ export default function RoyaltiesPage() {
                           </span>
                         </Link>
                       ))}
+                      <div className="mt-2 pl-11">
+                        <button
+                          type="button"
+                          onClick={() => payeeStatement(p)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download {p.payee}&apos;s statement (CSV)
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
