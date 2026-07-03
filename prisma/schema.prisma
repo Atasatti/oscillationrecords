@@ -430,6 +430,28 @@ model MessageReply {
   @@index([messageId, createdAt])
 }
 
+/// An inbound demo / A&R prospect moving through the signing funnel. Logged
+/// manually (from email, SoundCloud, DMs…). Stage + rating drive the pipeline
+/// view. Shape/validation in lib/demo.ts.
+model Demo {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  artistName   String
+  contactName  String?
+  contactEmail String?
+  link         String?
+  genre        String?
+  source       String?
+  /// "received" | "reviewing" | "offer" | "releasing" | "passed"
+  stage        String   @default("received")
+  /// 0 = unrated, else 1..5.
+  rating       Int      @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([stage, createdAt])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
