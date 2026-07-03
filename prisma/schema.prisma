@@ -39,6 +39,11 @@ model Session {
 model User {
   id                String             @id @default(auto()) @map("_id") @db.ObjectId
   name              String?
+  /// Optional admin-set display nickname to tell similarly-named accounts apart
+  /// (e.g. two staff both named "Ben"). Shown across the admin staff directory and
+  /// pickers, preferred over the Google `name` when set. Purely a label — it has
+  /// no bearing on auth/roles.
+  nickname          String?
   email             String?            @unique
   emailVerified     DateTime?
   image             String?

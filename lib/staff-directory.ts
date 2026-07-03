@@ -12,6 +12,8 @@ export type StaffEntry = {
   id: string | null;
   email: string;
   name: string | null;
+  /** Admin-set display nickname, preferred over `name` when set (e.g. two "Ben"s). */
+  nickname: string | null;
   image: string | null;
   /** Staff role. Bootstrap accounts are always "admin" (owner). */
   role: StaffRole;
@@ -25,11 +27,11 @@ export async function getStaffDirectory(): Promise<StaffEntry[]> {
   const [staffUsers, bootstrapUsers] = await Promise.all([
     prisma.user.findMany({
       where: { role: { in: [...STAFF_ROLES] } },
-      select: { id: true, name: true, email: true, image: true, role: true },
+      select: { id: true, name: true, nickname: true, email: true, image: true, role: true },
     }),
     prisma.user.findMany({
       where: { email: { in: [...ADMIN_EMAILS] } },
-      select: { id: true, name: true, email: true, image: true },
+      select: { id: true, name: true, nickname: true, email: true, image: true },
     }),
   ]);
   const byEmail = new Map(bootstrapUsers.map((u) => [(u.email || "").toLowerCase(), u]));
@@ -42,6 +44,7 @@ export async function getStaffDirectory(): Promise<StaffEntry[]> {
       id: u?.id ?? null,
       email,
       name: u?.name ?? null,
+      nickname: u?.nickname ?? null,
       image: u?.image ?? null,
       role: "admin",
       locked: true,
@@ -52,7 +55,15 @@ export async function getStaffDirectory(): Promise<StaffEntry[]> {
     const e = (u.email || "").toLowerCase();
     if (!e || bootstrapSet.has(e) || map.has(e)) continue;
     const role: StaffRole = isStaffRole(u.role) ? u.role : "admin";
-    map.set(e, { id: u.id, email: u.email!, name: u.name, image: u.image, role, locked: false });
+    map.set(e, {
+      id: u.id,
+      email: u.email!,
+      name: u.name,
+      nickname: u.nickname,
+      image: u.image,
+      role,
+      locked: false,
+    });
   }
 
   return [...map.values()];
