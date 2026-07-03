@@ -23,7 +23,7 @@ export const ABOUT_FAQ: Array<{ question: string; answer: string }> = [
   {
     question: "Where is Oscillation Records based?",
     answer:
-      "Oscillation Records is based in Manchester, United Kingdom. It's a UK-registered independent record label (Companies House company no. 15579381), founded in 2022.",
+      "Oscillation Records is based in Manchester, United Kingdom. It's an independent record label that has been releasing music since 2021, and was incorporated as Oscillation Records Ltd (Companies House company no. 15579381) in 2024.",
   },
   {
     question: "What genre or kind of music does Oscillation Records release?",

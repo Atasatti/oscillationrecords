@@ -9,7 +9,7 @@ import React from "react";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Get in touch with Oscillation Records — for artists, collaborations, and enquiries.",
+    "Get in touch with Oscillation Records, an independent Manchester record label. Send a demo, propose a collaboration, or reach out with any artist enquiry.",
   alternates: { canonical: "/contact" },
   openGraph: {
     title: "Contact | Oscillation Records",

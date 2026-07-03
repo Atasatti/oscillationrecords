@@ -48,7 +48,7 @@ export async function generateMetadata({
   const artistSuffix = artistNames ? ` by ${artistNames}` : "";
   const description =
     metaDescription(r.description) ||
-    `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}.`;
+    `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}, an independent Manchester record label releasing electronic music — dubstep, drum & bass and house.`;
   return {
     title: r.name,
     description,

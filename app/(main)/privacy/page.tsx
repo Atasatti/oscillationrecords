@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Oscillation Records collects, uses, and protects your personal data, and the rights you have over it.",
+    "How Oscillation Records collects, uses and protects your personal data, the third parties involved, the rights you have over it, and how to get in touch.",
   alternates: { canonical: "/privacy" },
 };
 

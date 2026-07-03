@@ -25,9 +25,12 @@ export const LABEL = {
   legalName: "Oscillation Records Ltd",
   // Confirmed: UK company register (also in the footer + Organization sameAs).
   companyNumber: "15579381",
-  // Incorporated in 2022 (year only — exact date not confirmed). schema.org
-  // foundingDate accepts a bare year.
-  foundingDate: "2022" as string | null,
+  // Operating since 2021 (first releases); incorporated in the UK as Oscillation
+  // Records Ltd in 2024. schema.org foundingDate is a single date, so it carries
+  // the founding / first-activity year (2021); the 2024 incorporation lives in the
+  // description prose so every source (site, Wikidata, MusicBrainz, Companies
+  // House) tells one consistent story instead of three conflicting years.
+  foundingDate: "2021" as string | null,
   // Founder — emitted as Organization.founder (Person).
   founder: "Ben Sharp Knowles" as string | null,
   // Primary city.
@@ -41,11 +44,18 @@ export const LABEL = {
   // The label's own Wikidata item. Lets artist drafts cite "record label →
   // Oscillation Records" (P264) and links the Organization schema to Wikidata.
   wikidataId: "Q140353657" as string | null,
-  // Names the label is also known by — helps reconcile name variants.
-  alternateName: ["Oscillation Records Ltd", "OSCILLATION RECORDS LTD"],
+  // Names the label is also known by — helps reconcile name variants. Includes
+  // the legal name (two casings) plus the location-qualified forms people search
+  // for. Keep these identical to the aliases on the Wikidata item (Q140353657).
+  alternateName: [
+    "Oscillation Records Ltd",
+    "OSCILLATION RECORDS LTD",
+    "Oscillation Records UK",
+    "Oscillation Records Manchester",
+  ],
   // One-line factual entity definition (feeds Organization.description + llms.txt).
   description:
-    "Oscillation Records is an independent record label based in Manchester, United Kingdom (company no. 15579381), founded in 2022. It releases electronic music — EDM, dubstep, drum & bass and house — alongside other genres, built on a simple principle: put artists first.",
+    "Oscillation Records is an independent record label based in Manchester, United Kingdom, releasing music since 2021 and incorporated as Oscillation Records Ltd (company no. 15579381) in 2024. It releases electronic music — EDM, dubstep, drum & bass and house — alongside other genres, built on a simple principle: put artists first.",
   // schema.org disambiguatingDescription — the property purpose-built for telling
   // similarly-named entities apart. Names the SPECIFIC entities search/AI engines
   // confuse us with, so each has an explicit "this is NOT that" signal.
@@ -56,8 +66,45 @@ export const LABEL = {
     "as, nor affiliated with, any of these similarly-named acts: “The Oscillation”, the London " +
     "psychedelic / space-rock band led by Demian Castellanos; “Oscillations”, the London " +
     "experimental-electronic record label founded by Gabriel Prokofiev; or the Chilean " +
-    "tech-house / techno duo also using the name “Oscillation Records” (Eban Krocker and Diego Herrera).",
+    "tech-house / techno duo also using the name “Oscillation Records” (Eban Krocker and Diego Herrera). " +
+    "It is likewise unrelated to any other similarly-named “Oscillation” / “Oscillate” label or artist " +
+    "appearing on Beatport, Bandcamp or Discogs.",
 } as const;
+
+// The SPECIFIC other entities that search / AI engines merge us with, expressed
+// as schema.org `differentFrom` — the machine-readable analogue of Wikidata's
+// P1889 ("different from"). This gives crawlers a typed edge to follow instead of
+// forcing them to parse the disambiguatingDescription prose. Each points at the
+// best public URI for that entity so Google can route ITS facts to ITS node
+// rather than collapsing everything onto ours. Mirror these with reciprocal
+// P1889 statements on Wikidata for the strongest effect.
+const ORG_DIFFERENT_FROM = [
+  {
+    "@type": "MusicGroup",
+    name: "The Oscillation",
+    description:
+      "London psychedelic / space-rock band led by Demian Castellanos (releases on Fuzz Club and Rough Trade).",
+    sameAs: [
+      "https://theoscillation.com",
+      "https://www.discogs.com/artist/958895",
+      // Wikidata item for the band (reciprocal "different from" P1889 with ours).
+      "https://www.wikidata.org/wiki/Q140420345",
+    ],
+  },
+  {
+    "@type": "Organization",
+    name: "Oscillations",
+    description:
+      "London experimental-electronic record label founded by Gabriel Prokofiev.",
+    sameAs: ["https://oscillations-music.bandcamp.com/"],
+  },
+  {
+    "@type": "MusicGroup",
+    name: "Oscillation Records (Chilean tech-house / techno duo)",
+    description:
+      "Chilean tech-house / techno duo (Eban Krocker and Diego Herrera) who also release as “Oscillation Records”.",
+  },
+];
 
 export function absoluteUrl(path: string): string {
   if (/^https?:\/\//.test(path)) return path;
@@ -186,9 +233,17 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
   return jsonLd;
 }
 
+// schema.org MusicAlbumReleaseType — classifies a release as single / EP / album.
+const ALBUM_RELEASE_TYPE: Record<string, string> = {
+  single: "https://schema.org/SingleRelease",
+  ep: "https://schema.org/EPRelease",
+  album: "https://schema.org/AlbumRelease",
+};
+
 type ReleaseDetailLike = {
   id: string;
   name: string;
+  type?: "single" | "ep" | "album";
   coverImage?: string | null;
   description?: string | null;
   releaseDate?: string | Date | null;
@@ -233,6 +288,9 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
       "@id": `${SITE_URL}/#organization`,
     },
   };
+  if (release.type && ALBUM_RELEASE_TYPE[release.type]) {
+    jsonLd.albumReleaseType = ALBUM_RELEASE_TYPE[release.type];
+  }
   if (release.coverImage) jsonLd.image = imageObject(release.coverImage, release.name);
   const desc = metaDescription(release.description, 5000);
   if (desc) jsonLd.description = desc;
@@ -260,6 +318,67 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
   }
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
+}
+
+type ReleaseCardLike = {
+  name: string;
+  type?: "single" | "ep" | "album";
+  primaryArtistName?: string | null;
+  thumbnail?: string | null;
+  releaseDate?: string | null;
+};
+
+/**
+ * schema.org CollectionPage + ItemList for the /releases catalogue page. Exposes
+ * the whole discography as one machine-readable list, each entry a MusicAlbum tied
+ * to the label entity (@id #organization). This gives search / AI engines the
+ * catalogue in a single structured object and a crawl path to every release page —
+ * directly strengthening the label's "record label with a catalogue" signal.
+ */
+export function buildReleaseListJsonLd(releases: ReleaseCardLike[]) {
+  const itemListElement = releases
+    .filter((r) => r && r.name && r.name.trim())
+    .map((r, i) => {
+      const url = absoluteUrl(`/releases/${slugify(r.name)}`);
+      const album: Record<string, unknown> = {
+        "@type": "MusicAlbum",
+        "@id": url,
+        url,
+        name: r.name,
+        recordLabel: { "@id": `${SITE_URL}/#organization` },
+      };
+      if (r.type && ALBUM_RELEASE_TYPE[r.type]) {
+        album.albumReleaseType = ALBUM_RELEASE_TYPE[r.type];
+      }
+      if (r.primaryArtistName && r.primaryArtistName.trim()) {
+        album.byArtist = {
+          "@type": "MusicGroup",
+          name: r.primaryArtistName,
+          url: absoluteUrl(`/artists/${slugify(r.primaryArtistName)}`),
+        };
+      }
+      if (r.thumbnail && r.thumbnail.trim()) album.image = r.thumbnail;
+      if (r.releaseDate) {
+        const d = new Date(r.releaseDate);
+        if (!isNaN(d.getTime())) album.datePublished = d.toISOString().slice(0, 10);
+      }
+      return { "@type": "ListItem", position: i + 1, item: album };
+    });
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${SITE_URL}/releases#catalog`,
+    url: `${SITE_URL}/releases`,
+    name: `Music — ${SITE_NAME}`,
+    isPartOf: { "@id": `${SITE_URL}/#website` },
+    about: { "@id": `${SITE_URL}/#organization` },
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: itemListElement.length,
+      itemListElement,
+    },
+  };
 }
 
 /**
@@ -311,7 +430,12 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
     legalName: LABEL.legalName,
     description: LABEL.description,
     disambiguatingDescription: LABEL.disambiguatingDescription,
+    // Typed "this is NOT that" edges to the entities we get merged with.
+    differentFrom: ORG_DIFFERENT_FROM,
     url: SITE_URL,
+    // Bind the entity to its canonical home document so the homepage's principal
+    // entity is explicit, not inferred.
+    mainEntityOfPage: SITE_URL,
     logo: absoluteUrl("/logo-icon.svg"),
   };
   if (LABEL.alternateName.length) {

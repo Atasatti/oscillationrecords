@@ -38,20 +38,23 @@ export const metadata: Metadata = {
     default: SITE_NAME,
     template: `%s | ${SITE_NAME}`,
   },
-  description: "A Record Label That Puts Artists First",
+  description:
+    "Oscillation Records is an independent Manchester record label championing electronic artists — dubstep, drum & bass and house. Music that puts artists first.",
   applicationName: SITE_NAME,
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
     title: SITE_NAME,
-    description: "A Record Label That Puts Artists First",
+    description:
+      "An independent Manchester record label — electronic music (dubstep, drum & bass, house), artists first.",
     url: SITE_URL,
     images: [{ url: "/og-default.png", width: 1200, height: 630, alt: SITE_NAME }],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
-    description: "A Record Label That Puts Artists First",
+    description:
+      "An independent Manchester record label — electronic music (dubstep, drum & bass, house), artists first.",
     images: ["/og-default.png"],
   },
 };

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The terms that govern your use of the Oscillation Records website.",
+    "The terms that govern your use of the Oscillation Records website — acceptable use, intellectual property, disclaimers, liability, and the rules for visitors.",
   alternates: { canonical: "/terms" },
 };
 

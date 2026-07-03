@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Accessibility",
   description:
-    "Oscillation Records' commitment to an accessible website, the standard we aim for, and how to report a barrier.",
+    "Oscillation Records' commitment to an accessible website — the WCAG standard we aim for, steps we've taken, and how to report an accessibility barrier.",
   alternates: { canonical: "/accessibility" },
 };
 

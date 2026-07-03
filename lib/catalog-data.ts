@@ -498,6 +498,7 @@ export async function getPublicArtists(): Promise<PublicArtistDTO[]> {
 export interface ReleaseMetaDTO {
   id: string;
   name: string;
+  type: "single" | "ep" | "album";
   coverImage: string | null;
   description: string | null;
   releaseDate: string | null; // ISO
@@ -524,6 +525,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         id: true,
         status: true,
         name: true,
+        kind: true,
         coverImage: true,
         description: true,
         releaseDate: true,
@@ -564,6 +566,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     return {
       id: r.id,
       name: r.name,
+      type: prismaKindToApi(r.kind),
       coverImage: r.coverImage ?? null,
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
