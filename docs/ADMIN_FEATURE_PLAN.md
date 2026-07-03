@@ -121,7 +121,7 @@ Nothing in the current admin covers this. Highest business value.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 24 | ✅ **Royalty & split tracking** | L | **Shipped.** `Release.splits`/`revenue`/`payments` → owed/paid/outstanding + cross-release rollup at `/admin/catalog/royalties`. |
-| 25 | **Campaign budget & spend** | M | Per-campaign budget-vs-actual (SubmitHub/Groover/ads). Suggestions already reference "budget €50–100". |
+| 25 | ✅ **Campaign budget & spend** | M | **Shipped.** Per-release budget target + spend-by-category (`Release.budget`/`spend`), a budget panel on the editor + a cross-release rollup at `/admin/catalog/budgets`. |
 | 26 | **Agreements / terms store** | M | Given the **non-exclusive** model: which release is under what terms (split %, rights, duration) per artist. |
 | 27 | ◑ **Invoicing / payout statements** | M | Partial: **payouts + outstanding tracked** (#24). Still missing: generated per-artist statements. |
 
@@ -171,7 +171,7 @@ Nothing in the current admin covers this. Highest business value.
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
 - **Views (Notion):** timeline/Gantt (#13), custom properties (#15), templates (#16). *(kanban #12, saved views #14 shipped.)*
 - **Automation & inbox:** SLA targets (#19), message **reply thread** (#18 remainder), **email digest** (#22 remainder). *(automation rules #17, smarter alerts #21 shipped.)*
-- **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27 remainder).
+- **Money:** agreements/terms (#26), per-artist statements (#27 remainder). *(royalties #24, campaign budgets #25 shipped.)*
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
 
 ---
