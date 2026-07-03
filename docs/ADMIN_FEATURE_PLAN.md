@@ -142,7 +142,7 @@ Nothing in the current admin covers this. Highest business value.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 33 | **Placement tracker** | M | Log playlist adds (+ follower counts), blog/press coverage, radio adds — a running "wins" record for future pitching. |
-| 34 | **Content / social calendar** | M | Plan posts per platform per release (distinct from task calendar). |
+| 34 | ✅ **Content / social calendar** | M | **Shipped** at `/admin/content/calendar`: a month-grid calendar of planned posts (click a day to plan, a post to edit). Platform-tagged (colour-coded), status funnel (Idea → Drafted → Scheduled → Published), optional release link, per-platform month filter. UTC-pinned dates + local "today". CRUD API (outreach-gated + audited). |
 | 35 | **Newsletter campaigns** | M–L | Composer + scheduler + open/click stats over existing `Subscriber` list. |
 
 ### Phase 9 — Team & security *(pairs with the current security audit)*
@@ -172,7 +172,7 @@ Nothing in the current admin covers this. Highest business value.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
 - **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35). *(A&R demo pipeline #31 shipped.)*
+- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), placement tracker (#33), newsletter campaigns (#35). *(A&R demo pipeline #31 + content calendar #34 shipped.)*
 
 ---
 
