@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
+  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -56,6 +56,13 @@ const STATUS_ACCENT: Record<string, string> = {
   in_progress: "border-l-sky-500",
   blocked: "border-l-amber-500",
   done: "border-l-emerald-500",
+};
+// Solid status dots for the board column headers.
+const STATUS_COL_DOT: Record<string, string> = {
+  todo: "bg-zinc-500",
+  in_progress: "bg-sky-500",
+  blocked: "bg-amber-500",
+  done: "bg-emerald-500",
 };
 const STATUS_PILL: Record<string, string> = {
   todo: "border-zinc-600/60 bg-zinc-500/10 text-zinc-200",
@@ -693,8 +700,11 @@ export default function TasksPage() {
   // Assignee filter: "" = everyone · "me" = my tasks · "none" = unassigned · <id>.
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "board" | "calendar">("list");
   const [groupBy, setGroupBy] = useState<GroupKey>("none");
+  // Board drag-and-drop: the card being dragged + the column hovered.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -921,6 +931,29 @@ export default function TasksPage() {
     }
     return out;
   }, [grouped, filtered]);
+
+  // Board view: the category/assignee-filtered tasks bucketed by status column,
+  // each sorted most-urgent first (priority, then soonest due).
+  const board = useMemo(() => {
+    const cols: Record<string, Task[]> = { todo: [], in_progress: [], blocked: [], done: [] };
+    for (const t of tasks) {
+      if (!matchesFilters(t)) continue;
+      // Coerce any out-of-vocabulary status into "todo" so a task can never vanish
+      // from the board (the List/Calendar views still show it regardless).
+      const key = (STATUSES as readonly string[]).includes(t.status) ? t.status : "todo";
+      (cols[key] ??= []).push(t);
+    }
+    for (const k of Object.keys(cols)) {
+      cols[k].sort((a, b) => {
+        const pr = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+        if (pr !== 0) return pr;
+        const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+        const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+        return aDue - bDue;
+      });
+    }
+    return cols;
+  }, [tasks, matchesFilters]);
 
   // Calendar: group dated tasks by their due day (category + assignee filters
   // apply; all statuses shown). Undated tasks get their own strip below the grid.
@@ -1159,6 +1192,127 @@ export default function TasksPage() {
     </select>
   );
 
+  // A compact, draggable task card for the board view. Click opens the editor;
+  // drag it to another column to change its status (via updateStatus).
+  const renderCard = (t: Task) => {
+    const overdue = isOverdue(t);
+    const assignee = assignees.find((a) => a.id === t.assigneeId) ?? null;
+    const chips = t.checklist?.length || t.commentCount || t.attachments?.length || isRecurrence(t.recurrence);
+    return (
+      <div
+        key={t.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", t.id);
+          setDraggingId(t.id);
+        }}
+        onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+        role="button"
+        tabIndex={0}
+        onClick={() => openEdit(t)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(t); } }}
+        className={`cursor-grab rounded-lg border border-border bg-card p-3 transition-colors hover:border-white/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing ${draggingId === t.id ? "opacity-40" : ""}`}
+      >
+        <div className="flex items-start gap-2">
+          <p className={`min-w-0 flex-1 text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>
+            {t.title}
+          </p>
+          {assignee ? <AssigneeAvatar user={assignee} size={20} /> : null}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[t.priority] ?? "bg-zinc-500"}`} />
+            {PRIORITY_LABELS[t.priority]}
+          </span>
+          <span className="text-border" aria-hidden>·</span>
+          <span className="capitalize">{t.category}</span>
+          {t.dueAt ? (
+            <>
+              <span className="text-border" aria-hidden>·</span>
+              <span className={overdue ? "font-medium text-amber-400" : ""}>
+                {overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}
+              </span>
+            </>
+          ) : null}
+        </div>
+        {chips ? (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            {t.checklist?.length ? (
+              <span className="inline-flex items-center gap-1">
+                <ListChecks className="h-3 w-3" aria-hidden /> {checklistProgress(t.checklist).done}/{checklistProgress(t.checklist).total}
+              </span>
+            ) : null}
+            {t.commentCount ? (
+              <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden /> {t.commentCount}</span>
+            ) : null}
+            {t.attachments?.length ? (
+              <span className="inline-flex items-center gap-1"><Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}</span>
+            ) : null}
+            {isRecurrence(t.recurrence) ? (
+              <span className="inline-flex items-center gap-1"><Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const boardView = (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+          className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="">All categories</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+        </select>
+        {assigneeFilterSelect}
+        <span className="text-xs text-muted-foreground">Drag a card between columns to change its status, or open a card to edit it.</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {STATUSES.map((col) => {
+          const items = board[col] ?? [];
+          const active = dragOverCol === col;
+          return (
+            <div
+              key={col}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragOverCol !== col) setDragOverCol(col); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol((c) => (c === col ? null : c)); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = draggingId || e.dataTransfer.getData("text/plain");
+                const moved = tasks.find((x) => x.id === id);
+                if (id && moved && moved.status !== col) updateStatus(id, col);
+                setDraggingId(null);
+                setDragOverCol(null);
+              }}
+              className={`flex w-72 shrink-0 flex-col rounded-xl border transition-colors ${active ? "border-primary/60 bg-primary/[0.04]" : "border-border bg-white/[0.02]"}`}
+            >
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COL_DOT[col] ?? "bg-zinc-500"}`} />
+                <span className="text-sm font-medium">{STATUS_LABELS[col]}</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{items.length}</span>
+              </div>
+              <div className="flex min-h-[8rem] flex-col gap-2 p-2">
+                {items.length === 0 ? (
+                  <p className="select-none px-2 py-8 text-center text-xs text-muted-foreground">
+                    {active ? "Release to move here" : "No tasks"}
+                  </p>
+                ) : (
+                  items.map((t) => renderCard(t))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
   // ---- render ----
   return (
     <div>
@@ -1251,6 +1405,15 @@ export default function TasksPage() {
           }`}
         >
           <List className="h-3.5 w-3.5" /> List
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("board")}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+            view === "board" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Columns3 className="h-3.5 w-3.5" /> Board
         </button>
         <button
           type="button"
@@ -1633,6 +1796,8 @@ export default function TasksPage() {
         </div>
       )}
         </>
+      ) : view === "board" ? (
+        boardView
       ) : (
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
