@@ -416,6 +416,20 @@ model ContactMessage {
   @@index([status, createdAt])
 }
 
+/// An internal reply/note on a ContactMessage ticket — a staff thread and a log of
+/// the response sent. Author identity is denormalized (email) so it survives the
+/// author's User being removed. See app/api/contact/[id]/replies.
+model MessageReply {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId   String   @db.ObjectId
+  authorId    String?  @db.ObjectId
+  authorEmail String?
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([messageId, createdAt])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Loader2, Mail, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +69,123 @@ const SELECT_CLASS =
   "focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-50";
 
 type Filter = "all" | TicketStatus;
+
+type Reply = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
+
+// Internal reply/notes thread on a ticket — a staff discussion + a log of the
+// response sent. Lazily loads on expand.
+function MessageReplies({ messageId, staff }: { messageId: string; staff: StaffOption[] }) {
+  const toast = useToast();
+  const { data: session } = useSession();
+  const myEmail = session?.user?.email ?? null;
+  const [open, setOpen] = useState(false);
+  const [replies, setReplies] = useState<Reply[] | null>(null);
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const r = await fetch(`/api/contact/${messageId}/replies`);
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      setReplies(j.replies as Reply[]);
+    } catch {
+      setReplies([]);
+    }
+  };
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && replies === null) load();
+  };
+
+  const send = async () => {
+    const text = body.trim();
+    if (!text) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/contact/${messageId}/replies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: text }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error();
+      setReplies((rs) => [...(rs ?? []), j.reply as Reply]);
+      setBody("");
+    } catch {
+      toast.error("Couldn't add the note — you may not have permission.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/contact/${messageId}/replies?replyId=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setReplies((rs) => (rs ?? []).filter((x) => x.id !== id));
+    } catch {
+      toast.error("Couldn't delete the note");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const nameFor = (email: string | null) => staff.find((s) => s.email === email)?.name?.trim() || email || "Someone";
+  const count = replies?.length ?? 0;
+
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <button type="button" onClick={toggle} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <MessageSquare className="h-3.5 w-3.5" /> Notes{count ? ` (${count})` : ""}
+        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+      {open ? (
+        <div className="mt-2 flex flex-col gap-2">
+          {replies === null ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : replies.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No notes yet — log your reply or leave a note for the team.</p>
+          ) : (
+            replies.map((r) => (
+              <div key={r.id} className="rounded-md border border-border bg-background/40 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-foreground">{nameFor(r.authorEmail)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">{fmt(r.createdAt)}</span>
+                    {r.authorEmail && myEmail && r.authorEmail === myEmail ? (
+                      <button type="button" onClick={() => remove(r.id)} disabled={busyId === r.id} aria-label="Delete note"
+                        className="text-muted-foreground transition-colors hover:text-red-400 disabled:opacity-50">
+                        {busyId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-300">{r.body}</p>
+              </div>
+            ))
+          )}
+          <div className="flex items-start gap-2">
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={2}
+              placeholder="Log your reply, or a note for the team…"
+              className="min-w-0 flex-1 resize-none rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <Button size="sm" onClick={send} disabled={sending || !body.trim()} className="bg-white text-black hover:bg-gray-200">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function AdminMessagesClient({
   initialMessages,
@@ -296,6 +414,8 @@ export default function AdminMessagesClient({
                     </select>
                   </label>
                 </div>
+
+                <MessageReplies messageId={m.id} staff={staff} />
               </div>
             );
           })}
