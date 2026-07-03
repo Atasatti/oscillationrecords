@@ -232,6 +232,11 @@ model Release {
   /// Payouts made to payees — an array of { id, payee, amount, date, note }.
   /// Subtracted from each payee's owed share to give outstanding. Tracking aid.
   payments          Json?
+  /// Promo campaign budget target (the label's own currency), or null if unset.
+  budget            Float?
+  /// Campaign spend — an array of { id, amount, category, date, note }. Totalled
+  /// and compared against `budget`. Shape/validation in lib/release-budget.ts.
+  spend             Json?
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt

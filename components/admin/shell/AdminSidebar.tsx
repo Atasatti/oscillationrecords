@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ScrollText, Rocket, Wallet, Zap, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ScrollText, Rocket, Wallet, Coins, Zap, type LucideIcon } from "lucide-react";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
@@ -45,6 +45,7 @@ const adminGroups: readonly AdminGroup[] = [
       },
       { href: "/admin/catalog/pipeline", label: "Pipeline", icon: Rocket, perm: "catalog:read" },
       { href: "/admin/catalog/royalties", label: "Royalties", icon: Wallet, perm: "catalog:read" },
+      { href: "/admin/catalog/budgets", label: "Budgets", icon: Coins, perm: "catalog:read" },
       {
         href: "/admin/catalog/artists",
         label: "Artists",
