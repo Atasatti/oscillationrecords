@@ -507,6 +507,35 @@ model Placement {
   @@index([type, placedOn])
 }
 
+/// A file in the asset library / DAM — a master, artwork, stems, press photo,
+/// or EPK stored on our own S3 bucket under the "assets/" prefix. `fileKey` is
+/// the S3 object key (kept so we can delete the object). Optionally tied to a
+/// release and/or artist. Shape/validation in lib/asset.ts.
+model Asset {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// "master" | "artwork" | "stems" | "press_photo" | "epk" | "document" | "other"
+  category     String   @default("other")
+  title        String
+  fileName     String
+  /// S3 object key under "assets/" — used to delete the object on removal.
+  fileKey      String
+  fileUrl      String
+  mimeType     String
+  /// Bytes (from an S3 HEAD after upload; 0 if unknown).
+  size         Int      @default(0)
+  releaseId    String?  @db.ObjectId
+  artistId     String?  @db.ObjectId
+  /// Mongo User.id of the uploader (resolved by email, not token.sub).
+  uploadedById String?  @db.ObjectId
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category, createdAt])
+  @@index([releaseId])
+  @@index([artistId])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId

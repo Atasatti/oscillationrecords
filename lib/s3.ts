@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 
@@ -51,6 +51,37 @@ export function sanitizeKey(name: unknown): string | null {
     return null;
   }
   return trimmed;
+}
+
+/** Delete an object from our bucket. Best-effort: returns false (never throws)
+ *  when S3 isn't configured or the delete fails, so callers can proceed. */
+export async function deleteS3Object(key: string): Promise<boolean> {
+  if (!s3Configured() || !s3Client) return false;
+  try {
+    await s3Client.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    return true;
+  } catch (e) {
+    console.error(`Failed to delete S3 object ${key}:`, e);
+    return false;
+  }
+}
+
+/** HEAD an object to confirm it exists and read its true size + content-type
+ *  (used to validate an uploaded asset rather than trusting client-claimed
+ *  metadata). Returns null if S3 isn't configured or the object is missing. */
+export async function headS3Object(
+  key: string
+): Promise<{ size: number; contentType: string } | null> {
+  if (!s3Configured() || !s3Client) return null;
+  try {
+    const r = await s3Client.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    return {
+      size: typeof r.ContentLength === "number" ? r.ContentLength : 0,
+      contentType: r.ContentType || "application/octet-stream",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function isAudioContentType(t: unknown): boolean {
