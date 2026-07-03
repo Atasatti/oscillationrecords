@@ -49,11 +49,18 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    // Keep the admin area and API out of search indexes. robots.txt `Disallow`
+    // only asks crawlers not to fetch; an X-Robots-Tag: noindex header actually
+    // deindexes URLs that were already crawled (and API JSON responses).
+    const noindex = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
     return [
       {
         source: "/:path*",
         headers: securityHeaders,
       },
+      { source: "/admin", headers: noindex },
+      { source: "/admin/:path*", headers: noindex },
+      { source: "/api/:path*", headers: noindex },
     ];
   },
 };

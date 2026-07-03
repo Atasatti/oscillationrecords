@@ -10,7 +10,12 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${SITE_URL}/`, changeFrequency: "weekly", priority: 1 },
+    {
+      url: `${SITE_URL}/`,
+      changeFrequency: "weekly",
+      priority: 1,
+      images: [absoluteUrl("/og-default.png")],
+    },
     { url: `${SITE_URL}/artists`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/releases`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/press`, changeFrequency: "weekly", priority: 0.6 },

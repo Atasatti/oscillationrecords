@@ -499,6 +499,8 @@ export interface ReleaseMetaDTO {
   id: string;
   name: string;
   type: "single" | "ep" | "album";
+  upcCode: string | null;
+  catalogueNumber: string | null;
   coverImage: string | null;
   description: string | null;
   releaseDate: string | null; // ISO
@@ -510,7 +512,12 @@ export interface ReleaseMetaDTO {
   amazonMusicLink: string | null;
   youtubeLink: string | null;
   soundcloudLink: string | null;
-  tracks: { name: string }[];
+  tracks: {
+    name: string;
+    duration: number | null;
+    isrcCode: string | null;
+    iswc: string | null;
+  }[];
 }
 
 /** Minimal public release data for SEO metadata + JSON-LD. Returns null if missing. */
@@ -526,6 +533,8 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         status: true,
         name: true,
         kind: true,
+        upcCode: true,
+        catalogueNumber: true,
         coverImage: true,
         description: true,
         releaseDate: true,
@@ -538,7 +547,10 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         amazonMusicLink: true,
         youtubeLink: true,
         soundcloudLink: true,
-        tracks: { select: { name: true }, orderBy: { sortOrder: "asc" } },
+        tracks: {
+          select: { name: true, duration: true, isrcCode: true, iswc: true },
+          orderBy: { sortOrder: "asc" },
+        },
       },
     });
     if (!r) return null;
@@ -567,6 +579,8 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       id: r.id,
       name: r.name,
       type: prismaKindToApi(r.kind),
+      upcCode: r.upcCode ?? null,
+      catalogueNumber: r.catalogueNumber ?? null,
       coverImage: r.coverImage ?? null,
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
@@ -578,7 +592,12 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       amazonMusicLink: r.amazonMusicLink ?? null,
       youtubeLink: r.youtubeLink ?? null,
       soundcloudLink: r.soundcloudLink ?? null,
-      tracks: r.tracks.map((t) => ({ name: t.name })),
+      tracks: r.tracks.map((t) => ({
+        name: t.name,
+        duration: t.duration || null,
+        isrcCode: t.isrcCode ?? null,
+        iswc: t.iswc ?? null,
+      })),
     };
   } catch (e) {
     console.error("getReleaseMeta: DB unavailable", e);

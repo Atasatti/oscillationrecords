@@ -63,6 +63,36 @@ export default function AboutFaqSection() {
         We sign, release and champion the artists we believe in.
       </p>
 
+      {/* Atomic, standalone facts in plain (always-visible) text — the form search
+          engines and AI assistants copy near-verbatim, and the cleanest place to
+          state the negative disambiguation facts as prose rather than only schema. */}
+      <div className="mt-10 border-t border-border pt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Key facts
+        </h2>
+        <ul className="mt-4 space-y-2 text-base leading-relaxed text-foreground">
+          <li>
+            Oscillation Records is an independent record label based in Manchester,
+            United Kingdom.
+          </li>
+          <li>
+            It has been releasing music since 2021 and was incorporated as Oscillation
+            Records Ltd (company no.{" "}
+            <span className="tabular-nums">{LABEL.companyNumber}</span>) in 2024.
+          </li>
+          <li>Its founder is {LABEL.founder}.</li>
+          <li>
+            It releases electronic music — dubstep, drum &amp; bass and house —
+            alongside other genres.
+          </li>
+          <li>
+            It is not affiliated with the band The Oscillation, with the London label
+            Oscillations founded by Gabriel Prokofiev, or with any other
+            similarly-named label on Discogs, Beatport or Bandcamp.
+          </li>
+        </ul>
+      </div>
+
       <h2
         id="about-faq-heading"
         className="mt-14 text-2xl font-semibold tracking-tight text-foreground"

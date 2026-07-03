@@ -240,10 +240,23 @@ const ALBUM_RELEASE_TYPE: Record<string, string> = {
   album: "https://schema.org/AlbumRelease",
 };
 
+/** Seconds → ISO-8601 duration for schema.org `duration` (e.g. 222 → "PT3M42S"). */
+function isoDuration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const parts = `${h ? `${h}H` : ""}${m ? `${m}M` : ""}`;
+  // Always emit a seconds component if nothing else, so we never produce a bare "PT".
+  return `PT${parts}${sec || !parts ? `${sec}S` : ""}`;
+}
+
 type ReleaseDetailLike = {
   id: string;
   name: string;
   type?: "single" | "ep" | "album";
+  upcCode?: string | null;
+  catalogueNumber?: string | null;
   coverImage?: string | null;
   description?: string | null;
   releaseDate?: string | Date | null;
@@ -255,7 +268,12 @@ type ReleaseDetailLike = {
   amazonMusicLink?: string | null;
   youtubeLink?: string | null;
   soundcloudLink?: string | null;
-  tracks?: Array<{ name: string }>;
+  tracks?: Array<{
+    name: string;
+    duration?: number | null;
+    isrcCode?: string | null;
+    iswc?: string | null;
+  }>;
 };
 
 /** schema.org MusicAlbum for a release page. */
@@ -291,6 +309,21 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
   if (release.type && ALBUM_RELEASE_TYPE[release.type]) {
     jsonLd.albumReleaseType = ALBUM_RELEASE_TYPE[release.type];
   }
+  // UPC + label catalogue number as typed identifiers — the codes that uniquely pin
+  // this release for Google/Bing/DSP reconciliation. (MusicAlbum has no direct
+  // gtin/catalogNumber property, so both ride in `identifier` as PropertyValues.)
+  const releaseIds: Array<Record<string, string>> = [];
+  if (release.upcCode && release.upcCode.trim()) {
+    releaseIds.push({ "@type": "PropertyValue", propertyID: "UPC", value: release.upcCode.trim() });
+  }
+  if (release.catalogueNumber && release.catalogueNumber.trim()) {
+    releaseIds.push({
+      "@type": "PropertyValue",
+      propertyID: "catalogNumber",
+      value: release.catalogueNumber.trim(),
+    });
+  }
+  if (releaseIds.length) jsonLd.identifier = releaseIds.length === 1 ? releaseIds[0] : releaseIds;
   if (release.coverImage) jsonLd.image = imageObject(release.coverImage, release.name);
   const desc = metaDescription(release.description, 5000);
   if (desc) jsonLd.description = desc;
@@ -310,11 +343,21 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
   }
   if (release.tracks && release.tracks.length) {
     jsonLd.numTracks = release.tracks.length;
-    jsonLd.track = release.tracks.map((t, i) => ({
-      "@type": "MusicRecording",
-      name: t.name,
-      position: i + 1,
-    }));
+    jsonLd.track = release.tracks.map((t, i) => {
+      const rec: Record<string, unknown> = {
+        "@type": "MusicRecording",
+        name: t.name,
+        position: i + 1,
+      };
+      if (t.duration && t.duration > 0) rec.duration = isoDuration(t.duration);
+      // ISRC is a first-class MusicRecording property; ISWC (the composition code)
+      // has no direct property, so it rides in `identifier` as a PropertyValue.
+      if (t.isrcCode && t.isrcCode.trim()) rec.isrcCode = t.isrcCode.trim();
+      if (t.iswc && t.iswc.trim()) {
+        rec.identifier = { "@type": "PropertyValue", propertyID: "ISWC", value: t.iswc.trim() };
+      }
+      return rec;
+    });
   }
   if (sameAs.length) jsonLd.sameAs = sameAs;
   return jsonLd;
@@ -551,8 +594,12 @@ function buildPressBlogPosting(item: PressItemLike, pageUrl: string) {
       "@type": "Article",
       headline: item.title,
       url: item.articleUrl,
-      publisher: { "@type": "Organization", name: item.publisher ?? undefined },
     };
+    // Only name the outlet when we actually know it — a nameless Organization is
+    // invalid/empty structured data.
+    if (item.publisher && item.publisher.trim()) {
+      article.publisher = { "@type": "Organization", name: item.publisher.trim() };
+    }
     if (item.author) article.author = { "@type": "Person", name: item.author };
     node.isBasedOn = article;
     node.citation = article;

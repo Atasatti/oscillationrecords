@@ -8,7 +8,10 @@ import { buildPressListJsonLd, jsonLdScript, SITE_NAME } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "Press & Features",
   description: `Press, reviews, interviews and features covering ${SITE_NAME} and our artists, plus original posts from the independent Manchester record label.`,
-  alternates: { canonical: "/press" },
+  alternates: {
+    canonical: "/press",
+    types: { "application/rss+xml": [{ url: "/press/feed.xml", title: `${SITE_NAME} — Press` }] },
+  },
   openGraph: {
     title: `Press & Features | ${SITE_NAME}`,
     description: `Press, reviews and features covering ${SITE_NAME} artists and releases.`,

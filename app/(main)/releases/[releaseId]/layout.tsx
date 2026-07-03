@@ -61,6 +61,10 @@ export async function generateMetadata({
       url,
       siteName: SITE_NAME,
       images: r.coverImage ? [{ url: r.coverImage, alt: r.name }] : undefined,
+      // Required companions for the music.album OG type (music:musician / release_date)
+      // so Facebook/LinkedIn/Discord unfurls and crawlers get a complete music card.
+      musicians: r.primaryArtists.map((a) => absoluteUrl(`/artists/${slugify(a.name)}`)),
+      releaseDate: r.releaseDate ?? undefined,
     },
     twitter: {
       card: "summary_large_image",
