@@ -8,6 +8,7 @@ import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
   List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
+  Bookmark, X,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
@@ -31,6 +32,7 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { TASK_STATUSES } from "@/lib/task-status";
+import { type SavedViewConfig } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { useToast } from "@/components/local-ui/Toast";
@@ -705,6 +707,12 @@ export default function TasksPage() {
   // Board drag-and-drop: the card being dragged + the column hovered.
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  // Saved views: named per-user snapshots of tab/filters/group/layout.
+  type SavedViewItem = { id: string; name: string; config: SavedViewConfig };
+  const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
+  const [savingView, setSavingView] = useState(false);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -1192,6 +1200,71 @@ export default function TasksPage() {
     </select>
   );
 
+  // ---- Saved views ----
+  useEffect(() => {
+    fetch("/api/outreach/views")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.views) setSavedViews(j.views as SavedViewItem[]); })
+      .catch(() => {});
+  }, []);
+
+  const applyView = (c: SavedViewConfig) => {
+    setTab(c.tab as Tab);
+    setView(c.view);
+    setGroupBy(c.groupBy as GroupKey);
+    // Clamp stale filter values (a category renamed, or an assignee since removed)
+    // back to "All" — otherwise the controlled <select> shows "All" while state
+    // holds a value that matches nothing, silently emptying the list.
+    setCategoryFilter((CATEGORIES as readonly string[]).includes(c.categoryFilter) ? c.categoryFilter : "");
+    const asgOk =
+      c.assigneeFilter === "" ||
+      c.assigneeFilter === "me" ||
+      c.assigneeFilter === "none" ||
+      assignees.some((a) => a.id === c.assigneeFilter);
+    setAssigneeFilter(asgOk ? c.assigneeFilter : "");
+  };
+
+  // Which saved view (if any) exactly matches the current controls — for highlight.
+  const currentViewKey = JSON.stringify({ tab, view, groupBy, categoryFilter, assigneeFilter });
+  const activeViewId = useMemo(
+    () => savedViews.find((v) => JSON.stringify(v.config) === currentViewKey)?.id ?? null,
+    [savedViews, currentViewKey]
+  );
+
+  const saveCurrentView = async () => {
+    const name = newViewName.trim();
+    if (!name || savingView) return;
+    setSavingView(true);
+    try {
+      const res = await fetch("/api/outreach/views", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, config: { tab, view, groupBy, categoryFilter, assigneeFilter } }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error);
+      setSavedViews((v) => [...v, j.view as SavedViewItem]);
+      setSaveViewOpen(false);
+      setNewViewName("");
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "Failed to save view");
+    } finally {
+      setSavingView(false);
+    }
+  };
+
+  const deleteView = async (id: string) => {
+    const prev = savedViews;
+    setSavedViews((v) => v.filter((x) => x.id !== id));
+    try {
+      const res = await fetch(`/api/outreach/views/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Failed to delete view");
+      setSavedViews(prev);
+    }
+  };
+
   // A compact, draggable task card for the board view. Click opens the editor;
   // drag it to another column to change its status (via updateStatus).
   const renderCard = (t: Task) => {
@@ -1393,6 +1466,42 @@ export default function TasksPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Saved views — named snapshots of the tab / filters / grouping / layout */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Bookmark className="h-3.5 w-3.5" aria-hidden /> Views
+        </span>
+        {savedViews.map((v) => (
+          <span
+            key={v.id}
+            className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              activeViewId === v.id
+                ? "border-primary/50 bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <button type="button" onClick={() => applyView(v.config)} className="max-w-[10rem] truncate" title={`Apply "${v.name}"`}>
+              {v.name}
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteView(v.id)}
+              aria-label={`Delete view ${v.name}`}
+              className="rounded-full text-muted-foreground opacity-60 transition-opacity hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          onClick={() => setSaveViewOpen(true)}
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" aria-hidden /> Save view
+        </button>
       </div>
 
       {/* View: list / calendar */}
@@ -2033,6 +2142,33 @@ export default function TasksPage() {
             <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkWorking}>Cancel</Button>
             <Button variant="destructive" onClick={() => runBulk({ delete: true })} disabled={bulkWorking}>
               {bulkWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save the current controls as a named view */}
+      <Dialog open={saveViewOpen} onOpenChange={(o) => { setSaveViewOpen(o); if (!o) setNewViewName(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Save view</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <p className="text-sm text-muted-foreground">
+              Name this view — it remembers the current tab, filters, grouping and layout.
+            </p>
+            <input
+              autoFocus
+              value={newViewName}
+              onChange={(e) => setNewViewName(e.target.value)}
+              maxLength={40}
+              onKeyDown={(e) => { if (e.key === "Enter" && newViewName.trim() && !savingView) saveCurrentView(); }}
+              placeholder="e.g. My overdue, This week's pitching"
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveViewOpen(false)} disabled={savingView}>Cancel</Button>
+            <Button onClick={saveCurrentView} disabled={savingView || !newViewName.trim()} className="bg-white text-black hover:bg-gray-200">
+              {savingView ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save
             </Button>
           </DialogFooter>
         </DialogContent>

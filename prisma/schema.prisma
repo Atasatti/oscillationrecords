@@ -54,6 +54,7 @@ model User {
   profile           UserProfile?
   playEvents        PlayEvent[]
   benertRemixEntry  BenertRemixEntry?
+  savedViews        SavedView[]
 }
 
 model BenertRemixCompetition {
@@ -593,6 +594,21 @@ model AutomationFire {
 
   @@unique([ruleKey, entityType, entityId])
   @@index([ruleKey])
+}
+
+/// A saved Tasks view — a named, per-user snapshot of the list's filter/group/view
+/// controls (tab, category, assignee, group-by, and list/board/calendar). Personal
+/// to each staff member (keyed by User.id); not shared. `config` holds the snapshot.
+model SavedView {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// A comment on an OutreachTask — a discussion thread for staff. Author identity
