@@ -341,6 +341,7 @@ type Task = {
   checklist: ChecklistItem[];
   attachments?: Attachment[];
   commentCount?: number;
+  tags?: string[];
   releaseIds: string[];
   artistIds: string[];
   dueAt: string | null;
@@ -684,7 +685,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
   );
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -714,6 +715,10 @@ export default function TasksPage() {
   const [newViewName, setNewViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+
+  // Task tags (#15): a filter across the freeform labels + the editor chip input.
+  const [tagFilter, setTagFilter] = useState<string>("");
+  const [tagInput, setTagInput] = useState("");
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Filters for the suggested-tasks panel (200 items — needs search + category).
@@ -845,9 +850,19 @@ export default function TasksPage() {
     [assigneeFilter, myId]
   );
   const matchesFilters = useCallback(
-    (t: Task) => (!categoryFilter || t.category === categoryFilter) && assigneeOk(t),
-    [categoryFilter, assigneeOk]
+    (t: Task) =>
+      (!categoryFilter || t.category === categoryFilter) &&
+      (!tagFilter || (t.tags ?? []).includes(tagFilter)) &&
+      assigneeOk(t),
+    [categoryFilter, tagFilter, assigneeOk]
   );
+
+  // Every distinct tag in use, for the filter dropdown.
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of tasks) for (const tag of t.tags ?? []) s.add(tag);
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, blocked: 0, done: 0 };
@@ -999,6 +1014,15 @@ export default function TasksPage() {
   const toggleFormChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.map((it) => (it.id === id ? { ...it, done: !it.done } : it)) }));
   const removeChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.filter((it) => it.id !== id) }));
 
+  // Tag chips in the editor (deduped, case-insensitive, capped).
+  const addTag = (raw: string) => {
+    const s = raw.trim().slice(0, 40);
+    if (!s) return;
+    setForm((p) => (p.tags.some((x) => x.toLowerCase() === s.toLowerCase()) || p.tags.length >= 20 ? p : { ...p, tags: [...p.tags, s] }));
+    setTagInput("");
+  };
+  const removeTag = (tag: string) => setForm((p) => ({ ...p, tags: p.tags.filter((x) => x !== tag) }));
+
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
   const openEdit = (t: Task) => {
     setEditingId(t.id);
@@ -1011,6 +1035,7 @@ export default function TasksPage() {
       assigneeId: t.assigneeId ?? "",
       recurrence: t.recurrence ?? "",
       checklist: t.checklist ?? [],
+      tags: t.tags ?? [],
       releaseIds: t.releaseIds ?? [],
       artistIds: t.artistIds ?? [],
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
@@ -1597,6 +1622,17 @@ export default function TasksPage() {
                 <option key={g.key} value={g.key}>{g.key === "none" ? "Group: Off" : `Group: ${g.label}`}</option>
               ))}
             </select>
+            {allTags.length > 0 ? (
+              <select
+                value={tagFilter}
+                onChange={(e) => setTagFilter(e.target.value)}
+                aria-label="Filter by tag"
+                className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">All tags</option>
+                {allTags.map((t) => <option key={t} value={t}>#{t}</option>)}
+              </select>
+            ) : null}
           </>
         )}
       </div>
@@ -1823,6 +1859,21 @@ export default function TasksPage() {
                       </>
                     ) : null}
                   </div>
+                  {t.tags?.length ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {t.tags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setTagFilter(tag); }}
+                          title={`Filter by #${tag}`}
+                          className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
                       {t.releaseIds?.map((id) => {
@@ -2058,6 +2109,30 @@ export default function TasksPage() {
                 <label className="text-sm font-medium">Due date <span className="font-normal text-muted-foreground">(optional)</span></label>
                 <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Tags <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-2">
+                  {form.tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-muted-foreground">
+                      #{tag}
+                      <button type="button" onClick={() => removeTag(tag)} aria-label={`Remove tag ${tag}`} className="transition-colors hover:text-red-400">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); }
+                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1]);
+                    }}
+                    onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
+                    placeholder={form.tags.length ? "" : "Add a label, press Enter…"}
+                    className="min-w-[8rem] flex-1 bg-transparent text-sm focus:outline-none"
+                  />
+                </div>
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>

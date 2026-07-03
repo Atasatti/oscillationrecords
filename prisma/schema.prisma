@@ -559,6 +559,9 @@ model OutreachTask {
   priority    String   @default("medium")
   /// "todo" | "in_progress" | "done"
   status      String   @default("todo")
+  /// Freeform labels for cross-cutting grouping/filtering (e.g. "Q3-campaign").
+  /// Normalized (trimmed, deduped, capped) in the tasks API.
+  tags        String[]
   /// The admin this task is assigned to (User.id). Null = unassigned. Optional so
   /// existing tasks (created before assignment) read back as null, and so a task
   /// survives its assignee losing admin access — the UI just shows it unassigned.
