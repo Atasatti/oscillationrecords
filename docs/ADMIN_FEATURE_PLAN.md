@@ -129,7 +129,7 @@ Nothing in the current admin covers this. Highest business value.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 28 | ✅ **Release pipeline** | M | **Shipped** as the schedule board at `/admin/catalog/pipeline` (scheduled + drafts). The *distribution checklist* half was built then removed (dup of SEO score — see #30). |
-| 29 | **Asset library (DAM)** | M–L | Central store (S3) for masters, artwork, stems, press photos, EPKs per release/artist. |
+| 29 | ✅ **Asset library (DAM)** | M–L | **Shipped** at `/admin/catalog/assets`: S3-backed store for masters, artwork, stems, press photos, EPKs, linked to releases/artists. Grid + thumbnails, category filter + search, multi-file upload (per-file progress), edit, delete (removes the S3 object). Presigned uploads reuse `lib/s3.ts`; server-owned keys, SVG/HTML-excluded MIME allowlist re-checked on a post-upload HEAD, 1GB cap. |
 | 30 | ✗ **Approval / sign-off gate** | S–M | Built (delivery checklist + "signed off"), then **removed** — duplicated the SEO score. Revisit only if a *distinct* workflow (delivered-to-DSP etc.) is wanted. |
 
 ### Phase 7 — A&R & artists
@@ -172,7 +172,7 @@ Nothing in the current admin covers this. Highest business value.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
 - **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **New surfaces:** asset library/DAM (#29), artist onboarding (#32), newsletter campaigns (#35 — needs email infra). *(A&R demo pipeline #31 + content calendar #34 + placement tracker #33 shipped.)*
+- **New surfaces:** artist onboarding (#32 — likely covered by the artist editor), newsletter campaigns (#35 — needs email infra), email digest (#22 — needs email infra). *(A&R demo #31 + content calendar #34 + placements #33 + asset library/DAM #29 shipped.)*
 
 ---
 
