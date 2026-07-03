@@ -101,7 +101,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 12 | ✅ **Board (kanban) view** | M | **Shipped.** Status columns (To&nbsp;Do / In&nbsp;Progress / Blocked / Done) + HTML5 drag-to-move on the Tasks page (List/Calendar still available). |
 | 13 | ✅ **Timeline / Gantt view** | M | **Shipped** as a release timeline at `/admin/catalog/timeline` — scheduled + recent releases on a month-grouped rail with a Today marker. |
 | 14 | ✅ **Saved views** | M | **Shipped.** Named per-user snapshots of the Tasks tab / filters / group-by / layout (`SavedView` model), applied from a "Views" bar. |
-| 15 | **Custom properties** | M | Lightweight extra fields: tags, effort estimate, budget. (Not fully dynamic — a few structured additions.) |
+| 15 | ✅ **Custom properties** | M | **Shipped** as freeform task **tags** (`OutreachTask.tags`) — chip input in the editor, tag chips on rows, and a tag filter. |
 | 16 | ✅ **Templates** | M | **Shipped.** Reusable task templates (`TaskTemplate`) — build a named set of tasks, apply in one click. Manager at `/admin/outreach/templates`. |
 
 ### Phase 4 — Automation & inbox (Atera)
@@ -169,7 +169,7 @@ Nothing in the current admin covers this. Highest business value.
 
 ### Suggested next (not yet started)
 - **Small task wins (S):** blocked/waiting status (#4), first-class group-by (#11).
-- **Views (Notion):** custom properties (#15) — only Phase 3 item left. *(kanban #12, timeline #13, saved views #14, templates #16 shipped.)*
+- **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
 - **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
 - **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), artist onboarding (#32), placement tracker (#33), content calendar (#34), newsletter campaigns (#35).
