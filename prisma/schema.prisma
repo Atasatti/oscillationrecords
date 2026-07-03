@@ -476,6 +476,32 @@ model ContentPost {
   @@index([scheduledFor])
 }
 
+/// An internal "win" — a playlist add, radio spin, or press/blog placement,
+/// logged as a running record to reference when pitching future releases.
+/// Purely internal (unlike the public PressItem). Optionally tied to a release
+/// and/or artist (ids, no hard relation). Shape/validation in lib/placement.ts.
+model Placement {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// "playlist" | "radio" | "press" | "other"
+  type       String   @default("playlist")
+  /// The platform / station / publication, e.g. "Spotify", "BBC Radio 6 Music".
+  outlet     String
+  /// The specific playlist / show / article, e.g. "New Music Friday UK".
+  name       String?
+  url        String?
+  /// Followers / listeners / monthly reach — a headline number for pitching.
+  reach      Int?
+  /// When the placement happened, stored at UTC midnight (date-only).
+  placedOn   DateTime?
+  releaseId  String?  @db.ObjectId
+  artistId   String?  @db.ObjectId
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([type, placedOn])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
