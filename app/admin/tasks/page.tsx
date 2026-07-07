@@ -704,6 +704,9 @@ export default function TasksPage() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [view, setView] = useState<"list" | "board" | "calendar">("list");
+  // Completed tasks are hidden from the "All" list by default (they pile up);
+  // the Done tab still shows them, and this toggle brings them back inline.
+  const [showCompleted, setShowCompleted] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupKey>("none");
   // Board drag-and-drop: the card being dragged + the column hovered.
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -888,7 +891,9 @@ export default function TasksPage() {
   const filtered = useMemo(
     () =>
       tasks
-        .filter((t) => (tab === "all" || t.status === tab) && matchesFilters(t))
+        // On "All", hide completed unless the toggle is on; a specific status tab
+        // (incl. Done) always shows exactly that status.
+        .filter((t) => matchesFilters(t) && (tab === "all" ? showCompleted || t.status !== "done" : t.status === tab))
         // Auto-sort by urgency: completed sink to the bottom, then most-urgent
         // priority first, then soonest/overdue due date (undated last).
         .sort((a, b) => {
@@ -901,7 +906,7 @@ export default function TasksPage() {
           const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
           return aDue - bDue;
         }),
-    [tasks, tab, matchesFilters]
+    [tasks, tab, matchesFilters, showCompleted]
   );
 
   // Group-by: partition the already-filtered/sorted list into ordered sections.
@@ -1598,6 +1603,17 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
+        {tab === "all" && counts.done > 0 ? (
+          <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="h-3.5 w-3.5 accent-white"
+            />
+            Show completed
+          </label>
+        ) : null}
         {tab === "attention" ? (
           <InfoHint text={ATTENTION_HELP} />
         ) : (
