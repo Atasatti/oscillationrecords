@@ -35,7 +35,7 @@ export default async function AdminMessagesPage() {
     // Only staff with a real account id can be assigned a ticket.
     staff = directory
       .filter((s): s is typeof s & { id: string } => !!s.id)
-      .map((s) => ({ id: s.id, name: s.name, email: s.email }));
+      .map((s) => ({ id: s.id, name: s.name, nickname: s.nickname, email: s.email }));
   } catch {
     // Fall back to an empty list on a transient DB error.
   }

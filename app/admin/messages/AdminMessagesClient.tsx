@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send, UserPlus } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +24,9 @@ import {
   type TicketPriority,
 } from "@/lib/contact-ticket";
 import { slaState } from "@/lib/ticket-sla";
+import AddContactFromMessageDialog from "@/components/admin/AddContactFromMessageDialog";
 
-export type StaffOption = { id: string; name: string | null; email: string };
+export type StaffOption = { id: string; name: string | null; nickname: string | null; email: string };
 
 export type ContactMessageDTO = {
   id: string;
@@ -48,7 +49,9 @@ const fmt = (iso: string) =>
     minute: "2-digit",
   });
 
-const staffLabel = (s: StaffOption) => s.name?.trim() || s.email;
+// Prefer the admin-set nickname (tells similarly-named accounts apart), then the
+// account name, then the email.
+const staffLabel = (s: StaffOption) => s.nickname?.trim() || s.name?.trim() || s.email;
 
 const STATUS_ORDER: Record<TicketStatus, number> = { open: 0, in_progress: 1, resolved: 2 };
 const PRIORITY_ORDER: Record<TicketPriority, number> = { high: 0, medium: 1, low: 2 };
@@ -200,6 +203,8 @@ export default function AdminMessagesClient({
   const [filter, setFilter] = useState<Filter>("all");
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<ContactMessageDTO | null>(null);
+  // Message being turned into an outreach contact (opens the add-contact dialog).
+  const [addContactFor, setAddContactFor] = useState<ContactMessageDTO | null>(null);
   const [working, setWorking] = useState(false);
 
   const staffById = useMemo(() => {
@@ -361,6 +366,16 @@ export default function AdminMessagesClient({
                         <Mail className="h-4 w-4" />
                       </a>
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Add to contacts"
+                      aria-label={`Add ${m.name || m.email} to outreach contacts`}
+                      onClick={() => setAddContactFor(m)}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
                     <button
                       type="button"
                       onClick={() => setDeleteTarget(m)}
@@ -430,6 +445,12 @@ export default function AdminMessagesClient({
           })}
         </div>
       )}
+
+      <AddContactFromMessageDialog
+        message={addContactFor}
+        open={!!addContactFor}
+        onOpenChange={(o) => !o && setAddContactFor(null)}
+      />
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <DialogContent>
