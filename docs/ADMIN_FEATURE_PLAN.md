@@ -20,7 +20,7 @@ Built in the plan's recommended order (assignees → roles+audit → relations �
 
 - ✅ **#1 Assignees + My tasks** — inline avatar picker + assignee filter (`OutreachTask.assigneeId`).
 - ✅ **#2/#3/#5/#6/#7 Task depth** — recurring tasks, checklists (+progress %), bulk actions, per-task comments, S3 attachments.
-- ✅ **#18 Message inbox → tickets** — `ContactMessage` gains status/assignee/priority + status filters (`handled` kept in sync). Reply thread still pending.
+- ✅ **#18 Message inbox → tickets** — `ContactMessage` gains status/assignee/priority + status filters (`handled` kept in sync) + an internal reply/notes thread per ticket (`MessageReply`).
 - ✅ **#23/#38 Notifications + @mentions** — topbar bell (overdue/due-today tasks + unread mentions); @mention a teammate in a task comment.
 - ✅ **New/Edit task dialog rework** — 2-col, viewport-capped, pinned header/footer + scroll body (no longer overflows the screen).
 - ✅ **#36 Granular roles + permissions** — Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware page-gating + role-filtered sidebar.
@@ -80,7 +80,7 @@ The core upgrades that make Tasks usable by a team.
 | 1 | ✅ **Assignees + "My tasks"** | S–M | **Shipped.** `assigneeId` + inline avatar picker + assignee filter. |
 | 2 | ✅ **Recurring tasks** | M | **Shipped.** "Repeat" select (`recurrence`); regenerates the next occurrence on completion. |
 | 3 | ✅ **Subtasks / checklists** | S | **Shipped.** Per-task checklist with done-state + progress %. |
-| 4 | **Blocked / waiting status** | S | Extend status enum beyond todo/in-progress/done. |
+| 4 | ✅ **Blocked / waiting status** | S | **Shipped.** `blocked` added to the task status enum (`lib/task-status.ts`) — its own kanban column + status pill. |
 | 5 | ✅ **Bulk actions** | S | **Shipped.** Multi-select checkboxes + toolbar (bulk delete). |
 | 6 | ✅ **Comments (per task)** | M | **Shipped.** Comment thread (`TaskComment`) + @mentions (#38). |
 | 7 | ✅ **Attachments** | S | **Shipped.** S3 file attachments on a task. |
@@ -93,7 +93,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 8 | ✅ **Relations + rollups** | L | **Shipped.** Task↔release/artist linking (chips) + rollup panels on the editors. |
 | 9 | ✅ **Per-release rollup view** | M | **Shipped.** Release editor shows its tasks (progress %), pitches, press. |
 | 10 | ✅ **Per-artist rollup view** | M | **Shipped.** Artist editor shows linked tasks, pitches, press. |
-| 11 | **Grouping (by assignee / release / category)** | S | First-class group-by, not just a single filter. |
+| 11 | ✅ **Grouping (by assignee / release / category)** | S | **Shipped.** First-class group-by on the Tasks list (none / assignee / release / category), partitioned under section headers; persists in saved views. |
 
 ### Phase 3 — Views & flexibility (Notion)
 | # | Feature | Effort | Notes |
