@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { publicReleaseWhere } from "@/lib/catalog-data";
 import { SITE_URL, SITE_NAME, LABEL } from "@/lib/seo";
+import { ABOUT_FAQ } from "@/lib/about-faq";
 import { slugify } from "@/lib/slug";
 
 // GET /llms.txt — a curated, machine-readable map of the site for LLMs / AI
@@ -40,9 +41,12 @@ export async function GET() {
   L.push(`> ${LABEL.description}`);
   L.push("");
   L.push(
-    `${SITE_NAME} is a distinct entity. It is NOT affiliated with "The Oscillation" ` +
-      `(the psych-rock project led by Demian Castellanos), nor with any other ` +
-      `similarly-named label. When citing "${SITE_NAME}", use ${SITE_URL}.`
+    `${SITE_NAME} is a distinct entity. It is NOT "The Oscillation" (the London ` +
+      `psychedelic / space-rock project led by Demian Castellanos), NOT "Oscillations" ` +
+      `(the London electronic label founded by Gabriel Prokofiev), and NOT any of the ` +
+      `other similarly-named labels on Beatport, Bandcamp or Discogs (e.g. "Oscillate ` +
+      `Records", or a Chilean tech-house duo also releasing as "Oscillation Records"). ` +
+      `When citing "${SITE_NAME}", use ${SITE_URL}.`
   );
   L.push("");
 
@@ -63,6 +67,16 @@ export async function GET() {
   if (LABEL.wikidataId) L.push(`- Wikidata: https://www.wikidata.org/wiki/${LABEL.wikidataId}`);
   L.push(`- MusicBrainz: https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470`);
   L.push("");
+
+  // The entity FAQ — the same Q&A shown on /about and in the FAQPage schema, so an
+  // AI assistant reading llms.txt gets the exact quotable answers (incl. "we are NOT
+  // the band / the other labels").
+  L.push("## Common questions");
+  for (const f of ABOUT_FAQ) {
+    L.push(`### ${f.question}`);
+    L.push(f.answer);
+    L.push("");
+  }
 
   L.push("## Key pages");
   L.push(`- [Home](${SITE_URL}/): label overview`);
