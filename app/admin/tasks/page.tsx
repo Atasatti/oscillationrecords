@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
+import Segmented from "@/components/admin/ui/Segmented";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,13 +53,7 @@ const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, l
 const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-amber-400", medium: "bg-sky-400", low: "bg-zinc-500" };
 
 // Status colour system — gives each task row an at-a-glance state: a coloured
-// left accent on the row + a matching status pill on the right.
-const STATUS_ACCENT: Record<string, string> = {
-  todo: "border-l-zinc-600",
-  in_progress: "border-l-sky-500",
-  blocked: "border-l-amber-500",
-  done: "border-l-emerald-500",
-};
+// left accent on the row (now shown only for urgent/overdue/blocked rows).
 // Solid status dots for the board column headers.
 const STATUS_COL_DOT: Record<string, string> = {
   todo: "bg-zinc-500",
@@ -1534,35 +1529,18 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* View: list / calendar */}
-      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
-        <button
-          type="button"
-          onClick={() => setView("list")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            view === "list" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <List className="h-3.5 w-3.5" /> List
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("board")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            view === "board" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Columns3 className="h-3.5 w-3.5" /> Board
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("calendar")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            view === "calendar" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <CalendarDays className="h-3.5 w-3.5" /> Calendar
-        </button>
+      {/* View switch — the shared Segmented primitive */}
+      <div className="mb-4">
+        <Segmented<"list" | "board" | "calendar">
+          ariaLabel="View"
+          value={view}
+          onChange={setView}
+          options={[
+            { key: "list", label: <span className="inline-flex items-center gap-1.5"><List className="h-3.5 w-3.5" /> List</span> },
+            { key: "board", label: <span className="inline-flex items-center gap-1.5"><Columns3 className="h-3.5 w-3.5" /> Board</span> },
+            { key: "calendar", label: <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Calendar</span> },
+          ]}
+        />
       </div>
 
       {view === "list" ? (
@@ -1781,7 +1759,13 @@ export default function TasksPage() {
               return (
               <div
                 key={t.id}
-                className={`group flex items-center gap-3 rounded-xl border border-l-[3px] bg-card px-4 py-3 transition-colors hover:bg-white/[0.02] ${STATUS_ACCENT[t.status] ?? "border-l-zinc-600"} ${selected.has(t.id) ? "border-primary/50 bg-primary/[0.03]" : "border-border"}`}
+                className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5 transition-colors hover:bg-white/[0.02] ${selected.has(t.id) ? "border-primary/50 bg-primary/[0.03]" : "border-border"} ${
+                  t.priority === "urgent" || overdue
+                    ? "border-l-[3px] border-l-red-500"
+                    : t.status === "blocked"
+                    ? "border-l-[3px] border-l-amber-500"
+                    : ""
+                }`}
               >
                 {/* Bulk-select checkbox (appears on hover; stays when selected) */}
                 <button
@@ -1951,7 +1935,7 @@ export default function TasksPage() {
                     onClick={() => openEdit(t)}
                     title="Edit task"
                     aria-label="Edit task"
-                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                    className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-white/5 hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -1960,7 +1944,7 @@ export default function TasksPage() {
                     onClick={() => setDeleteTarget(t.id)}
                     title="Delete task"
                     aria-label="Delete task"
-                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
+                    className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-red-950/20 hover:text-red-400 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
