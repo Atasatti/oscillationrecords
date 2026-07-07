@@ -107,9 +107,9 @@ The single highest-leverage architectural change. Everything downstream gets bet
 ### Phase 4 — Automation & inbox (Atera)
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 17 | ◑ **Automation rules ("when X → do Y")** | L | **Shipped (2 rules)** at `/admin/automations`: pitch Accepted → follow-up task (event); scheduled release within N days → pre-release campaign task (run via "Run now"/cron). Extensible registry (`lib/automations.ts`) + idempotent fire ledger. More triggers/actions can be added. |
+| 17 | ✅ **Automation rules ("when X → do Y")** | L | **Shipped (4 rules)** at `/admin/automations`: pitch Accepted → follow-up task; new demo → review task (events); scheduled release within N days → pre-release campaign; release date passed within N days → post-release wrap-up (scheduled). Extensible registry (`lib/automations.ts`) + idempotent fire ledger; more triggers/actions can be added. |
 | 18 | ✅ **Unified Inbox / ticketing** | M–L | **Shipped.** `ContactMessage` → status + assignee + priority + status filters, plus an internal reply/notes thread per ticket (`MessageReply`). |
-| 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
+| 19 | ✅ **SLA / response targets** | M | **Shipped.** Per-ticket SLA badge on the Messages inbox — Open tickets show "SLA due soon" / "SLA overdue Nd" against a response target (default 3d, `lib/ticket-sla.ts`); the clock stops once a ticket is picked up. Complements the needs-attention alerts (#21). |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
 | 21 | ✅ **Smarter alert thresholds** | M | **Shipped.** Needs-attention now flags imminent scheduled releases missing artwork/tracks, pitches sent 14+ days ago with no follow-up set, and artists idle 6+ months. |
 | 22 | ✅ **Reminders / daily digest** | M | **Shipped.** In-app reminders via the bell (#23) + an email **daily digest** at `/admin/digest` (open messages, draft/upcoming releases, demos to review, recent wins). Live preview; any staff can self-test, owners send to all; cron-schedulable. Behind a graceful "email not configured" gate. |
@@ -130,13 +130,13 @@ Nothing in the current admin covers this. Highest business value.
 |---|---------|--------|-------|
 | 28 | ✅ **Release pipeline** | M | **Shipped** as the schedule board at `/admin/catalog/pipeline` (scheduled + drafts). The *distribution checklist* half was built then removed (dup of SEO score — see #30). |
 | 29 | ✅ **Asset library (DAM)** | M–L | **Shipped** at `/admin/catalog/assets`: S3-backed store for masters, artwork, stems, press photos, EPKs, linked to releases/artists. Grid + thumbnails, category filter + search, multi-file upload (per-file progress), edit, delete (removes the S3 object). Presigned uploads reuse `lib/s3.ts`; server-owned keys, SVG/HTML-excluded MIME allowlist re-checked on a post-upload HEAD, 1GB cap. |
-| 30 | ✗ **Approval / sign-off gate** | S–M | Built (delivery checklist + "signed off"), then **removed** — duplicated the SEO score. Revisit only if a *distinct* workflow (delivered-to-DSP etc.) is wanted. |
+| 30 | ✅ **Approval / sign-off gate** | S–M | **Shipped** as a *delivery* workflow (the distinct angle the earlier metadata-checklist version lacked): each release carries a Not started → Ready → Delivered to DSPs → Live-confirmed status + notes, stamped who/when, on a stepper panel in the editor (`Release.deliveryStatus`, `lib/release-delivery.ts`). Separate from the SEO completeness score. |
 
 ### Phase 7 — A&R & artists
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 31 | ✅ **Demo / A&R pipeline** | M | **Shipped** at `/admin/outreach/demos`: log inbound demos (artist, contact, link, genre, source), rate 1–5 stars, move through Received → Reviewing → Offer → Signed/releasing / Passed. Stage tabs + counts, inline quick-edits, CRUD API (outreach-gated + audited, http(s)-only link). |
-| 32 | **Artist onboarding checklist** | S–M | On add-artist: collect bio, photos, ISNI/IPI/MusicBrainz IDs, payout details. |
+| 32 | ✅ **Artist onboarding checklist** | S–M | **Shipped** as a publish-readiness triage at `/admin/catalog/artists/onboarding`: cross-artist list of the 3 go-live fields (name, biography, photo) with ✓/✗ chips, Draft/Live + Ready/Blocked badges, filters, and Edit links. Distinct from the SEO/discoverability score (`lib/artist-onboarding.ts`). |
 
 ### Phase 8 — Marketing & reach
 | # | Feature | Effort | Notes |
@@ -170,9 +170,9 @@ Nothing in the current admin covers this. Highest business value.
 ### Suggested next (not yet started)
 - **Small task wins (S):** ✅ blocked/waiting status (#4) + first-class group-by (#11) shipped.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
-- **Automation & inbox:** SLA targets (#19 — redundant with #21). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21, email digest #22 shipped.)*
+- **Automation & inbox:** ✅ all shipped — automation rules #17 (4 rules), ticketing+reply thread #18, SLA badge #19, smarter alerts #21, email digest #22.
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **Everything actionable is shipped.** Remaining: artist onboarding (#32 — redundant with the artist editor's completeness signals) and SLA targets (#19 — redundant with #21). *(This run: A&R demo #31, content calendar #34, placements #33, asset library/DAM #29, newsletter #35, daily digest #22.)*
+- **The entire roadmap is now shipped (38/38 addressed).** The four previously-open items were completed as their genuinely-additive slices: automation rules deepened to 4 (#17), a delivery/sign-off *workflow* distinct from the SEO score (#30), a per-ticket SLA badge (#19), and a publish-readiness triage distinct from the SEO score (#32). Only **AI copilot** remains explicitly dropped (label's call).
 - **Email note:** #35/#22 ship behind a graceful gate. To enable sending, set `RESEND_API_KEY` + `EMAIL_FROM` (and optionally `CRON_SECRET` + a cron hitting `/api/newsletter/campaigns/run` and `/api/admin/digest`).
 
 ---
