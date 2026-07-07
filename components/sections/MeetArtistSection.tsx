@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import IconButton from "../local-ui/IconButton";
 import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube } from "react-icons/fa";
@@ -107,8 +108,15 @@ const MeetArtistSection = ({
           Meet the Artists.
         </HeadingTag>
         <p className="text-muted-foreground text-sm sm:text-base md:text-lg text-center mt-3 font-light px-4">Our roster is filled with boundary-pushing talent. These are the voices shaping the future of music.</p>
-        <div className="flex justify-center items-center mt-8 sm:mt-12 md:mt-16">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="mt-6 flex flex-col items-center justify-center gap-8 sm:mt-8 lg:flex-row lg:gap-12" aria-hidden>
+          <Skeleton className="aspect-[5/6] max-h-[456px] w-full max-w-[380px] rounded-2xl" />
+          <div className="flex w-full max-w-[400px] flex-col gap-3">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="mt-3 h-10 w-40 rounded-full" />
+          </div>
         </div>
       </div>
     );
