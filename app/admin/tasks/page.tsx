@@ -8,11 +8,12 @@ import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
   List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
-  Bookmark, X,
+  Bookmark, X, MoreHorizontal,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
 import Segmented from "@/components/admin/ui/Segmented";
+import StatusMenu from "@/components/admin/ui/StatusMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,6 +77,12 @@ const shiftMonth = (c: { y: number; m: number }, delta: number) => {
 
 const STATUSES = TASK_STATUSES;
 const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
+const STATUS_MENU_ITEMS = STATUSES.map((s) => ({
+  key: s,
+  label: STATUS_LABELS[s],
+  dot: STATUS_COL_DOT[s] ?? "bg-zinc-500",
+  pill: STATUS_PILL[s],
+}));
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "todo", label: "To Do" },
@@ -1913,7 +1920,7 @@ export default function TasksPage() {
                   ) : null}
                 </div>
 
-                {/* Assignee + status pill (coloured) + edit + delete */}
+                {/* Assignee · status pill · overflow menu */}
                 <div className="flex shrink-0 items-center gap-1.5">
                   <AssigneePicker
                     value={t.assigneeId}
@@ -1921,33 +1928,30 @@ export default function TasksPage() {
                     myId={myId}
                     onChange={(assigneeId) => updateAssignee(t.id, assigneeId)}
                   />
-                  <select
+                  <StatusMenu
                     value={t.status}
-                    onChange={(e) => updateStatus(t.id, e.target.value)}
-                    title="Change status"
-                    aria-label="Change status"
-                    className={`rounded-md border py-1 pl-2.5 pr-6 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${STATUS_PILL[t.status] ?? "border-border bg-background text-foreground"}`}
-                  >
-                    {STATUSES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{STATUS_LABELS[s]}</option>)}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => openEdit(t)}
-                    title="Edit task"
-                    aria-label="Edit task"
-                    className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-white/5 hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(t.id)}
-                    title="Delete task"
-                    aria-label="Delete task"
-                    className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-red-950/20 hover:text-red-400 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    options={STATUS_MENU_ITEMS}
+                    onChange={(s) => updateStatus(t.id, s)}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="More actions"
+                        className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-white/5 hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[8rem]">
+                      <DropdownMenuItem onClick={() => openEdit(t)} className="cursor-pointer gap-2">
+                        <Pencil className="h-4 w-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeleteTarget(t.id)} className="cursor-pointer gap-2 text-destructive focus:text-destructive">
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               );
