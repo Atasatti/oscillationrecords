@@ -24,6 +24,8 @@ export type AutomationRuleDef = {
 
 export const PITCH_ACCEPTED_KEY = "pitch_accepted_task";
 export const RELEASE_CAMPAIGN_KEY = "release_campaign_tasks";
+export const DEMO_RECEIVED_KEY = "demo_received_task";
+export const POST_RELEASE_KEY = "post_release_tasks";
 
 export const AUTOMATION_RULES: readonly AutomationRuleDef[] = [
   {
@@ -36,6 +38,15 @@ export const AUTOMATION_RULES: readonly AutomationRuleDef[] = [
     defaultConfig: {},
   },
   {
+    key: DEMO_RECEIVED_KEY,
+    name: "New demo → review task",
+    description:
+      "When a new demo is logged in the A&R pipeline, create a task to listen and rate it, so nothing sits unheard in the inbox.",
+    kind: "event",
+    creates: "One task per new demo",
+    defaultConfig: {},
+  },
+  {
     key: RELEASE_CAMPAIGN_KEY,
     name: "Upcoming release → pre-release campaign",
     description:
@@ -43,6 +54,15 @@ export const AUTOMATION_RULES: readonly AutomationRuleDef[] = [
     kind: "scheduled",
     creates: "One task per upcoming release",
     defaultConfig: { daysBefore: 21 },
+  },
+  {
+    key: POST_RELEASE_KEY,
+    name: "Release goes live → post-release wrap-up",
+    description:
+      "When a release's date passes (within N days), create a post-release task with a wrap-up checklist — confirm it's live, log placements, thank curators — linked to the release and its artists.",
+    kind: "scheduled",
+    creates: "One task per newly-released title",
+    defaultConfig: { daysAfter: 3 },
   },
 ];
 
@@ -78,6 +98,11 @@ function sanitizeConfig(key: string, config: Record<string, unknown>): Record<st
     const raw = Number(config.daysBefore);
     const daysBefore = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.round(raw))) : 21;
     return { daysBefore };
+  }
+  if (key === POST_RELEASE_KEY) {
+    const raw = Number(config.daysAfter);
+    const daysAfter = Number.isFinite(raw) ? Math.min(30, Math.max(1, Math.round(raw))) : 3;
+    return { daysAfter };
   }
   return {};
 }
@@ -233,6 +258,34 @@ export async function onPitchAccepted(pitch: PitchLike): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Event rule — new demo logged
+// ---------------------------------------------------------------------------
+
+type DemoLike = { id: string; artistName: string; link?: string | null };
+
+/**
+ * Called after a demo is logged in the A&R pipeline. Best-effort: never throws
+ * into the request. No-op unless the rule is enabled; idempotent per demo.
+ */
+export async function onDemoReceived(demo: DemoLike): Promise<void> {
+  try {
+    const { enabled } = await loadRule(DEMO_RECEIVED_KEY);
+    if (!enabled) return;
+    await fireOnce(DEMO_RECEIVED_KEY, "demo", demo.id, {
+      title: `Review demo — ${demo.artistName}`,
+      description: demo.link
+        ? `Listen and rate the demo from ${demo.artistName}.\nLink: ${demo.link}`
+        : `Listen and rate the demo from ${demo.artistName}.`,
+      category: "research",
+      priority: "medium",
+      notes: "Created automatically by the “New demo → review task” automation.",
+    });
+  } catch (e) {
+    console.error("onDemoReceived automation error:", e);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Scheduled rules — evaluated on demand (no cron): a "Run now" button + a
 // best-effort sweep when the automations page loads. Idempotent, so safe to
 // re-run. A cron can also POST /api/automations/run.
@@ -244,6 +297,14 @@ const CAMPAIGN_CHECKLIST = [
   "Schedule social posts + Canvas/Clips",
   "Set up the pre-save / smart link",
   "Brief the artist on release-day actions",
+];
+
+const POST_RELEASE_CHECKLIST = [
+  "Confirm the release is live on all DSPs",
+  "Log any playlist / radio / press placements",
+  "Thank curators, press & playlisters who supported it",
+  "Update the artist's EPK + press one-sheet",
+  "Post release-day + follow-up social content",
 ];
 
 export async function runScheduledAutomations(): Promise<{ created: number }> {
@@ -278,6 +339,34 @@ export async function runScheduledAutomations(): Promise<{ created: number }> {
     }
     // Stamp the sweep time (only if the row exists — i.e. the rule was toggled).
     await prisma.automationRule.updateMany({ where: { key: RELEASE_CAMPAIGN_KEY }, data: { lastRunAt: new Date() } }).catch(() => {});
+  }
+
+  const post = await loadRule(POST_RELEASE_KEY);
+  if (post.enabled) {
+    const daysAfter = Math.min(30, Math.max(1, Math.round(Number(post.config.daysAfter) || 3)));
+    const now = new Date();
+    const since = new Date(now.getTime() - daysAfter * 86_400_000);
+    // Titles whose date has just passed — SCHEDULED ones auto-publish at query
+    // time, so include both statuses in the just-released window.
+    const releases = await prisma.release.findMany({
+      where: { releaseDate: { gte: since, lte: now }, status: { in: ["SCHEDULED", "RELEASED"] } },
+      select: { id: true, name: true, primaryArtistIds: true, featureArtistIds: true },
+    });
+    for (const r of releases) {
+      const checklist = POST_RELEASE_CHECKLIST.map((text) => ({ id: crypto.randomUUID(), text, done: false }));
+      const taskId = await fireOnce(POST_RELEASE_KEY, "release", r.id, {
+        title: `Post-release wrap-up — ${r.name}`,
+        description: `${r.name} is out. Confirm it's live everywhere and capture the wins.`,
+        category: "pitching",
+        priority: "medium",
+        checklist,
+        artistIds: [...(r.primaryArtistIds ?? []), ...(r.featureArtistIds ?? [])],
+        releaseIds: [r.id],
+        notes: "Created automatically by the “Release goes live → post-release wrap-up” automation.",
+      });
+      if (taskId) created += 1;
+    }
+    await prisma.automationRule.updateMany({ where: { key: POST_RELEASE_KEY }, data: { lastRunAt: new Date() } }).catch(() => {});
   }
 
   return { created };

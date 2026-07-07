@@ -19,9 +19,16 @@ const fmtWhen = (iso: string | null) =>
       })
     : "never";
 
-const daysOf = (config: Record<string, unknown>) => {
+// Scheduled rules carry a single "N days" config — either daysBefore (pre-release
+// campaign) or daysAfter (post-release wrap-up). Pick the field the rule uses so
+// the editor shows the right label/bounds and patches the right key.
+const dayCfg = (config: Record<string, unknown>) => {
+  if ("daysAfter" in config) {
+    const n = Number(config.daysAfter);
+    return { field: "daysAfter" as const, value: Number.isFinite(n) ? n : 3, max: 30, label: "days after the release date" };
+  }
   const n = Number(config.daysBefore);
-  return Number.isFinite(n) ? n : 21;
+  return { field: "daysBefore" as const, value: Number.isFinite(n) ? n : 21, max: 90, label: "days before the release date" };
 };
 
 export default function AdminAutomationsClient({ initialRules }: { initialRules: RuleState[] }) {
@@ -145,28 +152,30 @@ export default function AdminAutomationsClient({ initialRules }: { initialRules:
                     ) : null}
                   </div>
 
-                  {r.kind === "scheduled" && r.enabled ? (
-                    <label className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                      Trigger
-                      <input
-                        key={`days-${daysOf(r.config)}`}
-                        type="number"
-                        min={1}
-                        max={90}
-                        defaultValue={daysOf(r.config)}
-                        disabled={busy}
-                        aria-label="Days before release"
-                        onBlur={(e) => {
-                          const cur = daysOf(r.config);
-                          const v = Math.min(90, Math.max(1, Math.round(Number(e.target.value) || cur)));
-                          e.target.value = String(v);
-                          if (v !== cur) patchRule(r.key, { config: { daysBefore: v } });
-                        }}
-                        className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                      />
-                      days before the release date
-                    </label>
-                  ) : null}
+                  {r.kind === "scheduled" && r.enabled ? (() => {
+                    const cfg = dayCfg(r.config);
+                    return (
+                      <label className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                        Trigger
+                        <input
+                          key={`days-${cfg.field}-${cfg.value}`}
+                          type="number"
+                          min={1}
+                          max={cfg.max}
+                          defaultValue={cfg.value}
+                          disabled={busy}
+                          aria-label={cfg.label}
+                          onBlur={(e) => {
+                            const v = Math.min(cfg.max, Math.max(1, Math.round(Number(e.target.value) || cfg.value)));
+                            e.target.value = String(v);
+                            if (v !== cfg.value) patchRule(r.key, { config: { [cfg.field]: v } });
+                          }}
+                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                        />
+                        {cfg.label}
+                      </label>
+                    );
+                  })() : null}
                 </div>
 
                 {/* Enable / disable toggle */}

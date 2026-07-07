@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { normalizeDemoInput } from "@/lib/demo";
+import { onDemoReceived } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
     if (!input.artistName) return NextResponse.json({ error: "Artist name is required" }, { status: 400 });
 
     const demo = await prisma.demo.create({ data: input });
+    // Fire the "new demo → review task" automation (no-op unless enabled).
+    if (demo.stage === "received") {
+      await onDemoReceived({ id: demo.id, artistName: demo.artistName, link: demo.link });
+    }
     await recordAudit(request, guard.token, {
       action: "create",
       resource: "demo",
