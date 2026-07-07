@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookUser, Send, AlertCircle, TrendingUp, ChevronRight } from "lucide-react";
+import { BookUser, Send, AlertCircle, TrendingUp, ChevronRight, Headphones, Award } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCached, setCached } from "@/lib/admin-cache";
@@ -12,7 +12,13 @@ type Summary = {
   activePitches: number;
   awaitingFollowUp: number;
   acceptedPitches: number;
+  totalDemos: number;
+  newDemos: number;
+  totalPlacements: number;
+  combinedReach: number;
 };
+
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
 export default function OutreachHubPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -43,7 +49,7 @@ export default function OutreachHubPage() {
     <div>
       <PageHeader
         title="Outreach"
-        description="Manage your PR contacts and track pitches per release."
+        description="Contacts, pitches, demos and placements — everything for getting a release heard."
       />
 
       {/* Attention banner */}
@@ -76,6 +82,20 @@ export default function OutreachHubPage() {
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs text-muted-foreground">Accepted</p>
           <div className="mt-1 text-3xl font-semibold text-green-400">{stat(summary?.acceptedPitches)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground">Demos to review</p>
+          <div className={`mt-1 text-3xl font-semibold ${!loading && summary?.newDemos ? "text-amber-400" : ""}`}>{stat(summary?.newDemos)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground">Placements</p>
+          <div className="mt-1 text-3xl font-semibold">{stat(summary?.totalPlacements)}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="text-xs text-muted-foreground">Combined reach</p>
+          <div className="mt-1 text-3xl font-semibold">
+            {loading ? <Skeleton className="h-8 w-14" /> : <span>{compact.format(summary?.combinedReach ?? 0)}</span>}
+          </div>
         </div>
       </div>
 
@@ -120,6 +140,48 @@ export default function OutreachHubPage() {
           </div>
           <div className="text-xs text-muted-foreground">
             {loading ? <Skeleton className="h-3 w-20" /> : `${summary?.activePitches ?? 0} active`}
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/outreach/demos"
+          className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-6 transition-colors hover:border-border/80 hover:bg-white/[0.02]"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
+              <Headphones className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </div>
+          <div>
+            <p className="font-medium">Demos</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Inbound demos moving through the A&amp;R funnel.
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {loading ? <Skeleton className="h-3 w-24" /> : `${summary?.newDemos ?? 0} to review · ${summary?.totalDemos ?? 0} total`}
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/outreach/placements"
+          className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-6 transition-colors hover:border-border/80 hover:bg-white/[0.02]"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background">
+              <Award className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </div>
+          <div>
+            <p className="font-medium">Placements</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Playlist adds, radio spins and press wins.
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {loading ? <Skeleton className="h-3 w-24" /> : `${summary?.totalPlacements ?? 0} logged · ${compact.format(summary?.combinedReach ?? 0)} reach`}
           </div>
         </Link>
       </div>
