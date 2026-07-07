@@ -59,7 +59,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div
+      className="flex min-h-screen bg-[#0a0a0c] text-foreground"
+      style={{
+        // Admin-only surface elevation: the base theme sets --card == --background
+        // (everything reads as one flat black). Lift cards/popovers off the darker
+        // ground so panels, rows and menus have real separation.
+        ["--card" as string]: "#161619",
+        ["--popover" as string]: "#161619",
+      }}
+    >
       {/* Desktop sidebar */}
       <aside className={`hidden shrink-0 border-r border-border bg-sidebar transition-[width] duration-200 md:block ${collapsed ? "w-16" : "w-64"}`}>
         <div className="sticky top-0 h-screen">

@@ -1432,11 +1432,11 @@ export default function TasksPage() {
       />
 
       {/* Suggested tasks (collapsible) */}
-      <div className="mb-5 rounded-xl border border-border bg-card">
+      <div className="mb-3 rounded-xl border border-border bg-card">
         <button
           type="button"
           onClick={() => setShowSuggestions((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium"
+          className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
@@ -1537,7 +1537,7 @@ export default function TasksPage() {
       </div>
 
       {/* View switch — the shared Segmented primitive */}
-      <div className="mb-4">
+      <div className="mb-3">
         <Segmented<"list" | "board" | "calendar">
           ariaLabel="View"
           value={view}
@@ -1553,7 +1553,7 @@ export default function TasksPage() {
       {view === "list" ? (
         <>
       {/* Tabs: Needs attention + status filters, then category */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center rounded-lg border border-border p-0.5">
           <button
             type="button"
