@@ -201,6 +201,9 @@ export default function AdminMessagesClient({
   const toast = useToast();
   const [messages, setMessages] = useState<ContactMessageDTO[]>(initialMessages);
   const [filter, setFilter] = useState<Filter>("all");
+  // Resolved tickets are hidden from the "All" list by default; the Resolved tab
+  // still shows them, and this toggle brings them back inline.
+  const [showResolved, setShowResolved] = useState(false);
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<ContactMessageDTO | null>(null);
   // Message being turned into an outreach contact (opens the add-contact dialog).
@@ -221,14 +224,18 @@ export default function AdminMessagesClient({
 
   // Active tickets first (open, then in-progress), high priority first, then newest.
   const visible = useMemo(() => {
-    const list = messages.filter((m) => (filter === "all" ? true : m.status === filter));
+    // On "All", hide resolved unless the toggle is on; a specific status tab
+    // (incl. Resolved) always shows exactly that status.
+    const list = messages.filter((m) =>
+      filter === "all" ? showResolved || m.status !== "resolved" : m.status === filter
+    );
     return [...list].sort((a, b) => {
       if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
       if (a.status !== "resolved" && a.priority !== b.priority)
         return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [messages, filter]);
+  }, [messages, filter, showResolved]);
 
   // Optimistic PATCH of any subset of ticket fields; reverts the whole row on error.
   const patchMessage = async (
@@ -295,20 +302,33 @@ export default function AdminMessagesClient({
         description="Tickets from the public Contact form. Triage each one — set a status, priority, and owner as you work it."
       />
 
-      <div className="mb-4 inline-flex items-center rounded-lg border border-border p-0.5">
-        {FILTERS.map(({ key, label, count }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setFilter(key)}
-            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-              filter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {label}
-            <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{count}</span>
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="inline-flex items-center rounded-lg border border-border p-0.5">
+          {FILTERS.map(({ key, label, count }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                filter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{count}</span>
+            </button>
+          ))}
+        </div>
+        {filter === "all" && counts.resolved > 0 ? (
+          <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={showResolved}
+              onChange={(e) => setShowResolved(e.target.checked)}
+              className="h-3.5 w-3.5 accent-white"
+            />
+            Show resolved
+          </label>
+        ) : null}
       </div>
 
       {visible.length === 0 ? (
