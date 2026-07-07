@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import AdminSidebar from "./AdminSidebar";
@@ -17,7 +17,21 @@ import AdminReminders from "@/components/admin/AdminReminders";
  */
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop sidebar collapse (icon rail), remembered across sessions. Read after
+  // mount so SSR/first paint stay deterministic (no hydration mismatch).
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem("admin-sidebar-collapsed") === "1"); } catch {}
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("admin-sidebar-collapsed", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }, []);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -47,9 +61,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar md:block">
+      <aside className={`hidden shrink-0 border-r border-border bg-sidebar transition-[width] duration-200 md:block ${collapsed ? "w-16" : "w-64"}`}>
         <div className="sticky top-0 h-screen">
-          <AdminSidebar />
+          <AdminSidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
         </div>
       </aside>
 

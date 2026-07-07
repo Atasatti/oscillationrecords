@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, Headphones, Award, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, Headphones, Award, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
@@ -123,7 +123,15 @@ export const isAdminLinkActive = (pathname: string, href: string) =>
  * Sidebar contents — used both in the persistent desktop rail and inside the
  * mobile drawer (AdminShell). `onNavigate` lets the drawer close on link click.
  */
-export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export default function AdminSidebar({
+  onNavigate,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const user = session?.user;
@@ -155,19 +163,25 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
       <Link
         href="/admin"
         onClick={onLinkClick}
-        className="flex items-center gap-2 px-5 py-5"
+        className={`flex items-center py-5 ${collapsed ? "justify-center px-2" : "gap-2 px-5"}`}
       >
-        <Image width={36} height={36} className="h-9 w-9" alt="" src="/logo-icon.svg" />
-        <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
+        <Image width={36} height={36} className="h-9 w-9 shrink-0" alt="" src="/logo-icon.svg" />
+        {!collapsed ? (
+          <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
+        ) : null}
       </Link>
 
-      <nav className="scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
+      <nav className={`scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-3"}`}>
         {visibleGroups.map((group, gi) => (
-          <div key={group.header ?? "main"} className={gi > 0 ? "mt-4" : undefined}>
-            {group.header ? (
+          <div key={group.header ?? "main"} className={gi > 0 ? (collapsed ? "mt-2" : "mt-4") : undefined}>
+            {group.header && !collapsed ? (
               <p className="px-3 pb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/60">
                 {group.header}
               </p>
+            ) : null}
+            {/* Collapsed: a thin rule keeps groups visually separated (headers hidden). */}
+            {group.header && collapsed && gi > 0 ? (
+              <div className="mx-2 mb-1 border-t border-border/60" aria-hidden />
             ) : null}
             <div className="flex flex-col gap-1">
               {group.links.map((link) => {
@@ -179,14 +193,15 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
                     href={link.href}
                     onClick={onLinkClick}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                    title={collapsed ? link.label : undefined}
+                    className={`flex items-center rounded-lg py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-0" : "gap-3 px-3"} ${
                       active
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                    {link.label}
+                    {!collapsed ? link.label : null}
                   </Link>
                 );
               })}
@@ -194,6 +209,27 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
           </div>
         ))}
       </nav>
+
+      {onToggleCollapse ? (
+        <div className="border-t border-border p-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`flex w-full items-center rounded-lg py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+          >
+            {collapsed ? (
+              <ChevronsRight className="h-4 w-4 shrink-0" aria-hidden />
+            ) : (
+              <>
+                <ChevronsLeft className="h-4 w-4 shrink-0" aria-hidden />
+                Collapse
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
