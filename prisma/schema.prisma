@@ -536,6 +536,29 @@ model Asset {
   @@index([artistId])
 }
 
+/// A newsletter campaign composed in the admin and sent to the
+/// NewsletterSubscriber list. `body` is the markdown-ish composer source
+/// (rendered to safe HTML at send). Shape/validation in lib/newsletter.ts.
+model Campaign {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  subject        String
+  body           String
+  /// "draft" | "scheduled" | "sending" | "sent" | "failed"
+  status         String    @default("draft")
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  recipientCount Int       @default(0)
+  sentCount      Int       @default(0)
+  failedCount    Int       @default(0)
+  opens          Int       @default(0)
+  createdById    String?   @db.ObjectId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([createdAt])
+}
+
 model PlayEvent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
