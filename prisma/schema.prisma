@@ -247,6 +247,13 @@ model Release {
   /// records what each release is licensed under. Shape/validation in
   /// lib/release-terms.ts; `endDate` powers the "agreement expiring" alert.
   terms             Json?
+  /// Operational delivery / sign-off status — distinct from the metadata SEO
+  /// score. "not_started" | "ready" | "delivered" | "live". Shape in
+  /// lib/release-delivery.ts.
+  deliveryStatus    String       @default("not_started")
+  deliveryNotes     String?
+  deliveryUpdatedAt DateTime?
+  deliveryUpdatedById String?    @db.ObjectId
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -405,6 +412,12 @@ model ContactMessage {
   name      String
   email     String
   message   String
+  /// Logged-in submitter's User.id when the sender was authenticated (public
+  /// visitors submit anonymously). Optional — never blocks a submission.
+  userId    String?  @db.ObjectId
+  /// Public-form attachments: [{ name, url, size, type }] stored on S3 and
+  /// HEAD-validated (type + size) before write. Optional.
+  attachments Json?
   handled   Boolean  @default(false)
   /// Ticket status: "open" | "in_progress" | "resolved". Kept in sync with
   /// `handled` (resolved == handled) so the "unread" needs-attention count still
