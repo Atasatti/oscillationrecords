@@ -65,6 +65,32 @@ export function objectIdOrNull(v: unknown): string | null {
   return typeof v === "string" && /^[a-f\d]{24}$/i.test(v) ? v : null;
 }
 
+/** Best-effort MIME from a URL's extension — for catalog media (release covers,
+ *  track audio/stems, artist/press images) that's stored as a bare URL with no
+ *  content-type. Drives the thumbnail-vs-glyph choice in the grid. */
+export function guessMimeFromUrl(url: string): string {
+  const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (["png", "webp", "gif", "avif", "tiff", "bmp"].includes(ext)) return `image/${ext}`;
+  if (ext === "mp3") return "audio/mpeg";
+  if (ext === "m4a") return "audio/mp4";
+  if (["wav", "aac", "ogg", "flac"].includes(ext)) return `audio/${ext}`;
+  if (ext === "zip") return "application/zip";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "mov") return "video/quicktime";
+  if (["mp4", "webm"].includes(ext)) return `video/${ext}`;
+  return "application/octet-stream";
+}
+
+/** The filename portion of a URL (decoded), or "file". */
+export function fileNameFromUrl(url: string): string {
+  try {
+    return decodeURIComponent(url.split("?")[0].split("/").pop() || "file") || "file";
+  } catch {
+    return "file";
+  }
+}
+
 /** Human-readable file size (e.g. "4.2 MB"). */
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "—";

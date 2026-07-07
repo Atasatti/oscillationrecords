@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
-  Image as ImageIcon,
+  Image as ImageIcon, ExternalLink,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,12 @@ export type Asset = {
   notes: string | null;
   createdAt: string;
   uploader: string | null;
+  /** "upload" = added via the DAM (editable); the rest are read-only catalog
+   *  media surfaced from the record they live on. */
+  source: "upload" | "release" | "artist" | "press";
+  readOnly: boolean;
+  parentHref: string | null;
+  parentLabel: string | null;
 };
 
 export type Option = { id: string; name: string };
@@ -267,7 +274,7 @@ export default function AssetsClient({
     <div>
       <PageHeader
         title="Asset library"
-        description="Masters, artwork, stems, press photos and EPKs — one place, linked to releases and artists."
+        description="Every cover, master, stem, artist photo and press image across your catalog — plus anything you upload here. Catalog media is managed on its own record."
         actions={
           <Button onClick={openUpload} className="bg-white text-black hover:bg-gray-200">
             <Upload className="h-4 w-4" /> Upload
@@ -333,9 +340,18 @@ export default function AssetsClient({
                   </div>
                   <p className="truncate text-sm font-medium" title={a.title}>{a.title}</p>
                   {a.fileName !== a.title ? <p className="truncate text-xs text-muted-foreground" title={a.fileName}>{a.fileName}</p> : null}
-                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                    {rel ? <span>Release: {rel}</span> : null}
-                    {art ? <span>Artist: {art}</span> : null}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                    {a.readOnly && a.parentLabel ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="rounded border border-border px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">{a.source}</span>
+                        <span className="truncate">{a.parentLabel}</span>
+                      </span>
+                    ) : (
+                      <>
+                        {rel ? <span>Release: {rel}</span> : null}
+                        {art ? <span>Artist: {art}</span> : null}
+                      </>
+                    )}
                   </div>
                   {a.notes ? <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-gray-400">{a.notes}</p> : null}
                   <div className="mt-auto flex items-center justify-between pt-2">
@@ -347,14 +363,25 @@ export default function AssetsClient({
                         className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
                         <Download className="h-3.5 w-3.5" />
                       </a>
-                      <button type="button" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"
-                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" onClick={() => setDeleteTarget(a)} title="Delete" aria-label="Delete"
-                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {a.readOnly ? (
+                        a.parentHref ? (
+                          <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        ) : null
+                      ) : (
+                        <>
+                          <button type="button" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" onClick={() => setDeleteTarget(a)} title="Delete" aria-label="Delete"
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
