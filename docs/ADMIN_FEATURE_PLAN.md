@@ -112,7 +112,7 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
 | 21 | ✅ **Smarter alert thresholds** | M | **Shipped.** Needs-attention now flags imminent scheduled releases missing artwork/tracks, pitches sent 14+ days ago with no follow-up set, and artists idle 6+ months. |
-| 22 | ◑ **Reminders / daily digest** | M | **Partial:** in-app reminders via the bell (#23). *Email digest* still TODO. |
+| 22 | ✅ **Reminders / daily digest** | M | **Shipped.** In-app reminders via the bell (#23) + an email **daily digest** at `/admin/digest` (open messages, draft/upcoming releases, demos to review, recent wins). Live preview; any staff can self-test, owners send to all; cron-schedulable. Behind a graceful "email not configured" gate. |
 | 23 | ✅ **Notifications center (in-app bell)** | S–M | **Shipped.** Topbar bell surfaces overdue/due-today tasks + unread @mentions. |
 
 ### Phase 5 — Money & rights (biggest label-specific gap)
@@ -143,7 +143,7 @@ Nothing in the current admin covers this. Highest business value.
 |---|---------|--------|-------|
 | 33 | ✅ **Placement tracker** | M | **Shipped** at `/admin/outreach/placements`: an internal wins log — playlist adds (+ reach), radio spins, press/blog coverage — with outlet, playlist/show/article, date, and optional release/artist links. Type filter + combined-reach headline. CRUD API (outreach-gated + audited). Distinct from the public Press feature. |
 | 34 | ✅ **Content / social calendar** | M | **Shipped** at `/admin/content/calendar`: a month-grid calendar of planned posts (click a day to plan, a post to edit). Platform-tagged (colour-coded), status funnel (Idea → Drafted → Scheduled → Published), optional release link, per-platform month filter. UTC-pinned dates + local "today". CRUD API (outreach-gated + audited). |
-| 35 | **Newsletter campaigns** | M–L | Composer + scheduler + open/click stats over existing `Subscriber` list. |
+| 35 | ✅ **Newsletter campaigns** | M–L | **Shipped** at `/admin/outreach/newsletter`: composer (subject + body w/ live preview), draft/schedule/send-now over the `NewsletterSubscriber` list, delivery + open-rate stats. Provider-agnostic send (Resend REST, no SDK dep) behind a graceful "email not configured" gate; cron-schedulable. Open tracking shipped; click tracking is a future add. |
 
 ### Phase 9 — Team & security *(pairs with the current security audit)*
 | # | Feature | Effort | Notes |
@@ -170,9 +170,10 @@ Nothing in the current admin covers this. Highest business value.
 ### Suggested next (not yet started)
 - **Small task wins (S):** ✅ blocked/waiting status (#4) + first-class group-by (#11) shipped.
 - **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
-- **Automation & inbox:** SLA targets (#19), **email digest** (#22 remainder). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21 shipped.)*
+- **Automation & inbox:** SLA targets (#19 — redundant with #21). *(automation rules #17, ticketing+reply thread #18, smarter alerts #21, email digest #22 shipped.)*
 - **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
-- **New surfaces:** artist onboarding (#32 — likely covered by the artist editor), newsletter campaigns (#35 — needs email infra), email digest (#22 — needs email infra). *(A&R demo #31 + content calendar #34 + placements #33 + asset library/DAM #29 shipped.)*
+- **Everything actionable is shipped.** Remaining: artist onboarding (#32 — redundant with the artist editor's completeness signals) and SLA targets (#19 — redundant with #21). *(This run: A&R demo #31, content calendar #34, placements #33, asset library/DAM #29, newsletter #35, daily digest #22.)*
+- **Email note:** #35/#22 ship behind a graceful gate. To enable sending, set `RESEND_API_KEY` + `EMAIL_FROM` (and optionally `CRON_SECRET` + a cron hitting `/api/newsletter/campaigns/run` and `/api/admin/digest`).
 
 ---
 
