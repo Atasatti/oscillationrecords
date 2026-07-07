@@ -23,6 +23,7 @@ import {
   type TicketStatus,
   type TicketPriority,
 } from "@/lib/contact-ticket";
+import { slaState } from "@/lib/ticket-sla";
 
 export type StaffOption = { id: string; name: string | null; email: string };
 
@@ -330,6 +331,14 @@ export default function AdminMessagesClient({
                       >
                         {STATUS_LABELS[m.status]}
                       </span>
+                      {(() => {
+                        const sla = slaState(m.createdAt, m.status);
+                        if (sla.kind === "overdue")
+                          return <span className="rounded-full border border-red-500/50 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-300">{sla.label}</span>;
+                        if (sla.kind === "due_soon")
+                          return <span className="rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200">{sla.label}</span>;
+                        return null;
+                      })()}
                       {m.priority === "high" ? <Badge variant="destructive">High priority</Badge> : null}
                       {assignee ? (
                         <span className="text-xs text-muted-foreground">→ {staffLabel(assignee)}</span>
