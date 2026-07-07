@@ -12,9 +12,9 @@ import { roleCan, type Permission } from "@/lib/permissions";
  * to wire it up. Tabs are permission-filtered like the sidebar; a lone remaining
  * tab renders nothing (no chrome for a single view).
  */
-type Tab = { label: string; href: string; perm?: Permission };
+export type Tab = { label: string; href: string; perm?: Permission };
 
-const TAB_GROUPS: readonly (readonly Tab[])[] = [
+export const TAB_GROUPS: readonly (readonly Tab[])[] = [
   [
     { label: "Board", href: "/admin/tasks" },
     { label: "Automations", href: "/admin/automations", perm: "outreach:write" },

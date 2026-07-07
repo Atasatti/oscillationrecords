@@ -19,7 +19,7 @@ import { roleCan, type Permission } from "@/lib/permissions";
 // requires that grant, "owner" is owner-only, and undefined means any staff role
 // (e.g. the Dashboard). Owners always see everything. This is cosmetic — the hard
 // enforcement is middleware page-gating + per-route API permission checks.
-type AdminLink = {
+export type AdminLink = {
   href: string;
   label: string;
   icon: LucideIcon;
@@ -32,7 +32,7 @@ type AdminGroup = { header: string | null; links: readonly AdminLink[] };
 // under Money, Subscribers under Newsletter) are reached via the in-page tab
 // strip (components/admin/shell/SectionTabs.tsx). Each primary link's `match`
 // lists its sub-view routes so the parent stays highlighted on those pages.
-const adminGroups: readonly AdminGroup[] = [
+export const adminGroups: readonly AdminGroup[] = [
   {
     header: null,
     links: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],

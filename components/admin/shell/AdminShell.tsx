@@ -7,6 +7,7 @@ import AdminSidebar from "./AdminSidebar";
 import Breadcrumbs from "./Breadcrumbs";
 import SectionTabs from "./SectionTabs";
 import AdminUserMenu from "./AdminUserMenu";
+import CommandPalette from "./CommandPalette";
 import AdminReminders from "@/components/admin/AdminReminders";
 
 /**
@@ -102,7 +103,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Suspense fallback={null}>
             <Breadcrumbs />
           </Suspense>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-2">
+            <CommandPalette />
             <AdminReminders />
             <AdminUserMenu />
           </div>
