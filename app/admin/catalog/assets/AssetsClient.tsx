@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import Segmented from "@/components/admin/ui/Segmented";
 import {
   ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_ACCEPT, formatBytes, type AssetCategory,
 } from "@/lib/asset";
@@ -283,21 +284,12 @@ export default function AssetsClient({
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex flex-wrap items-center rounded-lg border border-border p-0.5">
-          {FILTERS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                filter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {label}
-              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Filter assets by category"
+          value={filter}
+          onChange={setFilter}
+          options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
+        />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}

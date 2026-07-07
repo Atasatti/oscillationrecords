@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import Segmented from "@/components/admin/ui/Segmented";
 import { unlockBody } from "@/lib/unlock-body";
 import {
   TICKET_STATUSES,
@@ -303,21 +304,12 @@ export default function AdminMessagesClient({
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="inline-flex items-center rounded-lg border border-border p-0.5">
-          {FILTERS.map(({ key, label, count }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                filter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {label}
-              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{count}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Filter tickets"
+          value={filter}
+          onChange={setFilter}
+          options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: f.count }))}
+        />
         {filter === "all" && counts.resolved > 0 ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <input

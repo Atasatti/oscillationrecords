@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import Segmented from "@/components/admin/ui/Segmented";
 import {
   PLACEMENT_TYPES,
   PLACEMENT_TYPE_LABELS,
@@ -218,21 +219,12 @@ export default function PlacementsClient({
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex flex-wrap items-center rounded-lg border border-border p-0.5">
-          {FILTERS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                filter === key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {label}
-              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Filter placements by type"
+          value={filter}
+          onChange={setFilter}
+          options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
+        />
         {totalReach > 0 ? (
           <span className="text-sm text-muted-foreground">
             Combined reach <span className="font-semibold text-foreground tabular-nums">{compact.format(totalReach)}</span>
