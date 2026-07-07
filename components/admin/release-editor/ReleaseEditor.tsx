@@ -39,8 +39,8 @@ export interface ReleaseEditorProps {
   mode: "create" | "edit";
   releaseKind: ReleaseKind;
   releaseId?: string;
-  /** Prefill the primary artist when launched from an artist's catalog row. */
-  initialArtistId?: string;
+  /** Prefill the primary artist(s) — one or more, from the New-release dialog. */
+  initialArtistIds?: string[];
   /** Pre-set status on create (e.g. "SCHEDULED" from the Coming Soon page). */
   initialStatus?: ReleaseDetailsValue["status"];
 }
@@ -49,7 +49,7 @@ export default function ReleaseEditor({
   mode,
   releaseKind,
   releaseId,
-  initialArtistId,
+  initialArtistIds,
   initialStatus,
 }: ReleaseEditorProps) {
   const router = useRouter();
@@ -72,7 +72,7 @@ export default function ReleaseEditor({
     // explicit initialStatus, e.g. SCHEDULED from the Coming Soon page).
     base.status =
       initialStatus === "SCHEDULED" || initialStatus === "RELEASED" ? initialStatus : "RELEASED";
-    if (initialArtistId) base.primaryArtistIds = [initialArtistId];
+    if (initialArtistIds?.length) base.primaryArtistIds = initialArtistIds;
     return base;
   });
   // Whether the release is currently an unpublished draft (new releases are, and

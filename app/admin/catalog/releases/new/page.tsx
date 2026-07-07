@@ -15,13 +15,25 @@ function toStatus(
   return v === "DRAFT" || v === "SCHEDULED" || v === "RELEASED" ? v : undefined;
 }
 
+// Prefill primary artists: `artistIds` (comma-separated, from the multi-select
+// New-release dialog) with a fallback to the legacy single `artistId`.
+function toArtistIds(params: URLSearchParams): string[] | undefined {
+  const multi = params.get("artistIds");
+  if (multi) {
+    const ids = multi.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length) return ids;
+  }
+  const single = params.get("artistId");
+  return single ? [single] : undefined;
+}
+
 function NewReleaseInner() {
   const params = useSearchParams();
   return (
     <ReleaseEditor
       mode="create"
       releaseKind={toKind(params.get("kind"))}
-      initialArtistId={params.get("artistId") || undefined}
+      initialArtistIds={toArtistIds(new URLSearchParams(params.toString()))}
       initialStatus={toStatus(params.get("status"))}
     />
   );
