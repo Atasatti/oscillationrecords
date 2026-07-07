@@ -452,6 +452,9 @@ const ORG_ENTITY_REFERENCES = [
   "https://find-and-update.company-information.service.gov.uk/company/15579381",
   // MusicBrainz label entity (high-signal music database).
   "https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470",
+  // Discogs label entity (high-signal music database; helps separate us from the
+  // similarly-named acts/labels on Discogs).
+  "https://www.discogs.com/label/4626393-Oscillation-Records-2",
   // Wikidata item — the Knowledge-Graph anchor.
   "https://www.wikidata.org/wiki/Q140353657",
 ];
