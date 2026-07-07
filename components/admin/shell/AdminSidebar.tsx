@@ -57,6 +57,7 @@ const adminGroups: readonly AdminGroup[] = [
       { href: "/admin/catalog/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
       { href: "/admin/catalog/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
       { href: "/admin/catalog/royalties", label: "Money", icon: Wallet, match: ["/admin/catalog/budgets"], perm: "catalog:read" },
+      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
     ],
   },
   {
@@ -72,7 +73,7 @@ const adminGroups: readonly AdminGroup[] = [
     ],
   },
   {
-    header: "Analytics",
+    header: "Insights",
     links: [
       { href: "/admin/data", label: "Live data", icon: Activity, perm: "analytics:read" },
       { href: "/admin/errors", label: "Errors", icon: TriangleAlert, perm: "analytics:read" },
@@ -82,7 +83,6 @@ const adminGroups: readonly AdminGroup[] = [
   {
     header: "System",
     links: [
-      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
       { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "owner" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "owner" },
     ],

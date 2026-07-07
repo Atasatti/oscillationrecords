@@ -35,6 +35,19 @@ const SEGMENT_HREF_OVERRIDES: Record<string, string> = {
   artist: "/admin/catalog/artists",
 };
 
+// Sub-views that live at their own route but belong under a primary section in
+// the new nav (reached via the in-page tab strip). Their path doesn't reflect
+// that nesting, so give them an explicit "Admin › <Parent> › <Leaf>" trail that
+// matches the sidebar's mental model. Keep in sync with SectionTabs.
+const SUBVIEW_TRAIL: Record<string, { parentLabel: string; parentHref: string; label: string }> = {
+  "/admin/automations": { parentLabel: "Tasks", parentHref: "/admin/tasks", label: "Automations" },
+  "/admin/outreach/templates": { parentLabel: "Tasks", parentHref: "/admin/tasks", label: "Templates" },
+  "/admin/catalog/pipeline": { parentLabel: "Releases", parentHref: "/admin/catalog/releases", label: "Pipeline" },
+  "/admin/catalog/timeline": { parentLabel: "Releases", parentHref: "/admin/catalog/releases", label: "Timeline" },
+  "/admin/catalog/budgets": { parentLabel: "Money", parentHref: "/admin/catalog/royalties", label: "Budgets" },
+  "/admin/subscribers": { parentLabel: "Newsletter", parentHref: "/admin/outreach/newsletter", label: "Subscribers" },
+};
+
 const isId = (seg: string) => /^[0-9a-f]{24}$/i.test(seg);
 
 function labelFor(seg: string) {
@@ -84,7 +97,15 @@ export default function Breadcrumbs() {
     (raw[2] === "release" || raw[2] === "artist") &&
     isId(raw[3]);
 
-  if (isIsniGuide) {
+  const subview = SUBVIEW_TRAIL[pathname];
+
+  if (subview) {
+    crumbs = [
+      { label: "Admin", href: "/admin", isLast: false },
+      { label: subview.parentLabel, href: subview.parentHref, isLast: false },
+      { label: subview.label, href: pathname, isLast: true },
+    ];
+  } else if (isIsniGuide) {
     const artistId = searchParams.get("artist");
     crumbs = [
       { label: "Admin", href: "/admin", isLast: false },
