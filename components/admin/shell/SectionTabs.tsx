@@ -80,7 +80,7 @@ export default function SectionTabs() {
 
   return (
     <div className="border-b border-border bg-background/40">
-      <nav className="flex flex-wrap gap-x-1 overflow-x-auto px-4 md:px-8" aria-label="Section">
+      <nav className="flex flex-wrap gap-x-1 px-4 md:px-8" aria-label="Section">
         {tabs.map((t) => {
           const active = t.href === activeHref;
           return (
