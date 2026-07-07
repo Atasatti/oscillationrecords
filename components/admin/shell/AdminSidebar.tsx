@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, Headphones, Award, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
@@ -63,9 +63,7 @@ export const adminGroups: readonly AdminGroup[] = [
   {
     header: "Promotion",
     links: [
-      { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"], perm: "outreach:read" },
-      { href: "/admin/outreach/demos", label: "Demos", icon: Headphones, perm: "outreach:read" },
-      { href: "/admin/outreach/placements", label: "Placements", icon: Award, perm: "outreach:read" },
+      { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches", "/admin/outreach/demos", "/admin/outreach/placements"], perm: "outreach:read" },
       { href: "/admin/tasks", label: "Tasks", icon: ListChecks, match: ["/admin/automations", "/admin/outreach/templates"], perm: "outreach:read" },
       { href: "/admin/content/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
       { href: "/admin/outreach/newsletter", label: "Newsletter", icon: Send, match: ["/admin/subscribers"], perm: "outreach:read" },

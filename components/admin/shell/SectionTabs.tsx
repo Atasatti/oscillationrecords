@@ -16,6 +16,13 @@ export type Tab = { label: string; href: string; perm?: Permission };
 
 export const TAB_GROUPS: readonly (readonly Tab[])[] = [
   [
+    { label: "Overview", href: "/admin/outreach", perm: "outreach:read" },
+    { label: "Contacts", href: "/admin/outreach/contacts", perm: "outreach:read" },
+    { label: "Pitches", href: "/admin/outreach/pitches", perm: "outreach:read" },
+    { label: "Demos", href: "/admin/outreach/demos", perm: "outreach:read" },
+    { label: "Placements", href: "/admin/outreach/placements", perm: "outreach:read" },
+  ],
+  [
     { label: "Board", href: "/admin/tasks" },
     { label: "Automations", href: "/admin/automations", perm: "outreach:write" },
     { label: "Templates", href: "/admin/outreach/templates", perm: "outreach:write" },
@@ -50,10 +57,17 @@ export default function SectionTabs() {
   const role = user?.role;
   const canSee = (perm?: Permission) => (!perm ? true : isOwner || roleCan(role, perm));
 
-  // The group that owns this route: any of its tabs is a prefix of the path.
-  // Artists must be checked so /admin/catalog/artists/onboarding resolves to the
-  // Artists group (Releases tabs don't match that path, so there's no clash).
-  const group = TAB_GROUPS.find((g) => g.some((t) => isUnder(pathname, t.href)));
+  // The owning group = the one containing the tab with the LONGEST matching
+  // prefix. Longest-prefix (not first-match) matters because /admin/outreach is a
+  // prefix of other sections' routes (newsletter, templates) — those must resolve
+  // to their own group, not to Outreach's Overview tab.
+  let group: readonly Tab[] | null = null;
+  let bestLen = -1;
+  for (const g of TAB_GROUPS) {
+    for (const t of g) {
+      if (isUnder(pathname, t.href) && t.href.length > bestLen) { bestLen = t.href.length; group = g; }
+    }
+  }
   if (!group) return null;
 
   const tabs = group.filter((t) => canSee(t.perm));
