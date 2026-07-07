@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,26 @@ export type Post = {
 };
 
 export type ReleaseOption = { id: string; name: string };
+
+// Read-only items from elsewhere in the label (release days, task due dates,
+// press, newsletters, placements) surfaced on the calendar alongside posts.
+export type CalEventType = "release" | "task" | "press" | "newsletter" | "placement";
+export type CalEvent = { id: string; type: CalEventType; title: string; dateKey: string; href: string };
+
+type FilterKey = "all" | "post" | CalEventType;
+
+const TYPE_PILL: Record<string, string> = {
+  post: "border-violet-500/40 bg-violet-500/10 text-violet-300",
+  release: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  task: "border-sky-500/40 bg-sky-500/10 text-sky-300",
+  press: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  newsletter: "border-pink-500/40 bg-pink-500/10 text-pink-300",
+  placement: "border-teal-500/40 bg-teal-500/10 text-teal-300",
+};
+const TYPE_LABELS: Record<FilterKey, string> = {
+  all: "All", post: "Posts", release: "Releases", task: "Tasks", press: "Press", newsletter: "Newsletter", placement: "Placements",
+};
+const FILTER_KEYS: FilterKey[] = ["all", "post", "release", "task", "press", "newsletter", "placement"];
 
 type Form = {
   title: string;
@@ -79,9 +100,11 @@ const monthLabel = (y: number, m: number) =>
 export default function CalendarClient({
   initial,
   releases,
+  events = [],
 }: {
   initial: Post[];
   releases: ReleaseOption[];
+  events?: CalEvent[];
 }) {
   const toast = useToast();
 
@@ -99,7 +122,7 @@ export default function CalendarClient({
     setTodayKey(localDayKey(d));
     setView({ y: d.getFullYear(), m: d.getMonth() });
   }, []);
-  const [platformFilter, setPlatformFilter] = useState<"all" | ContentPlatform>("all");
+  const [typeFilter, setTypeFilter] = useState<FilterKey>("all");
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -115,30 +138,46 @@ export default function CalendarClient({
     return m;
   }, [releases]);
 
-  // Posts keyed by their UTC day, honouring the platform filter.
+  // Posts keyed by their UTC day (shown when the filter is All or Posts).
   const postsByDay = useMemo(() => {
     const m = new Map<string, Post[]>();
+    if (typeFilter !== "all" && typeFilter !== "post") return m;
     for (const p of posts) {
-      if (platformFilter !== "all" && p.platform !== platformFilter) continue;
       const k = dayKeyUtc(p.scheduledFor);
       const arr = m.get(k);
       if (arr) arr.push(p);
       else m.set(k, [p]);
     }
     return m;
-  }, [posts, platformFilter]);
+  }, [posts, typeFilter]);
 
-  // Per-platform counts within the month in view (for the filter bar).
+  // Aggregated read-only events (releases/tasks/press/newsletter/placements),
+  // keyed by day and filtered by type.
+  const eventsByDay = useMemo(() => {
+    const m = new Map<string, CalEvent[]>();
+    for (const e of events) {
+      if (typeFilter !== "all" && typeFilter !== e.type) continue;
+      const arr = m.get(e.dateKey);
+      if (arr) arr.push(e);
+      else m.set(e.dateKey, [e]);
+    }
+    return m;
+  }, [events, typeFilter]);
+
+  // Per-type counts within the month in view (for the filter bar).
   const monthCounts = useMemo(() => {
-    const c: Record<string, number> = { all: 0 };
+    const c: Record<string, number> = { all: 0, post: 0, release: 0, task: 0, press: 0, newsletter: 0, placement: 0 };
     const prefix = `${view.y}-${String(view.m + 1).padStart(2, "0")}`;
     for (const p of posts) {
       if (!dayKeyUtc(p.scheduledFor).startsWith(prefix)) continue;
-      c.all += 1;
-      c[p.platform] = (c[p.platform] ?? 0) + 1;
+      c.all += 1; c.post += 1;
+    }
+    for (const e of events) {
+      if (!e.dateKey.startsWith(prefix)) continue;
+      c.all += 1; c[e.type] += 1;
     }
     return c;
-  }, [posts, view]);
+  }, [posts, events, view]);
 
   // 6-week grid (42 cells) for the month in view, built in UTC so posts pin to
   // the intended day for every viewer. Date.UTC handles month/year rollover.
@@ -258,16 +297,13 @@ export default function CalendarClient({
     }
   };
 
-  const FILTERS: { key: "all" | ContentPlatform; label: string }[] = [
-    { key: "all", label: "All" },
-    ...CONTENT_PLATFORMS.map((p) => ({ key: p, label: CONTENT_PLATFORM_LABELS[p] })),
-  ];
+  const FILTERS = FILTER_KEYS.map((key) => ({ key, label: TYPE_LABELS[key] }));
 
   return (
     <div>
       <PageHeader
-        title="Content calendar"
-        description="Plan your social and content rollout across platforms — separate from the task board and the release timeline."
+        title="Calendar"
+        description="Everything dated across the label — posts, releases, task due dates, press, newsletters and placements. Click a day to plan a post; the rest link to where they're managed."
         actions={
           <Button onClick={() => openNew()} className="bg-white text-black hover:bg-gray-200">
             <Plus className="h-4 w-4" /> New post
@@ -297,16 +333,16 @@ export default function CalendarClient({
         <Button variant="outline" size="sm" onClick={goToday}>Today</Button>
       </div>
 
-      {/* Platform filter — colours double as the legend */}
+      {/* Type filter — colours double as the legend for the chips */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {FILTERS.map(({ key, label }) => {
-          const active = platformFilter === key;
-          const pill = key === "all" ? "" : PLATFORM_PILL[key] ?? "";
+          const active = typeFilter === key;
+          const pill = key === "all" ? "" : TYPE_PILL[key] ?? "";
           return (
             <button
               key={key}
               type="button"
-              onClick={() => setPlatformFilter(key)}
+              onClick={() => setTypeFilter(key)}
               className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                 active
                   ? key === "all"
@@ -334,6 +370,7 @@ export default function CalendarClient({
         <div className="grid grid-cols-7">
           {cells.map((cell, i) => {
             const dayPosts = postsByDay.get(cell.key) ?? [];
+            const dayEvents = eventsByDay.get(cell.key) ?? [];
             const isToday = cell.key === todayKey;
             return (
               <div
@@ -374,6 +411,17 @@ export default function CalendarClient({
                       {p.title}
                     </button>
                   ))}
+                  {dayEvents.map((ev) => (
+                    <Link
+                      key={ev.id}
+                      href={ev.href}
+                      onClick={(e) => e.stopPropagation()}
+                      title={`${ev.title} · ${TYPE_LABELS[ev.type]}`}
+                      className={`block w-full truncate rounded border px-1.5 py-0.5 text-left text-[11px] transition-opacity hover:opacity-80 ${TYPE_PILL[ev.type] ?? ""}`}
+                    >
+                      {ev.title}
+                    </Link>
+                  ))}
                 </div>
               </div>
             );
@@ -382,7 +430,7 @@ export default function CalendarClient({
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Click any day to plan a post, or a post to edit it. Published posts show struck-through.
+        Click a day to plan a post (or a post to edit it). Releases, tasks, press, newsletters and placements are shown from their own pages — click to open. Published posts show struck-through.
       </p>
 
       {/* Editor */}
