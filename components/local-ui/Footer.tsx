@@ -71,12 +71,15 @@ const Footer = () => {
 
   const navLinkCls =
     "rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  // Focus ring only (no colour/hover) — for the icon + logo links.
+  const focusRing =
+    "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <footer className="border-t border-border px-4 sm:px-6 md:px-[10%] pt-12 pb-6">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-12">
         {/* Logo, pinned left — links home like the navbar. */}
-        <Link href="/" aria-label="Oscillation Records — home" className="flex items-center gap-2.5">
+        <Link href="/" aria-label="Oscillation Records — home" className={`flex items-center gap-2.5 ${focusRing}`}>
           <Image width={40} height={40} className="w-9 h-9" alt="" src="/logo-icon.svg" />
           <Image width={80} height={24} className="w-24 h-7" alt="Oscillation Records" src="/logo-name.svg" />
         </Link>
@@ -91,7 +94,7 @@ const Footer = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={label}
-                className="text-muted-foreground hover:text-white transition-colors"
+                className={`text-muted-foreground hover:text-white transition-colors ${focusRing}`}
               >
                 <Icon className="h-5 w-5" aria-hidden />
               </a>

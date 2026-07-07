@@ -47,7 +47,9 @@ export async function generateMetadata({
   if (!data) return { title: "Artist not found" };
   const a = data.artist;
   const url = absoluteUrl(`/artists/${slugify(a.name)}`);
-  const description = metaDescription(a.biography) || `${a.name} on ${SITE_NAME}.`;
+  const description =
+    metaDescription(a.biography) ||
+    `${a.name} is a recording artist on ${SITE_NAME}, an independent Manchester record label releasing electronic music — dubstep, drum & bass and house.`;
   return {
     title: a.name,
     description,

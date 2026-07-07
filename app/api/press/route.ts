@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
+import { submitToIndexNow } from "@/lib/indexnow";
+import { slugify } from "@/lib/slug";
 import { getAllPress, getPressForArtist, getPressForRelease } from "@/lib/catalog-data";
 import { getPressPage } from "@/lib/admin-data";
 
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
         {
           error: draft
             ? "A title is required (even for a draft)."
-            : "title, publisher, summary and a valid article URL are required",
+            : "A published item needs a title and summary, plus either a body (owned post) or a publisher and a valid article URL (external coverage).",
         },
         { status: 400 }
       );
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
         publisher: input.publisher,
         articleUrl: input.articleUrl,
         summary: input.summary,
+        body: input.body,
         image: finalImage,
         author: input.author,
         publishedAt: input.publishedAt,
@@ -131,6 +134,12 @@ export async function POST(request: NextRequest) {
       resourceId: press.id,
       summary: `Added press "${press.title}"`,
     });
+
+    // A published OWNED post has its own page — ping IndexNow so it's crawled.
+    if (!draft && input.body) {
+      const slug = slugify(input.title);
+      after(() => submitToIndexNow([`/press/${slug}`, "/press"]));
+    }
 
     return NextResponse.json(press, { status: 201 });
   } catch (error) {

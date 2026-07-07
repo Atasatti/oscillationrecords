@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { onPitchAccepted } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -72,6 +73,11 @@ export async function PUT(
       });
     }
 
+    // Automation: fire only on the transition into "accepted" (not on re-saves).
+    if (status === "accepted" && existing.status !== "accepted") {
+      await onPitchAccepted(pitch);
+    }
+
     await recordAudit(request, guard.token, {
       action: "update",
       resource: "pitch",
@@ -123,6 +129,11 @@ export async function PATCH(
         where: { id: existing.contactId },
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
+    }
+
+    // Automation: fire only on the transition into "accepted" (not on re-saves).
+    if (body.status === "accepted" && existing.status !== "accepted") {
+      await onPitchAccepted(pitch);
     }
 
     return NextResponse.json(pitch);

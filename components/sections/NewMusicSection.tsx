@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import IconButton from "../local-ui/IconButton";
 import ReleaseCardSm from "../local-ui/ReleaseCardSm";
+import { Skeleton } from "@/components/ui/skeleton";
 import { slugify } from "@/lib/slug";
 
 interface HomeRelease {
@@ -187,8 +188,10 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
       ) : null}
       <div className="relative">
         {isLoading ? (
-          <div className="flex justify-center items-center mt-10 py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="mt-8 flex gap-4 overflow-hidden sm:mt-10" aria-hidden>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-80 w-72 shrink-0 rounded-2xl" />
+            ))}
           </div>
         ) : releases.length === 0 ? (
           <p className="text-center text-muted-foreground mt-10">No releases available yet.</p>

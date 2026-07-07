@@ -20,17 +20,28 @@ export async function GET(request: NextRequest) {
       awaitingFollowUp,
       overdueTasksCount,
       acceptedPitches,
+      totalDemos,
+      newDemos,
+      totalPlacements,
+      reachAgg,
     ] = await Promise.all([
       prisma.outreachContact.count(),
       prisma.pitchLog.count({ where: { status: { in: ["not_sent", "sent", "followed_up"] } } }),
-      prisma.outreachTask.count({ where: { isTemplate: false, status: { in: ["todo", "in_progress"] } } }),
+      prisma.outreachTask.count({ where: { isTemplate: false, status: { not: "done" } } }),
       prisma.pitchLog.count({ where: { status: "sent", followUpDueAt: { lte: now } } }),
       prisma.outreachTask.count({ where: { isTemplate: false, status: { not: "done" }, dueAt: { lte: now } } }),
       prisma.pitchLog.count({ where: { status: "accepted" } }),
+      prisma.demo.count(),
+      prisma.demo.count({ where: { stage: "received" } }),
+      prisma.placement.count(),
+      prisma.placement.aggregate({ _sum: { reach: true } }),
     ]);
 
     return NextResponse.json(
-      { totalContacts, activePitches, openTasks, awaitingFollowUp, overdueTasksCount, acceptedPitches },
+      {
+        totalContacts, activePitches, openTasks, awaitingFollowUp, overdueTasksCount, acceptedPitches,
+        totalDemos, newDemos, totalPlacements, combinedReach: reachAgg._sum.reach ?? 0,
+      },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {

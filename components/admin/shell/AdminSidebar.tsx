@@ -4,8 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ScrollText, Rocket, Wallet, type LucideIcon } from "lucide-react";
-import { signOutCompletely } from "@/lib/sign-out-client";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
@@ -20,7 +19,7 @@ import { roleCan, type Permission } from "@/lib/permissions";
 // requires that grant, "owner" is owner-only, and undefined means any staff role
 // (e.g. the Dashboard). Owners always see everything. This is cosmetic — the hard
 // enforcement is middleware page-gating + per-route API permission checks.
-type AdminLink = {
+export type AdminLink = {
   href: string;
   label: string;
   icon: LucideIcon;
@@ -28,7 +27,12 @@ type AdminLink = {
   perm?: Permission | "owner";
 };
 type AdminGroup = { header: string | null; links: readonly AdminLink[] };
-const adminGroups: readonly AdminGroup[] = [
+// The sidebar shows only PRIMARY sections; sub-views (Pipeline/Timeline under
+// Releases, Automations/Templates under Tasks, Onboarding under Artists, Budgets
+// under Money, Subscribers under Newsletter) are reached via the in-page tab
+// strip (components/admin/shell/SectionTabs.tsx). Each primary link's `match`
+// lists its sub-view routes so the parent stays highlighted on those pages.
+export const adminGroups: readonly AdminGroup[] = [
   {
     header: null,
     links: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
@@ -40,11 +44,9 @@ const adminGroups: readonly AdminGroup[] = [
         href: "/admin/catalog/releases",
         label: "Releases",
         icon: Disc3,
-        match: ["/admin/catalog/release", "/admin/catalog/edit/release"],
+        match: ["/admin/catalog/release", "/admin/catalog/edit/release", "/admin/catalog/pipeline", "/admin/catalog/timeline"],
         perm: "catalog:read",
       },
-      { href: "/admin/catalog/pipeline", label: "Pipeline", icon: Rocket, perm: "catalog:read" },
-      { href: "/admin/catalog/royalties", label: "Royalties", icon: Wallet, perm: "catalog:read" },
       {
         href: "/admin/catalog/artists",
         label: "Artists",
@@ -53,28 +55,32 @@ const adminGroups: readonly AdminGroup[] = [
         perm: "catalog:read",
       },
       { href: "/admin/catalog/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
+      { href: "/admin/catalog/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
+      { href: "/admin/catalog/budgets", label: "Money", icon: Wallet, perm: "catalog:read" },
+      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
     ],
   },
   {
     header: "Promotion",
     links: [
-      { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"], perm: "outreach:read" },
-      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, perm: "outreach:read" },
+      { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches", "/admin/outreach/demos", "/admin/outreach/placements"], perm: "outreach:read" },
+      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, match: ["/admin/automations", "/admin/outreach/templates"], perm: "outreach:read" },
+      { href: "/admin/content/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
+      { href: "/admin/outreach/newsletter", label: "Newsletter", icon: Send, match: ["/admin/subscribers"], perm: "outreach:read" },
       { href: "/admin/messages", label: "Messages", icon: MessageSquare, perm: "outreach:read" },
-      { href: "/admin/subscribers", label: "Subscribers", icon: Mail, perm: "outreach:read" },
     ],
   },
   {
-    header: "Analytics",
+    header: "Insights",
     links: [
       { href: "/admin/data", label: "Live data", icon: Activity, perm: "analytics:read" },
       { href: "/admin/errors", label: "Errors", icon: TriangleAlert, perm: "analytics:read" },
+      { href: "/admin/digest", label: "Daily digest", icon: Mailbox },
     ],
   },
   {
     header: "System",
     links: [
-      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
       { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "owner" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "owner" },
     ],
@@ -115,9 +121,17 @@ export const isAdminLinkActive = (pathname: string, href: string) =>
  * Sidebar contents — used both in the persistent desktop rail and inside the
  * mobile drawer (AdminShell). `onNavigate` lets the drawer close on link click.
  */
-export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export default function AdminSidebar({
+  onNavigate,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const user = session?.user;
   const guard = useUnsavedChangesContext();
 
@@ -147,19 +161,25 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
       <Link
         href="/admin"
         onClick={onLinkClick}
-        className="flex items-center gap-2 px-5 py-5"
+        className={`flex items-center py-5 ${collapsed ? "justify-center px-2" : "gap-2 px-5"}`}
       >
-        <Image width={36} height={36} className="h-9 w-9" alt="" src="/logo-icon.svg" />
-        <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
+        <Image width={36} height={36} className="h-9 w-9 shrink-0" alt="" src="/logo-icon.svg" />
+        {!collapsed ? (
+          <Image width={96} height={28} className="h-7 w-auto" style={{ width: "auto" }} alt="Oscillation Records" src="/logo-name.svg" />
+        ) : null}
       </Link>
 
-      <nav className="scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
+      <nav className={`scroll-themed flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-3"}`}>
         {visibleGroups.map((group, gi) => (
-          <div key={group.header ?? "main"} className={gi > 0 ? "mt-4" : undefined}>
-            {group.header ? (
+          <div key={group.header ?? "main"} className={gi > 0 ? (collapsed ? "mt-2" : "mt-4") : undefined}>
+            {group.header && !collapsed ? (
               <p className="px-3 pb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/60">
                 {group.header}
               </p>
+            ) : null}
+            {/* Collapsed: a thin rule keeps groups visually separated (headers hidden). */}
+            {group.header && collapsed && gi > 0 ? (
+              <div className="mx-2 mb-1 border-t border-border/60" aria-hidden />
             ) : null}
             <div className="flex flex-col gap-1">
               {group.links.map((link) => {
@@ -171,14 +191,15 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
                     href={link.href}
                     onClick={onLinkClick}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                    title={collapsed ? link.label : undefined}
+                    className={`flex items-center rounded-lg py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-0" : "gap-3 px-3"} ${
                       active
                         ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
                     }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                    {link.label}
+                    {!collapsed ? link.label : null}
                   </Link>
                 );
               })}
@@ -187,55 +208,26 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
         ))}
       </nav>
 
-      <div className="mt-auto border-t border-border p-3">
-        {status === "loading" ? (
-          <div className="h-10 animate-pulse rounded-lg bg-white/5" />
-        ) : user ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3 px-2 py-1">
-              {user.image ? (
-                <Image
-                  src={user.image}
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <User size={16} />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{user.name || "Admin"}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email || ""}</p>
-              </div>
-            </div>
-            <Link
-              href="/"
-              onClick={onLinkClick}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden />
-              Back to site
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                if (guard && !guard.confirmNavigation()) return;
-                onNavigate?.();
-                signOutCompletely("/");
-              }}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
-            >
-              <LogOut className="h-4 w-4" aria-hidden />
-              Sign out
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {onToggleCollapse ? (
+        <div className="border-t border-border p-2">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`flex w-full items-center rounded-lg py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+          >
+            {collapsed ? (
+              <ChevronsRight className="h-4 w-4 shrink-0" aria-hidden />
+            ) : (
+              <>
+                <ChevronsLeft className="h-4 w-4 shrink-0" aria-hidden />
+                Collapse
+              </>
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

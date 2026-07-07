@@ -221,6 +221,8 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
       router.push(`/login?callbackUrl=${encodeURIComponent(currentPath)}`);
       return;
     }
+    // A track without audio (e.g. a draft still being prepared) isn't playable.
+    if (!song.audioFile) return;
 
     const artist = formatArtistLine(song);
     playSong({

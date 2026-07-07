@@ -1,10 +1,18 @@
-// Per-release revenue splits — who is owed what share of a release's income.
-// Stored on Release.splits (Json). A tracking aid, not authoritative accounting.
-// Pure — safe on server or client.
+// Royalty splits — who shares in a release (or track). Stored on Release.splits
+// and Track.splits (Json). This is a reference of contributors and their agreed
+// percentage shares + their details; it does NOT track money, payouts or balances
+// (Ditto pays artists directly under the label artist program). Pure — safe on
+// server or client.
 
 export interface Split {
-  /** Payee name (a roster artist, collaborator, producer, the label, …). */
-  payee: string;
+  /** Linked roster artist id, when picked from artist search. Null for a manual entry. */
+  artistId: string | null;
+  /** Display / performing name (a roster artist, collaborator, producer, the label…). */
+  name: string;
+  /** Legal / real name — internal reference. */
+  realName: string | null;
+  /** Contact email — internal reference. */
+  email: string | null;
   /** Percentage share, 0–100 (two decimals). */
   percent: number;
 }
@@ -20,17 +28,29 @@ export interface SplitsSummary {
 const clampPercent = (n: number) =>
   Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n * 100) / 100)) : 0;
 
-/** Coerce arbitrary stored/submitted data into a clean Split[] (drops blank payees). */
+const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * Coerce arbitrary stored/submitted data into a clean Split[] (drops entries with
+ * no name). Back-compatible: splits saved under the old `{ payee, percent }` shape
+ * read their name from `payee`.
+ */
 export function normalizeSplits(raw: unknown): Split[] {
   if (!Array.isArray(raw)) return [];
   const out: Split[] = [];
   for (const s of raw) {
     if (!s || typeof s !== "object") continue;
     const o = s as Record<string, unknown>;
-    const payee = typeof o.payee === "string" ? o.payee.trim() : "";
-    if (!payee) continue;
+    const name = str(o.name) || str(o.payee);
+    if (!name) continue;
     const percent = clampPercent(typeof o.percent === "number" ? o.percent : Number(o.percent));
-    out.push({ payee, percent });
+    out.push({
+      artistId: str(o.artistId) || null,
+      name,
+      realName: str(o.realName) || null,
+      email: str(o.email) || null,
+      percent,
+    });
   }
   return out;
 }
@@ -40,113 +60,47 @@ export function summarizeSplits(splits: Split[]): SplitsSummary {
   return { splits, total, balanced: total === 100 };
 }
 
-// ---------------------------------------------------------------------------
-// Revenue + owed. Recorded income (Release.revenue) combined with the split
-// agreement to compute who's owed what. Amounts are plain numbers (label's own
-// currency); this is a tracking aid, not accounting.
-// ---------------------------------------------------------------------------
+// --- Editing helpers -------------------------------------------------------
+// A SplitRow is a Split with `percent` kept as a string while being edited in a
+// form. Shared by the release Splits panel, the per-track editor, and the split
+// editor component so the on-screen model has one definition.
 
-export interface RevenueEntry {
-  id: string;
-  amount: number;
-  /** ISO date the income relates to (payout/period), or null. */
-  date: string | null;
-  /** Optional source/note, e.g. "DistroKid Q2" or "Bandcamp". */
-  note: string | null;
+export type SplitRow = {
+  artistId: string | null;
+  name: string;
+  realName: string;
+  email: string;
+  percent: string;
+};
+
+export function emptySplitRow(): SplitRow {
+  return { artistId: null, name: "", realName: "", email: "", percent: "" };
 }
 
-export interface OwedRow {
-  payee: string;
-  percent: number;
-  /** Share of total revenue = round(total * percent / 100, 2). */
-  amount: number;
+/** Stored/loaded Split[] → editable rows. */
+export function splitsToRows(splits: Split[]): SplitRow[] {
+  return splits.map((s) => ({
+    artistId: s.artistId ?? null,
+    name: s.name,
+    realName: s.realName ?? "",
+    email: s.email ?? "",
+    percent: s.percent ? String(s.percent) : "",
+  }));
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** Coerce arbitrary stored/submitted data into clean RevenueEntry[]. */
-export function normalizeRevenue(raw: unknown): RevenueEntry[] {
-  if (!Array.isArray(raw)) return [];
-  const out: RevenueEntry[] = [];
-  for (const e of raw) {
-    if (!e || typeof e !== "object") continue;
-    const o = e as Record<string, unknown>;
-    const amount = typeof o.amount === "number" ? o.amount : Number(o.amount);
-    if (!Number.isFinite(amount)) continue;
-    out.push({
-      id: typeof o.id === "string" && o.id ? o.id : "",
-      amount: round2(amount),
-      date: typeof o.date === "string" && o.date ? o.date : null,
-      note: typeof o.note === "string" && o.note.trim() ? o.note.trim() : null,
-    });
-  }
-  return out;
+/** Editable rows → clean Split[] (re-uses normalizeSplits; drops nameless rows). */
+export function rowsToSplits(rows: SplitRow[]): Split[] {
+  return normalizeSplits(
+    rows.map((r) => ({
+      artistId: r.artistId,
+      name: r.name,
+      realName: r.realName,
+      email: r.email,
+      percent: Number(r.percent) || 0,
+    }))
+  );
 }
 
-export function revenueTotal(entries: RevenueEntry[]): number {
-  return round2(entries.reduce((a, e) => a + e.amount, 0));
-}
-
-/** Each payee's owed share of the total revenue, per the split agreement. */
-export function computeOwed(splits: Split[], total: number): OwedRow[] {
-  return splits.map((s) => ({ payee: s.payee, percent: s.percent, amount: round2((total * s.percent) / 100) }));
-}
-
-// ---------------------------------------------------------------------------
-// Payouts + ledger. Payments made to payees (Release.payments) are subtracted
-// from each payee's owed share to give what's still outstanding.
-// ---------------------------------------------------------------------------
-
-export interface Payment {
-  id: string;
-  payee: string;
-  amount: number;
-  date: string | null;
-  note: string | null;
-}
-
-export interface LedgerRow {
-  payee: string;
-  percent: number;
-  owed: number;
-  paid: number;
-  outstanding: number;
-}
-
-/** Coerce arbitrary stored/submitted data into clean Payment[]. */
-export function normalizePayments(raw: unknown): Payment[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Payment[] = [];
-  for (const p of raw) {
-    if (!p || typeof p !== "object") continue;
-    const o = p as Record<string, unknown>;
-    const payee = typeof o.payee === "string" ? o.payee.trim() : "";
-    const amount = typeof o.amount === "number" ? o.amount : Number(o.amount);
-    if (!payee || !Number.isFinite(amount)) continue;
-    out.push({
-      id: typeof o.id === "string" && o.id ? o.id : "",
-      payee,
-      amount: round2(amount),
-      date: typeof o.date === "string" && o.date ? o.date : null,
-      note: typeof o.note === "string" && o.note.trim() ? o.note.trim() : null,
-    });
-  }
-  return out;
-}
-
-/**
- * Per-payee ledger: owed (revenue × split %), paid (matching payouts) and what's
- * still outstanding. Rows follow the split agreement; payments are matched to a
- * split payee by exact (trimmed) name.
- */
-export function computeLedger(splits: Split[], total: number, payments: Payment[]): LedgerRow[] {
-  const paidByPayee = new Map<string, number>();
-  for (const p of payments) {
-    paidByPayee.set(p.payee, round2((paidByPayee.get(p.payee) ?? 0) + p.amount));
-  }
-  return splits.map((s) => {
-    const owed = round2((total * s.percent) / 100);
-    const paid = round2(paidByPayee.get(s.payee) ?? 0);
-    return { payee: s.payee, percent: s.percent, owed, paid, outstanding: round2(owed - paid) };
-  });
+export function rowsTotal(rows: SplitRow[]): number {
+  return Math.round(rows.reduce((a, r) => a + (parseFloat(r.percent) || 0), 0) * 100) / 100;
 }

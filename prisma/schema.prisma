@@ -39,6 +39,11 @@ model Session {
 model User {
   id                String             @id @default(auto()) @map("_id") @db.ObjectId
   name              String?
+  /// Optional admin-set display nickname to tell similarly-named accounts apart
+  /// (e.g. two staff both named "Ben"). Shown across the admin staff directory and
+  /// pickers, preferred over the Google `name` when set. Purely a label — it has
+  /// no bearing on auth/roles.
+  nickname          String?
   email             String?            @unique
   emailVerified     DateTime?
   image             String?
@@ -54,6 +59,7 @@ model User {
   profile           UserProfile?
   playEvents        PlayEvent[]
   benertRemixEntry  BenertRemixEntry?
+  savedViews        SavedView[]
 }
 
 model BenertRemixCompetition {
@@ -221,16 +227,28 @@ model Release {
   /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
   /// each other. Optional: rows never ordered there are treated as last (+∞).
   comingSoonOrder  Int?
-  /// Revenue-split agreement — an array of { payee, percent } recording who is owed
-  /// what share of this release's income. Shape/validation in lib/release-splits.ts.
-  /// A tracking aid, not authoritative accounting.
+  /// Royalty split — an array of { artistId?, name, realName?, email?, percent }
+  /// recording the contributing artists and their agreed shares. Reference only:
+  /// the site does NOT track money/payouts (Ditto pays artists directly). Percent
+  /// values should total 100. Shape/validation in lib/release-splits.ts.
   splits            Json?
-  /// Recorded income for this release — an array of { id, amount, date, note }.
-  /// Combined with `splits` to compute who's owed what. See lib/release-splits.ts.
-  revenue           Json?
-  /// Payouts made to payees — an array of { id, payee, amount, date, note }.
-  /// Subtracted from each payee's owed share to give outstanding. Tracking aid.
-  payments          Json?
+  /// Promo campaign budget target (the label's own currency), or null if unset.
+  budget            Float?
+  /// Campaign spend — an array of { id, amount, category, date, note }. Totalled
+  /// and compared against `budget`. Shape/validation in lib/release-budget.ts.
+  spend             Json?
+  /// Licensing/deal terms for this release — a single object { type, territory,
+  /// rights, startDate, endDate, notes }. Given the label's non-exclusive model,
+  /// records what each release is licensed under. Shape/validation in
+  /// lib/release-terms.ts; `endDate` powers the "agreement expiring" alert.
+  terms             Json?
+  /// Operational delivery / sign-off status — distinct from the metadata SEO
+  /// score. "not_started" | "ready" | "delivered" | "live". Shape in
+  /// lib/release-delivery.ts.
+  deliveryStatus    String       @default("not_started")
+  deliveryNotes     String?
+  deliveryUpdatedAt DateTime?
+  deliveryUpdatedById String?    @db.ObjectId
   tracks           Track[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -251,15 +269,21 @@ model Release {
 /// same loose `String[] @db.ObjectId` convention as Release (no Prisma relation).
 model PressItem {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  /// Headline of our summary post.
+  /// Headline of the post / summary.
   title       String
-  /// Outlet/blog name, e.g. "Stereogum". Shown on the card and used as the
-  /// `publisher` of the nested external-article node in JSON-LD.
-  publisher   String
-  /// Canonical external link ("Read full article"). Always link out; never embed.
-  articleUrl  String
-  /// OUR original blurb about the coverage — NOT the article body.
+  /// Outlet/blog name, e.g. "Stereogum" (external coverage). Optional: an OWNED
+  /// post (see `body`) is published by us, so it has no external outlet.
+  publisher   String?
+  /// External link ("Read full article") for coverage we link out to. Optional:
+  /// an owned post lives on our own site (its page IS the article), so it has none.
+  articleUrl  String?
+  /// OUR original blurb. For external coverage it's a summary of what was said; for
+  /// an owned post it's the excerpt/standfirst shown on the card and in metadata.
   summary     String
+  /// Owned-post body in Markdown. When present, this PressItem is OUR OWN hosted
+  /// article (a release post / press release) with its own page on the site — not a
+  /// link-out to external coverage — so articleUrl/publisher aren't needed for it.
+  body        String?
   /// Rehosted OG image (S3 url). Optional; falls back to original on rehost failure.
   image       String?
   /// Article publish date (for display + the nested Article node's datePublished).
@@ -298,8 +322,11 @@ model Track {
   sortOrder        Int      @default(0)
   name             String
   image            String?
-  audioFile        String
-  duration         Int
+  // Optional so a track can be saved on a DRAFT release before its audio is
+  // uploaded. Required (enforced in the API + publish gate) only when the release
+  // is published/scheduled. duration stays 0 until audio exists.
+  audioFile        String?
+  duration         Int          @default(0)
   releaseDate      DateTime?
   composer         String?
   lyricist         String?
@@ -307,6 +334,10 @@ model Track {
   lyrics           String?
   stemsFile        String?
   trackCredits     Json?
+  /// Per-track royalty split — same shape as Release.splits ({ artistId?, name,
+  /// realName?, email?, percent }). Lets a track credit different contributors than
+  /// the release (e.g. album collaborations). Reference only, no money.
+  splits           Json?
   isrcCode         String?
   /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
   iswc             String?
@@ -380,11 +411,164 @@ model ContactMessage {
   name      String
   email     String
   message   String
+  /// Logged-in submitter's User.id when the sender was authenticated (public
+  /// visitors submit anonymously). Optional — never blocks a submission.
+  userId    String?  @db.ObjectId
+  /// Public-form attachments: [{ name, url, size, type }] stored on S3 and
+  /// HEAD-validated (type + size) before write. Optional.
+  attachments Json?
   handled   Boolean  @default(false)
+  /// Ticket status: "open" | "in_progress" | "resolved". Kept in sync with
+  /// `handled` (resolved == handled) so the "unread" needs-attention count still
+  /// works. Existing rows default to "open".
+  status     String  @default("open")
+  /// Staff member (User.id) triaging this ticket. Null = unassigned.
+  assigneeId String? @db.ObjectId
+  /// "low" | "medium" | "high".
+  priority   String  @default("medium")
   createdAt DateTime @default(now())
 
   @@index([createdAt])
   @@index([handled, createdAt])
+  @@index([status, createdAt])
+}
+
+/// An internal reply/note on a ContactMessage ticket — a staff thread and a log of
+/// the response sent. Author identity is denormalized (email) so it survives the
+/// author's User being removed. See app/api/contact/[id]/replies.
+model MessageReply {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId   String   @db.ObjectId
+  authorId    String?  @db.ObjectId
+  authorEmail String?
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([messageId, createdAt])
+}
+
+/// An inbound demo / A&R prospect moving through the signing funnel. Logged
+/// manually (from email, SoundCloud, DMs…). Stage + rating drive the pipeline
+/// view. Shape/validation in lib/demo.ts.
+model Demo {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  artistName   String
+  contactName  String?
+  contactEmail String?
+  link         String?
+  genre        String?
+  source       String?
+  /// "received" | "reviewing" | "offer" | "releasing" | "passed"
+  stage        String   @default("received")
+  /// 0 = unrated, else 1..5.
+  rating       Int      @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([stage, createdAt])
+}
+
+/// A planned social / content post in the marketing calendar — distinct from the
+/// task board (#12) and the release timeline (#13). Optionally tied to a release
+/// (releaseId, no hard relation — resolved by lookup). Shape/validation in
+/// lib/content-post.ts.
+model ContentPost {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  releaseId    String?  @db.ObjectId
+  title        String
+  /// "instagram" | "tiktok" | "twitter" | "youtube" | "facebook" | "newsletter" | "other"
+  platform     String   @default("instagram")
+  /// The calendar day the post is planned for, stored at UTC midnight so it pins
+  /// to the same day for every viewer regardless of timezone.
+  scheduledFor DateTime
+  /// "idea" | "drafted" | "scheduled" | "published"
+  status       String   @default("idea")
+  copy         String?
+  assetLink    String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([scheduledFor])
+}
+
+/// An internal "win" — a playlist add, radio spin, or press/blog placement,
+/// logged as a running record to reference when pitching future releases.
+/// Purely internal (unlike the public PressItem). Optionally tied to a release
+/// and/or artist (ids, no hard relation). Shape/validation in lib/placement.ts.
+model Placement {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// "playlist" | "radio" | "press" | "other"
+  type       String   @default("playlist")
+  /// The platform / station / publication, e.g. "Spotify", "BBC Radio 6 Music".
+  outlet     String
+  /// The specific playlist / show / article, e.g. "New Music Friday UK".
+  name       String?
+  url        String?
+  /// Followers / listeners / monthly reach — a headline number for pitching.
+  reach      Int?
+  /// When the placement happened, stored at UTC midnight (date-only).
+  placedOn   DateTime?
+  releaseId  String?  @db.ObjectId
+  artistId   String?  @db.ObjectId
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([type, placedOn])
+}
+
+/// A file in the asset library / DAM — a master, artwork, stems, press photo,
+/// or EPK stored on our own S3 bucket under the "assets/" prefix. `fileKey` is
+/// the S3 object key (kept so we can delete the object). Optionally tied to a
+/// release and/or artist. Shape/validation in lib/asset.ts.
+model Asset {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// "master" | "artwork" | "stems" | "press_photo" | "epk" | "document" | "other"
+  category     String   @default("other")
+  title        String
+  fileName     String
+  /// S3 object key under "assets/" — used to delete the object on removal.
+  fileKey      String
+  fileUrl      String
+  mimeType     String
+  /// Bytes (from an S3 HEAD after upload; 0 if unknown).
+  size         Int      @default(0)
+  releaseId    String?  @db.ObjectId
+  artistId     String?  @db.ObjectId
+  /// Mongo User.id of the uploader (resolved by email, not token.sub).
+  uploadedById String?  @db.ObjectId
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category, createdAt])
+  @@index([releaseId])
+  @@index([artistId])
+}
+
+/// A newsletter campaign composed in the admin and sent to the
+/// NewsletterSubscriber list. `body` is the markdown-ish composer source
+/// (rendered to safe HTML at send). Shape/validation in lib/newsletter.ts.
+model Campaign {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  subject        String
+  body           String
+  /// "draft" | "scheduled" | "sending" | "sent" | "failed"
+  status         String    @default("draft")
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  recipientCount Int       @default(0)
+  sentCount      Int       @default(0)
+  failedCount    Int       @default(0)
+  opens          Int       @default(0)
+  createdById    String?   @db.ObjectId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([createdAt])
 }
 
 model PlayEvent {
@@ -516,6 +700,9 @@ model OutreachTask {
   priority    String   @default("medium")
   /// "todo" | "in_progress" | "done"
   status      String   @default("todo")
+  /// Freeform labels for cross-cutting grouping/filtering (e.g. "Q3-campaign").
+  /// Normalized (trimmed, deduped, capped) in the tasks API.
+  tags        String[]
   /// The admin this task is assigned to (User.id). Null = unassigned. Optional so
   /// existing tasks (created before assignment) read back as null, and so a task
   /// survives its assignee losing admin access — the UI just shows it unassigned.
@@ -527,6 +714,9 @@ model OutreachTask {
   /// Sub-task checklist — an array of { id, text, done }. Shape/validation in
   /// lib/task-checklist.ts. The row shows progress (n/total); items tick inline.
   checklist   Json?
+  /// File attachments — an array of { id, name, url, size, type } on our S3.
+  /// Shape/validation in lib/task-attachments.ts.
+  attachments Json?
   artistIds   String[] @db.ObjectId
   releaseIds  String[] @db.ObjectId
   dueAt       DateTime?
@@ -543,6 +733,64 @@ model OutreachTask {
   @@index([assigneeId])
 }
 
+/// An automation rule ("when X → do Y"). One row per built-in rule key (see
+/// lib/automations.ts); rows are created lazily the first time a rule is toggled,
+/// so a missing row means "disabled with defaults". `config` holds per-rule
+/// settings (e.g. { daysBefore } for the pre-release campaign rule); `lastRunAt`
+/// timestamps the last scheduled sweep.
+model AutomationRule {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  key       String    @unique
+  enabled   Boolean   @default(false)
+  config    Json?
+  lastRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+/// Idempotency ledger for automations — one row per (rule, entity) that has fired,
+/// so a rule creates its task at most once per pitch/release even when evaluated
+/// repeatedly. `taskId` links the OutreachTask that was created, for traceability.
+/// The unique index is enforced at deploy (db push); runtime also checks first.
+model AutomationFire {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  ruleKey    String
+  entityType String
+  entityId   String   @db.ObjectId
+  taskId     String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  @@unique([ruleKey, entityType, entityId])
+  @@index([ruleKey])
+}
+
+/// A saved Tasks view — a named, per-user snapshot of the list's filter/group/view
+/// controls (tab, category, assignee, group-by, and list/board/calendar). Personal
+/// to each staff member (keyed by User.id); not shared. `config` holds the snapshot.
+model SavedView {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/// A reusable task template — a named set of task specs (title/category/priority)
+/// that spawn tasks in one click (e.g. a pre-release campaign or artist onboarding).
+/// Team-shared (not per-user). Items shape/validation in lib/task-template.ts.
+model TaskTemplate {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  items       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 /// A comment on an OutreachTask — a discussion thread for staff. Author identity
 /// is denormalized (id + email) so it survives the author's User being removed;
 /// the UI resolves the display name/avatar from the staff directory.
@@ -552,9 +800,13 @@ model TaskComment {
   authorId    String?  @db.ObjectId
   authorEmail String?
   body        String
+  /// Mentioned staff (User.id) — matched from @tokens in the body at post time.
+  /// Surfaced to each mentioned person in the reminders bell.
+  mentions    String[] @db.ObjectId
   createdAt   DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([mentions])
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { isRecurrence, nextDueDate } from "@/lib/task-recurrence";
 import { normalizeChecklist } from "@/lib/task-checklist";
+import { normalizeTags } from "@/lib/task-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -77,7 +78,7 @@ export async function PUT(
 
     const { taskId } = await params;
     const body = await request.json();
-    const { title, description, category, priority, status, assigneeId, recurrence, checklist, artistIds, releaseIds, dueAt, notes } = body;
+    const { title, description, category, priority, status, assigneeId, recurrence, checklist, tags, artistIds, releaseIds, dueAt, notes } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -97,6 +98,7 @@ export async function PUT(
         assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
         recurrence: isRecurrence(recurrence) ? recurrence : null,
         checklist: normalizeChecklist(checklist) as unknown as Prisma.InputJsonValue,
+        tags: normalizeTags(tags),
         artistIds: Array.isArray(artistIds) ? artistIds : [],
         releaseIds: Array.isArray(releaseIds) ? releaseIds : [],
         dueAt: dueAt ? new Date(dueAt) : null,

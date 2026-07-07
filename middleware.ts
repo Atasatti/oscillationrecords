@@ -13,8 +13,11 @@ function requiredForAdminPath(pathname: string): Permission | "owner" | null {
   if (pathname.startsWith("/admin/catalog")) return "catalog:read";
   if (pathname.startsWith("/admin/data")) return "analytics:read";
   if (pathname.startsWith("/admin/errors")) return "analytics:read";
+  if (pathname.startsWith("/admin/outreach/templates")) return "outreach:write";
   if (pathname.startsWith("/admin/outreach")) return "outreach:read";
+  if (pathname.startsWith("/admin/automations")) return "outreach:write";
   if (pathname.startsWith("/admin/tasks")) return "outreach:read";
+  if (pathname.startsWith("/admin/content")) return "outreach:read";
   if (pathname.startsWith("/admin/messages")) return "outreach:read";
   if (pathname.startsWith("/admin/subscribers")) return "outreach:read";
   // /admin dashboard (and anything unmapped) → any staff role.

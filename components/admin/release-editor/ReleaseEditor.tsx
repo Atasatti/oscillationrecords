@@ -39,8 +39,8 @@ export interface ReleaseEditorProps {
   mode: "create" | "edit";
   releaseKind: ReleaseKind;
   releaseId?: string;
-  /** Prefill the primary artist when launched from an artist's catalog row. */
-  initialArtistId?: string;
+  /** Prefill the primary artist(s) — one or more, from the New-release dialog. */
+  initialArtistIds?: string[];
   /** Pre-set status on create (e.g. "SCHEDULED" from the Coming Soon page). */
   initialStatus?: ReleaseDetailsValue["status"];
 }
@@ -49,7 +49,7 @@ export default function ReleaseEditor({
   mode,
   releaseKind,
   releaseId,
-  initialArtistId,
+  initialArtistIds,
   initialStatus,
 }: ReleaseEditorProps) {
   const router = useRouter();
@@ -72,7 +72,7 @@ export default function ReleaseEditor({
     // explicit initialStatus, e.g. SCHEDULED from the Coming Soon page).
     base.status =
       initialStatus === "SCHEDULED" || initialStatus === "RELEASED" ? initialStatus : "RELEASED";
-    if (initialArtistId) base.primaryArtistIds = [initialArtistId];
+    if (initialArtistIds?.length) base.primaryArtistIds = initialArtistIds;
     return base;
   });
   // Whether the release is currently an unpublished draft (new releases are, and
@@ -396,11 +396,12 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        // A new release is created with the admin's chosen status (Released/Scheduled),
-        // or as a DRAFT via "Save as draft"; either way it continues to the tracklist.
-        // A trackless Released release stays hidden until it has tracks, so it is never
-        // prematurely public (see publicReleaseWhere). Only the Cancel-dialog draft save
-        // (which passes redirectTo to leave for the list) shows the "Draft saved" message.
+        // A new release is always created as a DRAFT — both "Next" and "Save as
+        // draft" persist status DRAFT — then continues to the tracklist. Publishing
+        // to the chosen target (Released/Scheduled) happens later from the edit flow,
+        // with full validation, so "Next" can never make a release live/scheduled
+        // prematurely. Only the Cancel-dialog draft save (which passes redirectTo to
+        // leave for the list) shows the "Draft saved" message.
         toast.success(
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
@@ -673,7 +674,11 @@ export default function ReleaseEditor({
         <div className="mt-8 flex flex-wrap gap-4">
           <Button
             type="button"
-            onClick={() => handleSave()}
+            // Create → "Next" saves the release as a DRAFT and continues to the
+            // tracklist; it must NOT publish or set a live/scheduled status (that
+            // happens later from the edit flow, with full validation). Edit → the
+            // primary action publishes/saves to the chosen target (form.status).
+            onClick={() => handleSave(isCreate ? { status: "DRAFT" } : undefined)}
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >

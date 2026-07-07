@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { isTaskStatus } from "@/lib/task-status";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const STATUSES = new Set(["todo", "in_progress", "done"]);
 
 // POST /api/outreach/tasks/bulk — act on many tasks at once.
 //   { ids, delete: true }                         → delete them
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const data: Record<string, unknown> = {};
     let what = "";
-    if (typeof body.status === "string" && STATUSES.has(body.status)) {
+    if (isTaskStatus(body.status)) {
       data.status = body.status;
       what = `status → ${body.status}`;
     }

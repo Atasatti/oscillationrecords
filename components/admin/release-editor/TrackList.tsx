@@ -179,13 +179,13 @@ export default function TrackList({
       const returned: Record<string, unknown>[] = Array.isArray(data?.tracks)
         ? data.tracks
         : [];
-      // Reconcile server ids onto freshly-created rows (match by unique audio URL).
+      // Reconcile server ids onto freshly-created rows. Match by sortOrder (= the
+      // row's index, which buildTrackPayload sends and the server preserves) rather
+      // than the audio URL, so it works for audio-less draft tracks too.
       setTracks((prev) =>
-        prev.map((row) => {
-          if (row.id || !row.audioFile) return row;
-          const match = returned.find(
-            (rt) => rt.audioFile && String(rt.audioFile) === row.audioFile
-          );
+        prev.map((row, idx) => {
+          if (row.id) return row;
+          const match = returned.find((rt) => Number(rt.sortOrder) === idx);
           return match ? { ...row, id: String(match.id) } : row;
         })
       );

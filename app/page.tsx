@@ -13,7 +13,7 @@ import {
   getUpcomingReleases,
 } from "@/lib/catalog-data";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd, jsonLdScript, LABEL } from "@/lib/seo";
-import { getFooterSocialLinks } from "@/lib/footer-settings";
+import { getFooterSocialLinks, sameAsFromFooterLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -39,17 +39,7 @@ export default async function Home() {
   // The label's own social profiles → schema.org `sameAs`, so Google can reconcile
   // "Oscillation Records" to its Spotify/Instagram/etc. (stronger entity + better
   // shot at a knowledge panel).
-  const labelSameAs = [
-    footerLinks.xLink,
-    footerLinks.tiktokLink,
-    footerLinks.youtubeLink,
-    footerLinks.instagramLink,
-    footerLinks.facebookLink,
-    footerLinks.spotifyLink,
-    footerLinks.soundcloudLink,
-    footerLinks.bandcampLink,
-    footerLinks.beatportLink,
-  ].filter((u): u is string => Boolean(u && u.trim()));
+  const labelSameAs = sameAsFromFooterLinks(footerLinks);
 
   return (
     <div>

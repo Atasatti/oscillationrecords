@@ -61,6 +61,23 @@ export async function getFooterSocialLinks(): Promise<FooterSocialLinks> {
   }
 }
 
+// The label's own social/DSP profiles, as a schema.org `sameAs` array. Kept here
+// (next to the type) so every page that emits the Organization node — homepage
+// AND /about — derives the exact same list and can never drift out of sync.
+export function sameAsFromFooterLinks(links: FooterSocialLinks): string[] {
+  return [
+    links.xLink,
+    links.tiktokLink,
+    links.youtubeLink,
+    links.instagramLink,
+    links.facebookLink,
+    links.spotifyLink,
+    links.soundcloudLink,
+    links.bandcampLink,
+    links.beatportLink,
+  ].filter((u): u is string => Boolean(u && u.trim()));
+}
+
 export function normalizeFooterUrl(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   const s = String(v).trim();

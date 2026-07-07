@@ -1,10 +1,13 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import AdminSidebar from "./AdminSidebar";
 import Breadcrumbs from "./Breadcrumbs";
+import SectionTabs from "./SectionTabs";
+import AdminUserMenu from "./AdminUserMenu";
+import CommandPalette from "./CommandPalette";
 import AdminReminders from "@/components/admin/AdminReminders";
 
 /**
@@ -14,7 +17,21 @@ import AdminReminders from "@/components/admin/AdminReminders";
  */
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop sidebar collapse (icon rail), remembered across sessions. Read after
+  // mount so SSR/first paint stay deterministic (no hydration mismatch).
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem("admin-sidebar-collapsed") === "1"); } catch {}
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("admin-sidebar-collapsed", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }, []);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -42,11 +59,20 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div
+      className="flex min-h-screen bg-[#0a0a0c] text-foreground"
+      style={{
+        // Admin-only surface elevation: the base theme sets --card == --background
+        // (everything reads as one flat black). Lift cards/popovers off the darker
+        // ground so panels, rows and menus have real separation.
+        ["--card" as string]: "#161619",
+        ["--popover" as string]: "#161619",
+      }}
+    >
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar md:block">
+      <aside className={`hidden shrink-0 border-r border-border bg-sidebar transition-[width] duration-200 md:block ${collapsed ? "w-16" : "w-64"}`}>
         <div className="sticky top-0 h-screen">
-          <AdminSidebar />
+          <AdminSidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
         </div>
       </aside>
 
@@ -100,10 +126,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Suspense fallback={null}>
             <Breadcrumbs />
           </Suspense>
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-2">
+            <CommandPalette />
             <AdminReminders />
+            <AdminUserMenu />
           </div>
         </header>
+
+        {/* Sub-view tabs for the current section (Tasks → Board/Automations/…). */}
+        <SectionTabs />
 
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>

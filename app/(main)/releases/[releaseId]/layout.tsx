@@ -48,7 +48,7 @@ export async function generateMetadata({
   const artistSuffix = artistNames ? ` by ${artistNames}` : "";
   const description =
     metaDescription(r.description) ||
-    `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}.`;
+    `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}, an independent Manchester record label releasing electronic music — dubstep, drum & bass and house.`;
   return {
     title: r.name,
     description,
@@ -61,6 +61,10 @@ export async function generateMetadata({
       url,
       siteName: SITE_NAME,
       images: r.coverImage ? [{ url: r.coverImage, alt: r.name }] : undefined,
+      // Required companions for the music.album OG type (music:musician / release_date)
+      // so Facebook/LinkedIn/Discord unfurls and crawlers get a complete music card.
+      musicians: r.primaryArtists.map((a) => absoluteUrl(`/artists/${slugify(a.name)}`)),
+      releaseDate: r.releaseDate ?? undefined,
     },
     twitter: {
       card: "summary_large_image",

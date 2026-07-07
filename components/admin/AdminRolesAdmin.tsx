@@ -12,6 +12,7 @@ type StaffMember = {
   id: string | null;
   email: string;
   name: string | null;
+  nickname: string | null;
   image: string | null;
   role: StaffRole;
   locked: boolean;
@@ -30,6 +31,8 @@ export default function AdminRolesAdmin() {
   const [newRole, setNewRole] = useState<StaffRole>("catalog");
   const [adding, setAdding] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-member nickname edit buffers (keyed by user id), seeded on load.
+  const [nickDrafts, setNickDrafts] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +41,13 @@ export default function AdminRolesAdmin() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMembers(data.admins);
+      setNickDrafts(
+        Object.fromEntries(
+          (data.admins as StaffMember[])
+            .filter((m) => m.id)
+            .map((m) => [m.id as string, m.nickname ?? ""])
+        )
+      );
     } catch {
       toast.error("Failed to load staff");
     } finally {
@@ -85,6 +95,29 @@ export default function AdminRolesAdmin() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to change role");
       load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveNickname = async (m: StaffMember) => {
+    if (!m.id) return;
+    const value = (nickDrafts[m.id] ?? "").trim();
+    // No-op if unchanged from what's stored (blur fires even without an edit).
+    if (value === (m.nickname ?? "")) return;
+    setBusyId(m.id);
+    try {
+      const res = await fetch(`/api/admin/users/${m.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed");
+      toast.success(value ? "Nickname saved" : "Nickname cleared");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save nickname");
     } finally {
       setBusyId(null);
     }
@@ -163,36 +196,64 @@ export default function AdminRolesAdmin() {
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-foreground">{m.name || m.email}</p>
-                {m.name ? <p className="truncate text-xs text-muted-foreground">{m.email}</p> : null}
+                <p className="truncate text-sm text-foreground">
+                  {m.nickname || m.name || m.email}
+                </p>
+                {m.nickname || m.name ? (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {m.nickname && m.name ? `${m.name} · ${m.email}` : m.email}
+                  </p>
+                ) : null}
               </div>
 
-              {m.locked ? (
-                <Badge variant="default" className="text-[10px]">Owner</Badge>
-              ) : m.id ? (
-                <>
-                  <select
-                    value={m.role}
-                    onChange={(e) => changeRole(m, e.target.value as StaffRole)}
+              <div className="flex shrink-0 items-center gap-2">
+                {/* Display nickname to tell similarly-named accounts apart (e.g. two
+                    "Ben"s). Saved on blur / Enter; blank clears it. */}
+                {m.id ? (
+                  <input
+                    value={nickDrafts[m.id] ?? ""}
+                    onChange={(e) =>
+                      setNickDrafts((d) => ({ ...d, [m.id as string]: e.target.value }))
+                    }
+                    onBlur={() => saveNickname(m)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    }}
                     disabled={busyId === m.id}
-                    aria-label={`Role for ${m.name || m.email}`}
-                    className="rounded-md border border-border bg-background py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                  >
-                    {STAFF_ROLES.map((r) => (
-                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                    ))}
-                  </select>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => remove(m)}
-                    disabled={busyId === m.id}
-                    className="shrink-0 text-muted-foreground hover:text-red-400"
-                  >
-                    {busyId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Remove
-                  </Button>
-                </>
-              ) : null}
+                    maxLength={40}
+                    placeholder="Nickname"
+                    aria-label={`Nickname for ${m.name || m.email}`}
+                    className="w-28 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                  />
+                ) : null}
+
+                {m.locked ? (
+                  <Badge variant="default" className="text-[10px]">Owner</Badge>
+                ) : m.id ? (
+                  <>
+                    <select
+                      value={m.role}
+                      onChange={(e) => changeRole(m, e.target.value as StaffRole)}
+                      disabled={busyId === m.id}
+                      aria-label={`Role for ${m.name || m.email}`}
+                      className="rounded-md border border-border bg-background py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                    >
+                      {STAFF_ROLES.map((r) => (
+                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => remove(m)}
+                      disabled={busyId === m.id}
+                      className="shrink-0 text-muted-foreground hover:text-red-400"
+                    >
+                      {busyId === m.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Remove
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

@@ -7,7 +7,9 @@ import { SITE_NAME } from "@/lib/seo";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: SITE_NAME,
-    short_name: "Oscillation",
+    // Full label name, not the bare "Oscillation" — the ambiguous token collides
+    // with "The Oscillation" and shouldn't be volunteered as our short name.
+    short_name: SITE_NAME,
     description: "An independent record label that puts artists first.",
     start_url: "/",
     display: "standalone",

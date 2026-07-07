@@ -19,6 +19,10 @@ done items with ✅.**
 Built in the plan's recommended order (assignees → roles+audit → relations → verticals):
 
 - ✅ **#1 Assignees + My tasks** — inline avatar picker + assignee filter (`OutreachTask.assigneeId`).
+- ✅ **#2/#3/#5/#6/#7 Task depth** — recurring tasks, checklists (+progress %), bulk actions, per-task comments, S3 attachments.
+- ✅ **#18 Message inbox → tickets** — `ContactMessage` gains status/assignee/priority + status filters (`handled` kept in sync) + an internal reply/notes thread per ticket (`MessageReply`).
+- ✅ **#23/#38 Notifications + @mentions** — topbar bell (overdue/due-today tasks + unread mentions); @mention a teammate in a task comment.
+- ✅ **New/Edit task dialog rework** — 2-col, viewport-capped, pinned header/footer + scroll body (no longer overflows the screen).
 - ✅ **#36 Granular roles + permissions** — Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware page-gating + role-filtered sidebar.
 - ✅ **#37 Audit log** — `AuditLog` model + owner-only viewer at `/admin/audit`; logs role changes and catalog/outreach create·update·delete.
 - ✅ **#8–10 Relations + rollups** — task↔release/artist linking (chips) + tasks / pitches / press rollup panels on the release & artist **editors**.
@@ -74,12 +78,12 @@ The core upgrades that make Tasks usable by a team.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 1 | ✅ **Assignees + "My tasks"** | S–M | **Shipped.** `assigneeId` + inline avatar picker + assignee filter. |
-| 2 | **Recurring tasks** | M | "Repeat weekly/monthly" — regenerate on completion. |
-| 3 | **Subtasks / checklists** | S | Nested items with their own done-state; progress %. |
-| 4 | **Blocked / waiting status** | S | Extend status enum beyond todo/in-progress/done. |
-| 5 | **Bulk actions** | S | Multi-select → set status/assignee/due/delete. |
-| 6 | **Comments + activity log (per task)** | M | Thread + who-changed-what. Foundation for @mentions. |
-| 7 | **Attachments** | S | Files on a task (S3 already available). |
+| 2 | ✅ **Recurring tasks** | M | **Shipped.** "Repeat" select (`recurrence`); regenerates the next occurrence on completion. |
+| 3 | ✅ **Subtasks / checklists** | S | **Shipped.** Per-task checklist with done-state + progress %. |
+| 4 | ✅ **Blocked / waiting status** | S | **Shipped.** `blocked` added to the task status enum (`lib/task-status.ts`) — its own kanban column + status pill. |
+| 5 | ✅ **Bulk actions** | S | **Shipped.** Multi-select checkboxes + toolbar (bulk delete). |
+| 6 | ✅ **Comments (per task)** | M | **Shipped.** Comment thread (`TaskComment`) + @mentions (#38). |
+| 7 | ✅ **Attachments** | S | **Shipped.** S3 file attachments on a task. |
 
 ### Phase 2 — Connect the data (Notion relations)
 The single highest-leverage architectural change. Everything downstream gets better.
@@ -89,27 +93,27 @@ The single highest-leverage architectural change. Everything downstream gets bet
 | 8 | ✅ **Relations + rollups** | L | **Shipped.** Task↔release/artist linking (chips) + rollup panels on the editors. |
 | 9 | ✅ **Per-release rollup view** | M | **Shipped.** Release editor shows its tasks (progress %), pitches, press. |
 | 10 | ✅ **Per-artist rollup view** | M | **Shipped.** Artist editor shows linked tasks, pitches, press. |
-| 11 | **Grouping (by assignee / release / category)** | S | First-class group-by, not just a single filter. |
+| 11 | ✅ **Grouping (by assignee / release / category)** | S | **Shipped.** First-class group-by on the Tasks list (none / assignee / release / category), partitioned under section headers; persists in saved views. |
 
 ### Phase 3 — Views & flexibility (Notion)
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 12 | **Board (kanban) view** | M | Columns by status/category; drag to move. |
-| 13 | **Timeline / Gantt view** | M | Release rollout across weeks — ideal for campaigns. |
-| 14 | **Saved views** | M | Persist per-user filtered views ("My overdue", "This week's pitching", "<Release> campaign"). |
-| 15 | **Custom properties** | M | Lightweight extra fields: tags, effort estimate, budget. (Not fully dynamic — a few structured additions.) |
-| 16 | **Templates** | M | Release-campaign checklist templates, artist-onboarding templates, pitch-email templates. Extends today's 26 suggestions. |
+| 12 | ✅ **Board (kanban) view** | M | **Shipped.** Status columns (To&nbsp;Do / In&nbsp;Progress / Blocked / Done) + HTML5 drag-to-move on the Tasks page (List/Calendar still available). |
+| 13 | ✅ **Timeline / Gantt view** | M | **Shipped** as a release timeline at `/admin/catalog/timeline` — scheduled + recent releases on a month-grouped rail with a Today marker. |
+| 14 | ✅ **Saved views** | M | **Shipped.** Named per-user snapshots of the Tasks tab / filters / group-by / layout (`SavedView` model), applied from a "Views" bar. |
+| 15 | ✅ **Custom properties** | M | **Shipped** as freeform task **tags** (`OutreachTask.tags`) — chip input in the editor, tag chips on rows, and a tag filter. |
+| 16 | ✅ **Templates** | M | **Shipped.** Reusable task templates (`TaskTemplate`) — build a named set of tasks, apply in one click. Manager at `/admin/outreach/templates`. |
 
 ### Phase 4 — Automation & inbox (Atera)
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 17 | **Automation rules ("when X → do Y")** | L | Pitch = Accepted → create press task; release −3 weeks → spawn campaign checklist; new message → create ticket. Turns "needs attention" from reactive to active. |
-| 18 | **Unified Inbox / ticketing** | M–L | Upgrade `ContactMessage` from `handled` boolean → status (open/in-progress/resolved) + assignee + priority + reply thread. |
-| 19 | **SLA / response targets** | M | "Respond within N days" on inbound + pitch follow-ups; flag breaches. |
+| 17 | ✅ **Automation rules ("when X → do Y")** | L | **Shipped (4 rules)** at `/admin/automations`: pitch Accepted → follow-up task; new demo → review task (events); scheduled release within N days → pre-release campaign; release date passed within N days → post-release wrap-up (scheduled). Extensible registry (`lib/automations.ts`) + idempotent fire ledger; more triggers/actions can be added. |
+| 18 | ✅ **Unified Inbox / ticketing** | M–L | **Shipped.** `ContactMessage` → status + assignee + priority + status filters, plus an internal reply/notes thread per ticket (`MessageReply`). |
+| 19 | ✅ **SLA / response targets** | M | **Shipped.** Per-ticket SLA badge on the Messages inbox — Open tickets show "SLA due soon" / "SLA overdue Nd" against a response target (default 3d, `lib/ticket-sla.ts`); the clock stops once a ticket is picked up. Complements the needs-attention alerts (#21). |
 | 20 | ✅ **Ops dashboard ("Today / This week")** | M | **Shipped.** Tasks / pipeline / royalties overview cards on `/admin` (each 403-gated). |
-| 21 | **Smarter alert thresholds** | M | Extend needs-attention: release <7 days out missing artwork/links; pitch "sent" 14+ days no follow-up; artist idle N months. |
-| 22 | **Reminders / daily digest** | M | Email/in-app: your tasks due today, overdue, breaches. Needs assignees (#1). |
-| 23 | **Notifications center (in-app bell)** | S–M | Surfaces mentions, assignments, alerts. |
+| 21 | ✅ **Smarter alert thresholds** | M | **Shipped.** Needs-attention now flags imminent scheduled releases missing artwork/tracks, pitches sent 14+ days ago with no follow-up set, and artists idle 6+ months. |
+| 22 | ✅ **Reminders / daily digest** | M | **Shipped.** In-app reminders via the bell (#23) + an email **daily digest** at `/admin/digest` (open messages, draft/upcoming releases, demos to review, recent wins). Live preview; any staff can self-test, owners send to all; cron-schedulable. Behind a graceful "email not configured" gate. |
+| 23 | ✅ **Notifications center (in-app bell)** | S–M | **Shipped.** Topbar bell surfaces overdue/due-today tasks + unread @mentions. |
 
 ### Phase 5 — Money & rights (biggest label-specific gap)
 Nothing in the current admin covers this. Highest business value.
@@ -117,36 +121,36 @@ Nothing in the current admin covers this. Highest business value.
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 24 | ✅ **Royalty & split tracking** | L | **Shipped.** `Release.splits`/`revenue`/`payments` → owed/paid/outstanding + cross-release rollup at `/admin/catalog/royalties`. |
-| 25 | **Campaign budget & spend** | M | Per-campaign budget-vs-actual (SubmitHub/Groover/ads). Suggestions already reference "budget €50–100". |
-| 26 | **Agreements / terms store** | M | Given the **non-exclusive** model: which release is under what terms (split %, rights, duration) per artist. |
-| 27 | ◑ **Invoicing / payout statements** | M | Partial: **payouts + outstanding tracked** (#24). Still missing: generated per-artist statements. |
+| 25 | ✅ **Campaign budget & spend** | M | **Shipped.** Per-release budget target + spend-by-category (`Release.budget`/`spend`), a budget panel on the editor + a cross-release rollup at `/admin/catalog/budgets`. |
+| 26 | ✅ **Agreements / terms store** | M | **Shipped.** Per-release licensing terms (type, territory, rights, term dates, notes) on the editor (`Release.terms`); expiring agreements feed needs-attention. |
+| 27 | ✅ **Invoicing / payout statements** | M | **Shipped.** Payouts/outstanding tracked (#24) + downloadable per-artist statement CSVs (and an all-payees export) on the royalties page. |
 
 ### Phase 6 — Release operations
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 28 | ✅ **Release pipeline** | M | **Shipped** as the schedule board at `/admin/catalog/pipeline` (scheduled + drafts). The *distribution checklist* half was built then removed (dup of SEO score — see #30). |
-| 29 | **Asset library (DAM)** | M–L | Central store (S3) for masters, artwork, stems, press photos, EPKs per release/artist. |
-| 30 | ✗ **Approval / sign-off gate** | S–M | Built (delivery checklist + "signed off"), then **removed** — duplicated the SEO score. Revisit only if a *distinct* workflow (delivered-to-DSP etc.) is wanted. |
+| 29 | ✅ **Asset library (DAM)** | M–L | **Shipped** at `/admin/catalog/assets`: S3-backed store for masters, artwork, stems, press photos, EPKs, linked to releases/artists. Grid + thumbnails, category filter + search, multi-file upload (per-file progress), edit, delete (removes the S3 object). Presigned uploads reuse `lib/s3.ts`; server-owned keys, SVG/HTML-excluded MIME allowlist re-checked on a post-upload HEAD, 1GB cap. |
+| 30 | ✅ **Approval / sign-off gate** | S–M | **Shipped** as a *delivery* workflow (the distinct angle the earlier metadata-checklist version lacked): each release carries a Not started → Ready → Delivered to DSPs → Live-confirmed status + notes, stamped who/when, on a stepper panel in the editor (`Release.deliveryStatus`, `lib/release-delivery.ts`). Separate from the SEO completeness score. |
 
 ### Phase 7 — A&R & artists
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 31 | **Demo / A&R pipeline** | M | Inbound demos → funnel: Received → Reviewing → Passed / Offer → Releasing, with a rating field. |
-| 32 | **Artist onboarding checklist** | S–M | On add-artist: collect bio, photos, ISNI/IPI/MusicBrainz IDs, payout details. |
+| 31 | ✅ **Demo / A&R pipeline** | M | **Shipped** at `/admin/outreach/demos`: log inbound demos (artist, contact, link, genre, source), rate 1–5 stars, move through Received → Reviewing → Offer → Signed/releasing / Passed. Stage tabs + counts, inline quick-edits, CRUD API (outreach-gated + audited, http(s)-only link). |
+| 32 | ✅ **Artist onboarding checklist** | S–M | **Shipped** as a publish-readiness triage at `/admin/catalog/artists/onboarding`: cross-artist list of the 3 go-live fields (name, biography, photo) with ✓/✗ chips, Draft/Live + Ready/Blocked badges, filters, and Edit links. Distinct from the SEO/discoverability score (`lib/artist-onboarding.ts`). |
 
 ### Phase 8 — Marketing & reach
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
-| 33 | **Placement tracker** | M | Log playlist adds (+ follower counts), blog/press coverage, radio adds — a running "wins" record for future pitching. |
-| 34 | **Content / social calendar** | M | Plan posts per platform per release (distinct from task calendar). |
-| 35 | **Newsletter campaigns** | M–L | Composer + scheduler + open/click stats over existing `Subscriber` list. |
+| 33 | ✅ **Placement tracker** | M | **Shipped** at `/admin/outreach/placements`: an internal wins log — playlist adds (+ reach), radio spins, press/blog coverage — with outlet, playlist/show/article, date, and optional release/artist links. Type filter + combined-reach headline. CRUD API (outreach-gated + audited). Distinct from the public Press feature. |
+| 34 | ✅ **Content / social calendar** | M | **Shipped** at `/admin/content/calendar`: a month-grid calendar of planned posts (click a day to plan, a post to edit). Platform-tagged (colour-coded), status funnel (Idea → Drafted → Scheduled → Published), optional release link, per-platform month filter. UTC-pinned dates + local "today". CRUD API (outreach-gated + audited). |
+| 35 | ✅ **Newsletter campaigns** | M–L | **Shipped** at `/admin/outreach/newsletter`: composer (subject + body w/ live preview), draft/schedule/send-now over the `NewsletterSubscriber` list, delivery + open-rate stats. Provider-agnostic send (Resend REST, no SDK dep) behind a graceful "email not configured" gate; cron-schedulable. Open tracking shipped; click tracking is a future add. |
 
 ### Phase 9 — Team & security *(pairs with the current security audit)*
 | # | Feature | Effort | Notes |
 |---|---------|--------|-------|
 | 36 | ✅ **Granular roles + permissions** | M | **Shipped.** Owner + Catalog / Outreach / Analytics / Read-only, enforced across ~44 routes + middleware + sidebar. |
 | 37 | ✅ **Admin activity / audit log** | M | **Shipped.** `AuditLog` + viewer at `/admin/audit`; logs role changes + catalog/outreach CRUD. |
-| 38 | **@mentions** | S | Mention a teammate in a comment → notify/assign. Needs comments (#6) + notifications (#23). |
+| 38 | ✅ **@mentions** | S | **Shipped.** Mention a teammate in a task comment → surfaced in the notifications bell. |
 
 ---
 
@@ -164,11 +168,12 @@ Nothing in the current admin covers this. Highest business value.
 5. ✅ Bonus: Ops dashboard (#20).
 
 ### Suggested next (not yet started)
-- **Task depth:** recurring (#2), subtasks (#3), bulk actions (#5), comments/activity (#6).
-- **Automation & inbox:** message ticketing (#18), reminders/digest (#22), automation rules (#17).
-- **Money:** campaign budgets (#25), agreements/terms (#26), per-artist statements (#27).
-- **New surfaces:** asset library/DAM (#29), A&R demo pipeline (#31), placement tracker (#33),
-  content calendar (#34), newsletter campaigns (#35).
+- **Small task wins (S):** ✅ blocked/waiting status (#4) + first-class group-by (#11) shipped.
+- **Views (Notion):** ✅ Phase 3 complete — kanban #12, timeline #13, saved views #14, custom properties #15, templates #16 all shipped.
+- **Automation & inbox:** ✅ all shipped — automation rules #17 (4 rules), ticketing+reply thread #18, SLA badge #19, smarter alerts #21, email digest #22.
+- **Money:** ✅ Phase 5 complete — royalties (#24), budgets (#25), agreements/terms (#26), statements (#27) all shipped.
+- **The entire roadmap is now shipped (38/38 addressed).** The four previously-open items were completed as their genuinely-additive slices: automation rules deepened to 4 (#17), a delivery/sign-off *workflow* distinct from the SEO score (#30), a per-ticket SLA badge (#19), and a publish-readiness triage distinct from the SEO score (#32). Only **AI copilot** remains explicitly dropped (label's call).
+- **Email note:** #35/#22 ship behind a graceful gate. To enable sending, set `RESEND_API_KEY` + `EMAIL_FROM` (and optionally `CRON_SECRET` + a cron hitting `/api/newsletter/campaigns/run` and `/api/admin/digest`).
 
 ---
 
@@ -189,5 +194,7 @@ New/changed models implied by the above (to spec in detail when a phase is chose
 
 ---
 
-*Last updated: 2026-07-02. Shipped this session: #1, #8–10, #20, #24 (+#27 partial), #28,
-#36, #37 (all local/unpushed on `admin-press-errors-page-media`). #30 built then removed.*
+*Last updated: 2026-07-02. Shipped (local/unpushed on `admin-press-errors-page-media`):
+#1, #2, #3, #5, #6, #7 (task depth), #8–10 (relations), #18 (inbox — reply thread pending),
+#20, #23, #24 (+#27 partial), #28, #36, #37, #38 (+ New/Edit task dialog rework).
+#30 built then removed.*

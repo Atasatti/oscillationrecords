@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { Prisma } from "@prisma/client";
 import { prismaKindToApi, normalizeFeatureArtistNamesInput, serializeTrack } from "@/lib/release-format";
+import { normalizeSplits } from "@/lib/release-splits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +38,7 @@ export async function POST(
       lyrics,
       stemsFile,
       trackCredits,
+      splits,
       isrcCode,
       iswc,
       isrcExplicit,
@@ -129,6 +132,7 @@ export async function POST(
           trackCredits !== undefined && trackCredits !== null
             ? trackCredits
             : null,
+        splits: normalizeSplits(splits) as unknown as Prisma.InputJsonValue,
         isrcCode: isrcCode ? String(isrcCode) : null,
         iswc: iswc ? String(iswc).trim() : null,
         isrcExplicit: Boolean(isrcExplicit),

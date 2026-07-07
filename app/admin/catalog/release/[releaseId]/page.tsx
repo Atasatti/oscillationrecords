@@ -5,7 +5,6 @@ import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
 import StreamingLinks, { hasStreamingLinks } from "@/components/local-ui/StreamingLinks";
 import ReleaseSplitsPanel from "@/components/admin/ReleaseSplitsPanel";
-import ReleaseRevenuePanel from "@/components/admin/ReleaseRevenuePanel";
 import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import LinkedPitchesPanel from "@/components/admin/LinkedPitchesPanel";
 import LinkedPressPanel from "@/components/admin/LinkedPressPanel";
@@ -749,7 +748,6 @@ export default function AdminReleaseDetail() {
 
         <div className="mt-12">
           <ReleaseSplitsPanel releaseId={releaseId} />
-          <ReleaseRevenuePanel releaseId={releaseId} />
           <LinkedTasksPanel releaseId={releaseId} />
           <LinkedPitchesPanel releaseId={releaseId} />
           <LinkedPressPanel releaseId={releaseId} />

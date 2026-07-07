@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send,
+  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
+  Bookmark, X, MoreHorizontal,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import InfoHint from "@/components/admin/InfoHint";
+import Segmented from "@/components/admin/ui/Segmented";
+import StatusMenu from "@/components/admin/ui/StatusMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,7 +33,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
+import { TASK_STATUSES } from "@/lib/task-status";
+import { type SavedViewConfig } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
+import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
@@ -48,15 +54,18 @@ const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, l
 const PRIORITY_DOT: Record<string, string> = { urgent: "bg-red-500", high: "bg-amber-400", medium: "bg-sky-400", low: "bg-zinc-500" };
 
 // Status colour system — gives each task row an at-a-glance state: a coloured
-// left accent on the row + a matching status pill on the right.
-const STATUS_ACCENT: Record<string, string> = {
-  todo: "border-l-zinc-600",
-  in_progress: "border-l-sky-500",
-  done: "border-l-emerald-500",
+// left accent on the row (now shown only for urgent/overdue/blocked rows).
+// Solid status dots for the board column headers.
+const STATUS_COL_DOT: Record<string, string> = {
+  todo: "bg-zinc-500",
+  in_progress: "bg-sky-500",
+  blocked: "bg-amber-500",
+  done: "bg-emerald-500",
 };
 const STATUS_PILL: Record<string, string> = {
   todo: "border-zinc-600/60 bg-zinc-500/10 text-zinc-200",
   in_progress: "border-sky-500/50 bg-sky-500/10 text-sky-200",
+  blocked: "border-amber-500/50 bg-amber-500/10 text-amber-200",
   done: "border-emerald-500/50 bg-emerald-500/10 text-emerald-200",
 };
 
@@ -66,16 +75,33 @@ const shiftMonth = (c: { y: number; m: number }, delta: number) => {
   return { y: d.getFullYear(), m: d.getMonth() };
 };
 
-const STATUSES = ["todo", "in_progress", "done"] as const;
-const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", done: "Done" };
+const STATUSES = TASK_STATUSES;
+const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
+const STATUS_MENU_ITEMS = STATUSES.map((s) => ({
+  key: s,
+  label: STATUS_LABELS[s],
+  dot: STATUS_COL_DOT[s] ?? "bg-zinc-500",
+  pill: STATUS_PILL[s],
+}));
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "todo", label: "To Do" },
   { key: "in_progress", label: "In Progress" },
+  { key: "blocked", label: "Blocked" },
   { key: "done", label: "Done" },
 ] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number]["key"];
 type Tab = "attention" | StatusFilter;
+
+// Group-by (list view): partition the filtered tasks under section headers.
+const GROUP_OPTIONS = [
+  { key: "none", label: "No grouping" },
+  { key: "status", label: "Status" },
+  { key: "assignee", label: "Assignee" },
+  { key: "category", label: "Category" },
+  { key: "priority", label: "Priority" },
+] as const;
+type GroupKey = (typeof GROUP_OPTIONS)[number]["key"];
 
 const ATTENTION_HELP =
   "Issues we found automatically in your live catalog — releases or settings that need fixing (e.g. missing artwork, streaming links or metadata). Click any to jump straight to it. These aren't tasks you create; they clear once fixed.";
@@ -315,7 +341,9 @@ type Task = {
   assigneeId: string | null;
   recurrence: string | null;
   checklist: ChecklistItem[];
+  attachments?: Attachment[];
   commentCount?: number;
+  tags?: string[];
   releaseIds: string[];
   artistIds: string[];
   dueAt: string | null;
@@ -432,6 +460,32 @@ function fmtDate(iso: string | null) {
 
 type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
 
+// Match @tokens in a comment body against staff → their User ids (mentioned).
+function extractMentionIds(body: string, staff: Assignee[]): string[] {
+  const tokens = (body.match(/@([a-zA-Z][\w.-]*)/g) ?? []).map((t) => t.slice(1).toLowerCase());
+  if (!tokens.length) return [];
+  const ids = new Set<string>();
+  for (const tok of tokens) {
+    for (const s of staff) {
+      const name = (s.name || "").toLowerCase();
+      const emailLocal = (s.email || "").split("@")[0].toLowerCase();
+      if (name.split(/\s+/).some((w) => w === tok) || name.startsWith(tok) || (tok.length >= 2 && emailLocal.startsWith(tok))) {
+        ids.add(s.id);
+      }
+    }
+  }
+  return [...ids];
+}
+
+// Render a comment body with @tokens visually highlighted.
+function renderCommentBody(body: string) {
+  return body.split(/(@[a-zA-Z][\w.-]*)/g).map((p, i) =>
+    p.startsWith("@")
+      ? <span key={i} className="rounded bg-primary/15 px-0.5 font-medium text-foreground">{p}</span>
+      : <span key={i}>{p}</span>
+  );
+}
+
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
@@ -462,7 +516,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
       const res = await fetch(`/api/outreach/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, mentions: extractMentionIds(body, assignees) }),
       });
       if (!res.ok) throw new Error();
       const { comment } = await res.json();
@@ -513,7 +567,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
                       </button>
                     ) : null}
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{c.body}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{renderCommentBody(c.body)}</p>
                 </div>
               </li>
             );
@@ -526,7 +580,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
           rows={2}
-          placeholder="Add a comment… (⌘/Ctrl+Enter to post)"
+          placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
           className="flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         <Button type="button" onClick={add} disabled={posting || !text.trim()} size="sm" className="bg-white text-black hover:bg-gray-200">
@@ -537,7 +591,103 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
   );
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EXT_TYPE: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  webp: "image/webp", gif: "image/gif", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv", txt: "text/plain", zip: "application/zip",
+};
+function fileTypeOf(file: File): string {
+  if (file.type && isAllowedAttachmentType(file.type)) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return EXT_TYPE[ext] ?? file.type ?? "";
+}
+function fmtBytes(n: number | null): string {
+  if (n === null) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// File attachments for one task, shown in the edit dialog. Uploads go presign →
+// PUT to S3 → record metadata. Reports changes up so the row's paperclip count
+// stays in sync.
+function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initial: Attachment[]; onChange: (a: Attachment[]) => void }) {
+  const toast = useToast();
+  const [items, setItems] = useState<Attachment[]>(initial);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const apply = (next: Attachment[]) => { setItems(next); onChange(next); };
+
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const type = fileTypeOf(file);
+    if (!isAllowedAttachmentType(type)) { toast.error("That file type isn't allowed"); return; }
+    if (file.size > MAX_ATTACHMENT_BYTES) { toast.error("File too large (max 25MB)"); return; }
+    setUploading(true);
+    try {
+      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type }) });
+      if (!p.ok) { const d = await p.json().catch(() => ({})); throw new Error(d.error || "Upload not allowed"); }
+      const { uploadURL, fileURL } = await p.json();
+      const put = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": type }, body: file });
+      if (!put.ok) throw new Error("Upload failed");
+      const m = await fetch(`/api/outreach/tasks/${taskId}/attachments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, url: fileURL, size: file.size, type }) });
+      if (!m.ok) throw new Error("Failed to save attachment");
+      const { attachment } = await m.json();
+      apply([...items, attachment]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    try {
+      const res = await fetch(`/api/outreach/tasks/${taskId}/attachments?attachmentId=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      apply(items.filter((a) => a.id !== id));
+    } catch {
+      toast.error("Couldn't remove attachment");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium">Attachments</label>
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {items.map((a) => (
+            <li key={a.id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">{a.name}</a>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{fmtBytes(a.size)}</span>
+              <button type="button" onClick={() => remove(a.id)} aria-label="Remove attachment" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-950/20 hover:text-red-400">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <input ref={fileRef} type="file" accept={ATTACHMENT_ACCEPT} onChange={onPick} className="hidden" />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground disabled:opacity-50"
+      >
+        {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {uploading ? "Uploading…" : "Add file"}
+      </button>
+    </div>
+  );
+}
+
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -555,8 +705,25 @@ export default function TasksPage() {
   // Assignee filter: "" = everyone · "me" = my tasks · "none" = unassigned · <id>.
   const [assigneeFilter, setAssigneeFilter] = useState<string>("");
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "board" | "calendar">("list");
+  // Completed tasks are hidden from the "All" list by default (they pile up);
+  // the Done tab still shows them, and this toggle brings them back inline.
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupKey>("none");
+  // Board drag-and-drop: the card being dragged + the column hovered.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  // Saved views: named per-user snapshots of tab/filters/group/layout.
+  type SavedViewItem = { id: string; name: string; config: SavedViewConfig };
+  const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
+  const [savingView, setSavingView] = useState(false);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+
+  // Task tags (#15): a filter across the freeform labels + the editor chip input.
+  const [tagFilter, setTagFilter] = useState<string>("");
+  const [tagInput, setTagInput] = useState("");
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Filters for the suggested-tasks panel (200 items — needs search + category).
@@ -688,12 +855,22 @@ export default function TasksPage() {
     [assigneeFilter, myId]
   );
   const matchesFilters = useCallback(
-    (t: Task) => (!categoryFilter || t.category === categoryFilter) && assigneeOk(t),
-    [categoryFilter, assigneeOk]
+    (t: Task) =>
+      (!categoryFilter || t.category === categoryFilter) &&
+      (!tagFilter || (t.tags ?? []).includes(tagFilter)) &&
+      assigneeOk(t),
+    [categoryFilter, tagFilter, assigneeOk]
   );
 
+  // Every distinct tag in use, for the filter dropdown.
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of tasks) for (const tag of t.tags ?? []) s.add(tag);
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
+
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, done: 0 };
+    const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, blocked: 0, done: 0 };
     for (const t of tasks) {
       if (!matchesFilters(t)) continue;
       c.all++;
@@ -716,7 +893,9 @@ export default function TasksPage() {
   const filtered = useMemo(
     () =>
       tasks
-        .filter((t) => (tab === "all" || t.status === tab) && matchesFilters(t))
+        // On "All", hide completed unless the toggle is on; a specific status tab
+        // (incl. Done) always shows exactly that status.
+        .filter((t) => matchesFilters(t) && (tab === "all" ? showCompleted || t.status !== "done" : t.status === tab))
         // Auto-sort by urgency: completed sink to the bottom, then most-urgent
         // priority first, then soonest/overdue due date (undated last).
         .sort((a, b) => {
@@ -729,8 +908,82 @@ export default function TasksPage() {
           const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
           return aDue - bDue;
         }),
-    [tasks, tab, matchesFilters]
+    [tasks, tab, matchesFilters, showCompleted]
   );
+
+  // Group-by: partition the already-filtered/sorted list into ordered sections.
+  // null when grouping is off (the list renders flat). Each task falls in exactly
+  // one section (grouping keys are all single-valued), so counts still add up.
+  const grouped = useMemo(() => {
+    if (groupBy === "none") return null;
+    const keyOf = (t: Task) =>
+      groupBy === "assignee" ? (t.assigneeId || "__none")
+        : groupBy === "status" ? t.status
+        : groupBy === "category" ? t.category
+        : t.priority;
+    const map = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const k = keyOf(t);
+      const bucket = map.get(k);
+      if (bucket) bucket.push(t);
+      else map.set(k, [t]);
+    }
+    const order: string[] =
+      groupBy === "status" ? [...STATUSES]
+        : groupBy === "priority" ? [...PRIORITIES].sort((a, b) => (PRIORITY_RANK[a] ?? 99) - (PRIORITY_RANK[b] ?? 99))
+        : groupBy === "category" ? [...CATEGORIES]
+        : [...assignees.map((a) => a.id), "__none"];
+    const labelOf = (k: string) =>
+      groupBy === "status" ? (STATUS_LABELS[k] ?? k)
+        : groupBy === "priority" ? (PRIORITY_LABELS[k] ?? k)
+        : groupBy === "category" ? (k.charAt(0).toUpperCase() + k.slice(1))
+        : k === "__none" ? "Unassigned" : (() => { const a = assignees.find((x) => x.id === k); return a ? displayName(a) : "Unknown"; })();
+    const sections: { key: string; label: string; tasks: Task[] }[] = [];
+    const seen = new Set<string>();
+    for (const k of order) {
+      const ts = map.get(k);
+      if (ts && ts.length) { sections.push({ key: k, label: labelOf(k), tasks: ts }); seen.add(k); }
+    }
+    // Any keys not in the canonical order (defensive) go last, insertion order.
+    for (const [k, ts] of map) if (!seen.has(k)) sections.push({ key: k, label: labelOf(k), tasks: ts });
+    return sections;
+  }, [groupBy, filtered, assignees]);
+
+  // Flatten grouping into one render list: header rows interleaved with task rows,
+  // so the list body maps once whether grouping is on or off.
+  type ListItem = { kind: "header"; key: string; label: string; count: number } | { kind: "task"; t: Task };
+  const listItems = useMemo<ListItem[]>(() => {
+    if (!grouped) return filtered.map((t) => ({ kind: "task", t }));
+    const out: ListItem[] = [];
+    for (const s of grouped) {
+      out.push({ kind: "header", key: `h-${s.key}`, label: s.label, count: s.tasks.length });
+      for (const t of s.tasks) out.push({ kind: "task", t });
+    }
+    return out;
+  }, [grouped, filtered]);
+
+  // Board view: the category/assignee-filtered tasks bucketed by status column,
+  // each sorted most-urgent first (priority, then soonest due).
+  const board = useMemo(() => {
+    const cols: Record<string, Task[]> = { todo: [], in_progress: [], blocked: [], done: [] };
+    for (const t of tasks) {
+      if (!matchesFilters(t)) continue;
+      // Coerce any out-of-vocabulary status into "todo" so a task can never vanish
+      // from the board (the List/Calendar views still show it regardless).
+      const key = (STATUSES as readonly string[]).includes(t.status) ? t.status : "todo";
+      (cols[key] ??= []).push(t);
+    }
+    for (const k of Object.keys(cols)) {
+      cols[k].sort((a, b) => {
+        const pr = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+        if (pr !== 0) return pr;
+        const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+        const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+        return aDue - bDue;
+      });
+    }
+    return cols;
+  }, [tasks, matchesFilters]);
 
   // Calendar: group dated tasks by their due day (category + assignee filters
   // apply; all statuses shown). Undated tasks get their own strip below the grid.
@@ -768,6 +1021,15 @@ export default function TasksPage() {
   const toggleFormChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.map((it) => (it.id === id ? { ...it, done: !it.done } : it)) }));
   const removeChecklistItem = (id: string) => setForm((p) => ({ ...p, checklist: p.checklist.filter((it) => it.id !== id) }));
 
+  // Tag chips in the editor (deduped, case-insensitive, capped).
+  const addTag = (raw: string) => {
+    const s = raw.trim().slice(0, 40);
+    if (!s) return;
+    setForm((p) => (p.tags.some((x) => x.toLowerCase() === s.toLowerCase()) || p.tags.length >= 20 ? p : { ...p, tags: [...p.tags, s] }));
+    setTagInput("");
+  };
+  const removeTag = (tag: string) => setForm((p) => ({ ...p, tags: p.tags.filter((x) => x !== tag) }));
+
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
   const openEdit = (t: Task) => {
     setEditingId(t.id);
@@ -780,6 +1042,7 @@ export default function TasksPage() {
       assigneeId: t.assigneeId ?? "",
       recurrence: t.recurrence ?? "",
       checklist: t.checklist ?? [],
+      tags: t.tags ?? [],
       releaseIds: t.releaseIds ?? [],
       artistIds: t.artistIds ?? [],
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
@@ -893,6 +1156,12 @@ export default function TasksPage() {
     }
   };
 
+  // Sync a task's attachments into the list (so the row's 📎 count updates).
+  const applyAttachments = (taskId: string, attachments: Attachment[]) => {
+    setTasks((list) => list.map((t) => (t.id === taskId ? { ...t, attachments } : t)));
+    setCached("tasks-list", tasks.map((t) => (t.id === taskId ? { ...t, attachments } : t)));
+  };
+
   // ---- bulk selection ----
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -963,6 +1232,192 @@ export default function TasksPage() {
     </select>
   );
 
+  // ---- Saved views ----
+  useEffect(() => {
+    fetch("/api/outreach/views")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.views) setSavedViews(j.views as SavedViewItem[]); })
+      .catch(() => {});
+  }, []);
+
+  const applyView = (c: SavedViewConfig) => {
+    setTab(c.tab as Tab);
+    setView(c.view);
+    setGroupBy(c.groupBy as GroupKey);
+    // Clamp stale filter values (a category renamed, or an assignee since removed)
+    // back to "All" — otherwise the controlled <select> shows "All" while state
+    // holds a value that matches nothing, silently emptying the list.
+    setCategoryFilter((CATEGORIES as readonly string[]).includes(c.categoryFilter) ? c.categoryFilter : "");
+    const asgOk =
+      c.assigneeFilter === "" ||
+      c.assigneeFilter === "me" ||
+      c.assigneeFilter === "none" ||
+      assignees.some((a) => a.id === c.assigneeFilter);
+    setAssigneeFilter(asgOk ? c.assigneeFilter : "");
+  };
+
+  // Which saved view (if any) exactly matches the current controls — for highlight.
+  const currentViewKey = JSON.stringify({ tab, view, groupBy, categoryFilter, assigneeFilter });
+  const activeViewId = useMemo(
+    () => savedViews.find((v) => JSON.stringify(v.config) === currentViewKey)?.id ?? null,
+    [savedViews, currentViewKey]
+  );
+
+  const saveCurrentView = async () => {
+    const name = newViewName.trim();
+    if (!name || savingView) return;
+    setSavingView(true);
+    try {
+      const res = await fetch("/api/outreach/views", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, config: { tab, view, groupBy, categoryFilter, assigneeFilter } }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error);
+      setSavedViews((v) => [...v, j.view as SavedViewItem]);
+      setSaveViewOpen(false);
+      setNewViewName("");
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "Failed to save view");
+    } finally {
+      setSavingView(false);
+    }
+  };
+
+  const deleteView = async (id: string) => {
+    const prev = savedViews;
+    setSavedViews((v) => v.filter((x) => x.id !== id));
+    try {
+      const res = await fetch(`/api/outreach/views/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Failed to delete view");
+      setSavedViews(prev);
+    }
+  };
+
+  // A compact, draggable task card for the board view. Click opens the editor;
+  // drag it to another column to change its status (via updateStatus).
+  const renderCard = (t: Task) => {
+    const overdue = isOverdue(t);
+    const assignee = assignees.find((a) => a.id === t.assigneeId) ?? null;
+    const chips = t.checklist?.length || t.commentCount || t.attachments?.length || isRecurrence(t.recurrence);
+    return (
+      <div
+        key={t.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", t.id);
+          setDraggingId(t.id);
+        }}
+        onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+        role="button"
+        tabIndex={0}
+        onClick={() => openEdit(t)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openEdit(t); } }}
+        className={`cursor-grab rounded-lg border border-border bg-card p-3 transition-colors hover:border-white/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing ${draggingId === t.id ? "opacity-40" : ""}`}
+      >
+        <div className="flex items-start gap-2">
+          <p className={`min-w-0 flex-1 text-sm font-medium ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>
+            {t.title}
+          </p>
+          {assignee ? <AssigneeAvatar user={assignee} size={20} /> : null}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[t.priority] ?? "bg-zinc-500"}`} />
+            {PRIORITY_LABELS[t.priority]}
+          </span>
+          <span className="text-border" aria-hidden>·</span>
+          <span className="capitalize">{t.category}</span>
+          {t.dueAt ? (
+            <>
+              <span className="text-border" aria-hidden>·</span>
+              <span className={overdue ? "font-medium text-amber-400" : ""}>
+                {overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}
+              </span>
+            </>
+          ) : null}
+        </div>
+        {chips ? (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            {t.checklist?.length ? (
+              <span className="inline-flex items-center gap-1">
+                <ListChecks className="h-3 w-3" aria-hidden /> {checklistProgress(t.checklist).done}/{checklistProgress(t.checklist).total}
+              </span>
+            ) : null}
+            {t.commentCount ? (
+              <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden /> {t.commentCount}</span>
+            ) : null}
+            {t.attachments?.length ? (
+              <span className="inline-flex items-center gap-1"><Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}</span>
+            ) : null}
+            {isRecurrence(t.recurrence) ? (
+              <span className="inline-flex items-center gap-1"><Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}</span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const boardView = (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          aria-label="Filter by category"
+          className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="">All categories</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+        </select>
+        {assigneeFilterSelect}
+        <span className="text-xs text-muted-foreground">Drag a card between columns to change its status, or open a card to edit it.</span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {STATUSES.map((col) => {
+          const items = board[col] ?? [];
+          const active = dragOverCol === col;
+          return (
+            <div
+              key={col}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragOverCol !== col) setDragOverCol(col); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol((c) => (c === col ? null : c)); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = draggingId || e.dataTransfer.getData("text/plain");
+                const moved = tasks.find((x) => x.id === id);
+                if (id && moved && moved.status !== col) updateStatus(id, col);
+                setDraggingId(null);
+                setDragOverCol(null);
+              }}
+              className={`flex w-72 shrink-0 flex-col rounded-xl border transition-colors ${active ? "border-primary/60 bg-primary/[0.04]" : "border-border bg-white/[0.02]"}`}
+            >
+              <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COL_DOT[col] ?? "bg-zinc-500"}`} />
+                <span className="text-sm font-medium">{STATUS_LABELS[col]}</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{items.length}</span>
+              </div>
+              <div className="flex min-h-[8rem] flex-col gap-2 p-2">
+                {items.length === 0 ? (
+                  <p className="select-none px-2 py-8 text-center text-xs text-muted-foreground">
+                    {active ? "Release to move here" : "No tasks"}
+                  </p>
+                ) : (
+                  items.map((t) => renderCard(t))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
   // ---- render ----
   return (
     <div>
@@ -977,11 +1432,11 @@ export default function TasksPage() {
       />
 
       {/* Suggested tasks (collapsible) */}
-      <div className="mb-5 rounded-xl border border-border bg-card">
+      <div className="mb-3 rounded-xl border border-border bg-card">
         <button
           type="button"
           onClick={() => setShowSuggestions((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium"
+          className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
@@ -1045,32 +1500,60 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* View: list / calendar */}
-      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+      {/* Saved views — named snapshots of the tab / filters / grouping / layout */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Bookmark className="h-3.5 w-3.5" aria-hidden /> Views
+        </span>
+        {savedViews.map((v) => (
+          <span
+            key={v.id}
+            className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              activeViewId === v.id
+                ? "border-primary/50 bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <button type="button" onClick={() => applyView(v.config)} className="max-w-[10rem] truncate" title={`Apply "${v.name}"`}>
+              {v.name}
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteView(v.id)}
+              aria-label={`Delete view ${v.name}`}
+              className="rounded-full text-muted-foreground opacity-60 transition-opacity hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
         <button
           type="button"
-          onClick={() => setView("list")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            view === "list" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
+          onClick={() => setSaveViewOpen(true)}
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
         >
-          <List className="h-3.5 w-3.5" /> List
+          <Plus className="h-3 w-3" aria-hidden /> Save view
         </button>
-        <button
-          type="button"
-          onClick={() => setView("calendar")}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-            view === "calendar" ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <CalendarDays className="h-3.5 w-3.5" /> Calendar
-        </button>
+      </div>
+
+      {/* View switch — the shared Segmented primitive */}
+      <div className="mb-3">
+        <Segmented<"list" | "board" | "calendar">
+          ariaLabel="View"
+          value={view}
+          onChange={setView}
+          options={[
+            { key: "list", label: <span className="inline-flex items-center gap-1.5"><List className="h-3.5 w-3.5" /> List</span> },
+            { key: "board", label: <span className="inline-flex items-center gap-1.5"><Columns3 className="h-3.5 w-3.5" /> Board</span> },
+            { key: "calendar", label: <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Calendar</span> },
+          ]}
+        />
       </div>
 
       {view === "list" ? (
         <>
       {/* Tabs: Needs attention + status filters, then category */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center rounded-lg border border-border p-0.5">
           <button
             type="button"
@@ -1105,6 +1588,17 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
+        {tab === "all" && counts.done > 0 ? (
+          <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="h-3.5 w-3.5 accent-white"
+            />
+            Show completed
+          </label>
+        ) : null}
         {tab === "attention" ? (
           <InfoHint text={ATTENTION_HELP} />
         ) : (
@@ -1119,6 +1613,27 @@ export default function TasksPage() {
               {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
             </select>
             {assigneeFilterSelect}
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupKey)}
+              aria-label="Group tasks by"
+              className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {GROUP_OPTIONS.map((g) => (
+                <option key={g.key} value={g.key}>{g.key === "none" ? "Group: Off" : `Group: ${g.label}`}</option>
+              ))}
+            </select>
+            {allTags.length > 0 ? (
+              <select
+                value={tagFilter}
+                onChange={(e) => setTagFilter(e.target.value)}
+                aria-label="Filter by tag"
+                className="rounded-md border border-border bg-card py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">All tags</option>
+                {allTags.map((t) => <option key={t} value={t}>#{t}</option>)}
+              </select>
+            ) : null}
           </>
         )}
       </div>
@@ -1148,7 +1663,7 @@ export default function TasksPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {attentionItems.map((item) => {
-                const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : Radio;
+                const Icon = item.type === "release" ? Music2 : item.type === "system" ? AlertCircle : item.type === "artist" ? UserRound : Radio;
                 // Pin + highlight unread contact messages — time-sensitive inbound.
                 const isMessage = item.id === "system-messages";
                 return (
@@ -1238,12 +1753,26 @@ export default function TasksPage() {
                   : "No tasks yet."}
             </div>
           ) : (
-            filtered.map((t) => {
+            listItems.map((item) => {
+              if (item.kind === "header") return (
+                <div key={item.key} className="mt-1 flex items-center gap-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</h2>
+                  <span className="text-xs tabular-nums text-muted-foreground">{item.count}</span>
+                  <span className="h-px flex-1 bg-border" aria-hidden />
+                </div>
+              );
+              const t = item.t;
               const overdue = isOverdue(t);
               return (
               <div
                 key={t.id}
-                className={`group flex items-center gap-3 rounded-xl border border-l-[3px] bg-card px-4 py-3 transition-colors hover:bg-white/[0.02] ${STATUS_ACCENT[t.status] ?? "border-l-zinc-600"} ${selected.has(t.id) ? "border-primary/50 bg-primary/[0.03]" : "border-border"}`}
+                className={`group flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5 transition-colors hover:bg-white/[0.02] ${selected.has(t.id) ? "border-primary/50 bg-primary/[0.03]" : "border-border"} ${
+                  t.priority === "urgent" || overdue
+                    ? "border-l-[3px] border-l-red-500"
+                    : t.status === "blocked"
+                    ? "border-l-[3px] border-l-amber-500"
+                    : ""
+                }`}
               >
                 {/* Bulk-select checkbox (appears on hover; stays when selected) */}
                 <button
@@ -1328,7 +1857,30 @@ export default function TasksPage() {
                         </span>
                       </>
                     ) : null}
+                    {t.attachments?.length ? (
+                      <>
+                        <span className="text-border" aria-hidden>·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}
+                        </span>
+                      </>
+                    ) : null}
                   </div>
+                  {t.tags?.length ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {t.tags.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setTagFilter(tag); }}
+                          title={`Filter by #${tag}`}
+                          className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {(t.releaseIds?.length || t.artistIds?.length) ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
                       {t.releaseIds?.map((id) => {
@@ -1368,7 +1920,7 @@ export default function TasksPage() {
                   ) : null}
                 </div>
 
-                {/* Assignee + status pill (coloured) + edit + delete */}
+                {/* Assignee · status pill · overflow menu */}
                 <div className="flex shrink-0 items-center gap-1.5">
                   <AssigneePicker
                     value={t.assigneeId}
@@ -1376,33 +1928,30 @@ export default function TasksPage() {
                     myId={myId}
                     onChange={(assigneeId) => updateAssignee(t.id, assigneeId)}
                   />
-                  <select
+                  <StatusMenu
                     value={t.status}
-                    onChange={(e) => updateStatus(t.id, e.target.value)}
-                    title="Change status"
-                    aria-label="Change status"
-                    className={`rounded-md border py-1 pl-2.5 pr-6 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${STATUS_PILL[t.status] ?? "border-border bg-background text-foreground"}`}
-                  >
-                    {STATUSES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{STATUS_LABELS[s]}</option>)}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => openEdit(t)}
-                    title="Edit task"
-                    aria-label="Edit task"
-                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(t.id)}
-                    title="Delete task"
-                    aria-label="Delete task"
-                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    options={STATUS_MENU_ITEMS}
+                    onChange={(s) => updateStatus(t.id, s)}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="More actions"
+                        className="rounded p-1.5 text-muted-foreground opacity-100 transition-all hover:bg-white/5 hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[8rem]">
+                      <DropdownMenuItem onClick={() => openEdit(t)} className="cursor-pointer gap-2">
+                        <Pencil className="h-4 w-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeleteTarget(t.id)} className="cursor-pointer gap-2 text-destructive focus:text-destructive">
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               );
@@ -1411,6 +1960,8 @@ export default function TasksPage() {
         </div>
       )}
         </>
+      ) : view === "board" ? (
+        boardView
       ) : (
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -1478,22 +2029,42 @@ export default function TasksPage() {
 
       {/* Create / edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle></DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Title <span className="text-destructive">*</span></label>
-              <input value={form.title} onChange={(e) => setField("title", e.target.value)}
-                placeholder="What needs to be done?"
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Description</label>
-              <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
-                placeholder="How to do it, what to look for…"
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+        <DialogContent className="flex max-h-[calc(100dvh-3rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-b border-border px-6 py-4">
+            <DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Title <span className="text-destructive">*</span></label>
+                <input value={form.title} onChange={(e) => setField("title", e.target.value)}
+                  placeholder="What needs to be done?"
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Description</label>
+                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
+                  placeholder="How to do it, what to look for…"
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <MultiSelect
+                  options={releaseRefs.map((r) => ({ value: r.id, label: r.name }))}
+                  selected={form.releaseIds}
+                  onChange={(v) => setLinks("releaseIds", v)}
+                  placeholder="Link this task to releases…"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <MultiSelect
+                  options={artistRefs.map((a) => ({ value: a.id, label: a.name }))}
+                  selected={form.artistIds}
+                  onChange={(v) => setLinks("artistIds", v)}
+                  placeholder="Link this task to artists…"
+                />
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Category</label>
                 <select value={form.category} onChange={(e) => setField("category", e.target.value)}
@@ -1508,88 +2079,28 @@ export default function TasksPage() {
                   {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>)}
                 </select>
               </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Assignee</label>
-              <select value={form.assigneeId} onChange={(e) => setField("assigneeId", e.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">Unassigned</option>
-                {assignees.map((a) => (
-                  <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Repeat</label>
-              <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">Doesn&apos;t repeat</option>
-                {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {form.recurrence ? (
-                <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>
-              {form.checklist.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  {form.checklist.map((it) => (
-                    <div key={it.id} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleFormChecklistItem(it.id)}
-                        aria-label={it.done ? "Mark not done" : "Mark done"}
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
-                      >
-                        {it.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-                      </button>
-                      <input
-                        value={it.text}
-                        onChange={(e) => updateChecklistText(it.id, e.target.value)}
-                        placeholder="Checklist item…"
-                        className={`flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${it.done ? "text-muted-foreground line-through" : ""}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeChecklistItem(it.id)}
-                        aria-label="Remove item"
-                        className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Assignee</label>
+                <select value={form.assigneeId} onChange={(e) => setField("assigneeId", e.target.value)}
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">Unassigned</option>
+                  {assignees.map((a) => (
+                    <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
                   ))}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={addChecklistItem}
-                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add item
-              </button>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
-              <MultiSelect
-                options={releaseRefs.map((r) => ({ value: r.id, label: r.name }))}
-                selected={form.releaseIds}
-                onChange={(v) => setLinks("releaseIds", v)}
-                placeholder="Link this task to releases…"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
-              <MultiSelect
-                options={artistRefs.map((a) => ({ value: a.id, label: a.name }))}
-                selected={form.artistIds}
-                onChange={(v) => setLinks("artistIds", v)}
-                placeholder="Link this task to artists…"
-              />
-            </div>
-            {editingId ? (
-              <div className="grid grid-cols-2 gap-3">
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Repeat</label>
+                <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
+                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">Doesn&apos;t repeat</option>
+                  {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                {form.recurrence ? (
+                  <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
+                ) : null}
+              </div>
+              {editingId ? (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Status</label>
                   <select value={form.status} onChange={(e) => setField("status", e.target.value)}
@@ -1597,26 +2108,90 @@ export default function TasksPage() {
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-medium">Due date</label>
-                  <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
-                    className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
+              ) : null}
+              <div className={`flex flex-col gap-1.5 ${editingId ? "" : "sm:col-span-2"}`}>
                 <label className="text-sm font-medium">Due date <span className="font-normal text-muted-foreground">(optional)</span></label>
                 <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
-            )}
-          </div>
-          {editingId ? (
-            <div className="mt-1 border-t border-border pt-4">
-              <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Tags <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-2">
+                  {form.tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-muted-foreground">
+                      #{tag}
+                      <button type="button" onClick={() => removeTag(tag)} aria-label={`Remove tag ${tag}`} className="transition-colors hover:text-red-400">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); }
+                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1]);
+                    }}
+                    onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
+                    placeholder={form.tags.length ? "" : "Add a label, press Enter…"}
+                    className="min-w-[8rem] flex-1 bg-transparent text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-sm font-medium">Checklist <span className="font-normal text-muted-foreground">(optional)</span></label>
+                {form.checklist.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    {form.checklist.map((it) => (
+                      <div key={it.id} className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleFormChecklistItem(it.id)}
+                          aria-label={it.done ? "Mark not done" : "Mark done"}
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${it.done ? "border-emerald-500 bg-emerald-500 text-black" : "border-border hover:border-foreground/50"}`}
+                        >
+                          {it.done ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                        </button>
+                        <input
+                          value={it.text}
+                          onChange={(e) => updateChecklistText(it.id, e.target.value)}
+                          placeholder="Checklist item…"
+                          className={`flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring ${it.done ? "text-muted-foreground line-through" : ""}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeChecklistItem(it.id)}
+                          aria-label="Remove item"
+                          className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={addChecklistItem}
+                  className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add item
+                </button>
+              </div>
             </div>
-          ) : null}
-          <DialogFooter>
+            {editingId ? (
+              <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
+                <TaskAttachments
+                  key={editingId}
+                  taskId={editingId}
+                  initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
+                  onChange={(a) => applyAttachments(editingId, a)}
+                />
+                <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="border-t border-border px-6 py-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
             <Button onClick={save} disabled={saving} className="bg-white text-black hover:bg-gray-200">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {editingId ? "Save changes" : "Add task"}
@@ -1646,6 +2221,33 @@ export default function TasksPage() {
             <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkWorking}>Cancel</Button>
             <Button variant="destructive" onClick={() => runBulk({ delete: true })} disabled={bulkWorking}>
               {bulkWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save the current controls as a named view */}
+      <Dialog open={saveViewOpen} onOpenChange={(o) => { setSaveViewOpen(o); if (!o) setNewViewName(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Save view</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <p className="text-sm text-muted-foreground">
+              Name this view — it remembers the current tab, filters, grouping and layout.
+            </p>
+            <input
+              autoFocus
+              value={newViewName}
+              onChange={(e) => setNewViewName(e.target.value)}
+              maxLength={40}
+              onKeyDown={(e) => { if (e.key === "Enter" && newViewName.trim() && !savingView) saveCurrentView(); }}
+              placeholder="e.g. My overdue, This week's pitching"
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveViewOpen(false)} disabled={savingView}>Cancel</Button>
+            <Button onClick={saveCurrentView} disabled={savingView || !newViewName.trim()} className="bg-white text-black hover:bg-gray-200">
+              {savingView ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save
             </Button>
           </DialogFooter>
         </DialogContent>
