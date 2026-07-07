@@ -1,5 +1,11 @@
 // Shared, client-safe helpers for the Release Editor surfaces. No server imports.
 import { normalizeFeatureArtistNamesInput } from "@/lib/release-format";
+import {
+  splitsToRows,
+  rowsToSplits,
+  normalizeSplits,
+  type SplitRow,
+} from "@/lib/release-splits";
 
 /**
  * Read an error message from a failed Response without crashing on an HTML
@@ -290,6 +296,8 @@ export interface EditorTrack {
   primaryArtistIds: string[];
   featureArtistText: string;
   credits: TrackCreditsValue;
+  /** Per-track royalty split (editing rows). Empty = track inherits nothing. */
+  splits: SplitRow[];
   expanded: boolean;
 }
 
@@ -324,6 +332,7 @@ export function newEditorTrack(
     primaryArtistIds: [...(defaults.primaryArtistIds ?? [])],
     featureArtistText: defaults.featureArtistText ?? "",
     credits: emptyTrackCredits(),
+    splits: [],
     expanded: false,
   };
 }
@@ -368,6 +377,7 @@ export function editorTrackFromSerialized(
       lyricist: (t.lyricist as string) ?? null,
       leadVocal: (t.leadVocal as string) ?? null,
     }),
+    splits: splitsToRows(normalizeSplits(t.splits)),
     expanded: false,
   };
 }
@@ -408,6 +418,7 @@ export function buildTrackPayload(
     lyrics: row.lyrics.trim() || null,
     stemsFile: row.stemsFile || null,
     trackCredits: creditPayload(row.credits),
+    splits: rowsToSplits(row.splits),
     isrcCode: row.isrcCode.trim() || null,
     iswc: row.iswc.trim() || null,
     isrcExplicit: row.isrcExplicit,

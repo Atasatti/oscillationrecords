@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ListChecks, Rocket, Wallet, type LucideIcon } from "lucide-react";
+import { ListChecks, Rocket, type LucideIcon } from "lucide-react";
 
 /**
- * A compact operations overview on the admin dashboard: open/overdue tasks, the
- * release pipeline, and outstanding royalties — the "state of play" a staffer
- * wants at a glance. Each card fetches its own domain and HIDES itself if the
- * viewer lacks access (403) or the fetch fails, so scoped roles only see the
- * cards they can use (owner sees all three).
+ * A compact operations overview on the admin dashboard: open/overdue tasks and the
+ * release pipeline — the "state of play" a staffer wants at a glance. Each card
+ * fetches its own domain and HIDES itself if the viewer lacks access (403) or the
+ * fetch fails, so scoped roles only see the cards they can use.
  */
 
 function Card({
@@ -52,8 +51,6 @@ function useDomain<T>(url: string, map: (json: unknown) => T) {
   }, [url]);
   return { data, hidden };
 }
-
-const money = (n: number) => (n < 0 ? "-£" + Math.abs(n).toFixed(2) : "£" + n.toFixed(2));
 
 function TasksCard() {
   const { data, hidden } = useDomain(`/api/outreach/tasks?isTemplate=false`, (j) => {
@@ -101,30 +98,11 @@ function PipelineCard() {
   );
 }
 
-function RoyaltiesCard() {
-  const { data, hidden } = useDomain(`/api/releases/royalties`, (j) => {
-    const t = (j as { totals?: { outstanding: number } }).totals;
-    return { outstanding: t?.outstanding ?? 0 };
-  });
-  if (hidden || !data) return null;
-  return (
-    <Card
-      href="/admin/catalog/royalties"
-      icon={Wallet}
-      label="Royalties"
-      primary={money(data.outstanding)}
-      secondary="outstanding to pay out"
-      secondaryTone={data.outstanding > 0 ? "amber" : "muted"}
-    />
-  );
-}
-
 export default function AdminOpsOverview() {
   return (
-    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mb-6 grid gap-3 sm:grid-cols-2">
       <TasksCard />
       <PipelineCard />
-      <RoyaltiesCard />
     </div>
   );
 }

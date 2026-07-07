@@ -37,7 +37,6 @@ export const TAB_GROUPS: readonly (readonly Tab[])[] = [
     { label: "Onboarding", href: "/admin/catalog/artists/onboarding", perm: "catalog:read" },
   ],
   [
-    { label: "Royalties", href: "/admin/catalog/royalties", perm: "catalog:read" },
     { label: "Budgets", href: "/admin/catalog/budgets", perm: "catalog:read" },
   ],
   [

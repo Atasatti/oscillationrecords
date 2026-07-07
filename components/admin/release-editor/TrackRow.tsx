@@ -17,6 +17,7 @@ import { type EditorTrack, formatDuration } from "@/lib/release-editor";
 import type { UploadItem } from "./useUploadQueue";
 import UploadStatusChip from "./UploadStatusChip";
 import TrackCreditsInline from "./TrackCreditsInline";
+import SplitEditor from "@/components/admin/SplitEditor";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -349,6 +350,15 @@ export default function TrackRow({
             idPrefix={track.rowId}
             onCopyToAllTracks={onCopyCreditsToAll}
           />
+
+          <div>
+            <p className="mb-1 text-xs font-medium text-gray-400">Royalty split (optional)</p>
+            <p className="mb-2 text-xs text-gray-500">
+              Per-track contributors and shares — e.g. an album track with a different
+              collaborator. Leave empty to use the release-level split.
+            </p>
+            <SplitEditor value={track.splits} onChange={(splits) => onChange({ splits })} />
+          </div>
         </div>
       ) : null}
     </div>

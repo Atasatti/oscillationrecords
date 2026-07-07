@@ -44,7 +44,7 @@ const SUBVIEW_TRAIL: Record<string, { parentLabel: string; parentHref: string; l
   "/admin/outreach/templates": { parentLabel: "Tasks", parentHref: "/admin/tasks", label: "Templates" },
   "/admin/catalog/pipeline": { parentLabel: "Releases", parentHref: "/admin/catalog/releases", label: "Pipeline" },
   "/admin/catalog/timeline": { parentLabel: "Releases", parentHref: "/admin/catalog/releases", label: "Timeline" },
-  "/admin/catalog/budgets": { parentLabel: "Money", parentHref: "/admin/catalog/royalties", label: "Budgets" },
+  "/admin/catalog/budgets": { parentLabel: "Money", parentHref: "/admin/catalog/budgets", label: "Budgets" },
   "/admin/subscribers": { parentLabel: "Newsletter", parentHref: "/admin/outreach/newsletter", label: "Subscribers" },
 };
 

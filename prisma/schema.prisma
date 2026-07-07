@@ -227,16 +227,11 @@ model Release {
   /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
   /// each other. Optional: rows never ordered there are treated as last (+∞).
   comingSoonOrder  Int?
-  /// Revenue-split agreement — an array of { payee, percent } recording who is owed
-  /// what share of this release's income. Shape/validation in lib/release-splits.ts.
-  /// A tracking aid, not authoritative accounting.
+  /// Royalty split — an array of { artistId?, name, realName?, email?, percent }
+  /// recording the contributing artists and their agreed shares. Reference only:
+  /// the site does NOT track money/payouts (Ditto pays artists directly). Percent
+  /// values should total 100. Shape/validation in lib/release-splits.ts.
   splits            Json?
-  /// Recorded income for this release — an array of { id, amount, date, note }.
-  /// Combined with `splits` to compute who's owed what. See lib/release-splits.ts.
-  revenue           Json?
-  /// Payouts made to payees — an array of { id, payee, amount, date, note }.
-  /// Subtracted from each payee's owed share to give outstanding. Tracking aid.
-  payments          Json?
   /// Promo campaign budget target (the label's own currency), or null if unset.
   budget            Float?
   /// Campaign spend — an array of { id, amount, category, date, note }. Totalled
@@ -339,6 +334,10 @@ model Track {
   lyrics           String?
   stemsFile        String?
   trackCredits     Json?
+  /// Per-track royalty split — same shape as Release.splits ({ artistId?, name,
+  /// realName?, email?, percent }). Lets a track credit different contributors than
+  /// the release (e.g. album collaborations). Reference only, no money.
+  splits           Json?
   isrcCode         String?
   /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
   iswc             String?

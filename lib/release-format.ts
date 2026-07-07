@@ -132,6 +132,7 @@ export function serializeTrack(t: Track) {
     lyrics: t.lyrics,
     stemsFile: t.stemsFile,
     trackCredits: t.trackCredits,
+    splits: t.splits,
     isrcCode: t.isrcCode,
     iswc: t.iswc,
     isrcExplicit: t.isrcExplicit,
@@ -151,23 +152,26 @@ export function serializeTrack(t: Track) {
 }
 
 /**
- * Public payloads: omit ISRC, ISWC, lyrics and the master `stemsFile` URL — the
- * stems are sensitive label IP and must not ship to anonymous clients. The admin
- * session still uses the full {@link serializeTrack}.
+ * Public payloads: omit ISRC, ISWC, lyrics, the master `stemsFile` URL, and the
+ * royalty `splits` — stems are sensitive label IP and splits hold internal real
+ * names/emails; none must ship to anonymous clients. The admin session still uses
+ * the full {@link serializeTrack}.
  */
 export function serializeTrackForPublic(
   t: Track
-): Omit<ReturnType<typeof serializeTrack>, "isrcCode" | "iswc" | "lyrics" | "stemsFile"> {
+): Omit<ReturnType<typeof serializeTrack>, "isrcCode" | "iswc" | "lyrics" | "stemsFile" | "splits"> {
   const {
     isrcCode: _isrc,
     iswc: _iswc,
     lyrics: _lyrics,
     stemsFile: _stems,
+    splits: _splits,
     ...rest
   } = serializeTrack(t);
   void _isrc;
   void _iswc;
   void _lyrics;
   void _stems;
+  void _splits;
   return rest;
 }

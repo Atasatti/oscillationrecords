@@ -1,7 +1,7 @@
 // Campaign budget & spend for a release (Release.budget + Release.spend) — the
-// spend-out counterpart to the revenue-in in lib/release-splits.ts. A tracking
-// aid, not accounting. Server-only (loadBudgetSummary touches prisma); the panel
-// declares its own inline types like ReleaseRevenuePanel does.
+// marketing-spend tracker (distinct from royalty splits, which are just artist
+// shares). A tracking aid, not accounting. Server-only (loadBudgetSummary touches
+// prisma); the panel declares its own inline types.
 
 import { prisma } from "@/lib/prisma";
 

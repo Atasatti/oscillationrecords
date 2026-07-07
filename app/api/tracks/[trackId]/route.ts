@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
+import { Prisma } from "@prisma/client";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
+import { normalizeSplits } from "@/lib/release-splits";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { recordAudit } from "@/lib/audit";
 
@@ -68,6 +70,7 @@ export async function PATCH(
       lyrics,
       stemsFile,
       trackCredits,
+      splits,
       isrcCode,
       iswc,
       isrcExplicit,
@@ -140,6 +143,7 @@ export async function PATCH(
         ...(lyrics !== undefined && { lyrics: lyrics ? String(lyrics) : null }),
         ...(stemsFile !== undefined && { stemsFile: stemsFile ? String(stemsFile) : null }),
         ...(trackCredits !== undefined && { trackCredits: trackCredits ?? null }),
+        ...(splits !== undefined && { splits: normalizeSplits(splits) as unknown as Prisma.InputJsonValue }),
         ...(isrcCode !== undefined && { isrcCode: isrcCode ? String(isrcCode) : null }),
         ...(iswc !== undefined && { iswc: iswc ? String(iswc).trim() : null }),
         ...(isrcExplicit !== undefined && { isrcExplicit: Boolean(isrcExplicit) }),
