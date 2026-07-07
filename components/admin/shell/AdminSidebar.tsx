@@ -4,8 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, Mail, MessageSquare, LogOut, User, ExternalLink, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, ClipboardList, Headphones, Award, FolderArchive, ScrollText, Rocket, CalendarRange, CalendarDays, Wallet, Coins, Zap, Send, Mailbox, UserCheck, type LucideIcon } from "lucide-react";
-import { signOutCompletely } from "@/lib/sign-out-client";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, Headphones, Award, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, type LucideIcon } from "lucide-react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
@@ -28,6 +27,11 @@ type AdminLink = {
   perm?: Permission | "owner";
 };
 type AdminGroup = { header: string | null; links: readonly AdminLink[] };
+// The sidebar shows only PRIMARY sections; sub-views (Pipeline/Timeline under
+// Releases, Automations/Templates under Tasks, Onboarding under Artists, Budgets
+// under Money, Subscribers under Newsletter) are reached via the in-page tab
+// strip (components/admin/shell/SectionTabs.tsx). Each primary link's `match`
+// lists its sub-view routes so the parent stays highlighted on those pages.
 const adminGroups: readonly AdminGroup[] = [
   {
     header: null,
@@ -40,13 +44,9 @@ const adminGroups: readonly AdminGroup[] = [
         href: "/admin/catalog/releases",
         label: "Releases",
         icon: Disc3,
-        match: ["/admin/catalog/release", "/admin/catalog/edit/release"],
+        match: ["/admin/catalog/release", "/admin/catalog/edit/release", "/admin/catalog/pipeline", "/admin/catalog/timeline"],
         perm: "catalog:read",
       },
-      { href: "/admin/catalog/pipeline", label: "Pipeline", icon: Rocket, perm: "catalog:read" },
-      { href: "/admin/catalog/timeline", label: "Timeline", icon: CalendarRange, perm: "catalog:read" },
-      { href: "/admin/catalog/royalties", label: "Royalties", icon: Wallet, perm: "catalog:read" },
-      { href: "/admin/catalog/budgets", label: "Budgets", icon: Coins, perm: "catalog:read" },
       {
         href: "/admin/catalog/artists",
         label: "Artists",
@@ -54,9 +54,9 @@ const adminGroups: readonly AdminGroup[] = [
         match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
         perm: "catalog:read",
       },
-      { href: "/admin/catalog/artists/onboarding", label: "Onboarding", icon: UserCheck, perm: "catalog:read" },
       { href: "/admin/catalog/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
       { href: "/admin/catalog/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
+      { href: "/admin/catalog/royalties", label: "Money", icon: Wallet, match: ["/admin/catalog/budgets"], perm: "catalog:read" },
     ],
   },
   {
@@ -65,13 +65,10 @@ const adminGroups: readonly AdminGroup[] = [
       { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches"], perm: "outreach:read" },
       { href: "/admin/outreach/demos", label: "Demos", icon: Headphones, perm: "outreach:read" },
       { href: "/admin/outreach/placements", label: "Placements", icon: Award, perm: "outreach:read" },
-      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, perm: "outreach:read" },
-      { href: "/admin/automations", label: "Automations", icon: Zap, perm: "outreach:write" },
-      { href: "/admin/outreach/templates", label: "Templates", icon: ClipboardList, perm: "outreach:write" },
+      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, match: ["/admin/automations", "/admin/outreach/templates"], perm: "outreach:read" },
       { href: "/admin/content/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
+      { href: "/admin/outreach/newsletter", label: "Newsletter", icon: Send, match: ["/admin/subscribers"], perm: "outreach:read" },
       { href: "/admin/messages", label: "Messages", icon: MessageSquare, perm: "outreach:read" },
-      { href: "/admin/subscribers", label: "Subscribers", icon: Mail, perm: "outreach:read" },
-      { href: "/admin/outreach/newsletter", label: "Newsletter", icon: Send, perm: "outreach:read" },
     ],
   },
   {
@@ -79,13 +76,13 @@ const adminGroups: readonly AdminGroup[] = [
     links: [
       { href: "/admin/data", label: "Live data", icon: Activity, perm: "analytics:read" },
       { href: "/admin/errors", label: "Errors", icon: TriangleAlert, perm: "analytics:read" },
+      { href: "/admin/digest", label: "Daily digest", icon: Mailbox },
     ],
   },
   {
     header: "System",
     links: [
       { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
-      { href: "/admin/digest", label: "Daily digest", icon: Mailbox },
       { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "owner" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "owner" },
     ],
@@ -128,7 +125,7 @@ export const isAdminLinkActive = (pathname: string, href: string) =>
  */
 export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const user = session?.user;
   const guard = useUnsavedChangesContext();
 
@@ -197,56 +194,6 @@ export default function AdminSidebar({ onNavigate }: { onNavigate?: () => void }
           </div>
         ))}
       </nav>
-
-      <div className="mt-auto border-t border-border p-3">
-        {status === "loading" ? (
-          <div className="h-10 animate-pulse rounded-lg bg-white/5" />
-        ) : user ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3 px-2 py-1">
-              {user.image ? (
-                <Image
-                  src={user.image}
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <User size={16} />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{user.name || "Admin"}</p>
-                <p className="truncate text-xs text-muted-foreground">{user.email || ""}</p>
-              </div>
-            </div>
-            <Link
-              href="/"
-              onClick={onLinkClick}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden />
-              Back to site
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                if (guard && !guard.confirmNavigation()) return;
-                onNavigate?.();
-                signOutCompletely("/");
-              }}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
-            >
-              <LogOut className="h-4 w-4" aria-hidden />
-              Sign out
-            </button>
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }
