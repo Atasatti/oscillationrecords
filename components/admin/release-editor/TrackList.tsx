@@ -25,6 +25,8 @@ import {
   ChevronsUpDown,
   AlertTriangle,
   Music2,
+  LayoutGrid,
+  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
@@ -43,7 +45,9 @@ import {
 } from "@/lib/release-editor";
 import { useUploadQueue, type UploadComplete } from "./useUploadQueue";
 import TrackRow from "./TrackRow";
+import TrackTable from "./TrackTable";
 import ApplyToAllDialog, { type ApplyToAllValue } from "./ApplyToAllDialog";
+import Segmented from "@/components/admin/ui/Segmented";
 import { lyricsCoverage } from "@/lib/lyrics-coverage";
 
 type ArtistOpt = { id: string; name: string };
@@ -111,6 +115,9 @@ export default function TrackList({
   const [dragOver, setDragOver] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [pullingLyrics, setPullingLyrics] = useState(false);
+  // Cards = the rich per-track accordion editor; Table = a scannable spreadsheet
+  // for bulk identifier entry (name / ISRC / explicit) across every track.
+  const [view, setView] = useState<"cards" | "table">("cards");
   const pickRef = useRef<HTMLInputElement>(null);
 
   const markDirty = useCallback(() => setSaveTick((t) => t + 1), []);
@@ -498,6 +505,16 @@ export default function TrackList({
 
       {tracks.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
+          <Segmented<"cards" | "table">
+            value={view}
+            onChange={setView}
+            ariaLabel="Tracklist view"
+            options={[
+              { key: "cards", label: <span className="inline-flex items-center gap-1.5"><LayoutGrid className="h-3.5 w-3.5" /> Cards</span> },
+              { key: "table", label: <span className="inline-flex items-center gap-1.5"><Table2 className="h-3.5 w-3.5" /> Table</span> },
+            ]}
+          />
+          <span className="mx-0.5 h-5 w-px bg-white/10" />
           <Button
             type="button"
             variant="outline"
@@ -526,24 +543,28 @@ export default function TrackList({
               </>
             )}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-gray-400"
-            onClick={() => setAllExpanded(true)}
-          >
-            <ChevronsUpDown className="mr-1 h-4 w-4" /> Expand all
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-gray-400"
-            onClick={() => setAllExpanded(false)}
-          >
-            <ChevronsDownUp className="mr-1 h-4 w-4" /> Collapse all
-          </Button>
+          {view === "cards" ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-gray-400"
+                onClick={() => setAllExpanded(true)}
+              >
+                <ChevronsUpDown className="mr-1 h-4 w-4" /> Expand all
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-gray-400"
+                onClick={() => setAllExpanded(false)}
+              >
+                <ChevronsDownUp className="mr-1 h-4 w-4" /> Collapse all
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -585,6 +606,7 @@ export default function TrackList({
       </div>
 
       {tracks.length > 0 ? (
+        view === "cards" ? (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -628,6 +650,18 @@ export default function TrackList({
             </div>
           </SortableContext>
         </DndContext>
+        ) : (
+          <TrackTable
+            tracks={tracks}
+            artists={artists}
+            requireIsrc={requireIsrc}
+            onChange={(rowId, patch) => updateRow(rowId, patch)}
+            onOpen={(rowId) => {
+              setView("cards");
+              updateRow(rowId, { expanded: true }, false);
+            }}
+          />
+        )
       ) : null}
 
       <Button
