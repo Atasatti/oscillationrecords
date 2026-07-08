@@ -43,6 +43,7 @@ import {
 import { useUploadQueue, type UploadComplete } from "./useUploadQueue";
 import TrackRow from "./TrackRow";
 import ApplyToAllDialog, { type ApplyToAllValue } from "./ApplyToAllDialog";
+import { lyricsCoverage } from "@/lib/lyrics-coverage";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -386,6 +387,8 @@ export default function TrackList({
     (i) => i.status === "queued" || i.status === "presigning" || i.status === "uploading"
   ).length;
 
+  const lyrics = lyricsCoverage(tracks);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -395,6 +398,11 @@ export default function TrackList({
             <span className="text-sm font-normal text-gray-500">
               ({tracks.length})
             </span>
+            {lyrics.total > 0 ? (
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                · {lyrics.withLyrics}/{lyrics.total} with lyrics
+              </span>
+            ) : null}
           </h3>
           <p className="text-xs text-gray-500">
             Drop audio files to add tracks — they upload in the background while you

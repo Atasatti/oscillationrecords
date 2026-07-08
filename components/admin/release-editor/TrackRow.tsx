@@ -129,6 +129,9 @@ export default function TrackRow({
                 {primaryNames.length || featText
                   ? `${primaryNames.join(", ")}${featText ? ` · feat. ${featText}` : ""}`
                   : "No artists set"}
+                {!track.lyrics.trim() ? (
+                  <span className="text-gray-600"> · no lyrics yet</span>
+                ) : null}
               </span>
               <span className="shrink-0 text-gray-600">· edit details</span>
             </button>
