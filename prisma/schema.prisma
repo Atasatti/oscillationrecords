@@ -393,6 +393,7 @@ model SiteSettings {
   footerBandcampLink   String?
   footerBeatportLink   String?
   footerDiscogsLink    String?
+  footerRedditLink     String?
   updatedAt            DateTime @updatedAt
 }
 

@@ -26,6 +26,7 @@ export async function PUT(request: NextRequest) {
       footerBandcampLink: normalizeFooterUrl(body.bandcampLink),
       footerBeatportLink: normalizeFooterUrl(body.beatportLink),
       footerDiscogsLink: normalizeFooterUrl(body.discogsLink),
+      footerRedditLink: normalizeFooterUrl(body.redditLink),
     };
 
     await prisma.siteSettings.upsert({
@@ -60,6 +61,7 @@ export async function PUT(request: NextRequest) {
       bandcampLink: data.footerBandcampLink,
       beatportLink: data.footerBeatportLink,
       discogsLink: data.footerDiscogsLink,
+      redditLink: data.footerRedditLink,
     });
   } catch (error) {
     console.error("Error saving footer links:", error);

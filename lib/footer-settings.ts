@@ -12,6 +12,7 @@ export type FooterSocialLinks = {
   bandcampLink: string | null;
   beatportLink: string | null;
   discogsLink: string | null;
+  redditLink: string | null;
 };
 
 const emptyFooter: FooterSocialLinks = {
@@ -25,6 +26,7 @@ const emptyFooter: FooterSocialLinks = {
   bandcampLink: null,
   beatportLink: null,
   discogsLink: null,
+  redditLink: null,
 };
 
 export async function getFooterSocialLinks(): Promise<FooterSocialLinks> {
@@ -42,6 +44,7 @@ export async function getFooterSocialLinks(): Promise<FooterSocialLinks> {
         footerBandcampLink: true,
         footerBeatportLink: true,
         footerDiscogsLink: true,
+        footerRedditLink: true,
       },
     });
     if (!row) {
@@ -58,6 +61,7 @@ export async function getFooterSocialLinks(): Promise<FooterSocialLinks> {
       bandcampLink: row.footerBandcampLink ?? null,
       beatportLink: row.footerBeatportLink ?? null,
       discogsLink: row.footerDiscogsLink ?? null,
+      redditLink: row.footerRedditLink ?? null,
     };
   } catch (e) {
     console.error("getFooterSocialLinks: DB unavailable, using empty footer", e);
@@ -80,6 +84,7 @@ export function sameAsFromFooterLinks(links: FooterSocialLinks): string[] {
     links.bandcampLink,
     links.beatportLink,
     links.discogsLink,
+    links.redditLink,
   ].filter((u): u is string => Boolean(u && u.trim()));
 }
 
