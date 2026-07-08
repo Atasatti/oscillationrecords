@@ -643,11 +643,18 @@ function ReleasesPageInner({
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleDateString(undefined, {
+                  <TableCell
+                    className="hidden xl:table-cell text-sm text-muted-foreground"
+                    suppressHydrationWarning
+                  >
+                    {/* Pin locale + timeZone so the server (Node) and client (browser)
+                        format this date identically — an unpinned toLocaleDateString
+                        differs across runtimes and breaks hydration (React #418). */}
+                    {new Date(r.createdAt).toLocaleDateString("en-GB", {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
+                      timeZone: "UTC",
                     })}
                   </TableCell>
                   <TableCell className="text-right">
