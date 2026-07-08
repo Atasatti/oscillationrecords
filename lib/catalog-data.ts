@@ -558,9 +558,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     });
     if (!r) return null;
 
+    const isPublic = isReleasePublic({ status: r.status, releaseDate: r.releaseDate });
+
     // A trackless live release (created directly as Released, tracks added next)
     // 404s on its detail page — don't emit metadata for it either.
-    if (isReleasePublic({ status: r.status, releaseDate: r.releaseDate }) && r.tracks.length === 0) {
+    if (isPublic && r.tracks.length === 0) {
       return null;
     }
 
@@ -600,7 +602,10 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         duration: t.duration || null,
         isrcCode: t.isrcCode ?? null,
         iswc: t.iswc ?? null,
-        lyrics: t.lyrics ?? null,
+        // Withhold lyrics for a not-yet-public (Coming Soon / future-dated)
+        // release: its tracklist is hidden everywhere else pre-release, so the
+        // JSON-LD must not leak full unreleased lyrics into the page source.
+        lyrics: isPublic ? (t.lyrics ?? null) : null,
       })),
     };
   } catch (e) {

@@ -32,25 +32,33 @@ def lyrics_from(resp):
 
 
 def pull_by_isrc(isrc):
+    # ISRC is authoritative — the exact recording. Returns the lyrics body or None.
     try:
-        return lyrics_from(api.get_track_lyrics(track_isrc=isrc)), None
+        return lyrics_from(api.get_track_lyrics(track_isrc=isrc))
     except Exception:
-        return None, None
+        return None
 
 
 def pull_by_search(title, artist):
+    # Fallback for candidates with no ISRC. Require EXACT normalized title AND
+    # artist — a substring artist test would let e.g. "Low" match "Flow" and pull a
+    # different artist's same-titled song. Returns (body, mxm_track_id, mxm_artist)
+    # so the reviewer can spot a wrong-artist match in lyrics-review.json.
     try:
         res = api.search_tracks(f"{title} {artist}")
         hits = res["message"]["body"]["track_list"]
         nt, na = norm(title), norm(artist)
+        if not na:
+            return None, None, None
         for h in hits:
             tr = h["track"]
-            if norm(tr.get("track_name")) == nt and na and na in norm(tr.get("artist_name")):
+            mxm_artist = tr.get("artist_name")
+            if norm(tr.get("track_name")) == nt and norm(mxm_artist) == na:
                 tid = tr.get("track_id")
-                return lyrics_from(api.get_track_lyrics(track_id=tid)), tid
+                return lyrics_from(api.get_track_lyrics(track_id=tid)), tid, mxm_artist
     except Exception:
         pass
-    return None, None
+    return None, None, None
 
 
 def main():
@@ -59,13 +67,13 @@ def main():
 
     out = []
     for c in candidates:
-        body, mxm_id, method, conf = None, None, "none", 0.0
+        body, mxm_id, mxm_artist, method, conf = None, None, None, "none", 0.0
         if c.get("isrc"):
-            body, _ = pull_by_isrc(c["isrc"])
+            body = pull_by_isrc(c["isrc"])
             if body:
                 method, conf = "isrc", 1.0
         if not body:
-            body, mxm_id = pull_by_search(c["name"], c.get("primaryArtist", ""))
+            body, mxm_id, mxm_artist = pull_by_search(c["name"], c.get("primaryArtist", ""))
             if body:
                 method, conf = "search", 0.6
         out.append({
@@ -76,6 +84,7 @@ def main():
             "matchMethod": method,
             "confidence": conf,
             "mxmTrackId": mxm_id,
+            "mxmArtist": mxm_artist,  # matched Musixmatch artist (search path) — check for mismatches
             "lyricsBody": body,
             "notes": "" if body else "no match / instrumental / restricted",
         })

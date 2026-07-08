@@ -649,7 +649,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   </div>
                 </div>
               ) : null}
-              {selectedTrack.lyrics ? (
+              {selectedTrack.lyrics?.trim() ? (
                 <div>
                   <h3 className="text-sm font-medium text-gray-300 mb-2">Lyrics</h3>
                   <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-relaxed text-gray-200">
