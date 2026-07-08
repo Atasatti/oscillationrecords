@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -87,6 +87,55 @@ export default function TrackRow({
     .map((id) => artists.find((a) => a.id === id)?.name)
     .filter(Boolean) as string[];
   const featText = track.featureArtistText.trim();
+
+  // First primary artist name (for a title+artist Musixmatch fallback when there's
+  // no ISRC). Resolved from the roster passed into the editor.
+  const primaryArtistName =
+    track.primaryArtistIds
+      .map((id) => artists.find((a) => a.id === id)?.name)
+      .find((n): n is string => Boolean(n)) ?? "";
+  const canPullLyrics =
+    !!track.isrcCode.trim() || (!!track.name.trim() && !!primaryArtistName);
+
+  const [pullingLyrics, setPullingLyrics] = useState(false);
+  const [lyricsNote, setLyricsNote] = useState<string | null>(null);
+
+  // Fetch this track's lyrics from Musixmatch into the field for review. The admin
+  // still saves the release to persist — this only fills the textarea.
+  async function handlePullLyrics() {
+    setPullingLyrics(true);
+    setLyricsNote(null);
+    try {
+      const res = await fetch("/api/admin/lyrics/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isrc: track.isrcCode.trim(),
+          title: track.name.trim(),
+          artist: primaryArtistName,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        lyrics: string | null;
+        method?: string;
+        note?: string | null;
+      } | null;
+      if (data?.lyrics) {
+        onChange({ lyrics: data.lyrics });
+        setLyricsNote(
+          data.method === "isrc"
+            ? "Pulled by ISRC — review and save."
+            : "Pulled by title + artist match — review carefully before saving."
+        );
+      } else {
+        setLyricsNote(data?.note || "No lyrics found on Musixmatch.");
+      }
+    } catch {
+      setLyricsNote("Couldn't reach the lyrics service. Try again.");
+    } finally {
+      setPullingLyrics(false);
+    }
+  }
 
   return (
     <div
@@ -293,16 +342,36 @@ export default function TrackRow({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-400">
-              Lyrics
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label className="block text-xs font-medium text-gray-400">Lyrics</label>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 border-white/10 px-2 text-xs"
+                disabled={pullingLyrics || !canPullLyrics}
+                onClick={handlePullLyrics}
+                title={
+                  canPullLyrics
+                    ? "Fetch lyrics from Musixmatch by ISRC (falls back to track name + primary artist)"
+                    : "Add an ISRC, or a track name and a primary artist, to pull lyrics"
+                }
+              >
+                {pullingLyrics ? "Pulling…" : "Pull from Musixmatch"}
+              </Button>
+            </div>
             <Textarea
               value={track.lyrics}
-              onChange={(e) => onChange({ lyrics: e.target.value })}
+              onChange={(e) => {
+                onChange({ lyrics: e.target.value });
+                if (lyricsNote) setLyricsNote(null);
+              }}
               placeholder="Lyrics"
               rows={4}
               className="border-white/10 bg-black/40"
             />
+            {lyricsNote ? (
+              <p className="mt-1 text-xs text-gray-500">{lyricsNote}</p>
+            ) : null}
           </div>
 
           <div>
