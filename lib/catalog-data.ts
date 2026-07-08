@@ -607,7 +607,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
   }
 });
 
-/** Public track shape served to the release page (no ISRC/ISWC/lyrics/stems). */
+/** Public track shape served to the release page (no ISRC/ISWC/stems; lyrics included). */
 export type ReleaseDetailTrackDTO = ReturnType<typeof serializeTrackForPublic>;
 
 export interface ReleaseDetailDTO {
