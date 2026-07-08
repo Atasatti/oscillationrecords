@@ -20,6 +20,7 @@ import {
   RELEASE_DESCRIPTION_MAX,
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
+import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import ReleaseDetailsPanel, {
   emptyReleaseDetails,
@@ -63,6 +64,9 @@ export default function ReleaseEditor({
   const [loadedKind, setLoadedKind] = useState<ReleaseKind | null>(null);
   // Track count for the live SEO score (the tracklist lives on its own page).
   const [trackCount, setTrackCount] = useState(0);
+  // Lyrics coverage for the loaded release (edit mode) — advisory, drives the
+  // sidebar Lyrics panel + its CTA into the tracklist. Not part of the SEO score.
+  const [lyricsCov, setLyricsCov] = useState({ withLyrics: 0, total: 0 });
 
   const [form, setForm] = useState<ReleaseDetailsValue>(() => {
     const base = emptyReleaseDetails();
@@ -177,6 +181,7 @@ export default function ReleaseEditor({
         setCoverUrl(data.coverImage || null);
         setImagePreview(data.coverImage || null);
         setTrackCount(Array.isArray(data.tracks) ? data.tracks.length : 0);
+        setLyricsCov(lyricsCoverage(Array.isArray(data.tracks) ? data.tracks : []));
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
       } catch (e) {
         console.error(e);
@@ -584,6 +589,47 @@ export default function ReleaseEditor({
         <div>
           <div className="space-y-6 lg:sticky lg:top-6">
             <ReleaseScorePanel signals={releaseSignals} />
+            {mode === "edit" && releaseId ? (
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Lyrics</h3>
+                  {lyricsCov.total > 0 ? (
+                    <span
+                      className={`text-xs tabular-nums ${
+                        lyricsCov.withLyrics === lyricsCov.total
+                          ? "text-emerald-400"
+                          : "text-amber-400"
+                      }`}
+                    >
+                      {lyricsCov.withLyrics}/{lyricsCov.total}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {lyricsCov.total === 0
+                    ? "Add tracks first, then enter lyrics on the tracklist."
+                    : lyricsCov.withLyrics === lyricsCov.total
+                      ? "Every track has lyrics — they power the release page and the search / AI structured data."
+                      : `${lyricsCov.total - lyricsCov.withLyrics} track${
+                          lyricsCov.total - lyricsCov.withLyrics === 1 ? "" : "s"
+                        } still need lyrics.`}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-white/10"
+                  onClick={() => {
+                    if (confirmDiscard())
+                      router.push(`/admin/catalog/releases/${releaseId}/tracks`);
+                  }}
+                >
+                  {lyricsCov.total > 0 && lyricsCov.withLyrics === lyricsCov.total
+                    ? "Edit lyrics on the tracklist"
+                    : "Add lyrics on the tracklist"}
+                </Button>
+              </div>
+            ) : null}
             <div className="rounded-xl border border-border bg-card p-6">
               <label className="mb-4 block text-sm font-medium text-muted-foreground">
                 Cover image *

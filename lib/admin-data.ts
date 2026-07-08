@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { fuzzyScore } from "@/lib/fuzzy";
+import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import {
   computeArtistSeo,
   computeArtistGkp,
@@ -410,6 +411,30 @@ export async function getFeaturedArtists(): Promise<AdminArtistRow[]> {
 
 export type ReleaseSort = "name" | "createdAt" | "kind" | "sortOrder";
 
+/**
+ * Attach advisory lyrics coverage to a page of release cards. The list query
+ * doesn't load track lyrics (it's shared with the public site, kept lean), so we
+ * fetch just {releaseId, lyrics} for the visible page and fold it in. Admin-only;
+ * mutates the given cards. Uses the shared {@link lyricsCoverage} so the count
+ * matches the tracklist editor exactly.
+ */
+async function attachLyricsCoverage(cards: ReleaseCardDTO[]): Promise<void> {
+  if (cards.length === 0) return;
+  const rows = await prisma.track.findMany({
+    where: { releaseId: { in: cards.map((c) => c.id) } },
+    select: { releaseId: true, lyrics: true },
+  });
+  const byRelease = new Map<string, { lyrics: string | null }[]>();
+  for (const t of rows) {
+    const arr = byRelease.get(t.releaseId);
+    if (arr) arr.push({ lyrics: t.lyrics });
+    else byRelease.set(t.releaseId, [{ lyrics: t.lyrics }]);
+  }
+  for (const c of cards) {
+    c.lyricsCoverage = lyricsCoverage(byRelease.get(c.id) ?? []);
+  }
+}
+
 export async function getReleasesPage({
   page = 1,
   pageSize = 25,
@@ -468,7 +493,9 @@ export async function getReleasesPage({
     const total = ranked.length;
     const safePage = clampPage(page, size, total);
     const start = (safePage - 1) * size;
-    return { items: ranked.slice(start, start + size), total, page: safePage, pageSize: size };
+    const pageItems = ranked.slice(start, start + size);
+    await attachLyricsCoverage(pageItems);
+    return { items: pageItems, total, page: safePage, pageSize: size };
   }
 
   const safePage = Math.max(1, page);
@@ -494,6 +521,7 @@ export async function getReleasesPage({
     }),
   ]);
   const items = await mapReleasesToCards(rows, { isAdmin: true });
+  await attachLyricsCoverage(items);
   return { items, total, page: safePage, pageSize: size };
 }
 

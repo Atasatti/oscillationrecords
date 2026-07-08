@@ -54,6 +54,9 @@ export interface ReleaseCardDTO {
   createdAt: string;
   year: string;
   songCount: number;
+  // Advisory lyrics coverage (withLyrics/total tracks). Admin-only — attached by
+  // getReleasesPage; undefined on public payloads. Not part of the SEO score.
+  lyricsCoverage?: { withLyrics: number; total: number };
   // Per-release SEO score (0–100) + weight-ordered gaps, mirroring the artist
   // roster's score. Admin-only: null/empty for the public site. See
   // lib/seo-score.ts (computeReleaseSeo).
