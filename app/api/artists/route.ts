@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
         tidalLink: true,
         amazonMusicLink: true,
         soundcloudLink: true,
+        discogsLink: true,
         sortOrder: true,
         showOnWebsite: true,
         createdAt: true,
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
       tidalLink,
       amazonMusicLink,
       soundcloudLink,
+      discogsLink,
     } = body;
 
     // A DRAFT saves incomplete work — only a name is required. Publishing
@@ -213,6 +215,7 @@ export async function POST(request: NextRequest) {
         tidalLink: tidalLink || null,
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
+        discogsLink: discogsLink || null,
         ...extractArtistExtras(body),
         sortOrder,
         showOnWebsite: true,

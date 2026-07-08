@@ -97,6 +97,7 @@ export async function PUT(
       tidalLink,
       amazonMusicLink,
       soundcloudLink,
+      discogsLink,
     } = body;
 
     // A DRAFT saves incomplete work — only a name is required. Publishing
@@ -156,6 +157,7 @@ export async function PUT(
         tidalLink: tidalLink || null,
         amazonMusicLink: amazonMusicLink || null,
         soundcloudLink: soundcloudLink || null,
+        discogsLink: discogsLink || null,
         ...extractArtistExtras(body),
       },
     });

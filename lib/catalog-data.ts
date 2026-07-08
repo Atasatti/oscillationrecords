@@ -282,6 +282,7 @@ export interface ArtistDetailDTO {
   tidalLink: string | null;
   amazonMusicLink: string | null;
   soundcloudLink: string | null;
+  discogsLink: string | null;
 }
 
 /**
@@ -355,6 +356,7 @@ export const getArtistDetail = cache(async (
         tidalLink: artist.tidalLink ?? null,
         amazonMusicLink: artist.amazonMusicLink ?? null,
         soundcloudLink: artist.soundcloudLink ?? null,
+        discogsLink: artist.discogsLink ?? null,
       },
       releases,
     };

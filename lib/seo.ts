@@ -159,6 +159,7 @@ type ArtistLike = {
   tidalLink?: string | null;
   amazonMusicLink?: string | null;
   soundcloudLink?: string | null;
+  discogsLink?: string | null;
   country?: string | null;
   city?: string | null;
 };
@@ -193,6 +194,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     artist.tidalLink,
     artist.amazonMusicLink,
     artist.soundcloudLink,
+    artist.discogsLink,
     artist.musicBrainzId ? `https://musicbrainz.org/artist/${artist.musicBrainzId}` : null,
     artist.isni ? `https://isni.org/isni/${artist.isni}` : null,
     artist.wikidataId ? `https://www.wikidata.org/wiki/${artist.wikidataId}` : null,

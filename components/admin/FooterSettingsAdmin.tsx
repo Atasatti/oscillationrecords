@@ -17,6 +17,7 @@ type FooterForm = {
   soundcloudLink: string;
   bandcampLink: string;
   beatportLink: string;
+  discogsLink: string;
 };
 
 const EMPTY: FooterForm = {
@@ -29,6 +30,7 @@ const EMPTY: FooterForm = {
   soundcloudLink: "",
   bandcampLink: "",
   beatportLink: "",
+  discogsLink: "",
 };
 
 const LABELS: { key: keyof FooterForm; label: string; placeholder: string }[] =
@@ -62,6 +64,11 @@ const LABELS: { key: keyof FooterForm; label: string; placeholder: string }[] =
       label: "Beatport",
       placeholder: "https://www.beatport.com/artist/...",
     },
+    {
+      key: "discogsLink",
+      label: "Discogs",
+      placeholder: "https://www.discogs.com/label/...",
+    },
   ];
 
 export default function FooterSettingsAdmin() {
@@ -91,6 +98,7 @@ export default function FooterSettingsAdmin() {
               soundcloudLink: data.soundcloudLink ?? "",
               bandcampLink: data.bandcampLink ?? "",
               beatportLink: data.beatportLink ?? "",
+              discogsLink: data.discogsLink ?? "",
             });
           }
         }
