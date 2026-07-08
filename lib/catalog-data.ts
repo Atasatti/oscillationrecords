@@ -519,6 +519,7 @@ export interface ReleaseMetaDTO {
     duration: number | null;
     isrcCode: string | null;
     iswc: string | null;
+    lyrics: string | null;
   }[];
 }
 
@@ -550,7 +551,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         youtubeLink: true,
         soundcloudLink: true,
         tracks: {
-          select: { name: true, duration: true, isrcCode: true, iswc: true },
+          select: { name: true, duration: true, isrcCode: true, iswc: true, lyrics: true },
           orderBy: { sortOrder: "asc" },
         },
       },
@@ -599,6 +600,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         duration: t.duration || null,
         isrcCode: t.isrcCode ?? null,
         iswc: t.iswc ?? null,
+        lyrics: t.lyrics ?? null,
       })),
     };
   } catch (e) {

@@ -275,6 +275,7 @@ type ReleaseDetailLike = {
     duration?: number | null;
     isrcCode?: string | null;
     iswc?: string | null;
+    lyrics?: string | null;
   }>;
 };
 
@@ -358,6 +359,8 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
       if (t.iswc && t.iswc.trim()) {
         rec.identifier = { "@type": "PropertyValue", propertyID: "ISWC", value: t.iswc.trim() };
       }
+      const lyrics = (t.lyrics ?? "").trim();
+      if (lyrics) rec.lyrics = { "@type": "CreativeWork", text: lyrics };
       return rec;
     });
   }
