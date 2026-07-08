@@ -121,7 +121,10 @@ export default function TrackRow({
   // missing its required ISRC, open "IDs & links" too so the gap is visible.
   const [openSecs, setOpenSecs] = useState<Record<string, boolean>>(() => ({
     track: true,
-    ids: requireIsrc && !track.isrcCode.trim(),
+    // Open the identifiers group up-front when this row needs attention there — a
+    // missing required ISRC, or a Needs-Attention deep-link (e.g. a duplicate ISRC,
+    // where the offending code is present so isrcMissing is false).
+    ids: (requireIsrc && !track.isrcCode.trim()) || highlight,
   }));
   const toggleSec = (k: string) => setOpenSecs((s) => ({ ...s, [k]: !s[k] }));
 
