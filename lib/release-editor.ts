@@ -283,6 +283,8 @@ export interface EditorTrack {
   duration: number;
   image: string | null;
   lyrics: string;
+  /** Time-synced lyrics (LRC) from Musixmatch — internal. */
+  syncedLyrics: string;
   isrcCode: string;
   iswc: string;
   isrcExplicit: boolean;
@@ -319,6 +321,7 @@ export function newEditorTrack(
     duration: 0,
     image: null,
     lyrics: "",
+    syncedLyrics: "",
     isrcCode: "",
     iswc: "",
     isrcExplicit: false,
@@ -358,6 +361,7 @@ export function editorTrackFromSerialized(
     duration: typeof t.duration === "number" ? t.duration : 0,
     image: t.image != null ? String(t.image) : null,
     lyrics: t.lyrics ? String(t.lyrics) : "",
+    syncedLyrics: t.syncedLyrics ? String(t.syncedLyrics) : "",
     isrcCode: t.isrcCode ? String(t.isrcCode) : "",
     iswc: t.iswc ? String(t.iswc) : "",
     isrcExplicit: Boolean(t.isrcExplicit),
@@ -416,6 +420,7 @@ export function buildTrackPayload(
     lyricist: null,
     leadVocal: null,
     lyrics: row.lyrics.trim() || null,
+    syncedLyrics: row.syncedLyrics.trim() || null,
     stemsFile: row.stemsFile || null,
     trackCredits: creditPayload(row.credits),
     splits: rowsToSplits(row.splits),

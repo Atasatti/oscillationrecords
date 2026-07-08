@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { pullLyrics, MxmThrottledError } from "@/lib/musixmatch";
+import { pullTrack, MxmThrottledError } from "@/lib/musixmatch";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await pullLyrics({ isrc, title, artist });
+    const result = await pullTrack({ isrc, title, artist });
     return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     if (e instanceof MxmThrottledError) {

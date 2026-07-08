@@ -333,6 +333,9 @@ model Track {
   lyricist         String?
   leadVocal        String?
   lyrics           String?
+  /// Time-synced lyrics (LRC, `[mm:ss.xx]` per line) pulled from Musixmatch —
+  /// internal for now (not in the public payload); powers a future synced display.
+  syncedLyrics     String?
   stemsFile        String?
   trackCredits     Json?
   /// Per-track royalty split — same shape as Release.splits ({ artistId?, name,

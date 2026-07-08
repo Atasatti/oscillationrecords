@@ -36,6 +36,7 @@ export async function POST(
       lyricist,
       leadVocal,
       lyrics,
+      syncedLyrics,
       stemsFile,
       trackCredits,
       splits,
@@ -127,6 +128,7 @@ export async function POST(
         lyricist: lyricist ? String(lyricist) : null,
         leadVocal: leadVocal ? String(leadVocal) : null,
         lyrics: lyrics ? String(lyrics) : null,
+        syncedLyrics: syncedLyrics ? String(syncedLyrics) : null,
         stemsFile: stemsFile ? String(stemsFile) : null,
         trackCredits:
           trackCredits !== undefined && trackCredits !== null

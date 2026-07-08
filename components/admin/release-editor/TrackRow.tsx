@@ -117,15 +117,24 @@ export default function TrackRow({
       });
       const data = (await res.json().catch(() => null)) as {
         lyrics: string | null;
+        synced?: string | null;
         method?: string;
         note?: string | null;
       } | null;
-      if (data?.lyrics) {
-        onChange({ lyrics: data.lyrics });
+      if (data?.lyrics || data?.synced) {
+        onChange({
+          ...(data.lyrics ? { lyrics: data.lyrics } : {}),
+          ...(data.synced ? { syncedLyrics: data.synced } : {}),
+        });
+        const how = data.method === "isrc" ? "by ISRC" : "by title + artist match";
+        const what =
+          data.lyrics && data.synced
+            ? "lyrics + timing"
+            : data.synced
+              ? "timing (no plain lyrics)"
+              : "lyrics";
         setLyricsNote(
-          data.method === "isrc"
-            ? "Pulled by ISRC — review and save."
-            : "Pulled by title + artist match — review carefully before saving."
+          `Pulled ${what} ${how} — review${data.method === "search" ? " carefully" : ""} and save.`
         );
       } else {
         setLyricsNote(data?.note || "No lyrics found on Musixmatch.");
@@ -372,6 +381,20 @@ export default function TrackRow({
             {lyricsNote ? (
               <p className="mt-1 text-xs text-gray-500">{lyricsNote}</p>
             ) : null}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-400">
+              Synced lyrics (LRC){" "}
+              <span className="text-gray-600">— optional, timing</span>
+            </label>
+            <Textarea
+              value={track.syncedLyrics}
+              onChange={(e) => onChange({ syncedLyrics: e.target.value })}
+              placeholder="[00:08.95] time-synced lyrics…"
+              rows={3}
+              className="border-white/10 bg-black/40 font-mono text-xs"
+            />
           </div>
 
           <div>

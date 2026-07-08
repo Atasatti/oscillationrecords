@@ -24,6 +24,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   AlertTriangle,
+  Music2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
@@ -109,6 +110,7 @@ export default function TrackList({
   const pendingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [pullingLyrics, setPullingLyrics] = useState(false);
   const pickRef = useRef<HTMLInputElement>(null);
 
   const markDirty = useCallback(() => setSaveTick((t) => t + 1), []);
@@ -129,6 +131,60 @@ export default function TrackList({
     },
     [updateRow]
   );
+
+  // Bulk pull: fetch lyrics + timing from Musixmatch for every track with no lyrics
+  // yet, filling the rows for review (the autosave persists them). ISRC-first per
+  // track, exact title+artist fallback; sequential + gentle on the API.
+  const pullEmptyLyrics = useCallback(async () => {
+    const artistName = (t: EditorTrack) =>
+      t.primaryArtistIds
+        .map((id) => artists.find((a) => a.id === id)?.name)
+        .find((n): n is string => Boolean(n)) ?? "";
+    const targets = tracksRef.current.filter(
+      (t) => !t.lyrics.trim() && (!!t.isrcCode.trim() || (!!t.name.trim() && !!artistName(t)))
+    );
+    if (!targets.length) return;
+    setPullingLyrics(true);
+    let filled = 0;
+    let timing = 0;
+    let missed = 0;
+    for (const t of targets) {
+      try {
+        const res = await fetch("/api/admin/lyrics/pull", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isrc: t.isrcCode.trim(),
+            title: t.name.trim(),
+            artist: artistName(t),
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          lyrics?: string | null;
+          synced?: string | null;
+        } | null;
+        if (data?.lyrics || data?.synced) {
+          updateRow(t.rowId, {
+            ...(data.lyrics ? { lyrics: data.lyrics } : {}),
+            ...(data.synced ? { syncedLyrics: data.synced } : {}),
+          });
+          if (data.lyrics) filled++;
+          if (data.synced) timing++;
+        } else {
+          missed++;
+        }
+      } catch {
+        missed++;
+      }
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    setPullingLyrics(false);
+    toast.success(
+      `Pulled lyrics for ${filled} track${filled === 1 ? "" : "s"}` +
+        `${timing ? ` (${timing} with timing)` : ""}` +
+        `${missed ? `, ${missed} with no match` : ""}. Review — saves automatically.`
+    );
+  }, [artists, updateRow, toast]);
 
   const queue = useUploadQueue(onUploadComplete);
 
@@ -388,6 +444,7 @@ export default function TrackList({
   ).length;
 
   const lyrics = lyricsCoverage(tracks);
+  const emptyLyricCount = tracks.filter((t) => !t.lyrics.trim()).length;
 
   return (
     <div className="space-y-4">
@@ -449,6 +506,25 @@ export default function TrackList({
             onClick={() => setApplyOpen(true)}
           >
             <Wand2 className="mr-1 h-4 w-4" /> Apply to all
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-white/10"
+            disabled={pullingLyrics || emptyLyricCount === 0}
+            onClick={() => void pullEmptyLyrics()}
+            title="Fetch lyrics + timing from Musixmatch for every track that has none"
+          >
+            {pullingLyrics ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Pulling lyrics…
+              </>
+            ) : (
+              <>
+                <Music2 className="mr-1 h-4 w-4" /> Pull lyrics ({emptyLyricCount})
+              </>
+            )}
           </Button>
           <Button
             type="button"

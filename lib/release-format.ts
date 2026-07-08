@@ -130,6 +130,7 @@ export function serializeTrack(t: Track) {
     lyricist: t.lyricist,
     leadVocal: t.leadVocal,
     lyrics: t.lyrics,
+    syncedLyrics: t.syncedLyrics,
     stemsFile: t.stemsFile,
     trackCredits: t.trackCredits,
     splits: t.splits,
@@ -152,25 +153,31 @@ export function serializeTrack(t: Track) {
 }
 
 /**
- * Public payloads: omit ISRC, ISWC, the master `stemsFile` URL, and the royalty
- * `splits` — stems are sensitive label IP and splits hold internal real
- * names/emails; none must ship to anonymous clients. Lyrics ARE shipped: they are
+ * Public payloads: omit ISRC, ISWC, the master `stemsFile` URL, the royalty
+ * `splits`, and the LRC `syncedLyrics` — stems are sensitive label IP, splits hold
+ * internal real names/emails, and synced timing is internal (no public karaoke
+ * display yet); none must ship to anonymous clients. Plain `lyrics` ARE shipped:
  * owned, indexable content (the release page + JSON-LD surface them). The admin
  * session still uses the full {@link serializeTrack}.
  */
 export function serializeTrackForPublic(
   t: Track
-): Omit<ReturnType<typeof serializeTrack>, "isrcCode" | "iswc" | "stemsFile" | "splits"> {
+): Omit<
+  ReturnType<typeof serializeTrack>,
+  "isrcCode" | "iswc" | "stemsFile" | "splits" | "syncedLyrics"
+> {
   const {
     isrcCode: _isrc,
     iswc: _iswc,
     stemsFile: _stems,
     splits: _splits,
+    syncedLyrics: _synced,
     ...rest
   } = serializeTrack(t);
   void _isrc;
   void _iswc;
   void _stems;
   void _splits;
-  return rest; // `rest` now includes `lyrics` — public, indexable content.
+  void _synced;
+  return rest; // `rest` includes plain `lyrics` (public); syncedLyrics stays internal.
 }

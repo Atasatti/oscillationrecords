@@ -6,10 +6,11 @@
 // runs with `node --use-system-ca` (see package.json), so the corporate root CA is
 // trusted and this fetch succeeds locally; on Vercel egress is open.
 //
-// Scope: pulls the LABEL'S OWN lyrics for an admin to review before saving. The
-// endpoint reverse-engineers Musixmatch's internal API (ToS-gray) — a deliberate,
-// documented choice for the label's own catalogue. Mirrors the offline
-// scripts/musixmatch-pull-lyrics.py. See
+// Pulls BOTH plain lyrics (track.lyrics.get) and time-synced LRC lyrics
+// (track.subtitle.get) for an admin to review before saving. Scope: the LABEL'S
+// OWN lyrics only. The endpoint reverse-engineers Musixmatch's internal API
+// (ToS-gray) — a deliberate, documented choice for the label's own catalogue.
+// Mirrors the offline scripts/musixmatch-pull-lyrics.py. See
 // docs/superpowers/specs/2026-07-08-lyrics-hub-design.md.
 
 const BASE = "https://apic-desktop.musixmatch.com/ws/1.1/";
@@ -19,7 +20,10 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MusixmatchDesktop/1.0";
 export type PullMethod = "isrc" | "search" | "none";
 
 export interface PullResult {
+  /** Plain lyrics (public, indexable). */
   lyrics: string | null;
+  /** Time-synced LRC lyrics (`[mm:ss.xx]` per line), when Musixmatch has them. */
+  synced: string | null;
   method: PullMethod;
   /** The artist Musixmatch matched (search path only) — lets the admin sanity-check. */
   mxmArtist: string | null;
@@ -37,12 +41,17 @@ export class MxmThrottledError extends Error {
 // --- response shapes (only the fields we read) -------------------------------
 interface MxmTrack {
   track_id?: number;
+  commontrack_id?: number;
   track_name?: string;
   artist_name?: string;
+  has_lyrics?: number | boolean;
+  has_subtitles?: number | boolean;
 }
 interface MxmBody {
   user_token?: string;
+  track?: MxmTrack;
   lyrics?: { lyrics_body?: string; restricted?: number | boolean };
+  subtitle?: { subtitle_body?: string; restricted?: number | boolean };
   track_list?: Array<{ track?: MxmTrack }>;
 }
 interface MxmResponse {
@@ -91,6 +100,13 @@ function lyricsFrom(j: MxmResponse): string | null {
   return clean(lyr.lyrics_body);
 }
 
+function subtitleFrom(j: MxmResponse): string | null {
+  const sub = j?.message?.body?.subtitle;
+  if (!sub || typeof sub !== "object" || sub.restricted) return null;
+  const body = (sub.subtitle_body || "").trim();
+  return body || null; // LRC text: [mm:ss.xx] per line
+}
+
 // --- usertoken (cached for the process; token.get is rate-limited) -----------
 let cachedToken: string | null = null;
 
@@ -131,14 +147,31 @@ async function authedGet(path: string, params: Record<string, string>): Promise<
   return j;
 }
 
-async function pullByIsrc(isrc: string): Promise<string | null> {
-  return lyricsFrom(await authedGet("track.lyrics.get", { track_isrc: isrc }));
+/** Fetch plain + synced lyrics for a resolved Musixmatch track (has_* flags gate the calls). */
+async function fetchBoth(tr: MxmTrack, fallback: Record<string, string>): Promise<{ lyrics: string | null; synced: string | null }> {
+  const ctid = tr.commontrack_id != null ? String(tr.commontrack_id) : "";
+  const idParam = ctid ? { commontrack_id: ctid } : fallback;
+  const lyrics = tr.has_lyrics
+    ? lyricsFrom(await authedGet("track.lyrics.get", idParam))
+    : null;
+  const synced =
+    tr.has_subtitles && ctid
+      ? subtitleFrom(await authedGet("track.subtitle.get", { commontrack_id: ctid, subtitle_format: "lrc" }))
+      : null;
+  return { lyrics, synced };
+}
+
+async function pullByIsrc(isrc: string): Promise<{ lyrics: string | null; synced: string | null }> {
+  const g = await authedGet("track.get", { track_isrc: isrc });
+  const tr = g?.message?.body?.track;
+  if (!tr) return { lyrics: null, synced: null };
+  return fetchBoth(tr, { track_isrc: isrc });
 }
 
 async function pullBySearch(
   title: string,
   artist: string
-): Promise<{ lyrics: string | null; mxmArtist: string | null }> {
+): Promise<{ lyrics: string | null; synced: string | null; mxmArtist: string | null }> {
   const j = await authedGet("track.search", {
     q_track: title,
     q_artist: artist,
@@ -148,25 +181,26 @@ async function pullBySearch(
   const hits = j?.message?.body?.track_list ?? [];
   const nt = norm(title);
   const na = norm(artist);
-  if (!na) return { lyrics: null, mxmArtist: null };
+  if (!na) return { lyrics: null, synced: null, mxmArtist: null };
   for (const h of hits) {
     const tr = h?.track ?? {};
     // Require EXACT normalized title AND artist — a substring test would let
     // "Low" match "Flow" and pull a different artist's same-titled song.
     if (norm(tr.track_name) === nt && norm(tr.artist_name) === na) {
-      const lyrics = lyricsFrom(await authedGet("track.lyrics.get", { track_id: String(tr.track_id) }));
-      return { lyrics, mxmArtist: tr.artist_name ?? null };
+      const { lyrics, synced } = await fetchBoth(tr, { track_id: String(tr.track_id) });
+      return { lyrics, synced, mxmArtist: tr.artist_name ?? null };
     }
   }
-  return { lyrics: null, mxmArtist: null };
+  return { lyrics: null, synced: null, mxmArtist: null };
 }
 
 /**
  * Pull lyrics for one track: ISRC first (authoritative — the exact recording),
- * then an exact title+artist search fallback. Returns the found lyrics + how it
- * matched, for the admin to review before saving. Never writes anything.
+ * then an exact title+artist search fallback. Returns plain lyrics + synced LRC
+ * timing (when available) + how it matched, for the admin to review before saving.
+ * Never writes anything.
  */
-export async function pullLyrics(input: {
+export async function pullTrack(input: {
   isrc?: string | null;
   title?: string | null;
   artist?: string | null;
@@ -176,15 +210,16 @@ export async function pullLyrics(input: {
   const artist = (input.artist ?? "").trim();
 
   if (isrc) {
-    const lyrics = await pullByIsrc(isrc);
-    if (lyrics) return { lyrics, method: "isrc", mxmArtist: null, note: null };
+    const { lyrics, synced } = await pullByIsrc(isrc);
+    if (lyrics || synced) return { lyrics, synced, method: "isrc", mxmArtist: null, note: null };
   }
   if (title && artist) {
-    const { lyrics, mxmArtist } = await pullBySearch(title, artist);
-    if (lyrics) return { lyrics, method: "search", mxmArtist, note: null };
+    const { lyrics, synced, mxmArtist } = await pullBySearch(title, artist);
+    if (lyrics || synced) return { lyrics, synced, method: "search", mxmArtist, note: null };
   }
   return {
     lyrics: null,
+    synced: null,
     method: "none",
     mxmArtist: null,
     note: isrc
