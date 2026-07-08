@@ -26,7 +26,7 @@ import {
 import type { ReleaseDetailDTO, ReleaseDetailTrackDTO } from "@/lib/catalog-data";
 
 // Server-fetched, fully-typed release detail (see lib/catalog-data.ts). Tracks
-// use the public payload shape (no ISRC/ISWC/lyrics/stems).
+// use the public payload shape (no ISRC/ISWC/stems; lyrics included).
 type Release = ReleaseDetailDTO;
 type TrackRow = ReleaseDetailTrackDTO;
 
@@ -646,6 +646,14 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         </p>
                       </div>
                     ))}
+                  </div>
+                </div>
+              ) : null}
+              {selectedTrack.lyrics ? (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-300 mb-2">Lyrics</h3>
+                  <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 p-3 text-sm leading-relaxed text-gray-200">
+                    {selectedTrack.lyrics}
                   </div>
                 </div>
               ) : null}
