@@ -54,6 +54,9 @@ export interface ReleaseCardDTO {
   createdAt: string;
   year: string;
   songCount: number;
+  // Advisory lyrics coverage (withLyrics/total tracks). Admin-only — attached by
+  // getReleasesPage; undefined on public payloads. Not part of the SEO score.
+  lyricsCoverage?: { withLyrics: number; total: number };
   // Per-release SEO score (0–100) + weight-ordered gaps, mirroring the artist
   // roster's score. Admin-only: null/empty for the public site. See
   // lib/seo-score.ts (computeReleaseSeo).
@@ -282,6 +285,7 @@ export interface ArtistDetailDTO {
   tidalLink: string | null;
   amazonMusicLink: string | null;
   soundcloudLink: string | null;
+  discogsLink: string | null;
 }
 
 /**
@@ -355,6 +359,7 @@ export const getArtistDetail = cache(async (
         tidalLink: artist.tidalLink ?? null,
         amazonMusicLink: artist.amazonMusicLink ?? null,
         soundcloudLink: artist.soundcloudLink ?? null,
+        discogsLink: artist.discogsLink ?? null,
       },
       releases,
     };
@@ -517,6 +522,7 @@ export interface ReleaseMetaDTO {
     duration: number | null;
     isrcCode: string | null;
     iswc: string | null;
+    lyrics: string | null;
   }[];
 }
 
@@ -548,16 +554,18 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         youtubeLink: true,
         soundcloudLink: true,
         tracks: {
-          select: { name: true, duration: true, isrcCode: true, iswc: true },
+          select: { name: true, duration: true, isrcCode: true, iswc: true, lyrics: true },
           orderBy: { sortOrder: "asc" },
         },
       },
     });
     if (!r) return null;
 
+    const isPublic = isReleasePublic({ status: r.status, releaseDate: r.releaseDate });
+
     // A trackless live release (created directly as Released, tracks added next)
     // 404s on its detail page — don't emit metadata for it either.
-    if (isReleasePublic({ status: r.status, releaseDate: r.releaseDate }) && r.tracks.length === 0) {
+    if (isPublic && r.tracks.length === 0) {
       return null;
     }
 
@@ -597,6 +605,10 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         duration: t.duration || null,
         isrcCode: t.isrcCode ?? null,
         iswc: t.iswc ?? null,
+        // Withhold lyrics for a not-yet-public (Coming Soon / future-dated)
+        // release: its tracklist is hidden everywhere else pre-release, so the
+        // JSON-LD must not leak full unreleased lyrics into the page source.
+        lyrics: isPublic ? (t.lyrics ?? null) : null,
       })),
     };
   } catch (e) {
@@ -605,7 +617,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
   }
 });
 
-/** Public track shape served to the release page (no ISRC/ISWC/lyrics/stems). */
+/** Public track shape served to the release page (no ISRC/ISWC/stems; lyrics included). */
 export type ReleaseDetailTrackDTO = ReturnType<typeof serializeTrackForPublic>;
 
 export interface ReleaseDetailDTO {

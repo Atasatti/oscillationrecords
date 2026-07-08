@@ -48,6 +48,7 @@ const LINK_FIELDS = [
   ["tidalLink", "Tidal", "https://tidal.com/..."],
   ["amazonMusicLink", "Amazon Music", "https://music.amazon.com/..."],
   ["soundcloudLink", "SoundCloud", "https://soundcloud.com/..."],
+  ["discogsLink", "Discogs", "https://www.discogs.com/artist/..."],
 ] as const;
 
 type LinkKey = (typeof LINK_FIELDS)[number][0];
@@ -105,6 +106,7 @@ const emptyForm: FormState = {
   tidalLink: "",
   amazonMusicLink: "",
   soundcloudLink: "",
+  discogsLink: "",
 };
 
 export default function ArtistEditor({
@@ -229,6 +231,7 @@ export default function ArtistEditor({
           tidalLink: a.tidalLink || "",
           amazonMusicLink: a.amazonMusicLink || "",
           soundcloudLink: a.soundcloudLink || "",
+          discogsLink: a.discogsLink || "",
         });
         setImageUrl(a.profilePicture || null);
         setImagePreview(a.profilePicture || null);
@@ -486,6 +489,7 @@ export default function ArtistEditor({
         tidalLink: form.tidalLink,
         amazonMusicLink: form.amazonMusicLink,
         soundcloudLink: form.soundcloudLink,
+        discogsLink: form.discogsLink,
         draft,
       };
 

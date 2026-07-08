@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
 import { prismaKindToApi, normalizeFeatureArtistNamesInput, serializeTrack } from "@/lib/release-format";
 import { normalizeSplits } from "@/lib/release-splits";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +37,7 @@ export async function POST(
       lyricist,
       leadVocal,
       lyrics,
+      syncedLyrics,
       stemsFile,
       trackCredits,
       splits,
@@ -127,6 +129,7 @@ export async function POST(
         lyricist: lyricist ? String(lyricist) : null,
         leadVocal: leadVocal ? String(leadVocal) : null,
         lyrics: lyrics ? String(lyrics) : null,
+        syncedLyrics: syncedLyrics ? String(syncedLyrics) : null,
         stemsFile: stemsFile ? String(stemsFile) : null,
         trackCredits:
           trackCredits !== undefined && trackCredits !== null
@@ -147,6 +150,8 @@ export async function POST(
         featureArtistNames: featManual,
       },
     });
+
+    revalidateAdminCatalog();
 
     return NextResponse.json(
       {

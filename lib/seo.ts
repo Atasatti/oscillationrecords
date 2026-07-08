@@ -159,6 +159,7 @@ type ArtistLike = {
   tidalLink?: string | null;
   amazonMusicLink?: string | null;
   soundcloudLink?: string | null;
+  discogsLink?: string | null;
   country?: string | null;
   city?: string | null;
 };
@@ -193,6 +194,7 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
     artist.tidalLink,
     artist.amazonMusicLink,
     artist.soundcloudLink,
+    artist.discogsLink,
     artist.musicBrainzId ? `https://musicbrainz.org/artist/${artist.musicBrainzId}` : null,
     artist.isni ? `https://isni.org/isni/${artist.isni}` : null,
     artist.wikidataId ? `https://www.wikidata.org/wiki/${artist.wikidataId}` : null,
@@ -273,6 +275,7 @@ type ReleaseDetailLike = {
     duration?: number | null;
     isrcCode?: string | null;
     iswc?: string | null;
+    lyrics?: string | null;
   }>;
 };
 
@@ -356,6 +359,8 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
       if (t.iswc && t.iswc.trim()) {
         rec.identifier = { "@type": "PropertyValue", propertyID: "ISWC", value: t.iswc.trim() };
       }
+      const lyrics = (t.lyrics ?? "").trim();
+      if (lyrics) rec.lyrics = { "@type": "CreativeWork", text: lyrics };
       return rec;
     });
   }
@@ -452,6 +457,9 @@ const ORG_ENTITY_REFERENCES = [
   "https://find-and-update.company-information.service.gov.uk/company/15579381",
   // MusicBrainz label entity (high-signal music database).
   "https://musicbrainz.org/label/82eea2f1-164c-4da0-9a87-9a89ad4b7470",
+  // Discogs label entity (high-signal music database; helps separate us from the
+  // similarly-named acts/labels on Discogs).
+  "https://www.discogs.com/label/4626393-Oscillation-Records-2",
   // Wikidata item — the Knowledge-Graph anchor.
   "https://www.wikidata.org/wiki/Q140353657",
 ];

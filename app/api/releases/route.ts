@@ -6,6 +6,7 @@ import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { mapReleasesToCards, releaseCardListArgs, publicReleaseWhere } from "@/lib/catalog-data";
 import { getReleasesPage, type ReleaseSort, type SortDir } from "@/lib/admin-data";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
   apiKindToPrisma,
   normalizeFeatureArtistNamesInput,
@@ -302,6 +303,8 @@ export async function POST(request: NextRequest) {
       where: { id: { in: allArtistIds } },
       select: { id: true, name: true, profilePicture: true },
     });
+
+    revalidateAdminCatalog();
 
     await recordAudit(request, guard.token, {
       action: "create",

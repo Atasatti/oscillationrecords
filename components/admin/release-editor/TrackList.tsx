@@ -24,6 +24,9 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   AlertTriangle,
+  Music2,
+  LayoutGrid,
+  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
@@ -42,7 +45,10 @@ import {
 } from "@/lib/release-editor";
 import { useUploadQueue, type UploadComplete } from "./useUploadQueue";
 import TrackRow from "./TrackRow";
+import TrackTable from "./TrackTable";
 import ApplyToAllDialog, { type ApplyToAllValue } from "./ApplyToAllDialog";
+import Segmented from "@/components/admin/ui/Segmented";
+import { lyricsCoverage } from "@/lib/lyrics-coverage";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -108,6 +114,10 @@ export default function TrackList({
   const pendingRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [pullingLyrics, setPullingLyrics] = useState(false);
+  // Cards = the rich per-track accordion editor; Table = a scannable spreadsheet
+  // for bulk identifier entry (name / ISRC / explicit) across every track.
+  const [view, setView] = useState<"cards" | "table">("cards");
   const pickRef = useRef<HTMLInputElement>(null);
 
   const markDirty = useCallback(() => setSaveTick((t) => t + 1), []);
@@ -128,6 +138,60 @@ export default function TrackList({
     },
     [updateRow]
   );
+
+  // Bulk pull: fetch lyrics + timing from Musixmatch for every track with no lyrics
+  // yet, filling the rows for review (the autosave persists them). ISRC-first per
+  // track, exact title+artist fallback; sequential + gentle on the API.
+  const pullEmptyLyrics = useCallback(async () => {
+    const artistName = (t: EditorTrack) =>
+      t.primaryArtistIds
+        .map((id) => artists.find((a) => a.id === id)?.name)
+        .find((n): n is string => Boolean(n)) ?? "";
+    const targets = tracksRef.current.filter(
+      (t) => !t.lyrics.trim() && (!!t.isrcCode.trim() || (!!t.name.trim() && !!artistName(t)))
+    );
+    if (!targets.length) return;
+    setPullingLyrics(true);
+    let filled = 0;
+    let timing = 0;
+    let missed = 0;
+    for (const t of targets) {
+      try {
+        const res = await fetch("/api/admin/lyrics/pull", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isrc: t.isrcCode.trim(),
+            title: t.name.trim(),
+            artist: artistName(t),
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          lyrics?: string | null;
+          synced?: string | null;
+        } | null;
+        if (data?.lyrics || data?.synced) {
+          updateRow(t.rowId, {
+            ...(data.lyrics ? { lyrics: data.lyrics } : {}),
+            ...(data.synced ? { syncedLyrics: data.synced } : {}),
+          });
+          if (data.lyrics) filled++;
+          if (data.synced) timing++;
+        } else {
+          missed++;
+        }
+      } catch {
+        missed++;
+      }
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    setPullingLyrics(false);
+    toast.success(
+      `Pulled lyrics for ${filled} track${filled === 1 ? "" : "s"}` +
+        `${timing ? ` (${timing} with timing)` : ""}` +
+        `${missed ? `, ${missed} with no match` : ""}. Review — saves automatically.`
+    );
+  }, [artists, updateRow, toast]);
 
   const queue = useUploadQueue(onUploadComplete);
 
@@ -386,6 +450,9 @@ export default function TrackList({
     (i) => i.status === "queued" || i.status === "presigning" || i.status === "uploading"
   ).length;
 
+  const lyrics = lyricsCoverage(tracks);
+  const emptyLyricCount = tracks.filter((t) => !t.lyrics.trim()).length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -395,6 +462,11 @@ export default function TrackList({
             <span className="text-sm font-normal text-gray-500">
               ({tracks.length})
             </span>
+            {lyrics.total > 0 ? (
+              <span className="ml-2 text-xs font-normal text-gray-500">
+                · {lyrics.withLyrics}/{lyrics.total} with lyrics
+              </span>
+            ) : null}
           </h3>
           <p className="text-xs text-gray-500">
             Drop audio files to add tracks — they upload in the background while you
@@ -433,6 +505,16 @@ export default function TrackList({
 
       {tracks.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
+          <Segmented<"cards" | "table">
+            value={view}
+            onChange={setView}
+            ariaLabel="Tracklist view"
+            options={[
+              { key: "cards", label: <span className="inline-flex items-center gap-1.5"><LayoutGrid className="h-3.5 w-3.5" /> Cards</span> },
+              { key: "table", label: <span className="inline-flex items-center gap-1.5"><Table2 className="h-3.5 w-3.5" /> Table</span> },
+            ]}
+          />
+          <span className="mx-0.5 h-5 w-px bg-white/10" />
           <Button
             type="button"
             variant="outline"
@@ -444,22 +526,45 @@ export default function TrackList({
           </Button>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="text-gray-400"
-            onClick={() => setAllExpanded(true)}
+            className="border-white/10"
+            disabled={pullingLyrics || emptyLyricCount === 0}
+            onClick={() => void pullEmptyLyrics()}
+            title="Fetch lyrics + timing from Musixmatch for every track that has none"
           >
-            <ChevronsUpDown className="mr-1 h-4 w-4" /> Expand all
+            {pullingLyrics ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Pulling lyrics…
+              </>
+            ) : (
+              <>
+                <Music2 className="mr-1 h-4 w-4" /> Pull lyrics ({emptyLyricCount})
+              </>
+            )}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-gray-400"
-            onClick={() => setAllExpanded(false)}
-          >
-            <ChevronsDownUp className="mr-1 h-4 w-4" /> Collapse all
-          </Button>
+          {view === "cards" ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-gray-400"
+                onClick={() => setAllExpanded(true)}
+              >
+                <ChevronsUpDown className="mr-1 h-4 w-4" /> Expand all
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-gray-400"
+                onClick={() => setAllExpanded(false)}
+              >
+                <ChevronsDownUp className="mr-1 h-4 w-4" /> Collapse all
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -501,6 +606,7 @@ export default function TrackList({
       </div>
 
       {tracks.length > 0 ? (
+        view === "cards" ? (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -544,6 +650,18 @@ export default function TrackList({
             </div>
           </SortableContext>
         </DndContext>
+        ) : (
+          <TrackTable
+            tracks={tracks}
+            artists={artists}
+            requireIsrc={requireIsrc}
+            onChange={(rowId, patch) => updateRow(rowId, patch)}
+            onOpen={(rowId) => {
+              setView("cards");
+              updateRow(rowId, { expanded: true }, false);
+            }}
+          />
+        )
       ) : null}
 
       <Button

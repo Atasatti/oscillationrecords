@@ -489,6 +489,9 @@ function ReleasesPageInner({
               <TableHead className="hidden sm:table-cell">
                 <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-release SEO score (0–100) from the fields that drive search ranking and rich results: streaming links, description, cover image, tracklist, genres, release date and primary artist. The badge shows the highest-impact gap — click it to fill it." /></span>
               </TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1">Lyrics <InfoHint text="How many of the release's tracks have lyrics entered. Lyrics show on the release page and feed the search / AI structured data. Click to edit them on the tracklist." /></span>
+              </TableHead>
               <TableHead className="hidden xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
@@ -520,7 +523,7 @@ function ReleasesPageInner({
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-12 text-center text-muted-foreground">
                   {query ? `No releases match “${query}”.` : "No releases here yet."}
                 </TableCell>
               </TableRow>
@@ -612,11 +615,46 @@ function ReleasesPageInner({
                       </Link>
                     )}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleDateString(undefined, {
+                  <TableCell className="hidden sm:table-cell">
+                    {r.lyricsCoverage && r.lyricsCoverage.total > 0 ? (
+                      <Link
+                        href={`/admin/catalog/releases/${r.id}/tracks`}
+                        title={
+                          r.lyricsCoverage.withLyrics === r.lyricsCoverage.total
+                            ? "All tracks have lyrics"
+                            : `${r.lyricsCoverage.total - r.lyricsCoverage.withLyrics} track(s) missing lyrics — click to add`
+                        }
+                        className="inline-flex"
+                      >
+                        <Badge
+                          variant={
+                            r.lyricsCoverage.withLyrics === r.lyricsCoverage.total
+                              ? "success"
+                              : r.lyricsCoverage.withLyrics > 0
+                                ? "warning"
+                                : "muted"
+                          }
+                          className="cursor-pointer tabular-nums hover:opacity-80"
+                        >
+                          {r.lyricsCoverage.withLyrics}/{r.lyricsCoverage.total}
+                        </Badge>
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell
+                    className="hidden xl:table-cell text-sm text-muted-foreground"
+                    suppressHydrationWarning
+                  >
+                    {/* Pin locale + timeZone so the server (Node) and client (browser)
+                        format this date identically — an unpinned toLocaleDateString
+                        differs across runtimes and breaks hydration (React #418). */}
+                    {new Date(r.createdAt).toLocaleDateString("en-GB", {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
+                      timeZone: "UTC",
                     })}
                   </TableCell>
                   <TableCell className="text-right">

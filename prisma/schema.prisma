@@ -139,6 +139,7 @@ model Artist {
   tidalLink        String?
   amazonMusicLink  String?
   soundcloudLink   String?
+  discogsLink      String?
   sortOrder     Int      @default(0)
   /// Work-in-progress flag (like a Release DRAFT). A draft is never public —
   /// regardless of showOnWebsite — and can be saved with incomplete details;
@@ -332,6 +333,9 @@ model Track {
   lyricist         String?
   leadVocal        String?
   lyrics           String?
+  /// Time-synced lyrics (LRC, `[mm:ss.xx]` per line) pulled from Musixmatch —
+  /// internal for now (not in the public payload); powers a future synced display.
+  syncedLyrics     String?
   stemsFile        String?
   trackCredits     Json?
   /// Per-track royalty split — same shape as Release.splits ({ artistId?, name,
@@ -391,6 +395,8 @@ model SiteSettings {
   footerSoundcloudLink String?
   footerBandcampLink   String?
   footerBeatportLink   String?
+  footerDiscogsLink    String?
+  footerRedditLink     String?
   updatedAt            DateTime @updatedAt
 }
 

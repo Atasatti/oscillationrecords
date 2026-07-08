@@ -10,6 +10,12 @@
 !.yarn/releases
 !.yarn/versions
 
+# python (venv + bytecode — never commit; recreate with scripts/requirements.txt)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
 # testing
 /coverage
 
@@ -43,3 +49,11 @@ next-env.d.ts
 
 # large binary assets (host elsewhere or use LFS)
 /public/bsk-stem.zip
+
+# Lyrics ingestion working files (may contain full lyrics — never commit)
+lyric-candidates.json
+lyrics-review.json
+.mxm-token.json
+
+# Playwright MCP scratch (screenshots, snapshots, console logs)
+.playwright-mcp/

@@ -7,7 +7,7 @@ import { BLUR_DATA_URL } from "@/lib/image-blur";
 import { Button } from "@/components/ui/button";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
 import { FaApple, FaFacebookF, FaInstagram, FaSoundcloud, FaSpotify, FaYoutube } from "react-icons/fa";
-import { SiAmazonmusic, SiTidal } from "react-icons/si";
+import { SiAmazonmusic, SiDiscogs, SiTidal } from "react-icons/si";
 import { LuX } from "react-icons/lu";
 import { RiTiktokFill } from "react-icons/ri";
 import type { ArtistDetailDTO, ReleaseCardDTO } from "@/lib/catalog-data";
@@ -164,6 +164,15 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                       aria-label="SoundCloud"
                     >
                       <FaSoundcloud className="h-6 w-6" />
+                    </button>
+                  )}
+                  {artist.discogsLink && (
+                    <button
+                      onClick={(e) => handleSocialClick(artist.discogsLink, "discogs", e)}
+                      className="text-gray-400 hover:text-white transition-colors"
+                      aria-label="Discogs"
+                    >
+                      <SiDiscogs className="h-6 w-6" />
                     </button>
                   )}
                 </div>

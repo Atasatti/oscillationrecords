@@ -6,6 +6,7 @@ import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInp
 import { normalizeSplits } from "@/lib/release-splits";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { recordAudit } from "@/lib/audit";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -68,6 +69,7 @@ export async function PATCH(
       lyricist,
       leadVocal,
       lyrics,
+      syncedLyrics,
       stemsFile,
       trackCredits,
       splits,
@@ -141,6 +143,7 @@ export async function PATCH(
         ...(lyricist !== undefined && { lyricist: lyricist ? String(lyricist) : null }),
         ...(leadVocal !== undefined && { leadVocal: leadVocal ? String(leadVocal) : null }),
         ...(lyrics !== undefined && { lyrics: lyrics ? String(lyrics) : null }),
+        ...(syncedLyrics !== undefined && { syncedLyrics: syncedLyrics ? String(syncedLyrics) : null }),
         ...(stemsFile !== undefined && { stemsFile: stemsFile ? String(stemsFile) : null }),
         ...(trackCredits !== undefined && { trackCredits: trackCredits ?? null }),
         ...(splits !== undefined && { splits: normalizeSplits(splits) as unknown as Prisma.InputJsonValue }),
@@ -164,6 +167,7 @@ export async function PATCH(
       },
     });
 
+    revalidateAdminCatalog();
     return NextResponse.json(serializeTrack(track));
   } catch (error) {
     console.error("Error updating track:", error);
@@ -192,6 +196,7 @@ export async function DELETE(
     }
 
     await prisma.track.delete({ where: { id: trackId } });
+    revalidateAdminCatalog();
 
     await recordAudit(request, guard.token, {
       action: "delete",

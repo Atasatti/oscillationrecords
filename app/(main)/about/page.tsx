@@ -1,7 +1,8 @@
 import AboutHeroSection from "@/components/sections/AboutHeroSection";
 import AboutMoreSection from "@/components/sections/AboutMoreSection";
 import AboutSection2 from "@/components/sections/AboutSection2";
-import AboutFaqSection, { ABOUT_FAQ } from "@/components/sections/AboutFaqSection";
+import AboutFaqSection from "@/components/sections/AboutFaqSection";
+import { ABOUT_FAQ } from "@/lib/about-faq";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import {

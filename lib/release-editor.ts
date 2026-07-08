@@ -283,6 +283,8 @@ export interface EditorTrack {
   duration: number;
   image: string | null;
   lyrics: string;
+  /** Time-synced lyrics (LRC) from Musixmatch — internal. */
+  syncedLyrics: string;
   isrcCode: string;
   iswc: string;
   isrcExplicit: boolean;
@@ -319,6 +321,7 @@ export function newEditorTrack(
     duration: 0,
     image: null,
     lyrics: "",
+    syncedLyrics: "",
     isrcCode: "",
     iswc: "",
     isrcExplicit: false,
@@ -358,6 +361,7 @@ export function editorTrackFromSerialized(
     duration: typeof t.duration === "number" ? t.duration : 0,
     image: t.image != null ? String(t.image) : null,
     lyrics: t.lyrics ? String(t.lyrics) : "",
+    syncedLyrics: t.syncedLyrics ? String(t.syncedLyrics) : "",
     isrcCode: t.isrcCode ? String(t.isrcCode) : "",
     iswc: t.iswc ? String(t.iswc) : "",
     isrcExplicit: Boolean(t.isrcExplicit),
@@ -399,6 +403,34 @@ export function trackIsPersistable(row: EditorTrack): boolean {
   return row.name.trim().length > 0;
 }
 
+/** Count of per-track streaming links set (for the "N links" section summary). */
+export function trackLinkCount(row: EditorTrack): number {
+  return [
+    row.spotifyLink,
+    row.appleMusicLink,
+    row.tidalLink,
+    row.amazonMusicLink,
+    row.youtubeLink,
+    row.soundcloudLink,
+  ].filter((u) => u.trim()).length;
+}
+
+/** One-line summary of a track's credits (e.g. "3 writers · 2 performers"); "" if none. */
+export function creditsSummary(c: TrackCreditsValue): string {
+  const filled = (rows: NameRoleRow[]) =>
+    rows.filter((r) => r.name.trim() && r.role.trim()).length;
+  const writers = c.composerNames.filter((n) => n.trim()).length + filled(c.songwriterRows);
+  const performers = filled(c.performerRows);
+  const production = filled(c.productionRows);
+  const custom = filled(c.customRows);
+  const parts: string[] = [];
+  if (writers) parts.push(`${writers} writer${writers === 1 ? "" : "s"}`);
+  if (performers) parts.push(`${performers} performer${performers === 1 ? "" : "s"}`);
+  if (production) parts.push(`${production} production`);
+  if (custom) parts.push(`${custom} more`);
+  return parts.join(" · ");
+}
+
 /** Build the PATCH track payload (matches parseTrackInput on the server). */
 export function buildTrackPayload(
   row: EditorTrack,
@@ -416,6 +448,7 @@ export function buildTrackPayload(
     lyricist: null,
     leadVocal: null,
     lyrics: row.lyrics.trim() || null,
+    syncedLyrics: row.syncedLyrics.trim() || null,
     stemsFile: row.stemsFile || null,
     trackCredits: creditPayload(row.credits),
     splits: rowsToSplits(row.splits),

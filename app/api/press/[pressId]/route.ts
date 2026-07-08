@@ -6,6 +6,7 @@ import { extractPressInput } from "@/lib/press-input";
 import { rehostExternalImage } from "@/lib/s3";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -107,6 +108,8 @@ export async function PUT(
       },
     });
 
+    revalidateAdminCatalog();
+
     await recordAudit(request, guard.token, {
       action: "update",
       resource: "press",
@@ -165,6 +168,7 @@ export async function PATCH(
     }
 
     const press = await prisma.pressItem.update({ where: { id: pressId }, data });
+    revalidateAdminCatalog();
     return NextResponse.json(press);
   } catch (error) {
     console.error("Error updating press item:", error);
@@ -191,6 +195,7 @@ export async function DELETE(
     }
 
     await prisma.pressItem.delete({ where: { id: pressId } });
+    revalidateAdminCatalog();
     await recordAudit(request, guard.token, {
       action: "delete",
       resource: "press",

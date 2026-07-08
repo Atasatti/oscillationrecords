@@ -8,6 +8,7 @@ import { isReleasePublic } from "@/lib/catalog-data";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -130,6 +131,7 @@ function parseTrackInput(
   lyricist: string | null;
   leadVocal: string | null;
   lyrics: string | null;
+  syncedLyrics: string | null;
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
   isrcCode: string | null;
@@ -176,6 +178,7 @@ function parseTrackInput(
     lyricist: t.lyricist ? String(t.lyricist) : null,
     leadVocal: t.leadVocal ? String(t.leadVocal) : null,
     lyrics: t.lyrics ? String(t.lyrics) : null,
+    syncedLyrics: t.syncedLyrics ? String(t.syncedLyrics) : null,
     stemsFile: t.stemsFile ? String(t.stemsFile) : null,
     trackCredits:
       t.trackCredits !== undefined && t.trackCredits !== null
@@ -567,6 +570,7 @@ export async function PATCH(
                 lyricist: t.lyricist,
                 leadVocal: t.leadVocal,
                 lyrics: t.lyrics,
+                syncedLyrics: t.syncedLyrics,
                 stemsFile: t.stemsFile,
                 trackCredits: t.trackCredits,
                 isrcCode: t.isrcCode,
@@ -599,6 +603,7 @@ export async function PATCH(
               lyricist: t.lyricist,
               leadVocal: t.leadVocal,
               lyrics: t.lyrics,
+              syncedLyrics: t.syncedLyrics,
               stemsFile: t.stemsFile,
               trackCredits: t.trackCredits,
               isrcCode: t.isrcCode,
@@ -645,6 +650,8 @@ export async function PATCH(
 
     const tracks = release?.tracks.map(serializeTrack) || [];
 
+    revalidateAdminCatalog();
+
     await recordAudit(request, guard.token, {
       action: "update",
       resource: "release",
@@ -688,6 +695,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
     await prisma.release.delete({ where: { id: releaseId } });
+    revalidateAdminCatalog();
     await recordAudit(request, guard.token, {
       action: "delete",
       resource: "release",

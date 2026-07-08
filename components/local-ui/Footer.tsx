@@ -11,7 +11,7 @@ import {
   FaSpotify,
   FaYoutube,
 } from "react-icons/fa";
-import { SiBeatport } from "react-icons/si";
+import { SiBeatport, SiDiscogs, SiReddit } from "react-icons/si";
 import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import type { FooterSocialLinks } from "@/lib/footer-settings";
@@ -27,6 +27,8 @@ const EMPTY_LINKS: FooterSocialLinks = {
   soundcloudLink: null,
   bandcampLink: null,
   beatportLink: null,
+  discogsLink: null,
+  redditLink: null,
 };
 
 const Footer = () => {
@@ -63,6 +65,8 @@ const Footer = () => {
     { href: links.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud" },
     { href: links.bandcampLink, Icon: FaBandcamp, label: "Bandcamp" },
     { href: links.beatportLink, Icon: SiBeatport, label: "Beatport" },
+    { href: links.discogsLink, Icon: SiDiscogs, label: "Discogs" },
+    { href: links.redditLink, Icon: SiReddit, label: "Reddit" },
   ].filter(
     (item): item is typeof item & { href: string } => Boolean(item.href?.trim())
   );
