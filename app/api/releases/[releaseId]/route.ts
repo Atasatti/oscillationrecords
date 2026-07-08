@@ -8,6 +8,7 @@ import { isReleasePublic } from "@/lib/catalog-data";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
@@ -649,6 +650,8 @@ export async function PATCH(
 
     const tracks = release?.tracks.map(serializeTrack) || [];
 
+    revalidateAdminCatalog();
+
     await recordAudit(request, guard.token, {
       action: "update",
       resource: "release",
@@ -692,6 +695,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
     await prisma.release.delete({ where: { id: releaseId } });
+    revalidateAdminCatalog();
     await recordAudit(request, guard.token, {
       action: "delete",
       resource: "release",

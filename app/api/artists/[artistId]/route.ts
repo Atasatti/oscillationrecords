@@ -8,6 +8,7 @@ import { rehostExternalImage } from "@/lib/s3";
 import { isSafeUrl } from "@/lib/url-safety";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -162,6 +163,8 @@ export async function PUT(
       },
     });
 
+    revalidateAdminCatalog();
+
     await recordAudit(request, guard.token, {
       action: "update",
       resource: "artist",
@@ -246,6 +249,7 @@ export async function PATCH(
     }
 
     const artist = await prisma.artist.update({ where: { id: artistId }, data });
+    revalidateAdminCatalog();
 
     // Visibility toggled (either direction) → ask IndexNow to recrawl: a newly
     // shown artist gets indexed; a hidden one gets re-fetched and dropped.
@@ -284,6 +288,8 @@ export async function DELETE(
     if (!deleted) {
       return NextResponse.json({ error: "Artist not found" }, { status: 404 });
     }
+
+    revalidateAdminCatalog();
 
     await recordAudit(request, guard.token, {
       action: "delete",

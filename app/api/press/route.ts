@@ -8,6 +8,7 @@ import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { getAllPress, getPressForArtist, getPressForRelease } from "@/lib/catalog-data";
 import { getPressPage } from "@/lib/admin-data";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 // AWS SDK + getToken need the Node runtime; never statically cache.
 export const dynamic = "force-dynamic";
@@ -127,6 +128,8 @@ export async function POST(request: NextRequest) {
         draft,
       },
     });
+
+    revalidateAdminCatalog();
 
     await recordAudit(request, guard.token, {
       action: "create",

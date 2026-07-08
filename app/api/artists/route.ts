@@ -16,6 +16,7 @@ import {
   type ArtistVisibility,
   type ArtistFeatured,
 } from "@/lib/admin-data";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = 'force-dynamic';
@@ -221,6 +222,8 @@ export async function POST(request: NextRequest) {
         showOnWebsite: true,
       },
     });
+
+    revalidateAdminCatalog();
 
     await recordAudit(request, guard.token, {
       action: "create",

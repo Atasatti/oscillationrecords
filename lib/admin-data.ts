@@ -1,5 +1,7 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { ADMIN_TAGS, ADMIN_CACHE_REVALIDATE } from "@/lib/admin-cache-tags";
 import { fuzzyScore } from "@/lib/fuzzy";
 import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import {
@@ -325,6 +327,50 @@ function stripSignals(r: RowWithSignals): AdminArtistRow {
   return row;
 }
 
+/**
+ * Cached default (no-search) artists listing — the hot path hit on every full
+ * page load. Keyed by its args; busted immediately by a catalog write (tag) and
+ * otherwise refreshed at most every {@link ADMIN_CACHE_REVALIDATE}s. Search is
+ * deliberately NOT cached (each query is unique + it scans the whole roster).
+ */
+const listArtistsCached = unstable_cache(
+  async (
+    page: number,
+    size: number,
+    sort: ArtistSort,
+    dir: SortDir,
+    filters: ArtistFilters
+  ): Promise<Page<AdminArtistRow>> => {
+    const sortField = ARTIST_SORTS[sort] ?? "sortOrder";
+    const where = buildWhere(filters);
+    const safePage = Math.max(1, page);
+    // Clamp dir: the route casts a raw query string to SortDir, so guard it —
+    // Prisma's orderBy only accepts "asc"/"desc" and throws otherwise.
+    const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
+    const orderBy =
+      sortField === "name"
+        ? [{ name: safeDir }]
+        : sortField === "createdAt"
+          ? [{ createdAt: safeDir }]
+          : [{ sortOrder: safeDir }, { name: "asc" as const }];
+    // Run the count and the page query in parallel to halve the DB round-trips.
+    const [total, rows] = await Promise.all([
+      prisma.artist.count({ where }),
+      prisma.artist.findMany({
+        where,
+        select: ROW_SELECT,
+        orderBy,
+        skip: (safePage - 1) * size,
+        take: size,
+      }),
+    ]);
+    const items = await attachStats(rows.map(toRow));
+    return { items, total, page: safePage, pageSize: size };
+  },
+  ["admin:artists:list"],
+  { tags: [ADMIN_TAGS.artists], revalidate: ADMIN_CACHE_REVALIDATE }
+);
+
 export async function getArtistsPage({
   page = 1,
   pageSize = 25,
@@ -341,7 +387,6 @@ export async function getArtistsPage({
   filters?: ArtistFilters;
 }): Promise<Page<AdminArtistRow>> {
   const size = Math.min(Math.max(1, pageSize), 100);
-  const sortField = ARTIST_SORTS[sort] ?? "sortOrder";
   const query = q.trim();
   const where = buildWhere(filters);
 
@@ -361,30 +406,8 @@ export async function getArtistsPage({
     return { items, total, page: safePage, pageSize: size };
   }
 
-  const safePage = Math.max(1, page);
-  // Clamp dir: the route casts a raw query string to SortDir, so guard it —
-  // Prisma's orderBy only accepts "asc"/"desc" and throws otherwise.
-  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
-  const orderBy =
-    sortField === "name"
-      ? [{ name: safeDir }]
-      : sortField === "createdAt"
-        ? [{ createdAt: safeDir }]
-        : [{ sortOrder: safeDir }, { name: "asc" as const }];
-  // Run the count and the page query in parallel to halve the DB round-trips.
-  const [total, rows] = await Promise.all([
-    prisma.artist.count({ where }),
-    prisma.artist.findMany({
-      where,
-      select: ROW_SELECT,
-      orderBy,
-      skip: (safePage - 1) * size,
-      take: size,
-    }),
-  ]);
-
-  const items = await attachStats(rows.map(toRow));
-  return { items, total, page: safePage, pageSize: size };
+  // No search → the cached, indexed skip/take listing (survives full reloads).
+  return listArtistsCached(page, size, sort, dir, filters);
 }
 
 /** Distinct genre tags across the roster, for the filter dropdown. */
@@ -434,6 +457,51 @@ async function attachLyricsCoverage(cards: ReleaseCardDTO[]): Promise<void> {
     c.lyricsCoverage = lyricsCoverage(byRelease.get(c.id) ?? []);
   }
 }
+
+/**
+ * Cached default (no-search) releases listing — the hot path hit on every full
+ * page load. Keyed by its args; busted immediately by a catalog write (tag) and
+ * otherwise refreshed at most every {@link ADMIN_CACHE_REVALIDATE}s. Search is
+ * deliberately NOT cached (each query is unique + it shapes the whole catalog).
+ */
+const listReleasesCached = unstable_cache(
+  async (
+    page: number,
+    size: number,
+    sort: ReleaseSort,
+    dir: SortDir,
+    status: "DRAFT" | "SCHEDULED" | "RELEASED" | undefined
+  ): Promise<Page<ReleaseCardDTO>> => {
+    const where = status ? { status } : undefined;
+    const safePage = Math.max(1, page);
+    // Clamp dir (route casts a raw query string to SortDir; Prisma only accepts asc/desc).
+    const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
+    const orderBy =
+      sort === "name"
+        ? [{ name: safeDir }]
+        : sort === "kind"
+          ? [{ kind: safeDir }, { createdAt: "desc" as const }]
+          : sort === "sortOrder"
+            ? [{ sortOrder: safeDir }, { createdAt: "desc" as const }]
+            : [{ createdAt: safeDir }];
+    // Count + page query in parallel; then resolve artist names.
+    const [total, rows] = await Promise.all([
+      prisma.release.count({ where }),
+      prisma.release.findMany({
+        ...releaseCardListArgs,
+        where,
+        orderBy,
+        skip: (safePage - 1) * size,
+        take: size,
+      }),
+    ]);
+    const items = await mapReleasesToCards(rows, { isAdmin: true });
+    await attachLyricsCoverage(items);
+    return { items, total, page: safePage, pageSize: size };
+  },
+  ["admin:releases:list"],
+  { tags: [ADMIN_TAGS.releases], revalidate: ADMIN_CACHE_REVALIDATE }
+);
 
 export async function getReleasesPage({
   page = 1,
@@ -498,31 +566,8 @@ export async function getReleasesPage({
     return { items: pageItems, total, page: safePage, pageSize: size };
   }
 
-  const safePage = Math.max(1, page);
-  // Clamp dir (route casts a raw query string to SortDir; Prisma only accepts asc/desc).
-  const safeDir: SortDir = dir === "desc" ? "desc" : "asc";
-  const orderBy =
-    sort === "name"
-      ? [{ name: safeDir }]
-      : sort === "kind"
-        ? [{ kind: safeDir }, { createdAt: "desc" as const }]
-        : sort === "sortOrder"
-          ? [{ sortOrder: safeDir }, { createdAt: "desc" as const }]
-          : [{ createdAt: safeDir }];
-  // Count + page query in parallel; then resolve artist names.
-  const [total, rows] = await Promise.all([
-    prisma.release.count({ where }),
-    prisma.release.findMany({
-      ...releaseCardListArgs,
-      where,
-      orderBy,
-      skip: (safePage - 1) * size,
-      take: size,
-    }),
-  ]);
-  const items = await mapReleasesToCards(rows, { isAdmin: true });
-  await attachLyricsCoverage(items);
-  return { items, total, page: safePage, pageSize: size };
+  // No search → the cached, indexed skip/take listing (survives full reloads).
+  return listReleasesCached(page, size, sort, dir, status);
 }
 
 /** Featured releases in carousel order (for the releases "Home order" tab). */
@@ -541,6 +586,31 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
 
 /** Admin press row = the public DTO plus the visibility flag (admin-only). */
 export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean; draft: boolean };
+
+/**
+ * Cached default (no-search) press listing — the hot path hit on every full page
+ * load. Inlines the admin-visibility attach (the closure form can't cross into
+ * unstable_cache). Busted immediately by a catalog write (tag); TTL backstop.
+ */
+const listPressCached = unstable_cache(
+  async (page: number, size: number): Promise<Page<AdminPressRow>> => {
+    const safePage = Math.max(1, page);
+    const [total, rows] = await Promise.all([
+      prisma.pressItem.count(),
+      prisma.pressItem.findMany({ orderBy: pressOrderBy, skip: (safePage - 1) * size, take: size }),
+    ]);
+    const metaById = new Map(rows.map((r) => [r.id, { showOnWebsite: r.showOnWebsite, draft: r.draft }]));
+    const dtos = await mapPressItems(rows as never, { isAdmin: true });
+    const items: AdminPressRow[] = dtos.map((d) => ({
+      ...d,
+      showOnWebsite: metaById.get(d.id)?.showOnWebsite ?? true,
+      draft: metaById.get(d.id)?.draft ?? false,
+    }));
+    return { items, total, page: safePage, pageSize: size };
+  },
+  ["admin:press:list"],
+  { tags: [ADMIN_TAGS.press], revalidate: ADMIN_CACHE_REVALIDATE }
+);
 
 /**
  * Paginated press items for the admin manage table. Resolves linked
@@ -589,15 +659,6 @@ export async function getPressPage({
     return { items, total, page: safePage, pageSize: size };
   }
 
-  const safePage = Math.max(1, page);
-  const [total, rows] = await Promise.all([
-    prisma.pressItem.count(),
-    prisma.pressItem.findMany({
-      orderBy: pressOrderBy,
-      skip: (safePage - 1) * size,
-      take: size,
-    }),
-  ]);
-  const items = await withVisibility(rows);
-  return { items, total, page: safePage, pageSize: size };
+  // No search → the cached listing (survives full reloads).
+  return listPressCached(page, size);
 }

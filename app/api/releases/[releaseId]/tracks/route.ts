@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
 import { prismaKindToApi, normalizeFeatureArtistNamesInput, serializeTrack } from "@/lib/release-format";
 import { normalizeSplits } from "@/lib/release-splits";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -149,6 +150,8 @@ export async function POST(
         featureArtistNames: featManual,
       },
     });
+
+    revalidateAdminCatalog();
 
     return NextResponse.json(
       {
