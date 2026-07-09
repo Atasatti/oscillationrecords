@@ -245,12 +245,21 @@ export default function AdminArtistsClient({
 
   const setFeatured = async (id: string, featuredOnHome: boolean) => {
     const prev = items;
+    const row = items.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
     try {
+      // When featuring a row the admin sees as visible, assert showOnWebsite in the
+      // same request. The server's "only visible artists can be Featured" guard reads
+      // a LIVE DB value that can disagree with the (cached) row on screen, so a
+      // visibly-Live artist could be wrongly rejected as "not visible". Sending it
+      // keeps the server in step with what the admin acted on. A row shown as Hidden
+      // still omits it, so the "show it on the website first" guard stays intact.
+      const body: Record<string, unknown> = { featuredOnHome };
+      if (featuredOnHome && row?.showOnWebsite) body.showOnWebsite = true;
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featuredOnHome }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

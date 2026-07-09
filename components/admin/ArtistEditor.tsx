@@ -34,6 +34,7 @@ import type { SpotifyArtist } from "@/lib/spotify";
 import type { MbArtistMatch } from "@/lib/musicbrainz";
 import type { IsniMatch } from "@/lib/isni";
 import { buildArtistSeedUrl, buildArtistEditUrl } from "@/lib/musicbrainz-seed";
+import { clearCached } from "@/lib/admin-cache";
 import GenrePicker from "@/components/admin/GenrePicker";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 
@@ -514,6 +515,11 @@ export default function ArtistEditor({
         }).catch(() => {});
       }
       setDirty(false);
+      // The artists list caches rows client-side (2-min SWR, lib/admin-cache). This
+      // save may have changed visibility (or details), so drop that cache — otherwise
+      // the list shows a stale row on return (e.g. still "Live" after hiding here),
+      // which then makes the Featured action wrongly reject the artist as not visible.
+      clearCached();
       toast.success(draft ? "Draft saved" : mode === "edit" ? "Artist saved" : "Artist created");
       router.push("/admin/catalog/artists");
     } catch (e) {
