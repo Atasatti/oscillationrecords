@@ -571,11 +571,7 @@ export default function AssetsClient({
   // Right preview / metadata panel for the focused row.
   const renderPreview = () => {
     const a = activeAsset;
-    if (!a) return (
-      <aside className="hidden w-72 shrink-0 border-l border-border p-5 text-sm text-muted-foreground xl:block">
-        Select a file to see its details, download it, or edit its metadata.
-      </aside>
-    );
+    if (!a) return null;
     const isImg = /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
     const art = a.artistId ? nameOf.get(a.artistId) : null;
@@ -688,18 +684,18 @@ export default function AssetsClient({
               <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-10 px-3 py-2">
+                    <th className="w-[4%] px-3 py-2">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
-                    {([["name", "Name", ""], ["type", "Type", "w-28"], ["release", "Release", "w-44"], ["artist", "Artist", "w-36"], ["size", "Size", "w-20"], ["date", "Added", "w-28"]] as const).map(([col, label, w]) => (
+                    {([["name", "Name", "w-[32%]"], ["type", "Type", "w-[10%]"], ["release", "Release", "w-[17%]"], ["artist", "Artist", "w-[13%]"], ["size", "Size", "w-[8%]"], ["date", "Added", "w-[11%]"]] as const).map(([col, label, w]) => (
                       <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
-                    <th className="w-16 px-3 py-2" />
+                    <th className="w-[5%] px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>
