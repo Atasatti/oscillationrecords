@@ -21,13 +21,14 @@ export default async function AssetsPage() {
   let assets: Asset[] = [];
   let releases: Option[] = [];
   let artists: Option[] = [];
+  let releaseLyrics: Record<string, { txt: boolean; lrc: boolean }> = {};
   try {
     const [rows, rels, arts, press] = await Promise.all([
       prisma.asset.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.release.findMany({
         select: {
           id: true, name: true, coverImage: true, createdAt: true,
-          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true } },
+          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true, lyrics: true, syncedLyrics: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -87,8 +88,15 @@ export default async function AssetsPage() {
     assets = [...damAssets, ...derived];
     releases = rels.map((r) => ({ id: r.id, name: r.name }));
     artists = arts.map((a) => ({ id: a.id, name: a.name }));
+
+    releaseLyrics = {};
+    for (const r of rels) {
+      const txt = r.tracks.some((t) => (t.lyrics ?? "").trim() !== "");
+      const lrc = r.tracks.some((t) => (t.syncedLyrics ?? "").trim() !== "");
+      if (txt || lrc) releaseLyrics[r.id] = { txt, lrc };
+    }
   } catch {
     // Empty library on a transient DB error.
   }
-  return <AssetsClient initial={assets} releases={releases} artists={artists} />;
+  return <AssetsClient initial={assets} releases={releases} artists={artists} releaseLyrics={releaseLyrics} />;
 }
