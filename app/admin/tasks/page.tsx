@@ -41,6 +41,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
 import { getCached, setCached } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1072,6 +1073,11 @@ export default function TasksPage() {
       setDialogOpen(false);
       setEditingId(null);
       setForm({ ...EMPTY_FORM });
+      // The editor dialog is often opened from the row's ⋯ DropdownMenu; closing it
+      // while the list re-renders (setTab + loadTasks below) can leave a Radix
+      // `pointer-events:none` lock on <body> that freezes the page until refresh.
+      // Clear it here since this in-place save never navigates (see lib/unlock-body).
+      unlockBody();
       // Land where the saved task is so it's visible (new tasks default to To Do).
       if (wasNew) setTab("todo");
       else if (tab !== "all" && tab !== "attention" && tab !== form.status) setTab(form.status as Tab);
@@ -1203,6 +1209,7 @@ export default function TasksPage() {
       if (!res.ok) throw new Error();
       toast.success("Task deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       loadTasks();
     } catch {
       toast.error("Failed to delete task");
@@ -2028,7 +2035,7 @@ export default function TasksPage() {
       )}
 
       {/* Create / edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); unlockBody(); } }}>
         <DialogContent className="flex max-h-[calc(100dvh-3rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle>
@@ -2192,7 +2199,7 @@ export default function TasksPage() {
             ) : null}
           </div>
           <DialogFooter className="border-t border-border px-6 py-4">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); unlockBody(); }} disabled={saving}>Cancel</Button>
             <Button onClick={save} disabled={saving} className="bg-white text-black hover:bg-gray-200">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {editingId ? "Save changes" : "Add task"}
             </Button>
