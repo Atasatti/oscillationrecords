@@ -1,5 +1,9 @@
-// Pure helpers for the Asset library's "By release" view: bucket assets by their
-// linked entity and turn a bucket into a flat list of download actions.
+// Pure helpers for the Asset library's grouped views: bucket assets by a chosen
+// dimension (release / artist / month / type), and turn a release bucket into a
+// flat list of download actions. Generic over the asset shape so callers keep
+// their richer row type (for rendering) while this stays structurally decoupled.
+
+export type GroupMode = "release" | "artist" | "month" | "type";
 
 export type GroupableAsset = {
   id: string;
@@ -11,53 +15,97 @@ export type GroupableAsset = {
   artistId: string | null;
   parentLabel: string | null;
   parentHref: string | null;
+  createdAt: string;
 };
 
-export type AssetGroup = {
+export type AssetGroup<T extends GroupableAsset = GroupableAsset> = {
   key: string;
-  kind: "release" | "artist" | "unlinked";
+  kind: GroupMode;
+  /** release/artist id when the group maps to a record (drives the link + download control); null for month/type/catch-all. */
   entityId: string | null;
   name: string;
   href: string | null;
-  assets: GroupableAsset[];
+  assets: T[];
+};
+
+export type GroupContext = {
+  releaseNames: Map<string, string>;
+  artistNames: Map<string, string>;
+  /** release id → its (first) primary artist id, so release assets group under an artist too. */
+  releaseArtistId: Map<string, string>;
+  categoryLabels: Record<string, string>;
 };
 
 export type DownloadItem = { label: string; href: string; downloadName?: string };
 
-export function groupAssets(
-  assets: GroupableAsset[],
-  names: { releases: Map<string, string>; artists: Map<string, string> }
-): AssetGroup[] {
-  const groups = new Map<string, AssetGroup>();
-  for (const asset of assets) {
-    let g: Omit<AssetGroup, "assets">;
-    if (asset.releaseId) {
-      g = {
-        key: `release:${asset.releaseId}`,
-        kind: "release",
-        entityId: asset.releaseId,
-        name: names.releases.get(asset.releaseId) ?? asset.parentLabel ?? "Untitled release",
-        href: asset.parentHref ?? `/admin/catalog/release/${asset.releaseId}`,
-      };
-    } else if (asset.artistId) {
-      g = {
-        key: `artist:${asset.artistId}`,
-        kind: "artist",
-        entityId: asset.artistId,
-        name: names.artists.get(asset.artistId) ?? asset.parentLabel ?? "Unknown artist",
-        href: asset.parentHref ?? `/admin/catalog/artist/${asset.artistId}`,
-      };
-    } else {
-      g = { key: "unlinked", kind: "unlinked", entityId: null, name: "Not linked to a release", href: null };
-    }
-    const existing = groups.get(g.key);
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export function groupAssets<T extends GroupableAsset>(
+  assets: T[],
+  mode: GroupMode,
+  ctx: GroupContext
+): AssetGroup<T>[] {
+  const groups = new Map<string, AssetGroup<T>>();
+  const put = (meta: Omit<AssetGroup<T>, "assets">, asset: T) => {
+    const existing = groups.get(meta.key);
     if (existing) existing.assets.push(asset);
-    else groups.set(g.key, { ...g, assets: [asset] });
+    else groups.set(meta.key, { ...meta, assets: [asset] });
+  };
+
+  for (const a of assets) {
+    if (mode === "release") {
+      if (a.releaseId) {
+        put({
+          key: `release:${a.releaseId}`, kind: "release", entityId: a.releaseId,
+          name: ctx.releaseNames.get(a.releaseId) ?? a.parentLabel ?? "Untitled release",
+          href: a.parentHref ?? `/admin/catalog/release/${a.releaseId}`,
+        }, a);
+      } else {
+        put({ key: "none", kind: "release", entityId: null, name: "Not linked to a release", href: null }, a);
+      }
+    } else if (mode === "artist") {
+      const artistId = a.artistId ?? (a.releaseId ? ctx.releaseArtistId.get(a.releaseId) ?? null : null);
+      if (artistId) {
+        put({
+          key: `artist:${artistId}`, kind: "artist", entityId: artistId,
+          name: ctx.artistNames.get(artistId) ?? "Unknown artist",
+          href: `/admin/catalog/artist/${artistId}`,
+        }, a);
+      } else {
+        put({ key: "none", kind: "artist", entityId: null, name: "No artist", href: null }, a);
+      }
+    } else if (mode === "month") {
+      const d = new Date(a.createdAt);
+      if (Number.isNaN(d.getTime())) {
+        put({ key: "none", kind: "month", entityId: null, name: "Unknown date", href: null }, a);
+      } else {
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        put({
+          key: `month:${y}-${String(m + 1).padStart(2, "0")}`, kind: "month", entityId: null,
+          name: `${MONTHS[m] ?? "?"} ${y}`, href: null,
+        }, a);
+      }
+    } else {
+      put({
+        key: `type:${a.category}`, kind: "type", entityId: null,
+        name: ctx.categoryLabels[a.category] ?? a.category, href: null,
+      }, a);
+    }
   }
-  const rank = (k: AssetGroup["kind"]) => (k === "release" ? 0 : k === "artist" ? 1 : 2);
-  return [...groups.values()].sort(
-    (x, y) => rank(x.kind) - rank(y.kind) || x.name.localeCompare(y.name)
-  );
+
+  return [...groups.values()].sort((x, y) => {
+    // The catch-all "none" bucket (no release / no artist / unknown date) always sorts last.
+    const xNone = x.key === "none";
+    const yNone = y.key === "none";
+    if (xNone !== yNone) return xNone ? 1 : -1;
+    // Month: most recent first (keys are zero-padded YYYY-MM). Others: by name.
+    if (mode === "month") return x.key < y.key ? 1 : x.key > y.key ? -1 : 0;
+    return x.name.localeCompare(y.name);
+  });
 }
 
 export function buildDownloadItems(

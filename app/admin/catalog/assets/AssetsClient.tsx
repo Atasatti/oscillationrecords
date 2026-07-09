@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
-  Image as ImageIcon, ExternalLink,
+  Image as ImageIcon, ExternalLink, ChevronDown,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,16 @@ import {
   ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_ACCEPT, formatBytes, type AssetCategory,
 } from "@/lib/asset";
 import AssetActions from "@/components/admin/AssetActions";
-import { groupAssets, buildDownloadItems } from "@/lib/asset-grouping";
+import { groupAssets, buildDownloadItems, type GroupMode } from "@/lib/asset-grouping";
+
+type GroupBy = GroupMode | "none";
+const GROUP_OPTIONS: { key: GroupBy; label: string }[] = [
+  { key: "none", label: "None" },
+  { key: "release", label: "Release" },
+  { key: "artist", label: "Artist" },
+  { key: "month", label: "Month" },
+  { key: "type", label: "Type" },
+];
 
 export type Asset = {
   id: string;
@@ -85,12 +94,13 @@ function putWithProgress(url: string, file: File, onPct: (n: number) => void): P
 }
 
 export default function AssetsClient({
-  initial, releases, artists, releaseLyrics = {},
+  initial, releases, artists, releaseLyrics = {}, releaseArtistId = {},
 }: {
   initial: Asset[];
   releases: Option[];
   artists: Option[];
   releaseLyrics?: Record<string, { txt: boolean; lrc: boolean }>;
+  releaseArtistId?: Record<string, string>;
 }) {
   const toast = useToast();
   const { data: session } = useSession();
@@ -98,7 +108,8 @@ export default function AssetsClient({
   const [assets, setAssets] = useState<Asset[]>(initial);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"files" | "byRelease">("files");
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Upload dialog
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -144,9 +155,26 @@ export default function AssetsClient({
   const releaseNames = useMemo(() => new Map(releases.map((r) => [r.id, r.name])), [releases]);
   const artistNames = useMemo(() => new Map(artists.map((a) => [a.id, a.name])), [artists]);
   const groups = useMemo(
-    () => groupAssets(visible, { releases: releaseNames, artists: artistNames }),
-    [visible, releaseNames, artistNames]
+    () =>
+      groupBy === "none"
+        ? []
+        : groupAssets(visible, groupBy, {
+            releaseNames,
+            artistNames,
+            releaseArtistId: new Map(Object.entries(releaseArtistId)),
+            categoryLabels: ASSET_CATEGORY_LABELS,
+          }),
+    [groupBy, visible, releaseNames, artistNames, releaseArtistId]
   );
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
+  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)));
 
   const setRow = (i: number, patch: Partial<UploadRow>) =>
     setProg((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -283,6 +311,84 @@ export default function AssetsClient({
     ...ASSET_CATEGORIES.map((c) => ({ key: c, label: ASSET_CATEGORY_LABELS[c] })),
   ];
 
+  // One asset card — shared by the flat grid and every grouped section.
+  const renderCard = (a: Asset) => {
+    const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
+    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const isImg = /^image\//.test(a.mimeType);
+    return (
+      <div key={a.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+        <a
+          href={a.fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20"
+        >
+          {isImg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
+          )}
+        </a>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
+              {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
+            </span>
+            <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{formatBytes(a.size)}</span>
+          </div>
+          <p className="truncate text-sm font-medium" title={a.title}>{a.title}</p>
+          {a.fileName !== a.title ? <p className="truncate text-xs text-muted-foreground" title={a.fileName}>{a.fileName}</p> : null}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            {a.readOnly && a.parentLabel ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded border border-border px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">{a.source}</span>
+                <span className="truncate">{a.parentLabel}</span>
+              </span>
+            ) : (
+              <>
+                {rel ? <span>Release: {rel}</span> : null}
+                {art ? <span>Artist: {art}</span> : null}
+              </>
+            )}
+          </div>
+          {a.notes ? <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-gray-400">{a.notes}</p> : null}
+          <div className="mt-auto flex items-center justify-between pt-2">
+            <span className="truncate text-[11px] text-muted-foreground">
+              {fmtDate(a.createdAt)}{a.uploader ? ` · ${a.uploader}` : ""}
+            </span>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
+                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                <Download className="h-3.5 w-3.5" />
+              </a>
+              {a.readOnly ? (
+                a.parentHref ? (
+                  <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                ) : null
+              ) : (
+                <>
+                  <button type="button" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" onClick={() => setDeleteTarget(a)} title="Delete" aria-label="Delete"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <PageHeader
@@ -295,19 +401,27 @@ export default function AssetsClient({
         }
       />
 
-      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
-        {([["files", "Files"], ["byRelease", "By release"]] as const).map(([k, label]) => (
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label htmlFor="asset-group-by" className="text-sm text-muted-foreground">Group by</label>
+        <select
+          id="asset-group-by"
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+          className={inputCls}
+        >
+          {GROUP_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+        {groupBy !== "none" && groups.length > 0 ? (
           <button
-            key={k}
             type="button"
-            onClick={() => setView(k)}
-            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={toggleAll}
+            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            {label}
+            {allCollapsed ? "Expand all" : "Collapse all"}
           </button>
-        ))}
+        ) : null}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -325,121 +439,54 @@ export default function AssetsClient({
         />
       </div>
 
-      {view === "byRelease" ? (
-        groups.length === 0 ? (
+      {groupBy === "none" ? (
+        visible.length === 0 ? (
           <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-            {assets.length === 0 ? "No assets yet." : "No assets match."}
+            {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
           </div>
         ) : (
-          <div className="space-y-3">
-            {groups.map((g) => {
-              const lyrics = g.kind === "release" && g.entityId && filter === "all"
-                ? releaseLyrics[g.entityId]
-                : undefined;
-              const items = buildDownloadItems(g, lyrics, ASSET_CATEGORY_LABELS);
-              const summary = [...new Map(
-                g.assets.reduce((m, a) => m.set(a.category, (m.get(a.category) ?? 0) + 1), new Map<string, number>())
-              )]
-                .map(([cat, n]) => `${ASSET_CATEGORY_LABELS[cat as AssetCategory] ?? cat}${n > 1 ? ` ×${n}` : ""}`)
-                .join(" · ");
-              return (
-                <div key={g.key} className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      {g.href ? (
-                        <Link href={g.href} className="truncate font-medium hover:underline">{g.name}</Link>
-                      ) : (
-                        <span className="truncate font-medium">{g.name}</span>
-                      )}
-                      <p className="truncate text-xs text-muted-foreground">{summary}</p>
-                    </div>
-                    <AssetActions items={items} />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visible.map(renderCard)}
           </div>
         )
-      ) : visible.length === 0 ? (
+      ) : groups.length === 0 ? (
         <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-          {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
+          {assets.length === 0 ? "No assets yet." : "No assets match."}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map((a) => {
-            const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-            const art = a.artistId ? nameOf.get(a.artistId) : null;
-            const isImg = /^image\//.test(a.mimeType);
+        <div className="space-y-3">
+          {groups.map((g) => {
+            const isCollapsed = collapsed.has(g.key);
+            const lyrics =
+              g.kind === "release" && g.entityId && filter === "all" ? releaseLyrics[g.entityId] : undefined;
+            const showDownload = g.kind === "release" && !!g.entityId;
+            const items = showDownload ? buildDownloadItems(g, lyrics, ASSET_CATEGORY_LABELS) : [];
             return (
-              <div key={a.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-                <a
-                  href={a.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20"
-                >
-                  {isImg ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
-                  )}
-                </a>
-                <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
-                      {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
-                    </span>
-                    <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{formatBytes(a.size)}</span>
-                  </div>
-                  <p className="truncate text-sm font-medium" title={a.title}>{a.title}</p>
-                  {a.fileName !== a.title ? <p className="truncate text-xs text-muted-foreground" title={a.fileName}>{a.fileName}</p> : null}
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                    {a.readOnly && a.parentLabel ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="rounded border border-border px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">{a.source}</span>
-                        <span className="truncate">{a.parentLabel}</span>
-                      </span>
-                    ) : (
-                      <>
-                        {rel ? <span>Release: {rel}</span> : null}
-                        {art ? <span>Artist: {art}</span> : null}
-                      </>
-                    )}
-                  </div>
-                  {a.notes ? <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-gray-400">{a.notes}</p> : null}
-                  <div className="mt-auto flex items-center justify-between pt-2">
-                    <span className="truncate text-[11px] text-muted-foreground">
-                      {fmtDate(a.createdAt)}{a.uploader ? ` · ${a.uploader}` : ""}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
-                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                        <Download className="h-3.5 w-3.5" />
-                      </a>
-                      {a.readOnly ? (
-                        a.parentHref ? (
-                          <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
-                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Link>
-                        ) : null
-                      ) : (
-                        <>
-                          <button type="button" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"
-                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" onClick={() => setDeleteTarget(a)} title="Delete" aria-label="Delete"
-                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/20 hover:text-red-400">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+              <section key={g.key} className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(g.key)}
+                    aria-expanded={!isCollapsed}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <span className="truncate font-medium">{g.name}</span>
+                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">{g.assets.length}</span>
+                  </button>
+                  {g.href ? (
+                    <Link href={g.href} title="Open record" aria-label="Open record" className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Link>
+                  ) : null}
+                  {showDownload ? <AssetActions items={items} /> : null}
                 </div>
-              </div>
+                {!isCollapsed ? (
+                  <div className="grid grid-cols-1 gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {g.assets.map(renderCard)}
+                  </div>
+                ) : null}
+              </section>
             );
           })}
         </div>
