@@ -628,7 +628,7 @@ export default function AssetsClient({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col md:-mx-4">
+    <div className="flex h-[calc(100dvh-6rem)] flex-col -mx-4 -mb-6 md:-mx-8 md:-mb-8">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
