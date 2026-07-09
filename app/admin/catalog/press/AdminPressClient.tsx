@@ -181,7 +181,14 @@ export default function AdminPressClient({
             type="button"
             onClick={() => {
               setView(k);
-              if (k === "manage") load();
+              // Reflect any reordering just made: the Custom-order panel saves the new
+              // order straight to the DB, bypassing this list's cache — so drop the
+              // cached views before reloading, otherwise Manage shows the pre-reorder
+              // order (served from the still-"fresh" client cache).
+              if (k === "manage") {
+                clearCached();
+                load();
+              }
             }}
             className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
               view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"

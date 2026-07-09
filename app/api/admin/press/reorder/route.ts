@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withWriteRetry } from "@/lib/db-retry";
 import { requirePermission } from "@/lib/auth-guard";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -63,6 +64,10 @@ export async function PUT(request: NextRequest) {
     for (let index = 0; index < ids.length; index++) {
       await withWriteRetry(() => prisma.pressItem.update({ where: { id: ids[index] }, data: { sortOrder: index } }));
     }
+
+    // Bust the cached admin lists so the Manage view (SSR + client) shows the new
+    // order immediately, instead of the stale order until the tag's TTL expires.
+    revalidateAdminCatalog();
 
     return NextResponse.json({ ok: true });
   } catch (error) {
