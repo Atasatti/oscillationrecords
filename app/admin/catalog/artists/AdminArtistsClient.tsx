@@ -190,9 +190,44 @@ export default function AdminArtistsClient({
       return next;
     });
 
+  // Adopt the server's authoritative flags for one row from a PATCH response, so
+  // the on-screen row can never drift from what was actually persisted. This is
+  // what keeps Featured honest through hide/unhide: the server drops Featured when
+  // an artist is hidden and does NOT restore it on unhide, and reading that back
+  // here stops the stale "Featured" badge that otherwise lingered until a refresh.
+  const applyServerRow = (
+    id: string,
+    updated: { showOnWebsite?: unknown; featuredOnHome?: unknown; homeOrder?: unknown } | null
+  ) => {
+    if (!updated || typeof updated.featuredOnHome !== "boolean") return;
+    setItems((list) =>
+      list.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              showOnWebsite:
+                typeof updated.showOnWebsite === "boolean" ? updated.showOnWebsite : a.showOnWebsite,
+              featuredOnHome: updated.featuredOnHome as boolean,
+              homeOrder: typeof updated.homeOrder === "number" ? updated.homeOrder : a.homeOrder,
+            }
+          : a
+      )
+    );
+  };
+
   const setVisibility = async (id: string, showOnWebsite: boolean) => {
     const prev = items;
-    setItems((list) => list.map((a) => (a.id === id ? { ...a, showOnWebsite } : a)));
+    // Mirror the server rule locally and immediately: hiding an artist also drops
+    // it from the Featured set (a hidden artist can't be featured). Without this the
+    // row kept a stale "Featured" badge after hide, which then read as inconsistent
+    // against the Featured Artists order until a manual refresh.
+    setItems((list) =>
+      list.map((a) =>
+        a.id === id
+          ? { ...a, showOnWebsite, featuredOnHome: showOnWebsite ? a.featuredOnHome : false }
+          : a
+      )
+    );
     try {
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
@@ -200,6 +235,7 @@ export default function AdminArtistsClient({
         body: JSON.stringify({ showOnWebsite }),
       });
       if (!res.ok) throw new Error();
+      applyServerRow(id, await res.json().catch(() => null));
       clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
@@ -220,6 +256,7 @@ export default function AdminArtistsClient({
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
+      applyServerRow(id, await res.json().catch(() => null));
       clearCached(); // persisted change — keep cached views honest on revisit
     } catch (e) {
       setItems(prev);
