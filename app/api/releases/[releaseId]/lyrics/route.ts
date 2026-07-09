@@ -18,55 +18,60 @@ export async function GET(
   const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;
 
-  const { releaseId } = await params;
-  const format = new URL(request.url).searchParams.get("format") === "lrc" ? "lrc" : "txt";
+  try {
+    const { releaseId } = await params;
+    const format = new URL(request.url).searchParams.get("format") === "lrc" ? "lrc" : "txt";
 
-  const release = await prisma.release.findUnique({
-    where: { id: releaseId },
-    select: {
-      name: true,
-      tracks: {
-        orderBy: { sortOrder: "asc" },
-        select: { name: true, lyrics: true, syncedLyrics: true },
+    const release = await prisma.release.findUnique({
+      where: { id: releaseId },
+      select: {
+        name: true,
+        tracks: {
+          orderBy: { sortOrder: "asc" },
+          select: { name: true, lyrics: true, syncedLyrics: true },
+        },
       },
-    },
-  });
-  if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    });
+    if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
 
-  const base = slugify(release.name) || "release";
+    const base = slugify(release.name) || "release";
 
-  if (format === "txt") {
-    const txt = buildLyricsTxt(release.tracks);
-    if (!txt) return NextResponse.json({ error: "No lyrics" }, { status: 404 });
-    return new NextResponse(txt, {
+    if (format === "txt") {
+      const txt = buildLyricsTxt(release.tracks);
+      if (!txt) return NextResponse.json({ error: "No lyrics" }, { status: 404 });
+      return new NextResponse(txt, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${base}-lyrics.txt"`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    }
+
+    const entries = buildLrcEntries(release.tracks);
+    if (entries.length === 0) return NextResponse.json({ error: "No synced lyrics" }, { status: 404 });
+
+    const [only] = entries;
+    if (entries.length === 1 && only) {
+      return new NextResponse(only.data, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${only.name}"`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    }
+
+    const zip = storeZip(entries);
+    return new NextResponse(new Uint8Array(zip), {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${base}-lyrics.txt"`,
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${base}-lrc.zip"`,
         "Cache-Control": "private, no-store",
       },
     });
+  } catch (error) {
+    console.error("Error building release lyrics:", error);
+    return NextResponse.json({ error: "Failed to build lyrics" }, { status: 500 });
   }
-
-  const entries = buildLrcEntries(release.tracks);
-  if (entries.length === 0) return NextResponse.json({ error: "No synced lyrics" }, { status: 404 });
-
-  const [only] = entries;
-  if (entries.length === 1 && only) {
-    return new NextResponse(only.data, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${only.name}"`,
-        "Cache-Control": "private, no-store",
-      },
-    });
-  }
-
-  const zip = storeZip(entries);
-  return new NextResponse(new Uint8Array(zip), {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${base}-lrc.zip"`,
-      "Cache-Control": "private, no-store",
-    },
-  });
 }
