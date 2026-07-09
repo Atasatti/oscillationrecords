@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -113,6 +114,7 @@ export default function PitchesPage() {
       if (!res.ok) throw new Error();
       toast.success("Pitch deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       load();
     } catch {
       toast.error("Failed to delete pitch");
@@ -284,14 +286,14 @@ export default function PitchesPage() {
         </div>
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete pitch</DialogTitle>
             <DialogDescription>Delete this pitch record? This cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
             </Button>

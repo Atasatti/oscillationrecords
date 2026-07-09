@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
@@ -131,6 +132,7 @@ export default function ContactsPage() {
       if (!res.ok) throw new Error();
       toast.success("Contact deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       load();
     } catch {
       toast.error("Failed to delete contact");
@@ -289,7 +291,7 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete contact</DialogTitle>
@@ -298,7 +300,7 @@ export default function ContactsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
             </Button>
