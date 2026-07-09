@@ -7,7 +7,6 @@ import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
   Image as ImageIcon, ExternalLink, Search, List, LayoutGrid, FolderInput, X,
 } from "lucide-react";
-import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -505,10 +504,10 @@ export default function AssetsClient({
             {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
           </span>
         </td>
-        <td className="px-3 py-2 text-sm text-muted-foreground">{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="px-3 py-2 text-sm text-muted-foreground">{art ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
-        <td className="px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
+        <td className="truncate px-3 py-2 text-sm text-muted-foreground">{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="truncate px-3 py-2 text-sm text-muted-foreground">{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
+        <td className="whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
             <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
@@ -552,7 +551,7 @@ export default function AssetsClient({
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+      <div className="scroll-themed min-h-0 flex-1 space-y-0.5 overflow-y-auto">
         <button type="button" onClick={() => setActiveGroup(null)}
           className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${activeGroup === null ? "bg-white/10" : "hover:bg-white/5"}`}>
           <span className="flex-1 truncate">All assets</span>
@@ -589,7 +588,7 @@ export default function AssetsClient({
       ["By", a.uploader ?? (a.readOnly ? "Catalog" : "—")],
     ];
     return (
-      <aside className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
+      <aside className="scroll-themed hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
         <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
           className="grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30">
           {isImg ? (
@@ -633,18 +632,8 @@ export default function AssetsClient({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] flex-col">
-      <PageHeader
-        title="Asset library"
-        description="Every cover, master, stem, artist photo and press image across your catalog — plus anything you upload here. Catalog media is managed on its own record."
-        actions={
-          <Button onClick={openUpload} className="bg-white text-black hover:bg-gray-200">
-            <Upload className="h-4 w-4" /> Upload
-          </Button>
-        }
-      />
-
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+    <div className="flex h-[calc(100dvh-8rem)] flex-col md:-mx-4">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets…"
@@ -657,6 +646,9 @@ export default function AssetsClient({
           options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
         />
         <span className="flex-1" />
+        <Button onClick={openUpload} className="h-9 gap-1.5 bg-white text-black hover:bg-gray-200">
+          <Upload className="h-4 w-4" /> Upload
+        </Button>
         {activeReleaseGroup ? (
           <AssetActions items={buildDownloadItems(activeReleaseGroup, filter === "all" && activeReleaseGroup.entityId ? releaseLyrics[activeReleaseGroup.entityId] : undefined, ASSET_CATEGORY_LABELS)} />
         ) : null}
@@ -683,7 +675,7 @@ export default function AssetsClient({
               <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
           ) : null}
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="scroll-themed min-h-0 flex-1 overflow-y-auto">
             {rows.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
                 {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
@@ -693,21 +685,21 @@ export default function AssetsClient({
                 {rows.map(renderCard)}
               </div>
             ) : (
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-9 px-3 py-2">
+                    <th className="w-10 px-3 py-2">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
-                    {([["name", "Name"], ["type", "Type"], ["release", "Release"], ["artist", "Artist"], ["size", "Size"], ["date", "Added"]] as const).map(([col, label]) => (
-                      <th key={col} className={`px-3 py-2 font-medium ${col === "size" ? "text-right" : ""}`}>
+                    {([["name", "Name", ""], ["type", "Type", "w-28"], ["release", "Release", "w-44"], ["artist", "Artist", "w-36"], ["size", "Size", "w-20"], ["date", "Added", "w-28"]] as const).map(([col, label, w]) => (
+                      <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
-                    <th className="px-3 py-2" />
+                    <th className="w-16 px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>
