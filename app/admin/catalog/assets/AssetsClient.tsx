@@ -17,6 +17,8 @@ import Segmented from "@/components/admin/ui/Segmented";
 import {
   ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_ACCEPT, formatBytes, type AssetCategory,
 } from "@/lib/asset";
+import AssetActions from "@/components/admin/AssetActions";
+import { groupAssets, buildDownloadItems } from "@/lib/asset-grouping";
 
 export type Asset = {
   id: string;
@@ -83,11 +85,12 @@ function putWithProgress(url: string, file: File, onPct: (n: number) => void): P
 }
 
 export default function AssetsClient({
-  initial, releases, artists,
+  initial, releases, artists, releaseLyrics = {},
 }: {
   initial: Asset[];
   releases: Option[];
   artists: Option[];
+  releaseLyrics?: Record<string, { txt: boolean; lrc: boolean }>;
 }) {
   const toast = useToast();
   const { data: session } = useSession();
@@ -95,6 +98,7 @@ export default function AssetsClient({
   const [assets, setAssets] = useState<Asset[]>(initial);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"files" | "byRelease">("files");
 
   // Upload dialog
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -137,6 +141,13 @@ export default function AssetsClient({
     );
   }, [assets, filter, search]);
 
+  const releaseNames = useMemo(() => new Map(releases.map((r) => [r.id, r.name])), [releases]);
+  const artistNames = useMemo(() => new Map(artists.map((a) => [a.id, a.name])), [artists]);
+  const groups = useMemo(
+    () => groupAssets(visible, { releases: releaseNames, artists: artistNames }),
+    [visible, releaseNames, artistNames]
+  );
+
   const setRow = (i: number, patch: Partial<UploadRow>) =>
     setProg((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
@@ -161,6 +172,7 @@ export default function AssetsClient({
       // S3 objects + Asset rows.
       if (prog[i]?.status === "done") continue;
       const file = files[i];
+      if (!file) continue;
       setRow(i, { status: "uploading", pct: 0 });
       try {
         const pres = await fetch("/api/assets/presign", {
@@ -283,6 +295,21 @@ export default function AssetsClient({
         }
       />
 
+      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5">
+        {([["files", "Files"], ["byRelease", "By release"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setView(k)}
+            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+              view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Segmented
           ariaLabel="Filter assets by category"
@@ -298,7 +325,42 @@ export default function AssetsClient({
         />
       </div>
 
-      {visible.length === 0 ? (
+      {view === "byRelease" ? (
+        groups.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
+            {assets.length === 0 ? "No assets yet." : "No assets match."}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {groups.map((g) => {
+              const lyrics = g.kind === "release" && g.entityId && filter === "all"
+                ? releaseLyrics[g.entityId]
+                : undefined;
+              const items = buildDownloadItems(g, lyrics, ASSET_CATEGORY_LABELS);
+              const summary = [...new Map(
+                g.assets.reduce((m, a) => m.set(a.category, (m.get(a.category) ?? 0) + 1), new Map<string, number>())
+              )]
+                .map(([cat, n]) => `${ASSET_CATEGORY_LABELS[cat as AssetCategory] ?? cat}${n > 1 ? ` ×${n}` : ""}`)
+                .join(" · ");
+              return (
+                <div key={g.key} className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      {g.href ? (
+                        <Link href={g.href} className="truncate font-medium hover:underline">{g.name}</Link>
+                      ) : (
+                        <span className="truncate font-medium">{g.name}</span>
+                      )}
+                      <p className="truncate text-xs text-muted-foreground">{summary}</p>
+                    </div>
+                    <AssetActions items={items} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : visible.length === 0 ? (
         <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
           {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
         </div>
