@@ -633,7 +633,7 @@ export default function AssetsClient({
   };
 
   return (
-    <div>
+    <div className="flex h-[calc(100dvh-8rem)] flex-col">
       <PageHeader
         title="Asset library"
         description="Every cover, master, stem, artist photo and press image across your catalog — plus anything you upload here. Catalog media is managed on its own record."
@@ -670,7 +670,7 @@ export default function AssetsClient({
         </div>
       </div>
 
-      <div className="flex min-h-[60vh] overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         {renderRail()}
         <main className="flex min-w-0 flex-1 flex-col">
           {selected.size > 0 ? (
