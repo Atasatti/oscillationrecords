@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
-  Image as ImageIcon, ExternalLink, ChevronDown,
+  Image as ImageIcon, ExternalLink, Search, List, LayoutGrid, FolderInput, X,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,11 @@ import {
 import AssetActions from "@/components/admin/AssetActions";
 import { groupAssets, buildDownloadItems, type GroupMode } from "@/lib/asset-grouping";
 
-type GroupBy = GroupMode | "none";
-const GROUP_OPTIONS: { key: GroupBy; label: string }[] = [
-  { key: "none", label: "None" },
+const BROWSE_OPTIONS: { key: GroupMode; label: string }[] = [
   { key: "release", label: "Release" },
   { key: "artist", label: "Artist" },
-  { key: "month", label: "Month" },
   { key: "type", label: "Type" },
+  { key: "month", label: "Month" },
 ];
 
 export type Asset = {
@@ -108,8 +106,16 @@ export default function AssetsClient({
   const [assets, setAssets] = useState<Asset[]>(initial);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [groupBy, setGroupBy] = useState<GroupMode>("release");
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [view, setView] = useState<"table" | "grid">("table");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"name" | "type" | "release" | "artist" | "size" | "date">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignRelease, setReassignRelease] = useState("");
+  const [reassignArtist, setReassignArtist] = useState("");
 
   // Upload dialog
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -154,27 +160,100 @@ export default function AssetsClient({
 
   const releaseNames = useMemo(() => new Map(releases.map((r) => [r.id, r.name])), [releases]);
   const artistNames = useMemo(() => new Map(artists.map((a) => [a.id, a.name])), [artists]);
-  const groups = useMemo(
-    () =>
-      groupBy === "none"
-        ? []
-        : groupAssets(visible, groupBy, {
-            releaseNames,
-            artistNames,
-            releaseArtistId: new Map(Object.entries(releaseArtistId)),
-            categoryLabels: ASSET_CATEGORY_LABELS,
-          }),
-    [groupBy, visible, releaseNames, artistNames, releaseArtistId]
+  const groupCtx = useMemo(
+    () => ({
+      releaseNames,
+      artistNames,
+      releaseArtistId: new Map(Object.entries(releaseArtistId)),
+      categoryLabels: ASSET_CATEGORY_LABELS as Record<string, string>,
+    }),
+    [releaseNames, artistNames, releaseArtistId]
   );
-  const toggleGroup = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
-  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)));
+  const groups = useMemo(() => groupAssets(visible, groupBy, groupCtx), [visible, groupBy, groupCtx]);
+
+  // Centre-pane rows: the selected folder's assets (or everything), sorted.
+  const rows = useMemo(() => {
+    const grp = activeGroup ? groups.find((g) => g.key === activeGroup) : null;
+    const base = grp ? grp.assets : visible;
+    const relName = (a: Asset) => (a.releaseId ? nameOf.get(a.releaseId) : "") ?? "";
+    const artName = (a: Asset) => (a.artistId ? nameOf.get(a.artistId) : "") ?? "";
+    const cmp = (x: Asset, y: Asset) => {
+      let v = 0;
+      switch (sortBy) {
+        case "name": v = x.title.localeCompare(y.title); break;
+        case "type": v = x.category.localeCompare(y.category); break;
+        case "release": v = relName(x).localeCompare(relName(y)); break;
+        case "artist": v = artName(x).localeCompare(artName(y)); break;
+        case "size": v = x.size - y.size; break;
+        default: v = x.createdAt.localeCompare(y.createdAt);
+      }
+      return sortDir === "asc" ? v : -v;
+    };
+    return [...base].sort(cmp);
+  }, [activeGroup, groups, visible, sortBy, sortDir, nameOf]);
+
+  const activeAsset = useMemo(() => assets.find((a) => a.id === activeId) ?? null, [assets, activeId]);
+  // When a release folder is selected, offer a "download everything for this release" menu
+  // (its files + synthesized lyrics) — the consolidated-download feature, surfaced in context.
+  const activeReleaseGroup = useMemo(
+    () => (activeGroup ? groups.find((g) => g.key === activeGroup && g.kind === "release" && !!g.entityId) ?? null : null),
+    [activeGroup, groups]
+  );
+
+  const changeGroupBy = (mode: GroupMode) => { setGroupBy(mode); setActiveGroup(null); };
+  const sortByCol = (col: typeof sortBy) => {
+    if (sortBy === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortBy(col); setSortDir(col === "date" || col === "size" ? "desc" : "asc"); }
+  };
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const allRowsSelected = rows.length > 0 && rows.every((a) => selected.has(a.id));
+  const toggleSelectAll = () => setSelected(allRowsSelected ? new Set() : new Set(rows.map((a) => a.id)));
+  const selectedAssets = () => assets.filter((a) => selected.has(a.id));
+
+  const bulkDownload = () => {
+    for (const a of selectedAssets()) {
+      const el = document.createElement("a");
+      el.href = a.fileUrl; el.download = a.fileName; el.target = "_blank"; el.rel = "noopener noreferrer";
+      document.body.appendChild(el); el.click(); el.remove();
+    }
+  };
+  const bulkDelete = async () => {
+    const editable = selectedAssets().filter((a) => !a.readOnly);
+    if (editable.length === 0) { toast.error("Only uploaded files can be deleted — catalog media is managed on its record"); return; }
+    setWorking(true);
+    let ok = 0;
+    for (const a of editable) {
+      try { const r = await fetch(`/api/assets/${a.id}`, { method: "DELETE" }); if (r.ok) ok += 1; } catch { /* skip */ }
+    }
+    const ids = new Set(editable.map((a) => a.id));
+    setAssets((list) => list.filter((x) => !ids.has(x.id)));
+    setSelected(new Set());
+    setWorking(false);
+    toast.success(`Deleted ${ok} file${ok === 1 ? "" : "s"}`);
+  };
+  const applyReassign = async () => {
+    const editable = selectedAssets().filter((a) => !a.readOnly);
+    if (editable.length === 0) { toast.error("Only uploaded files can be reassigned"); setReassignOpen(false); return; }
+    const body: Record<string, unknown> = {};
+    if (reassignRelease) body.releaseId = reassignRelease === "__none__" ? null : reassignRelease;
+    if (reassignArtist) body.artistId = reassignArtist === "__none__" ? null : reassignArtist;
+    if (Object.keys(body).length === 0) { setReassignOpen(false); return; }
+    setWorking(true);
+    for (const a of editable) {
+      try {
+        const r = await fetch(`/api/assets/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.asset) setAssets((list) => list.map((x) => (x.id === a.id ? { ...x, ...j.asset } : x)));
+      } catch { /* skip */ }
+    }
+    setWorking(false);
+    setReassignOpen(false);
+    setSelected(new Set());
+    setReassignRelease("");
+    setReassignArtist("");
+    toast.success(`Reassigned ${editable.length} file${editable.length === 1 ? "" : "s"}`);
+  };
 
   const setRow = (i: number, patch: Partial<UploadRow>) =>
     setProg((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -389,6 +468,170 @@ export default function AssetsClient({
     );
   };
 
+  // One dense table row.
+  const renderRow = (a: Asset) => {
+    const isImg = /^image\//.test(a.mimeType);
+    const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
+    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const on = selected.has(a.id);
+    return (
+      <tr
+        key={a.id}
+        onClick={() => setActiveId(a.id)}
+        className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
+      >
+        <td className="w-9 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" checked={on} onChange={() => toggleSelect(a.id)} aria-label={`Select ${a.title}`}
+            className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+        </td>
+        <td className="py-2 pr-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
+              {isImg ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <AssetGlyph mime={a.mimeType} className="h-4 w-4 text-muted-foreground" />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{a.title}</span>
+              {a.fileName !== a.title ? <span className="block max-w-[22rem] truncate text-[11px] text-muted-foreground">{a.fileName}</span> : null}
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
+            {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
+          </span>
+        </td>
+        <td className="px-3 py-2 text-sm text-muted-foreground">{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="px-3 py-2 text-sm text-muted-foreground">{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
+        <td className="px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
+        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-end gap-0.5">
+            <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
+              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
+              <Download className="h-3.5 w-3.5" />
+            </a>
+            {a.readOnly ? (
+              a.parentHref ? (
+                <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
+                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              ) : null
+            ) : (
+              <>
+                <button type="button" onClick={() => openEdit(a)} title="Edit" aria-label="Edit"
+                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => setDeleteTarget(a)} title="Delete" aria-label="Delete"
+                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/30 hover:text-red-400">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Left browse rail: pick a dimension, then a folder narrows the centre pane.
+  const renderRail = () => (
+    <aside className="hidden w-56 shrink-0 flex-col gap-1 border-r border-border p-3 md:flex">
+      <div className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/70">Browse by</div>
+      <div className="mb-2 grid grid-cols-4 gap-0.5 rounded-lg border border-border bg-background/40 p-0.5">
+        {BROWSE_OPTIONS.map((o) => (
+          <button key={o.key} type="button" onClick={() => changeGroupBy(o.key)}
+            className={`rounded-md px-1 py-1 text-[11px] font-medium transition-colors ${groupBy === o.key ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+        <button type="button" onClick={() => setActiveGroup(null)}
+          className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${activeGroup === null ? "bg-white/10" : "hover:bg-white/5"}`}>
+          <span className="flex-1 truncate">All assets</span>
+          <span className="tabular-nums text-[11px] text-muted-foreground">{visible.length}</span>
+        </button>
+        {groups.map((g) => (
+          <button key={g.key} type="button" onClick={() => setActiveGroup(g.key)}
+            className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${activeGroup === g.key ? "bg-white/10 shadow-[inset_2px_0_0_#fff]" : "hover:bg-white/5"}`}>
+            <span className="flex-1 truncate">{g.name}</span>
+            <span className="tabular-nums text-[11px] text-muted-foreground">{g.assets.length}</span>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+
+  // Right preview / metadata panel for the focused row.
+  const renderPreview = () => {
+    const a = activeAsset;
+    if (!a) return (
+      <aside className="hidden w-72 shrink-0 border-l border-border p-5 text-sm text-muted-foreground xl:block">
+        Select a file to see its details, download it, or edit its metadata.
+      </aside>
+    );
+    const isImg = /^image\//.test(a.mimeType);
+    const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
+    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const meta: [string, string][] = [
+      ["Type", ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category],
+      ["Release", rel ?? "—"],
+      ["Artist", art ?? "—"],
+      ["Size", a.size ? formatBytes(a.size) : "—"],
+      ["Added", fmtDate(a.createdAt)],
+      ["By", a.uploader ?? (a.readOnly ? "Catalog" : "—")],
+    ];
+    return (
+      <aside className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
+        <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
+          className="grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30">
+          {isImg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
+          )}
+        </a>
+        <div className="min-w-0">
+          <p className="break-words text-sm font-semibold leading-tight">{a.title}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground" title={a.fileName}>{a.fileName}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-gray-200">
+            <Download className="h-3.5 w-3.5" /> Download
+          </a>
+          {a.readOnly ? (
+            a.parentHref ? (
+              <Link href={a.parentHref} className="inline-flex h-8 items-center justify-center rounded-md border border-border text-xs hover:bg-white/5">Manage on record</Link>
+            ) : <span />
+          ) : (
+            <>
+              <button type="button" onClick={() => openEdit(a)} className="inline-flex h-8 items-center justify-center rounded-md border border-border text-xs hover:bg-white/5">Edit details</button>
+              <button type="button" onClick={() => setDeleteTarget(a)} className="col-span-2 inline-flex h-8 items-center justify-center rounded-md border border-border text-xs text-red-400 hover:bg-red-950/20">Delete</button>
+            </>
+          )}
+        </div>
+        <div className="overflow-hidden rounded-lg border border-border text-xs">
+          {meta.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0">
+              <span className="text-muted-foreground">{k}</span>
+              <span className="truncate text-right">{v}</span>
+            </div>
+          ))}
+        </div>
+        {a.notes ? <div className="whitespace-pre-wrap break-words rounded-lg border border-border bg-background/40 px-3 py-2 text-xs text-muted-foreground">{a.notes}</div> : null}
+      </aside>
+    );
+  };
+
   return (
     <div>
       <PageHeader
@@ -402,95 +645,78 @@ export default function AssetsClient({
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label htmlFor="asset-group-by" className="text-sm text-muted-foreground">Group by</label>
-        <select
-          id="asset-group-by"
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-          className={inputCls}
-        >
-          {GROUP_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
-        {groupBy !== "none" && groups.length > 0 ? (
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {allCollapsed ? "Expand all" : "Collapse all"}
-          </button>
-        ) : null}
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets…"
+            className={`${inputCls} w-full pl-9`} />
+        </div>
         <Segmented
           ariaLabel="Filter assets by category"
           value={filter}
           onChange={setFilter}
           options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
         />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search assets…"
-          className={`${inputCls} w-full sm:w-64`}
-        />
+        <span className="flex-1" />
+        {activeReleaseGroup ? (
+          <AssetActions items={buildDownloadItems(activeReleaseGroup, filter === "all" && activeReleaseGroup.entityId ? releaseLyrics[activeReleaseGroup.entityId] : undefined, ASSET_CATEGORY_LABELS)} />
+        ) : null}
+        <div className="inline-flex overflow-hidden rounded-lg border border-border">
+          {(["table", "grid"] as const).map((v) => (
+            <button key={v} type="button" onClick={() => setView(v)} aria-label={v === "table" ? "List view" : "Grid view"}
+              className={`grid h-8 w-9 place-items-center transition-colors ${view === v ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {v === "table" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {groupBy === "none" ? (
-        visible.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-            {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
+      <div className="flex min-h-[60vh] overflow-hidden rounded-xl border border-border bg-card">
+        {renderRail()}
+        <main className="flex min-w-0 flex-1 flex-col">
+          {selected.size > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-white/[0.04] px-4 py-2.5 text-sm">
+              <span className="font-semibold tabular-nums">{selected.size} selected</span>
+              <button type="button" onClick={bulkDownload} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-white/5"><Download className="h-3.5 w-3.5" /> Download</button>
+              <button type="button" onClick={() => setReassignOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-white/5"><FolderInput className="h-3.5 w-3.5" /> Reassign</button>
+              <span className="flex-1" />
+              <button type="button" onClick={bulkDelete} disabled={working} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-red-400 hover:bg-red-950/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+              <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-auto">
+            {rows.length === 0 ? (
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
+              </div>
+            ) : view === "grid" ? (
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rows.map(renderCard)}
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 z-[1] bg-card">
+                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="w-9 px-3 py-2">
+                      <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
+                        className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+                    </th>
+                    {([["name", "Name"], ["type", "Type"], ["release", "Release"], ["artist", "Artist"], ["size", "Size"], ["date", "Added"]] as const).map(([col, label]) => (
+                      <th key={col} className={`px-3 py-2 font-medium ${col === "size" ? "text-right" : ""}`}>
+                        <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
+                          {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
+                        </button>
+                      </th>
+                    ))}
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>{rows.map(renderRow)}</tbody>
+              </table>
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {visible.map(renderCard)}
-          </div>
-        )
-      ) : groups.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-          {assets.length === 0 ? "No assets yet." : "No assets match."}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {groups.map((g) => {
-            const isCollapsed = collapsed.has(g.key);
-            const lyrics =
-              g.kind === "release" && g.entityId && filter === "all" ? releaseLyrics[g.entityId] : undefined;
-            const showDownload = g.kind === "release" && !!g.entityId;
-            const items = showDownload ? buildDownloadItems(g, lyrics, ASSET_CATEGORY_LABELS) : [];
-            return (
-              <section key={g.key} className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(g.key)}
-                    aria-expanded={!isCollapsed}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  >
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                    <span className="truncate font-medium">{g.name}</span>
-                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">{g.assets.length}</span>
-                  </button>
-                  {g.href ? (
-                    <Link href={g.href} title="Open record" aria-label="Open record" className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Link>
-                  ) : null}
-                  {showDownload ? <AssetActions items={items} /> : null}
-                </div>
-                {!isCollapsed ? (
-                  <div className="grid grid-cols-1 gap-3 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {g.assets.map(renderCard)}
-                  </div>
-                ) : null}
-              </section>
-            );
-          })}
-        </div>
-      )}
+        </main>
+        {renderPreview()}
+      </div>
 
       {/* Upload dialog */}
       <Dialog open={uploadOpen} onOpenChange={(o) => { if (!uploading) setUploadOpen(o); }}>
@@ -620,6 +846,38 @@ export default function AssetsClient({
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk reassign */}
+      <Dialog open={reassignOpen} onOpenChange={(o) => { if (!working) setReassignOpen(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Reassign {selected.size} file{selected.size === 1 ? "" : "s"}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Move the selected uploads to a release and/or artist. Leave a field on “Keep” to not change it — read-only catalog media in the selection is skipped.</p>
+          <div className="mt-2 grid gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Release</label>
+              <select value={reassignRelease} onChange={(e) => setReassignRelease(e.target.value)} className={inputCls}>
+                <option value="">— Keep —</option>
+                <option value="__none__">— Clear (no release) —</option>
+                {releases.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Artist</label>
+              <select value={reassignArtist} onChange={(e) => setReassignArtist(e.target.value)} className={inputCls}>
+                <option value="">— Keep —</option>
+                <option value="__none__">— Clear (no artist) —</option>
+                {artists.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReassignOpen(false)} disabled={working}>Cancel</Button>
+            <Button onClick={applyReassign} disabled={working || (!reassignRelease && !reassignArtist)} className="bg-white text-black hover:bg-gray-200">
+              {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Apply
             </Button>
           </DialogFooter>
         </DialogContent>
