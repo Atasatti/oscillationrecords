@@ -401,12 +401,13 @@ export default function ReleaseEditor({
         }
         const created = await res.json();
         setDirty(false);
-        // A new release is always created as a DRAFT — both "Next" and "Save as
-        // draft" persist status DRAFT — then continues to the tracklist. Publishing
-        // to the chosen target (Released/Scheduled) happens later from the edit flow,
-        // with full validation, so "Next" can never make a release live/scheduled
-        // prematurely. Only the Cancel-dialog draft save (which passes redirectTo to
-        // leave for the list) shows the "Draft saved" message.
+        // A new release is always created as a DRAFT — "Next", "Save as draft" and
+        // the Cancel-dialog draft save all persist status DRAFT. Where they go next
+        // is the difference, driven by redirectTo: "Next" (no redirectTo) continues
+        // to the tracklist, while "Save as draft" / the Cancel dialog pass a
+        // redirectTo to leave for the list and show the "Draft saved" message.
+        // Publishing to the chosen target (Released/Scheduled) happens later from the
+        // edit flow with full validation, so create can never go live prematurely.
         toast.success(
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
@@ -753,10 +754,24 @@ export default function ReleaseEditor({
           <Button
             type="button"
             variant="outline"
-            onClick={() => handleSave({ status: "DRAFT" })}
+            // On create this must NOT behave like "Next": "Next" saves the draft and
+            // continues to the tracklist, whereas "Save as draft" persists the draft
+            // and returns to the releases list ("save for later"). Passing redirectTo
+            // is what distinguishes them (see handleSave). In edit mode it saves the
+            // draft in place and stays.
+            onClick={() =>
+              handleSave({
+                status: "DRAFT",
+                redirectTo: isCreate ? "/admin/catalog/releases" : undefined,
+              })
+            }
             disabled={saving || uploadingImage || artists.length === 0}
             className="border-white/10 text-gray-300"
-            title="Keep this release hidden as a draft (no validation on incomplete fields)"
+            title={
+              isCreate
+                ? "Save this release as a draft and return to the list — you can finish it later"
+                : "Keep this release hidden as a draft (no validation on incomplete fields)"
+            }
           >
             Save as draft
           </Button>
