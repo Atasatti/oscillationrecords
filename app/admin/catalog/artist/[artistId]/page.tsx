@@ -27,6 +27,7 @@ import {
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
 import { useToast } from "@/components/local-ui/Toast";
+import { unlockBody } from "@/lib/unlock-body";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 
 interface Artist {
@@ -136,6 +137,7 @@ export default function AdminArtistDetail() {
       if (res.ok) {
         setDeleteOpen(false);
         setToDelete(null);
+        unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
         setReleases((prev) => prev.filter((r) => r.id !== toDelete.id));
       } else {
         const err = await res.json();
@@ -297,7 +299,7 @@ export default function AdminArtistDetail() {
         <LinkedPitchesPanel artistId={artistId} />
         <LinkedPressPanel artistId={artistId} />
 
-        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <Dialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) unlockBody(); }}>
           <DialogContent className="bg-[#0F0F0F] border-gray-800 text-white">
             <DialogHeader>
               <DialogTitle>Delete release</DialogTitle>
@@ -306,7 +308,7 @@ export default function AdminArtistDetail() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" className="border-gray-700" onClick={() => setDeleteOpen(false)}>
+              <Button variant="outline" className="border-gray-700" onClick={() => { setDeleteOpen(false); unlockBody(); }}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={confirmDelete}>
