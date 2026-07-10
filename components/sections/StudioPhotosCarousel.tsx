@@ -61,6 +61,12 @@ const StudioPhotosCarousel = ({ photos }: StudioPhotosCarouselProps) => {
           {loop.map((url, i) => (
             <div
               key={`${url}-${i}`}
+              // The track renders the photos twice for a seamless loop; the second
+              // (duplicate) set is purely visual, so hide it from assistive tech.
+              // `|| undefined` omits the attribute on the originals instead of
+              // emitting aria-hidden="false", which would conflict with the img's
+              // presentational role (empty alt).
+              aria-hidden={i >= photos.length || undefined}
               className="relative mr-4 sm:mr-6 h-52 w-72 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 sm:h-64 sm:w-96 md:h-80 md:w-[30rem]"
             >
               <Image
@@ -70,7 +76,6 @@ const StudioPhotosCarousel = ({ photos }: StudioPhotosCarouselProps) => {
                 sizes="(max-width: 640px) 18rem, (max-width: 768px) 24rem, 30rem"
                 className="object-cover"
                 unoptimized={url.startsWith("/")}
-                aria-hidden={i >= photos.length}
               />
             </div>
           ))}

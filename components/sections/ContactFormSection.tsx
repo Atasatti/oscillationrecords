@@ -337,7 +337,6 @@ const ContactFormSection = () => {
         }
         onClick={submit}
         disabled={submitting}
-        aria-label="Send your message"
         className="w-fit mt-10"
       />
     </div>

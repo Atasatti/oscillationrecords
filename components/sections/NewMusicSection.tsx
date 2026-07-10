@@ -232,6 +232,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
                   ) : null}
                   <ReleaseCardSm
                     href={`/releases/${slugify(release.name)}`}
+                    titleAs={isReleasesListingPage ? "h2" : "h3"}
                     release={{
                       id: release.id,
                       name: release.name,

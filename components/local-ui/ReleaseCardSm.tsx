@@ -34,14 +34,19 @@ export interface ReleaseCardSmRelease {
   isrcExplicit?: boolean;
 }
 
-const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string }> = ({
+const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string; titleAs?: "h2" | "h3" }> = ({
   release,
   href,
+  titleAs = "h3",
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   // Skip the JS-driven tilt/shimmer/scale for reduced-motion users.
   const reduced = useReducedMotion();
+  // Card-title heading level: h3 by default (nested under an h2 section), but h2
+  // on /releases where the page heading is an h1 — so the document never skips a
+  // level (WCAG 1.3.1 / heading-order).
+  const TitleTag = titleAs;
 
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
@@ -118,7 +123,7 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string }> 
         {/* Release info */}
         <div className="absolute inset-0 p-4 flex flex-col justify-end z-10">
           <div className="text-white">
-            <h3 className="text-lg font-medium mb-1 mt-1 flex items-center gap-2 flex-wrap">
+            <TitleTag className="text-lg font-medium mb-1 mt-1 flex items-center gap-2 flex-wrap">
               {href ? (
                 // Real link = keyboard-focusable, screen-reader-announced and
                 // crawlable navigation, without nesting interactive elements
@@ -135,7 +140,7 @@ const ReleaseCardSm: React.FC<{ release: ReleaseCardSmRelease; href?: string }> 
                 <span className="line-clamp-2 min-w-0 flex-1">{release.name}</span>
               )}
               {release.isrcExplicit ? <ExplicitBadge size="sm" /> : null}
-            </h3>
+            </TitleTag>
             {release.primaryArtistName ? (
               <>
                 <p className="text-xs text-white/90 line-clamp-2">{release.primaryArtistName}</p>
