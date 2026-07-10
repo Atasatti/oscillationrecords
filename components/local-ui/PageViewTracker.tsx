@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { readConsentClient, CONSENT_GRANTED_EVENT } from "@/lib/consent";
+import { readConsentClient, CONSENT_CHANGED_EVENT } from "@/lib/consent";
 
 /**
  * Fires a consented page-view beacon on each public route change (and first load),
@@ -32,9 +32,10 @@ export default function PageViewTracker() {
     };
 
     send();
-    // When the visitor accepts cookies, count the page they're on right now.
-    window.addEventListener(CONSENT_GRANTED_EVENT, send);
-    return () => window.removeEventListener(CONSENT_GRANTED_EVENT, send);
+    // Re-run on any consent change. On grant it counts the current page; on
+    // withdrawal `send()` re-reads consent and returns early (no beacon).
+    window.addEventListener(CONSENT_CHANGED_EVENT, send);
+    return () => window.removeEventListener(CONSENT_CHANGED_EVENT, send);
   }, [pathname]);
 
   return null;

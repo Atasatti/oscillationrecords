@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { readConsentClient, OPEN_CONSENT_EVENT, CONSENT_GRANTED_EVENT } from "@/lib/consent";
+import { readConsentClient, OPEN_CONSENT_EVENT, CONSENT_CHANGED_EVENT } from "@/lib/consent";
 
 /**
  * Opt-in cookie consent banner (UK GDPR / PECR). Shows until the visitor makes a
@@ -38,12 +38,20 @@ export default function CookieConsent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analytics }),
       });
-      // Let trackers start immediately (e.g. record the page they accepted on),
-      // rather than waiting for the next navigation.
-      if (analytics) window.dispatchEvent(new Event(CONSENT_GRANTED_EVENT));
+      // Fire on BOTH accept and reject so consent-gated trackers (GA, Clarity)
+      // re-check consent live — starting on grant, and STOPPING the instant it's
+      // withdrawn — instead of continuing to track until the next page load. The
+      // cookie is already updated (the awaited response's Set-Cookie), so each
+      // tracker's re-read reflects the new choice.
+      window.dispatchEvent(new Event(CONSENT_CHANGED_EVENT));
     } catch {
       /* even on failure, hide — a missing consent cookie just re-prompts later */
     } finally {
+      // Reset BOTH flags: leaving `saving` true would keep the buttons disabled,
+      // so reopening the banner later (footer "Cookies" / "Manage cookie
+      // preferences") would show a bar whose buttons can't be clicked — the
+      // visitor could neither change their choice nor dismiss it without a reload.
+      setSaving(false);
       setShow(false);
     }
   };
