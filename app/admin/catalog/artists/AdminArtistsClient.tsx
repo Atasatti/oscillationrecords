@@ -505,7 +505,7 @@ export default function AdminArtistsClient({
               <TableHead className="hidden lg:table-cell text-right">
                 <span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Plays 90d</span>
               </TableHead>
-              <TableHead className="hidden xl:table-cell">
+              <TableHead className="hidden min-[1600px]:table-cell">
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
               <TableHead className="hidden sm:table-cell">
@@ -542,7 +542,7 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="ml-auto h-4 w-8" /></TableCell>
                   <TableCell className="hidden lg:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
-                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden min-[1600px]:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
@@ -586,11 +586,14 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell">
                     {a.genres.length ? (
                       <div className="flex items-center gap-1">
-                        {a.genres.slice(0, 2).map((g) => (
-                          <Badge key={g} variant="muted">{g}</Badge>
-                        ))}
-                        {a.genres.length > 2 ? (
-                          <Badge variant="muted">+{a.genres.length - 2}</Badge>
+                        {/* Only the first genre inline (keeps the column narrow on
+                            laptop widths); the rest collapse into a +N badge whose
+                            hover title lists them, so nothing is lost. */}
+                        <Badge variant="muted" className="max-w-[9rem] truncate">{a.genres[0]}</Badge>
+                        {a.genres.length > 1 ? (
+                          <span title={a.genres.slice(1).join(", ")}>
+                            <Badge variant="muted" className="cursor-default">+{a.genres.length - 1}</Badge>
+                          </span>
                         ) : null}
                       </div>
                     ) : (
@@ -603,7 +606,7 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
                     {a.playsLast90d.toLocaleString()}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden min-[1600px]:table-cell text-sm text-muted-foreground">
                     {a.lastReleaseDate
                       ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
                           year: "numeric",
