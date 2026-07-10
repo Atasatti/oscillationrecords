@@ -97,7 +97,13 @@ export async function POST(request: NextRequest) {
       const url = typeof item?.url === "string" ? item.url : "";
       let key = "";
       try {
-        key = new URL(url).pathname.replace(/^\/+/, "");
+        // Decode the path back into the real object key. publicFileUrl() builds the
+        // URL by raw interpolation, so spaces/unicode common in audio filenames sit
+        // un-escaped; new URL() then percent-encodes them in .pathname. Without the
+        // decode, "contact/…/My Song.mp3" is HEAD-checked as "…/My%20Song.mp3",
+        // which 404s and wrongly trips "Couldn't verify an attachment" for a valid
+        // upload. Mirrors app/api/benert-remix/upload-complete/route.ts.
+        key = decodeURIComponent(new URL(url).pathname.replace(/^\/+/, ""));
       } catch {
         key = "";
       }
