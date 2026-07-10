@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import NavbarSearch from "./NavbarSearch";
 import { LogOut, User, Menu, X, Settings, Shield } from "lucide-react";
 import {
@@ -59,6 +59,19 @@ const Navbar = () => {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen((v) => !v);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  // Mobile-drawer focus management (a11y): focus the drawer when it opens, and
+  // return focus to the hamburger when it's dismissed via close/backdrop/Escape.
+  // (Link taps navigate away, so they keep using plain closeMobileMenu.)
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
+  const dismissMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+    requestAnimationFrame(() => hamburgerRef.current?.focus());
+  };
+  useEffect(() => {
+    if (isMobileMenuOpen) requestAnimationFrame(() => drawerCloseRef.current?.focus());
+  }, [isMobileMenuOpen]);
 
   return (
     <>
@@ -205,6 +218,7 @@ const Navbar = () => {
 
             {/* Hamburger — mobile */}
             <button
+              ref={hamburgerRef}
               onClick={toggleMobileMenu}
               className="2xl:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Toggle menu"
@@ -217,11 +231,18 @@ const Navbar = () => {
 
       {/* Mobile Side Menu — CSS transitions kept as-is */}
       <div
+        role="dialog"
+        aria-label="Site menu"
+        // Closed, the drawer is only translated off-screen (kept mounted for the
+        // slide transition), so `inert` removes its controls from the tab order +
+        // a11y tree — otherwise keyboard users tab into hidden off-screen content.
+        inert={!isMobileMenuOpen || undefined}
+        onKeyDown={(e) => { if (e.key === "Escape") dismissMobileMenu(); }}
         className={`fixed inset-0 z-50 2xl:hidden transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
+        <div className="absolute inset-0 bg-black/50" onClick={dismissMobileMenu} />
 
         <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-background shadow-xl overflow-y-auto">
           <div className="flex items-center justify-between p-4 border-b">
@@ -230,7 +251,8 @@ const Navbar = () => {
               <Image width={80} height={24} alt="logo-name" src="/logo-name.svg" />
             </div>
             <button
-              onClick={closeMobileMenu}
+              ref={drawerCloseRef}
+              onClick={dismissMobileMenu}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Close menu"
             >

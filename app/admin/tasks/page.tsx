@@ -639,28 +639,34 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
       <div className="flex items-end gap-2">
         <div className="relative flex-1">
           {mentionOpen && mentionMatches.length > 0 ? (
-            <ul className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-2xl shadow-black/50">
+            <ul id="mention-listbox" role="listbox" aria-label="Teammates" className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-2xl shadow-black/50">
               {mentionMatches.map((a, i) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    // mousedown + preventDefault (not click) keeps the textarea
-                    // focused, so its caret is still valid when we insert.
-                    onMouseDown={(e) => { e.preventDefault(); insertMention(a); }}
-                    onMouseMove={() => setMentionIndex(i)}
-                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
-                      i === mentionIndex ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/[0.04]"
-                    }`}
-                  >
-                    <AssigneeAvatar user={a} size={20} />
-                    <span className="min-w-0 flex-1 truncate">{displayName(a)}</span>
-                  </button>
+                <li
+                  key={a.id}
+                  id={`mention-opt-${i}`}
+                  role="option"
+                  aria-selected={i === mentionIndex}
+                  // mousedown + preventDefault (not click) keeps the textarea
+                  // focused, so its caret is still valid when we insert.
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(a); }}
+                  onMouseMove={() => setMentionIndex(i)}
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                    i === mentionIndex ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <AssigneeAvatar user={a} size={20} />
+                  <span className="min-w-0 flex-1 truncate">{displayName(a)}</span>
                 </li>
               ))}
             </ul>
           ) : null}
           <textarea
             ref={taRef}
+            role="combobox"
+            aria-expanded={mentionOpen && mentionMatches.length > 0}
+            aria-controls="mention-listbox"
+            aria-activedescendant={mentionOpen && mentionMatches[mentionIndex] ? `mention-opt-${mentionIndex}` : undefined}
+            aria-autocomplete="list"
             value={text}
             onChange={(e) => { setText(e.target.value); syncMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
             onKeyDown={(e) => {
