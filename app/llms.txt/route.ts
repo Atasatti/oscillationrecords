@@ -15,14 +15,14 @@ export const runtime = "nodejs";
 const yearOf = (d: Date | null) => (d ? new Date(d).getUTCFullYear() : null);
 
 export async function GET() {
-  let artists: { name: string }[] = [];
+  let artists: { name: string; genres: string[]; city: string | null }[] = [];
   let releases: { name: string; releaseDate: Date | null }[] = [];
   try {
     [artists, releases] = await Promise.all([
       prisma.artist.findMany({
         where: { showOnWebsite: true, draft: false },
         orderBy: { name: "asc" },
-        select: { name: true },
+        select: { name: true, genres: true, city: true },
       }),
       prisma.release.findMany({
         where: publicReleaseWhere(),
@@ -90,7 +90,10 @@ export async function GET() {
   if (artists.length) {
     L.push("## Artists");
     for (const a of artists) {
-      L.push(`- [${a.name.trim()}](${SITE_URL}/artists/${slugify(a.name)})`);
+      // A one-line fact per artist (genre · city) so an AI reading llms.txt can
+      // answer "what genre is X / where are they from" without fetching the page.
+      const facts = [a.genres?.slice(0, 3).join(", "), a.city].filter(Boolean).join(" · ");
+      L.push(`- [${a.name.trim()}](${SITE_URL}/artists/${slugify(a.name)})${facts ? ` — ${facts}` : ""}`);
     }
     L.push("");
   }

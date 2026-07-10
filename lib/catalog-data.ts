@@ -266,6 +266,7 @@ export async function getPublicReleases(): Promise<ReleaseCardDTO[]> {
 export interface ArtistDetailDTO {
   id: string;
   name: string;
+  updatedAt: string; // ISO — drives schema.org dateModified (freshness signal)
   biography: string;
   profilePicture: string | null;
   genres: string[];
@@ -340,6 +341,7 @@ export const getArtistDetail = cache(async (
       artist: {
         id: artist.id,
         name: artist.name,
+        updatedAt: artist.updatedAt.toISOString(),
         biography: artist.biography,
         profilePicture: artist.profilePicture ?? null,
         genres: artist.genres ?? [],
@@ -623,6 +625,7 @@ export type ReleaseDetailTrackDTO = ReturnType<typeof serializeTrackForPublic>;
 export interface ReleaseDetailDTO {
   id: string;
   name: string;
+  updatedAt: string; // ISO — drives schema.org dateModified (freshness signal)
   status: "DRAFT" | "SCHEDULED" | "RELEASED";
   preSaveUrl: string | null;
   coverImage: string;
@@ -645,7 +648,7 @@ export interface ReleaseDetailDTO {
   amazonMusicLink: string | null;
   youtubeLink: string | null;
   soundcloudLink: string | null;
-  artists: { id: string; name: string; profilePicture: string | null }[];
+  artists: { id: string; name: string; profilePicture: string | null; isPublic: boolean }[];
   tracks: ReleaseDetailTrackDTO[];
   songs: ReleaseDetailTrackDTO[];
 }
@@ -683,16 +686,27 @@ export const getReleaseDetail = cache(
         t.primaryArtistIds.forEach((id) => allArtistIds.push(id));
         t.featureArtistIds.forEach((id) => allArtistIds.push(id));
       });
-      const artists = await prisma.artist.findMany({
-        where: { id: { in: [...new Set(allArtistIds.map(String))] } },
-        select: { id: true, name: true, profilePicture: true },
-      });
+      const artists = (
+        await prisma.artist.findMany({
+          where: { id: { in: [...new Set(allArtistIds.map(String))] } },
+          select: { id: true, name: true, profilePicture: true, showOnWebsite: true, draft: true },
+        })
+      ).map((a) => ({
+        id: a.id,
+        name: a.name,
+        profilePicture: a.profilePicture,
+        // Only artists with a live public page are safe to link to — the artist
+        // route 404s hidden/draft artists, so the release page renders those names
+        // as plain text instead.
+        isPublic: a.showOnWebsite && !a.draft,
+      }));
 
       const tracks = hideTracks ? [] : release.tracks.map(serializeTrackForPublic);
 
       return {
         id: release.id,
         name: release.name,
+        updatedAt: release.updatedAt.toISOString(),
         status: release.status,
         preSaveUrl: release.preSaveUrl ?? null,
         coverImage: release.coverImage ?? "",
@@ -1020,6 +1034,7 @@ export const getPressDetail = cache(
       }
       if (!row || !row.body) return null;
       const [mapped] = await mapPressItems([row], { isAdmin: false });
+      if (!mapped) return null;
       return { ...mapped, body: row.body };
     } catch (e) {
       console.error("getPressDetail: DB unavailable", e);

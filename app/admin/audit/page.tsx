@@ -77,10 +77,11 @@ export default function AuditPage() {
   useEffect(() => { load(); }, [load]);
 
   const loadOlder = async () => {
-    if (!items.length) return;
+    const last = items[items.length - 1];
+    if (!last) return;
     setLoadingMore(true);
     try {
-      const qs = new URLSearchParams({ limit: String(PAGE), before: items[items.length - 1].at });
+      const qs = new URLSearchParams({ limit: String(PAGE), before: last.at });
       if (resource) qs.set("resource", resource);
       const res = await fetch(`/api/admin/audit?${qs.toString()}`);
       if (!res.ok) throw new Error();

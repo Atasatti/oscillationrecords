@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import NavbarSearch from "./NavbarSearch";
 import { LogOut, User, Menu, X, Settings, Shield } from "lucide-react";
 import {
@@ -59,6 +59,19 @@ const Navbar = () => {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen((v) => !v);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  // Mobile-drawer focus management (a11y): focus the drawer when it opens, and
+  // return focus to the hamburger when it's dismissed via close/backdrop/Escape.
+  // (Link taps navigate away, so they keep using plain closeMobileMenu.)
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
+  const dismissMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+    requestAnimationFrame(() => hamburgerRef.current?.focus());
+  };
+  useEffect(() => {
+    if (isMobileMenuOpen) requestAnimationFrame(() => drawerCloseRef.current?.focus());
+  }, [isMobileMenuOpen]);
 
   return (
     <>
@@ -138,98 +151,74 @@ const Navbar = () => {
               <NavbarSearch className="w-full" />
             </div>
 
-            {/* Auth — Desktop */}
-            <div className="hidden 2xl:flex items-center">
-              {isLoading ? (
-                <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
-              ) : isAuthenticated && session?.user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button aria-label="Account menu" className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-                      {session.user.image ? (
-                        <Image
-                          src={session.user.image}
-                          alt="User Avatar"
-                          width={36}
-                          height={36}
-                          className="rounded-full cursor-pointer w-9 h-9 shrink-0 object-cover"
-                          referrerPolicy="no-referrer"
-                          crossOrigin="anonymous"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white">
-                          <User size={18} />
-                        </div>
-                      )}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <div className="px-2 py-1.5">
-                      <p className="text-sm font-medium">{session.user.name || "User"}</p>
-                      <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
-                    </div>
-                    <DropdownMenuSeparator />
+            {/* Account — one control at every breakpoint, separate from the
+                hamburger. Signed-in users get an avatar dropdown (account links +
+                sign out); signed-out users get Sign In / Sign Up on desktop, or use
+                the hamburger menu on mobile. */}
+            {isLoading ? (
+              <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gray-200 animate-pulse" />
+            ) : isAuthenticated && session?.user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button aria-label="Account menu" className="shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                    {session.user.image ? (
+                      <Image
+                        src={session.user.image}
+                        alt="User Avatar"
+                        width={36}
+                        height={36}
+                        className="rounded-full cursor-pointer w-8 h-8 md:w-9 md:h-9 shrink-0 object-cover"
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-primary flex items-center justify-center text-white">
+                        <User size={18} />
+                      </div>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">{session.user.name || "User"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/account">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Account settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {session.user.isAdmin ? (
                     <DropdownMenuItem asChild className="cursor-pointer">
-                      <Link href="/account">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Account settings</span>
+                      <Link href="/admin">
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Admin</span>
                       </Link>
                     </DropdownMenuItem>
-                    {session.user.isAdmin ? (
-                      <DropdownMenuItem asChild className="cursor-pointer">
-                        <Link href="/admin">
-                          <Shield className="mr-2 h-4 w-4" />
-                          <span>Admin</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <div className="flex gap-2">
-                  <Link href="/login">
-                    <Button variant="ghost" size="sm" className="text-xs lg:text-sm">Sign In</Button>
-                  </Link>
-                  <Link href="/signup">
-                    <Button size="sm" className="text-xs lg:text-sm">Sign Up</Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Auth avatar — mobile/tablet. The desktop dropdown above is 2xl-only,
-                so without this a signed-in user has no account indicator next to the
-                hamburger. Tapping it opens the menu (account + sign out live there). */}
-            {isAuthenticated && session?.user ? (
-              <button
-                onClick={toggleMobileMenu}
-                className="2xl:hidden shrink-0 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                aria-label="Open account menu"
-              >
-                {session.user.image ? (
-                  <Image
-                    src={session.user.image}
-                    alt="User Avatar"
-                    width={32}
-                    height={32}
-                    className="rounded-full w-8 h-8 shrink-0 object-cover"
-                    referrerPolicy="no-referrer"
-                    crossOrigin="anonymous"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
-                    <User size={16} />
-                  </div>
-                )}
-              </button>
-            ) : null}
+                  ) : null}
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              /* Signed-out: desktop shows buttons; mobile signs in via the hamburger. */
+              <div className="hidden 2xl:flex gap-2">
+                <Link href="/login">
+                  <Button variant="ghost" size="sm" className="text-xs lg:text-sm">Sign In</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button size="sm" className="text-xs lg:text-sm">Sign Up</Button>
+                </Link>
+              </div>
+            )}
 
             {/* Hamburger — mobile */}
             <button
+              ref={hamburgerRef}
               onClick={toggleMobileMenu}
               className="2xl:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Toggle menu"
@@ -242,11 +231,18 @@ const Navbar = () => {
 
       {/* Mobile Side Menu — CSS transitions kept as-is */}
       <div
+        role="dialog"
+        aria-label="Site menu"
+        // Closed, the drawer is only translated off-screen (kept mounted for the
+        // slide transition), so `inert` removes its controls from the tab order +
+        // a11y tree — otherwise keyboard users tab into hidden off-screen content.
+        inert={!isMobileMenuOpen || undefined}
+        onKeyDown={(e) => { if (e.key === "Escape") dismissMobileMenu(); }}
         className={`fixed inset-0 z-50 2xl:hidden transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="absolute inset-0 bg-black/50" onClick={closeMobileMenu} />
+        <div className="absolute inset-0 bg-black/50" onClick={dismissMobileMenu} />
 
         <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-background shadow-xl overflow-y-auto">
           <div className="flex items-center justify-between p-4 border-b">
@@ -255,7 +251,8 @@ const Navbar = () => {
               <Image width={80} height={24} alt="logo-name" src="/logo-name.svg" />
             </div>
             <button
-              onClick={closeMobileMenu}
+              ref={drawerCloseRef}
+              onClick={dismissMobileMenu}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Close menu"
             >
@@ -280,59 +277,11 @@ const Navbar = () => {
             ))}
           </nav>
 
-          <div className="p-4 border-t mt-auto">
-            {isLoading ? (
-              <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mx-auto" />
-            ) : isAuthenticated && session?.user ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-4">
-                  {session.user.image ? (
-                    <Image
-                      src={session.user.image}
-                      alt="User Avatar"
-                      width={40}
-                      height={40}
-                      className="rounded-full w-10 h-10 shrink-0 object-cover"
-                      referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white">
-                      <User size={20} />
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{session.user.name || "User"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{session.user.email || ""}</p>
-                  </div>
-                </div>
-                <Link
-                  href="/account"
-                  onClick={closeMobileMenu}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Account settings</span>
-                </Link>
-                {session.user.isAdmin ? (
-                  <Link
-                    href="/admin"
-                    onClick={closeMobileMenu}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-muted-foreground hover:text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <Shield className="h-4 w-4" />
-                    <span>Admin</span>
-                  </Link>
-                ) : null}
-                <button
-                  onClick={() => { handleSignOut(); closeMobileMenu(); }}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-destructive hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign out</span>
-                </button>
-              </div>
-            ) : (
+          {/* Navigation-only menu: signed-in users manage their account from the
+              avatar dropdown in the header, so no account block lives here. Signed-out
+              users still get Sign In / Sign Up (they have no avatar to open). */}
+          {!isLoading && !isAuthenticated ? (
+            <div className="p-4 border-t">
               <div className="flex flex-col gap-2">
                 <Link href="/login" onClick={closeMobileMenu}>
                   <Button variant="ghost" size="sm" className="w-full text-sm">Sign In</Button>
@@ -341,8 +290,8 @@ const Navbar = () => {
                   <Button size="sm" className="w-full text-sm">Sign Up</Button>
                 </Link>
               </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </>

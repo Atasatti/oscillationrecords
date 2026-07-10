@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Search, CornerDownLeft, ArrowUp, ArrowDown, Disc3, UserRound } from "lucide-react";
 import { adminGroups } from "./AdminSidebar";
@@ -42,6 +42,7 @@ type SearchData = { releases: { id: string; name: string }[]; artists: { id: str
 
 export default function CommandPalette() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const guard = useUnsavedChangesContext();
   const isOwner = !!session?.user?.isAdmin;
@@ -54,6 +55,7 @@ export default function CommandPalette() {
   const gAt = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const canSee = useCallback(
     (perm?: Permission | "owner") => (!perm ? true : perm === "owner" ? isOwner : isOwner || roleCan(role, perm)),
@@ -87,12 +89,20 @@ export default function CommandPalette() {
   useEffect(() => { setActive(0); }, [query]);
 
   const close = useCallback(() => { setOpen(false); setQuery(""); }, []);
+  // Dismiss without navigating (Esc / backdrop) and return focus to the trigger,
+  // so keyboard users don't lose their place when the modal closes (WCAG 2.4.3).
+  const dismiss = useCallback(() => { close(); requestAnimationFrame(() => triggerRef.current?.focus()); }, [close]);
 
   const go = useCallback((href: string) => {
     if (guard && !guard.confirmNavigation()) return;
     close();
     router.push(href);
   }, [guard, close, router]);
+
+  // Close on any route change so navigation from ANY source — the palette itself,
+  // a sidebar link, a "g" shortcut, or the browser back/forward buttons — never
+  // leaves the modal (and its dimmed backdrop) stranded over the newly opened page.
+  useEffect(() => { close(); }, [pathname, close]);
 
   // Global: ⌘/Ctrl-K toggles; "g then key" jumps when not typing.
   useEffect(() => {
@@ -132,13 +142,17 @@ export default function CommandPalette() {
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(items.length - 1, a + 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
     else if (e.key === "Enter") { e.preventDefault(); const it = items[active]; if (it) go(it.href); }
-    else if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Escape") { e.preventDefault(); dismiss(); }
+    // The input is the modal's only tab stop (options are driven by the arrow
+    // keys / Enter), so trap Tab here to stop focus escaping behind the overlay.
+    else if (e.key === "Tab") { e.preventDefault(); }
   };
 
   return (
     <>
       {/* Topbar trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search (Command K)"
@@ -151,12 +165,17 @@ export default function CommandPalette() {
 
       {open ? (
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
           <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
             <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
+                role="combobox"
+                aria-expanded={items.length > 0}
+                aria-controls="cmdk-listbox"
+                aria-activedescendant={items[active] ? `cmdk-opt-${active}` : undefined}
+                aria-autocomplete="list"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onInputKey}
@@ -164,7 +183,7 @@ export default function CommandPalette() {
                 className="w-full bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
             </div>
-            <div ref={listRef} className="max-h-[52vh] overflow-y-auto py-1">
+            <div ref={listRef} id="cmdk-listbox" role="listbox" aria-label="Results" className="max-h-[52vh] overflow-y-auto py-1">
               {items.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-muted-foreground">No matches.</p>
               ) : (
@@ -172,6 +191,10 @@ export default function CommandPalette() {
                   <button
                     key={`${it.kind}-${it.href}`}
                     type="button"
+                    id={`cmdk-opt-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    tabIndex={-1}
                     data-idx={i}
                     onMouseMove={() => setActive(i)}
                     onClick={() => go(it.href)}

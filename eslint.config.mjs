@@ -10,6 +10,13 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // `next lint` implicitly skipped build output and generated files. The raw
+  // ESLint CLI (which replaces `next lint`, removed in Next 16) does not, so we
+  // declare those ignores explicitly. `node_modules` is ignored by ESLint by
+  // default and doesn't need listing.
+  {
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 

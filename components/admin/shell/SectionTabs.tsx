@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import type { MouseEvent } from "react";
+import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
 /**
@@ -51,10 +53,27 @@ const isUnder = (pathname: string, href: string) =>
 export default function SectionTabs() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const guard = useUnsavedChangesContext();
   const user = session?.user;
   const isOwner = !!user?.isAdmin;
   const role = user?.role;
   const canSee = (perm?: Permission) => (!perm ? true : isOwner || roleCan(role, perm));
+
+  // Hide the tabs while editing a release (create / edit / tracklist): they're
+  // noise mid-edit and add another nav path away from unsaved work. The only ways
+  // out then are the guarded sidebar, breadcrumbs and the editor's own Save/Cancel.
+  const onReleaseEditor =
+    pathname === "/admin/catalog/releases/new" ||
+    (pathname.startsWith("/admin/catalog/releases/") &&
+      (pathname.endsWith("/edit") || pathname.endsWith("/tracks")));
+  if (onReleaseEditor) return null;
+
+  // Guard tab navigation exactly like the sidebar + breadcrumbs do — otherwise a
+  // tab click silently discards an editor's unsaved changes. SectionTabs was the
+  // one nav surface missing this, which made the discard prompt inconsistent.
+  const onLinkClick = (e: MouseEvent) => {
+    if (guard && !guard.confirmNavigation()) e.preventDefault();
+  };
 
   // The owning group = the one containing the tab with the LONGEST matching
   // prefix. Longest-prefix (not first-match) matters because /admin/outreach is a
@@ -87,6 +106,7 @@ export default function SectionTabs() {
             <Link
               key={t.href}
               href={t.href}
+              onClick={onLinkClick}
               aria-current={active ? "page" : undefined}
               className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
                 active

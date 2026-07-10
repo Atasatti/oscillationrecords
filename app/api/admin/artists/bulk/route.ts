@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { deleteArtistCascade } from "@/lib/artist-delete";
+import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,8 +26,16 @@ export async function POST(request: NextRequest) {
     if (action === "show" || action === "hide") {
       await prisma.artist.updateMany({
         where: { id: { in: ids } },
-        data: { showOnWebsite: action === "show" },
+        // Hiding also drops Featured: a hidden artist must never linger as
+        // "hidden but featured" (mirrors the single-artist PATCH, and otherwise it
+        // would still leak into the public featured carousel). Showing does NOT
+        // restore Featured — it must be re-enabled explicitly.
+        data:
+          action === "hide"
+            ? { showOnWebsite: false, featuredOnHome: false }
+            : { showOnWebsite: true },
       });
+      revalidateAdminCatalog();
       return NextResponse.json({ updated: ids.length });
     }
 
@@ -35,6 +44,7 @@ export async function POST(request: NextRequest) {
       for (const id of ids) {
         if (await deleteArtistCascade(id)) deleted++;
       }
+      revalidateAdminCatalog();
       return NextResponse.json({ deleted });
     }
 

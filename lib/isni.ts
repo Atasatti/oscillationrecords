@@ -63,11 +63,11 @@ function decode(s: string): string {
 
 function firstMatch(chunk: string, re: RegExp): string | null {
   const m = chunk.match(re);
-  return m ? decode(m[1]) : null;
+  return m ? decode(m[1] ?? "") : null;
 }
 
 function allMatches(chunk: string, re: RegExp): string[] {
-  return [...chunk.matchAll(re)].map((m) => decode(m[1]));
+  return [...chunk.matchAll(re)].map((m) => decode(m[1] ?? ""));
 }
 
 function parseRecord(chunk: string): IsniMatch | null {

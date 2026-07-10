@@ -95,7 +95,7 @@ export default function Breadcrumbs() {
     raw[0] === "admin" &&
     raw[1] === "catalog" &&
     (raw[2] === "release" || raw[2] === "artist") &&
-    isId(raw[3]);
+    isId(raw[3] ?? "");
 
   const subview = SUBVIEW_TRAIL[pathname];
 
@@ -160,8 +160,14 @@ export default function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
       <ol className="flex items-center gap-1.5 text-sm">
-        {crumbs.map((c) => (
-          <li key={c.href} className="flex items-center gap-1.5 min-w-0">
+        {crumbs.map((c, idx) => (
+          // Key by index, not href: some trails legitimately repeat an href (a
+          // section whose parent + leaf are the same route, e.g. Money/Budgets), and
+          // duplicate React keys corrupt reconciliation — leaving stale crumb nodes
+          // behind across navigations (the "Admin › Money › Money › Money › …" ghost).
+          // The trail is fully re-derived from the pathname each render, so the index
+          // is a stable, collision-free key.
+          <li key={idx} className="flex items-center gap-1.5 min-w-0">
             {c.isLast ? (
               <span className="truncate font-medium text-foreground" aria-current="page">
                 {c.label}

@@ -185,7 +185,7 @@ function toSlices(
   return entries.map(([k, n]) => ({
     label: prettify(k),
     value: n,
-    color: k.toLowerCase() === "unknown" ? UNKNOWN_COLOR : SLICE_COLORS[i++ % SLICE_COLORS.length],
+    color: k.toLowerCase() === "unknown" ? UNKNOWN_COLOR : (SLICE_COLORS[i++ % SLICE_COLORS.length] ?? UNKNOWN_COLOR),
   }));
 }
 
@@ -531,7 +531,7 @@ export default function AnalyticsDashboard() {
           <div className="space-y-3">
             {data.topContent.length > 0 ? (
               data.topContent.slice(0, 6).map((c) => {
-                const [type] = c.id.includes("-") ? c.id.split("-") : ["single", c.id];
+                const type = (c.id.includes("-") ? c.id.split("-")[0] : "single") ?? "single";
                 return (
                   <button
                     key={c.id}

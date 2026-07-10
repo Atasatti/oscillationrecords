@@ -48,7 +48,7 @@ export function isAllowedAssetType(t: unknown): boolean {
   // Strip any "; charset=…" parameter first, so "image/svg+xml; charset=utf-8"
   // can't slip past the SVG block. Then allow raster images from an explicit set
   // (never image/*), audio (subtypes aren't script-capable), and a few exacts.
-  const type = t.toLowerCase().split(";")[0].trim();
+  const type = (t.toLowerCase().split(";")[0] ?? "").trim();
   if (!type || type === "image/svg+xml" || type === "text/html") return false;
   if (/^audio\//.test(type)) return true;
   if (ALLOWED_IMAGE.includes(type)) return true;
@@ -69,7 +69,7 @@ export function objectIdOrNull(v: unknown): string | null {
  *  track audio/stems, artist/press images) that's stored as a bare URL with no
  *  content-type. Drives the thumbnail-vs-glyph choice in the grid. */
 export function guessMimeFromUrl(url: string): string {
-  const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
+  const ext = ((url.split("?")[0] ?? "").split(".").pop() || "").toLowerCase();
   if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   if (["png", "webp", "gif", "avif", "tiff", "bmp"].includes(ext)) return `image/${ext}`;
   if (ext === "mp3") return "audio/mpeg";
@@ -85,7 +85,7 @@ export function guessMimeFromUrl(url: string): string {
 /** The filename portion of a URL (decoded), or "file". */
 export function fileNameFromUrl(url: string): string {
   try {
-    return decodeURIComponent(url.split("?")[0].split("/").pop() || "file") || "file";
+    return decodeURIComponent((url.split("?")[0] ?? "").split("/").pop() || "file") || "file";
   } catch {
     return "file";
   }

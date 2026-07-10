@@ -16,8 +16,13 @@ export type ConsentValue = "all" | "essential";
 /** Window event the footer dispatches to reopen the consent banner on demand. */
 export const OPEN_CONSENT_EVENT = "osc:open-consent";
 
-/** Window event fired when analytics consent is granted (so trackers can start). */
-export const CONSENT_GRANTED_EVENT = "osc:consent-granted";
+/**
+ * Window event fired whenever the visitor's consent choice CHANGES — on both
+ * grant and withdrawal — so consent-gated trackers (GA, Clarity, page-view
+ * beacons) re-check live and start OR stop without a page reload. GDPR/PECR:
+ * withdrawing consent must take effect as immediately as giving it.
+ */
+export const CONSENT_CHANGED_EVENT = "osc:consent-changed";
 
 export const CONSENT_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 export const VISITOR_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
@@ -67,6 +72,6 @@ export function readConsentClient(): ConsentValue | null {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(/(?:^|;\s*)osc_consent=([^;]+)/);
   if (!m) return null;
-  const v = decodeURIComponent(m[1]);
+  const v = decodeURIComponent(m[1] ?? "");
   return v === "all" || v === "essential" ? v : null;
 }

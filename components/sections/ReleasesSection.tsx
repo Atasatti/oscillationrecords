@@ -166,6 +166,7 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
 
               <ReleaseCardSm
                 href={`/releases/${slugify(release.name)}`}
+                titleAs="h2"
                 release={{
                   id: release.id,
                   name: release.name,

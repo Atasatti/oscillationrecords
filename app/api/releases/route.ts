@@ -78,19 +78,24 @@ export async function GET(request: NextRequest) {
     // Shared with the Server Components via lib/catalog-data so the card shape
     // can't drift between the initial HTML and client fetches.
     const baseList = releaseCardListArgs;
-    // Public callers only ever see released (or now-due scheduled) releases;
-    // admins see everything. undefined `where` is ignored by Prisma.
-    const where = isAdmin ? undefined : publicReleaseWhere();
+    // This bare-array path feeds the PUBLIC site (New Music carousel, navbar
+    // search, /releases grid, and "more releases" on a release page). It is
+    // always limited to live releases — even for a logged-in admin browsing the
+    // public site — because every card links to /releases/[slug], which 404s
+    // anything non-public (DRAFT or trackless). Admins who need to see every
+    // release use the ?page/?pageSize envelope path above, which is separately
+    // permission-gated and unfiltered.
+    const where = publicReleaseWhere();
 
     let releases;
     if (carouselOnly) {
       // The "New Music" carousel is exactly the releases the admin curated
       // (showOnHome), in the order they set (homeOrder) — no auto-fill, so the
-      // homepage mirrors the admin selection 1:1. Admin callers see every flagged
-      // release; the public `where` limits non-admins to live ones.
+      // homepage mirrors the admin selection 1:1. Still limited to live releases,
+      // so a draft that was flagged showOnHome can never surface here.
       const all = await prisma.release.findMany({
         ...baseList,
-        where: where ? { AND: [{ showOnHome: true }, where] } : { showOnHome: true },
+        where: { AND: [{ showOnHome: true }, where] },
       });
       releases = all.sort((a, b) => a.homeOrder - b.homeOrder);
     } else if (qParam.length > 0) {

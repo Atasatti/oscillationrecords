@@ -129,7 +129,6 @@ const Footer = () => {
           <Link href="/account" className={navLinkCls}>Account</Link>
           <button
             type="button"
-            aria-label="Open cookie preferences"
             onClick={() => window.dispatchEvent(new Event(OPEN_CONSENT_EVENT))}
             className={navLinkCls}
           >

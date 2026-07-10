@@ -41,6 +41,7 @@ import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
 import { getCached, setCached } from "@/lib/admin-cache";
+import { unlockBody } from "@/lib/unlock-body";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -79,9 +80,9 @@ const STATUSES = TASK_STATUSES;
 const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
 const STATUS_MENU_ITEMS = STATUSES.map((s) => ({
   key: s,
-  label: STATUS_LABELS[s],
+  label: STATUS_LABELS[s] ?? s,
   dot: STATUS_COL_DOT[s] ?? "bg-zinc-500",
-  pill: STATUS_PILL[s],
+  pill: STATUS_PILL[s] ?? "",
 }));
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
@@ -360,7 +361,7 @@ function initialsOf(a: Assignee) {
   const base = (a.name || a.email || "").trim();
   if (!base) return "?";
   const parts = base.split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
   return base.slice(0, 2).toUpperCase();
 }
 
@@ -468,7 +469,7 @@ function extractMentionIds(body: string, staff: Assignee[]): string[] {
   for (const tok of tokens) {
     for (const s of staff) {
       const name = (s.name || "").toLowerCase();
-      const emailLocal = (s.email || "").split("@")[0].toLowerCase();
+      const emailLocal = ((s.email || "").split("@")[0] ?? "").toLowerCase();
       if (name.split(/\s+/).some((w) => w === tok) || name.startsWith(tok) || (tok.length >= 2 && emailLocal.startsWith(tok))) {
         ids.add(s.id);
       }
@@ -486,6 +487,17 @@ function renderCommentBody(body: string) {
   );
 }
 
+// The @token to insert when a teammate is picked from the autocomplete. Uses the
+// first name (falling back to the email local-part), matching what
+// extractMentionIds recognises and renderCommentBody highlights.
+function mentionHandle(a: Assignee): string {
+  const first = ((a.name || "").trim().split(/\s+/)[0] || "").replace(/[^\w.-]/g, "");
+  if (/^[a-zA-Z]/.test(first)) return first;
+  const local = ((a.email.split("@")[0]) || "").replace(/[^\w.-]/g, "");
+  if (/^[a-zA-Z]/.test(local)) return local;
+  return first || local || "user";
+}
+
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
@@ -496,6 +508,56 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
   const byId = useMemo(() => new Map(assignees.map((a) => [a.id, a])), [assignees]);
+
+  // @-mention autocomplete: when the caret sits in an "@partial" token, show a
+  // dropdown of matching teammates to insert. State is local to the composer.
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionMatches = useMemo(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    return assignees
+      .filter((a) => {
+        if (!q) return true;
+        const name = (a.name || "").toLowerCase();
+        const local = ((a.email.split("@")[0]) || "").toLowerCase();
+        return name.includes(q) || local.startsWith(q);
+      })
+      .slice(0, 6);
+  }, [mentionQuery, assignees]);
+
+  // Reset the highlighted row when the query changes (arrow nav only moves the
+  // index, which leaves the query untouched, so navigation isn't clobbered).
+  useEffect(() => { setMentionIndex(0); }, [mentionQuery]);
+
+  // Recompute mention state from the text before the caret. A mention triggers
+  // only when "@" starts the text or follows whitespace, so an email address
+  // ("user@host") never opens the dropdown.
+  const syncMention = (value: string, caret: number) => {
+    const m = value.slice(0, caret).match(/(?:^|\s)@([\w.-]{0,30})$/);
+    if (m) { setMentionQuery(m[1] ?? ""); setMentionOpen(true); }
+    else setMentionOpen(false);
+  };
+
+  // Replace the "@partial" at the caret with the picked teammate's handle.
+  const insertMention = (a: Assignee) => {
+    const ta = taRef.current;
+    const caret = ta ? ta.selectionStart : text.length;
+    const m = text.slice(0, caret).match(/(?:^|\s)@([\w.-]{0,30})$/);
+    if (!m) { setMentionOpen(false); return; }
+    const handle = mentionHandle(a);
+    const atStart = caret - (m[1]?.length ?? 0) - 1; // index of the "@"
+    const next = `${text.slice(0, atStart)}@${handle} ${text.slice(caret)}`;
+    const newCaret = atStart + handle.length + 2; // just past "@handle "
+    setText(next);
+    setMentionOpen(false);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) { el.focus(); el.setSelectionRange(newCaret, newCaret); }
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -575,14 +637,53 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
         </ul>
       )}
       <div className="flex items-end gap-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
-          rows={2}
-          placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
-          className="flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+        <div className="relative flex-1">
+          {mentionOpen && mentionMatches.length > 0 ? (
+            <ul id="mention-listbox" role="listbox" aria-label="Teammates" className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-2xl shadow-black/50">
+              {mentionMatches.map((a, i) => (
+                <li
+                  key={a.id}
+                  id={`mention-opt-${i}`}
+                  role="option"
+                  aria-selected={i === mentionIndex}
+                  // mousedown + preventDefault (not click) keeps the textarea
+                  // focused, so its caret is still valid when we insert.
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(a); }}
+                  onMouseMove={() => setMentionIndex(i)}
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                    i === mentionIndex ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <AssigneeAvatar user={a} size={20} />
+                  <span className="min-w-0 flex-1 truncate">{displayName(a)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <textarea
+            ref={taRef}
+            role="combobox"
+            aria-expanded={mentionOpen && mentionMatches.length > 0}
+            aria-controls="mention-listbox"
+            aria-activedescendant={mentionOpen && mentionMatches[mentionIndex] ? `mention-opt-${mentionIndex}` : undefined}
+            aria-autocomplete="list"
+            value={text}
+            onChange={(e) => { setText(e.target.value); syncMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
+            onKeyDown={(e) => {
+              if (mentionOpen && mentionMatches.length > 0) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex((i) => Math.min(mentionMatches.length - 1, i + 1)); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex((i) => Math.max(0, i - 1)); return; }
+                if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); const a = mentionMatches[mentionIndex]; if (a) insertMention(a); return; }
+                if (e.key === "Escape") { e.preventDefault(); setMentionOpen(false); return; }
+              }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add();
+            }}
+            onBlur={() => setMentionOpen(false)}
+            rows={2}
+            placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
+            className="w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
         <Button type="button" onClick={add} disabled={posting || !text.trim()} size="sm" className="bg-white text-black hover:bg-gray-200">
           {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
@@ -873,7 +974,7 @@ export default function TasksPage() {
     const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, blocked: 0, done: 0 };
     for (const t of tasks) {
       if (!matchesFilters(t)) continue;
-      c.all++;
+      c.all = (c.all ?? 0) + 1;
       c[t.status] = (c[t.status] ?? 0) + 1;
     }
     return c;
@@ -974,7 +1075,7 @@ export default function TasksPage() {
       (cols[key] ??= []).push(t);
     }
     for (const k of Object.keys(cols)) {
-      cols[k].sort((a, b) => {
+      cols[k]?.sort((a, b) => {
         const pr = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
         if (pr !== 0) return pr;
         const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
@@ -1072,6 +1173,11 @@ export default function TasksPage() {
       setDialogOpen(false);
       setEditingId(null);
       setForm({ ...EMPTY_FORM });
+      // The editor dialog is often opened from the row's ⋯ DropdownMenu; closing it
+      // while the list re-renders (setTab + loadTasks below) can leave a Radix
+      // `pointer-events:none` lock on <body> that freezes the page until refresh.
+      // Clear it here since this in-place save never navigates (see lib/unlock-body).
+      unlockBody();
       // Land where the saved task is so it's visible (new tasks default to To Do).
       if (wasNew) setTab("todo");
       else if (tab !== "all" && tab !== "attention" && tab !== form.status) setTab(form.status as Tab);
@@ -1203,6 +1309,7 @@ export default function TasksPage() {
       if (!res.ok) throw new Error();
       toast.success("Task deleted");
       setDeleteTarget(null);
+      unlockBody(); // delete dialog opens from a DropdownMenu — clear any leftover Radix body lock
       loadTasks();
     } catch {
       toast.error("Failed to delete task");
@@ -1588,7 +1695,7 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        {tab === "all" && counts.done > 0 ? (
+        {tab === "all" && (counts.done ?? 0) > 0 ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <input
               type="checkbox"
@@ -1886,17 +1993,31 @@ export default function TasksPage() {
                       {t.releaseIds?.map((id) => {
                         const name = releaseNameById.get(id);
                         return name ? (
-                          <span key={`r-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <Link
+                            key={`r-${id}`}
+                            href={`/admin/catalog/releases/${id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            title={`Open release "${name}"`}
+                            className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                          >
                             <Music2 className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
-                          </span>
+                          </Link>
                         ) : null;
                       })}
                       {t.artistIds?.map((id) => {
                         const name = artistNameById.get(id);
                         return name ? (
-                          <span key={`a-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <Link
+                            key={`a-${id}`}
+                            href={`/admin/catalog/artists/${id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            title={`Open artist "${name}"`}
+                            className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                          >
                             <UserRound className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
-                          </span>
+                          </Link>
                         ) : null;
                       })}
                     </div>
@@ -2028,7 +2149,7 @@ export default function TasksPage() {
       )}
 
       {/* Create / edit dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); unlockBody(); } }}>
         <DialogContent className="flex max-h-[calc(100dvh-3rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{editingId ? "Edit task" : "New task"}</DialogTitle>
@@ -2043,9 +2164,9 @@ export default function TasksPage() {
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Description</label>
-                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
+                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={5}
                   placeholder="How to do it, what to look for…"
-                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+                  className="min-h-[7rem] max-h-[70vh] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
@@ -2130,7 +2251,7 @@ export default function TasksPage() {
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); }
-                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1]);
+                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1] ?? "");
                     }}
                     onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
                     placeholder={form.tags.length ? "" : "Add a label, press Enter…"}
@@ -2192,7 +2313,7 @@ export default function TasksPage() {
             ) : null}
           </div>
           <DialogFooter className="border-t border-border px-6 py-4">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); unlockBody(); }} disabled={saving}>Cancel</Button>
             <Button onClick={save} disabled={saving} className="bg-white text-black hover:bg-gray-200">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {editingId ? "Save changes" : "Add task"}
             </Button>

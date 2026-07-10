@@ -190,9 +190,44 @@ export default function AdminArtistsClient({
       return next;
     });
 
+  // Adopt the server's authoritative flags for one row from a PATCH response, so
+  // the on-screen row can never drift from what was actually persisted. This is
+  // what keeps Featured honest through hide/unhide: the server drops Featured when
+  // an artist is hidden and does NOT restore it on unhide, and reading that back
+  // here stops the stale "Featured" badge that otherwise lingered until a refresh.
+  const applyServerRow = (
+    id: string,
+    updated: { showOnWebsite?: unknown; featuredOnHome?: unknown; homeOrder?: unknown } | null
+  ) => {
+    if (!updated || typeof updated.featuredOnHome !== "boolean") return;
+    setItems((list) =>
+      list.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              showOnWebsite:
+                typeof updated.showOnWebsite === "boolean" ? updated.showOnWebsite : a.showOnWebsite,
+              featuredOnHome: updated.featuredOnHome as boolean,
+              homeOrder: typeof updated.homeOrder === "number" ? updated.homeOrder : a.homeOrder,
+            }
+          : a
+      )
+    );
+  };
+
   const setVisibility = async (id: string, showOnWebsite: boolean) => {
     const prev = items;
-    setItems((list) => list.map((a) => (a.id === id ? { ...a, showOnWebsite } : a)));
+    // Mirror the server rule locally and immediately: hiding an artist also drops
+    // it from the Featured set (a hidden artist can't be featured). Without this the
+    // row kept a stale "Featured" badge after hide, which then read as inconsistent
+    // against the Featured Artists order until a manual refresh.
+    setItems((list) =>
+      list.map((a) =>
+        a.id === id
+          ? { ...a, showOnWebsite, featuredOnHome: showOnWebsite ? a.featuredOnHome : false }
+          : a
+      )
+    );
     try {
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
@@ -200,6 +235,7 @@ export default function AdminArtistsClient({
         body: JSON.stringify({ showOnWebsite }),
       });
       if (!res.ok) throw new Error();
+      applyServerRow(id, await res.json().catch(() => null));
       clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
@@ -209,17 +245,27 @@ export default function AdminArtistsClient({
 
   const setFeatured = async (id: string, featuredOnHome: boolean) => {
     const prev = items;
+    const row = items.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
     try {
+      // When featuring a row the admin sees as visible, assert showOnWebsite in the
+      // same request. The server's "only visible artists can be Featured" guard reads
+      // a LIVE DB value that can disagree with the (cached) row on screen, so a
+      // visibly-Live artist could be wrongly rejected as "not visible". Sending it
+      // keeps the server in step with what the admin acted on. A row shown as Hidden
+      // still omits it, so the "show it on the website first" guard stays intact.
+      const body: Record<string, unknown> = { featuredOnHome };
+      if (featuredOnHome && row?.showOnWebsite) body.showOnWebsite = true;
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ featuredOnHome }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
+      applyServerRow(id, await res.json().catch(() => null));
       clearCached(); // persisted change — keep cached views honest on revisit
     } catch (e) {
       setItems(prev);
@@ -297,7 +343,14 @@ export default function AdminArtistsClient({
             type="button"
             onClick={() => {
               setView(k);
-              if (k === "manage") load(); // reflect any reordering just made
+              // Reflect any reordering just made. The Custom-order panel saves the new
+              // order straight to the DB, bypassing this list's cache — so drop the
+              // cached views before reloading, otherwise Manage keeps showing the
+              // pre-reorder order (served from the still-"fresh" client cache).
+              if (k === "manage") {
+                clearCached();
+                load();
+              }
             }}
             className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
               view === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -452,7 +505,7 @@ export default function AdminArtistsClient({
               <TableHead className="hidden lg:table-cell text-right">
                 <span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Plays 90d</span>
               </TableHead>
-              <TableHead className="hidden xl:table-cell">
+              <TableHead className="hidden min-[1600px]:table-cell">
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
               <TableHead className="hidden sm:table-cell">
@@ -489,7 +542,7 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="ml-auto h-4 w-8" /></TableCell>
                   <TableCell className="hidden lg:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
-                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden min-[1600px]:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
@@ -533,11 +586,14 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell">
                     {a.genres.length ? (
                       <div className="flex items-center gap-1">
-                        {a.genres.slice(0, 2).map((g) => (
-                          <Badge key={g} variant="muted">{g}</Badge>
-                        ))}
-                        {a.genres.length > 2 ? (
-                          <Badge variant="muted">+{a.genres.length - 2}</Badge>
+                        {/* Only the first genre inline (keeps the column narrow on
+                            laptop widths); the rest collapse into a +N badge whose
+                            hover title lists them, so nothing is lost. */}
+                        <Badge variant="muted" className="max-w-[9rem] truncate">{a.genres[0]}</Badge>
+                        {a.genres.length > 1 ? (
+                          <span title={a.genres.slice(1).join(", ")}>
+                            <Badge variant="muted" className="cursor-default">+{a.genres.length - 1}</Badge>
+                          </span>
                         ) : null}
                       </div>
                     ) : (
@@ -550,7 +606,7 @@ export default function AdminArtistsClient({
                   <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
                     {a.playsLast90d.toLocaleString()}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden min-[1600px]:table-cell text-sm text-muted-foreground">
                     {a.lastReleaseDate
                       ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
                           year: "numeric",

@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       if (c.contextName) target.name = c.contextName;
       targetMap.set(key, target);
 
-      const date = c.createdAt.toISOString().split("T")[0];
+      const date = c.createdAt.toISOString().slice(0, 10);
       byDateMap.set(date, (byDateMap.get(date) || 0) + 1);
     }
 

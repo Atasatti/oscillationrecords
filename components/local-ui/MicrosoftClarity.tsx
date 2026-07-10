@@ -3,7 +3,7 @@
 import Script from "next/script";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { readConsentClient, CONSENT_GRANTED_EVENT } from "@/lib/consent";
+import { readConsentClient, CONSENT_CHANGED_EVENT } from "@/lib/consent";
 
 /** Microsoft Clarity project id. Not secret — it ships in the page source either way. */
 const CLARITY_ID = "xcmtwumsbi";
@@ -23,13 +23,14 @@ export default function MicrosoftClarity() {
   const [enabled, setEnabled] = useState(false);
   const pathname = usePathname();
 
-  // Reflect consent: enabled if already "all", and flip on the instant the visitor
-  // clicks Accept (CookieConsent dispatches this) — no reload needed.
+  // Reflect consent live: enabled only while the choice is "all". Re-checks on
+  // every consent change (accept OR reject), so withdrawal calls clarity('stop')
+  // in the same session — no reload needed.
   useEffect(() => {
     const sync = () => setEnabled(readConsentClient() === "all");
     sync();
-    window.addEventListener(CONSENT_GRANTED_EVENT, sync);
-    return () => window.removeEventListener(CONSENT_GRANTED_EVENT, sync);
+    window.addEventListener(CONSENT_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(CONSENT_CHANGED_EVENT, sync);
   }, []);
 
   const active = enabled && !(pathname?.startsWith("/admin") ?? false);

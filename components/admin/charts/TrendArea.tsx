@@ -101,26 +101,26 @@ export default function TrendArea({
 
         {/* x labels: first + last */}
         <text x={padX} y={h - 6} className="fill-muted-foreground" fontSize="10">
-          {fmtDate(data[0].date)}
+          {fmtDate(data[0]?.date ?? "")}
         </text>
         <text x={w - padX} y={h - 6} textAnchor="end" className="fill-muted-foreground" fontSize="10">
-          {fmtDate(data[n - 1].date)}
+          {fmtDate(data[n - 1]?.date ?? "")}
         </text>
 
         {/* hover guide */}
         {hover !== null ? (
           <>
             <line x1={x(hover)} y1={padTop} x2={x(hover)} y2={h - padBottom} stroke={color} strokeOpacity="0.4" />
-            <circle cx={x(hover)} cy={y(data[hover].count)} r="3.5" fill={color} stroke="var(--card)" strokeWidth="1.5" />
+            <circle cx={x(hover)} cy={y(data[hover]?.count ?? 0)} r="3.5" fill={color} stroke="var(--card)" strokeWidth="1.5" />
           </>
         ) : null}
       </svg>
 
       {hover !== null ? (
         <div className="mt-1 flex justify-between text-xs">
-          <span className="text-muted-foreground">{fmtDate(data[hover].date)}</span>
+          <span className="text-muted-foreground">{fmtDate(data[hover]?.date ?? "")}</span>
           <span className="font-medium text-foreground">
-            {data[hover].count.toLocaleString()} {valueLabel}
+            {(data[hover]?.count ?? 0).toLocaleString()} {valueLabel}
           </span>
         </div>
       ) : (

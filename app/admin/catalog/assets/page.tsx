@@ -21,13 +21,17 @@ export default async function AssetsPage() {
   let assets: Asset[] = [];
   let releases: Option[] = [];
   let artists: Option[] = [];
+  let releaseLyrics: Record<string, { txt: boolean; lrc: boolean }> = {};
+  // release id → its first primary artist id, so "Group by artist" can also file a
+  // release's assets (covers/masters/stems) under that release's artist.
+  let releaseArtistId: Record<string, string> = {};
   try {
     const [rows, rels, arts, press] = await Promise.all([
       prisma.asset.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.release.findMany({
         select: {
-          id: true, name: true, coverImage: true, createdAt: true,
-          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true } },
+          id: true, name: true, coverImage: true, createdAt: true, primaryArtistIds: true,
+          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true, lyrics: true, syncedLyrics: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -87,8 +91,26 @@ export default async function AssetsPage() {
     assets = [...damAssets, ...derived];
     releases = rels.map((r) => ({ id: r.id, name: r.name }));
     artists = arts.map((a) => ({ id: a.id, name: a.name }));
+
+    releaseLyrics = {};
+    releaseArtistId = {};
+    for (const r of rels) {
+      const txt = r.tracks.some((t) => (t.lyrics ?? "").trim() !== "");
+      const lrc = r.tracks.some((t) => (t.syncedLyrics ?? "").trim() !== "");
+      if (txt || lrc) releaseLyrics[r.id] = { txt, lrc };
+      const firstArtist = r.primaryArtistIds[0];
+      if (firstArtist) releaseArtistId[r.id] = firstArtist;
+    }
   } catch {
     // Empty library on a transient DB error.
   }
-  return <AssetsClient initial={assets} releases={releases} artists={artists} />;
+  return (
+    <AssetsClient
+      initial={assets}
+      releases={releases}
+      artists={artists}
+      releaseLyrics={releaseLyrics}
+      releaseArtistId={releaseArtistId}
+    />
+  );
 }

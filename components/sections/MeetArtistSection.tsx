@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import IconButton from "../local-ui/IconButton";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,7 +44,6 @@ const MeetArtistSection = ({
   variant = "home",
   initialArtists,
 }: MeetArtistSectionProps) => {
-  const router = useRouter();
   const { bgHero } = usePageMedia();
   const [artists, setArtists] = useState<Artist[]>(initialArtists ?? []);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -91,15 +90,6 @@ const MeetArtistSection = ({
     setCurrentIndex((prev) => (prev === artists.length - 1 ? 0 : prev + 1));
   };
 
-  const handleViewDetails = () => {
-    if (variant === "artists") {
-      const a = artists[currentIndex];
-      if (a?.id) router.push(`/artists/${slugify(a.name)}`);
-      return;
-    }
-    router.push("/artists");
-  };
-
   if (isLoading) {
     return (
       <div className="bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28"
@@ -139,6 +129,12 @@ const MeetArtistSection = ({
   }
 
   const currentArtist = artists[currentIndex];
+  if (!currentArtist) return null;
+  // Real, crawlable links so the homepage/roster passes link-equity straight to
+  // each artist page (with the artist name as anchor text) instead of a JS-only
+  // router.push that search engines can't follow.
+  const artistHref = `/artists/${slugify(currentArtist.name)}`;
+  const ctaHref = variant === "artists" ? artistHref : "/artists";
   const artistNumber = String(currentIndex + 1).padStart(2, '0');
 
   return (
@@ -164,7 +160,7 @@ const MeetArtistSection = ({
         {/* Main content - image + info side by side, centered as one group */}
         <div className="w-full lg:flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
           <div className="w-full max-w-[380px] lg:flex-shrink-0">
-            <div className="relative w-full aspect-[5/6] max-h-[456px]">
+            <Link href={artistHref} className="relative block w-full aspect-[5/6] max-h-[456px]">
               <Image
                 src={currentArtist.profilePicture || "/meet-artist-img.svg"}
                 width={500}
@@ -174,7 +170,7 @@ const MeetArtistSection = ({
                 blurDataURL={BLUR_DATA_URL}
                 className="rounded-[18px] object-cover w-full h-full"
               />
-            </div>
+            </Link>
             <div className="flex justify-center items-center gap-5 sm:gap-7 mt-4 sm:mt-5">
               {[
                 { url: currentArtist.xLink, Icon: LuX, label: "X (Twitter)" },
@@ -205,19 +201,21 @@ const MeetArtistSection = ({
           {/* Artist info - below image on mobile, beside it on desktop */}
           <div className="w-full max-w-[380px] lg:max-w-none lg:w-80 lg:flex-shrink-0">
               <p className="text-xs text-muted-foreground">({artistNumber})</p>
-              <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1 break-words">{currentArtist.name}</p>
+              <Link href={artistHref} className="block hover:opacity-80 transition-opacity">
+                <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1 break-words">{currentArtist.name}</p>
+              </Link>
               <p className="text-xs sm:text-sm font-light text-muted-foreground mt-2 line-clamp-3 lg:line-clamp-4 min-h-[60px] sm:min-h-[80px]">
                 {currentArtist.biography}
               </p>
-              <div 
+              <Link
+                href={ctaHref}
                 className="mt-5 sm:mt-6 lg:mt-8 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
-                onClick={handleViewDetails}
               >
                 <p className="text-xs sm:text-sm font-medium">
                   {variant === "artists" ? "View detail" : "View all artists"}
                 </p>
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5"/>
-              </div>
+              </Link>
             </div>
         </div>
 
