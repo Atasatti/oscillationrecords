@@ -59,7 +59,7 @@ export default async function PressPostPage({
     : null;
 
   return (
-    <div className="px-4 py-14 sm:px-6 md:px-[10%]">
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPressPostJsonLd(post)) }}
@@ -72,7 +72,7 @@ export default async function PressPostPage({
         <ArrowLeft className="h-4 w-4" /> Back to press
       </Link>
 
-      <article className="mx-auto max-w-3xl">
+      <article>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">From {SITE_NAME}</p>
         <h1 className="mt-3 text-3xl font-light tracking-tighter text-white sm:text-4xl">
           {post.title}
