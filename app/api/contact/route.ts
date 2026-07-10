@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       name =
         cleanContactField(token?.name, CONTACT_NAME_MAX) ||
         cleanContactField(body?.name, CONTACT_NAME_MAX) ||
-        email.split("@")[0];
+        (email.split("@")[0] ?? email);
       userId = await resolveUserId(token);
     } else {
       name = cleanContactField(body?.name, CONTACT_NAME_MAX);

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
   // Gate 3: localhost only (Host header, port stripped).
-  const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  const host = ((request.headers.get("host") ?? "").split(":")[0] ?? "").toLowerCase();
   if (host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") {
     return new NextResponse("Not found", { status: 404 });
   }

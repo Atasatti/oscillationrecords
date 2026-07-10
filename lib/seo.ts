@@ -134,7 +134,14 @@ export function jsonLdScript(data: unknown): string {
 
 /** Trim a bio to a clean meta-description length (~160 chars, word boundary). */
 export function metaDescription(text: string | null | undefined, max = 160): string {
-  const s = (text || "").replace(/\s+/g, " ").trim();
+  const s = (text || "")
+    // Strip Markdown so emphasis/links/code don't leak into the meta + OG text
+    // (bios are stored as Markdown, so "*Freaky Girl*" was reaching the SERP).
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // [label](url) / ![alt](url) → label
+    .replace(/[*_~`]+/g, "") // bold / italic / strikethrough / inline-code marks
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "") // ATX headings
+    .replace(/\s+/g, " ")
+    .trim();
   if (s.length <= max) return s;
   return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
 }
@@ -162,6 +169,7 @@ type ArtistLike = {
   discogsLink?: string | null;
   country?: string | null;
   city?: string | null;
+  updatedAt?: string | null;
 };
 
 type ReleaseLike = { id: string; name: string; thumbnail?: string | null };
@@ -231,7 +239,17 @@ export function buildArtistJsonLd(artist: ArtistLike, releases: ReleaseLike[] = 
       ...(r.thumbnail ? { image: absoluteUrl(r.thumbnail) } : {}),
     }));
   }
-  jsonLd.subjectOf = { "@type": "WebPage", url };
+  // dateModified rides on the WebPage node (a CreativeWork) rather than the
+  // MusicGroup itself — a freshness signal engines read without mis-typing the
+  // Organization. See buildReleaseJsonLd for the album-level equivalent.
+  jsonLd.subjectOf = {
+    "@type": "WebPage",
+    url,
+    ...(artist.updatedAt ? { dateModified: artist.updatedAt } : {}),
+    // Speakable — flags the concise lead sentence (#artist-lead on the page) as the
+    // passage best suited for TTS / AI answer extraction. A pure AI-citation signal.
+    speakable: { "@type": "SpeakableSpecification", cssSelector: ["#artist-lead"] },
+  };
   return jsonLd;
 }
 
@@ -277,6 +295,7 @@ type ReleaseDetailLike = {
     iswc?: string | null;
     lyrics?: string | null;
   }>;
+  updatedAt?: string | null;
 };
 
 /** schema.org MusicAlbum for a release page. */
@@ -335,6 +354,9 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     const d = new Date(release.releaseDate);
     if (!isNaN(d.getTime())) jsonLd.datePublished = d.toISOString().slice(0, 10);
   }
+  // MusicAlbum is a CreativeWork, so dateModified is in-domain here — a freshness
+  // signal for AI engines / Perplexity that favour recently-updated sources.
+  if (release.updatedAt) jsonLd.dateModified = release.updatedAt;
   if (release.primaryArtists?.length) {
     const byArtist = release.primaryArtists.map((a) => ({
       "@type": "MusicGroup",
@@ -365,6 +387,14 @@ export function buildReleaseJsonLd(release: ReleaseDetailLike) {
     });
   }
   if (sameAs.length) jsonLd.sameAs = sameAs;
+  // Speakable rides on the WebPage node (its schema.org domain, not MusicAlbum) —
+  // flags the concise lead sentence (#release-lead on the page) as the best passage
+  // for TTS / AI answer extraction.
+  jsonLd.subjectOf = {
+    "@type": "WebPage",
+    url,
+    speakable: { "@type": "SpeakableSpecification", cssSelector: ["#release-lead"] },
+  };
   return jsonLd;
 }
 
@@ -464,6 +494,21 @@ const ORG_ENTITY_REFERENCES = [
   "https://www.wikidata.org/wiki/Q140353657",
 ];
 
+// schema.org knowsAbout — the topics the label genuinely has expertise in. Post
+// the March-2026 core update, Google's AI Mode uses this as a topical-authority
+// signal when selecting sources for queries in these domains (entity schema is the
+// highest-leverage 2026 implementation after sameAs). Keep it strictly truthful.
+const ORG_KNOWS_ABOUT = [
+  "Electronic music",
+  "Dubstep",
+  "Drum and bass",
+  "House music",
+  "Hip hop music",
+  "Independent record label",
+  "Music release and distribution",
+  "Artist development and A&R",
+];
+
 /** schema.org Organization for the label itself (site-wide entity). */
 export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
   const sameAs = Array.from(
@@ -488,6 +533,7 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
     // entity is explicit, not inferred.
     mainEntityOfPage: SITE_URL,
     logo: absoluteUrl("/logo-icon.svg"),
+    knowsAbout: ORG_KNOWS_ABOUT,
   };
   if (LABEL.alternateName.length) {
     // Drop the display name itself so we don't list it as its own alias.

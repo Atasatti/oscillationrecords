@@ -55,6 +55,6 @@ export function clientIp(req: NextRequest): string {
   const realIp = req.headers.get("x-real-ip");
   if (realIp) return realIp.trim();
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
+  if (xff) return xff.split(",")[0]?.trim() ?? "unknown";
   return "unknown";
 }

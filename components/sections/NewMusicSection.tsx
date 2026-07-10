@@ -118,7 +118,7 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
     const el = scrollContainerRef.current;
     if (!el || releases.length === 0) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setIsInView(entry.isIntersecting),
+      ([entry]) => setIsInView(entry?.isIntersecting ?? false),
       { threshold: 0.4 }
     );
     observer.observe(el);

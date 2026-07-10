@@ -7,7 +7,7 @@ describe("buildReleaseJsonLd — lyrics", () => {
       id: "r1", name: "Rel", type: "single",
       tracks: [{ name: "Song", duration: 200, lyrics: "la la la" }],
     }) as { track: Array<{ lyrics?: unknown }> };
-    expect(ld.track[0].lyrics).toEqual({ "@type": "CreativeWork", text: "la la la" });
+    expect(ld.track[0]?.lyrics).toEqual({ "@type": "CreativeWork", text: "la la la" });
   });
 
   it("omits lyrics when empty or whitespace", () => {
@@ -15,6 +15,6 @@ describe("buildReleaseJsonLd — lyrics", () => {
       id: "r1", name: "Rel", type: "single",
       tracks: [{ name: "Song", duration: 200, lyrics: "   " }],
     }) as { track: Array<{ lyrics?: unknown }> };
-    expect(ld.track[0].lyrics).toBeUndefined();
+    expect(ld.track[0]?.lyrics).toBeUndefined();
   });
 });

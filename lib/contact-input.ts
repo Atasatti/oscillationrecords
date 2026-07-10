@@ -35,7 +35,7 @@ export const CONTACT_ATTACHMENT_EXT_RE = /\.(wav|mp3|png|jpe?g)$/i;
 
 export function isAllowedContactAttachmentType(type: unknown): boolean {
   if (typeof type !== "string") return false;
-  const t = type.split(";")[0].trim().toLowerCase();
+  const t = (type.split(";")[0] ?? "").trim().toLowerCase();
   return (ALLOWED_CONTACT_ATTACHMENT_TYPES as readonly string[]).includes(t);
 }
 

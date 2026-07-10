@@ -18,9 +18,9 @@ function substringEditDistance(needle: string, haystack: string): number {
     cur[0] = i;
     for (let j = 1; j <= haystack.length; j++) {
       cur[j] = Math.min(
-        prev[j] + 1,
-        cur[j - 1] + 1,
-        prev[j - 1] + (needle[i - 1] === haystack[j - 1] ? 0 : 1)
+        (prev[j] ?? 0) + 1,
+        (cur[j - 1] ?? 0) + 1,
+        (prev[j - 1] ?? 0) + (needle[i - 1] === haystack[j - 1] ? 0 : 1)
       );
     }
     prev = cur;

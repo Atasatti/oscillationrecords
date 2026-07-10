@@ -136,7 +136,7 @@ export function isBlockedAddress(ip: string): boolean {
   if (kind === 4) {
     const p = ip.split(".").map(Number);
     if (p.length !== 4 || p.some((o) => Number.isNaN(o) || o < 0 || o > 255)) return true;
-    const [a, b] = p;
+    const [a = 0, b = 0] = p;
     if (a === 0) return true; // 0.0.0.0/8 "this network"
     if (a === 10) return true; // private
     if (a === 127) return true; // loopback
@@ -154,7 +154,7 @@ export function isBlockedAddress(ip: string): boolean {
     if (lower === "::1" || lower === "::") return true; // loopback / unspecified
     // IPv4-mapped / -compatible (::ffff:a.b.c.d) — re-check the embedded v4.
     const mapped = lower.match(/(?:::ffff:)(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isBlockedAddress(mapped[1]);
+    if (mapped) return isBlockedAddress(mapped[1] ?? "");
     if (lower.startsWith("fe8") || lower.startsWith("fe9") ||
         lower.startsWith("fea") || lower.startsWith("feb")) return true; // fe80::/10 link-local
     if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // fc00::/7 unique-local
@@ -242,7 +242,7 @@ export async function rehostExternalImage(
     // SSRF-safe: DNS/IP-validated, port-restricted, manual redirect re-validation.
     const res = await safeImageFetch(url);
     if (!res || !res.ok) return null;
-    const contentType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const contentType = ((res.headers.get("content-type") || "").split(";")[0] ?? "").trim().toLowerCase();
     // Only raster types we can re-key. Explicitly excludes image/svg+xml: an SVG
     // served from our public bucket can execute script when navigated directly.
     const ext = EXT_BY_TYPE[contentType];

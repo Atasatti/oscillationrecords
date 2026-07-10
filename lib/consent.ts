@@ -72,6 +72,6 @@ export function readConsentClient(): ConsentValue | null {
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(/(?:^|;\s*)osc_consent=([^;]+)/);
   if (!m) return null;
-  const v = decodeURIComponent(m[1]);
+  const v = decodeURIComponent(m[1] ?? "");
   return v === "all" || v === "essential" ? v : null;
 }

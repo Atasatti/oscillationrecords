@@ -11,12 +11,15 @@ import ArtistPressSection from "./ArtistPressSection";
 import {
   buildArtistJsonLd,
   buildBreadcrumbJsonLd,
+  buildFaqJsonLd,
   jsonLdScript,
   metaDescription,
   absoluteUrl,
   SITE_NAME,
 } from "@/lib/seo";
 import ArtistDetailView from "./ArtistDetailView";
+import FaqAccordion from "@/components/local-ui/FaqAccordion";
+import { buildArtistFaq } from "@/lib/artist-faq";
 
 // ISR: cache each artist page for a minute, regenerate on demand for new artists.
 export const revalidate = 60;
@@ -47,9 +50,15 @@ export async function generateMetadata({
   if (!data) return { title: "Artist not found" };
   const a = data.artist;
   const url = absoluteUrl(`/artists/${slugify(a.name)}`);
-  const description =
-    metaDescription(a.biography) ||
-    `${a.name} is a recording artist on ${SITE_NAME}, an independent Manchester record label releasing electronic music — dubstep, drum & bass and house.`;
+  // Unique per-artist fallback (genre + city + releases) so artists without a
+  // written bio don't all share one boilerplate description — the duplicate-meta
+  // pattern Bing/Google flag. A real biography, when present, always wins.
+  const genreBit = a.genres?.length ? a.genres.slice(0, 3).join(", ") : "electronic";
+  const releaseBit = data.releases.length
+    ? ` Releases include ${data.releases.slice(0, 3).map((r) => r.name).join(", ")}.`
+    : "";
+  const fallbackDesc = `${a.name} is an artist${a.city ? ` from ${a.city}` : ""} on ${SITE_NAME}, an independent UK record label, spanning ${genreBit}.${releaseBit}`;
+  const description = metaDescription(a.biography) || metaDescription(fallbackDesc);
   return {
     title: a.name,
     description,
@@ -114,6 +123,12 @@ export default async function ArtistDetail({
       ? ` Releases on ${SITE_NAME} include ${data.releases.slice(0, 5).map((r) => r.name).join(", ")}.`
       : "");
 
+  // Per-artist entity FAQ (visible + FAQPage schema) — answers the "who is / what
+  // genre / where from / what releases" questions AI answer engines get asked.
+  // Rendered only when there's enough data for more than a lone question.
+  const faq = buildArtistFaq(data.artist, data.releases.map((r) => r.name));
+  const showFaq = faq.length >= 2;
+
   return (
     <>
       <script
@@ -124,9 +139,22 @@ export default async function ArtistDetail({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
       />
-      <p className="sr-only">{artistLead}</p>
+      {showFaq ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(buildFaqJsonLd(faq)) }}
+        />
+      ) : null}
+      <p id="artist-lead" className="sr-only">{artistLead}</p>
       <ArtistDetailView artist={data.artist} releases={data.releases} />
       <ArtistPressSection items={press} />
+      {showFaq ? (
+        <FaqAccordion
+          items={faq}
+          heading={`Frequently asked about ${data.artist.name}`}
+          headingId={`faq-${slugify(data.artist.name)}`}
+        />
+      ) : null}
     </>
   );
 }

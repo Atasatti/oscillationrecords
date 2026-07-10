@@ -170,11 +170,11 @@ export default function CalendarClient({
     const prefix = `${view.y}-${String(view.m + 1).padStart(2, "0")}`;
     for (const p of posts) {
       if (!dayKeyUtc(p.scheduledFor).startsWith(prefix)) continue;
-      c.all += 1; c.post += 1;
+      c.all = (c.all ?? 0) + 1; c.post = (c.post ?? 0) + 1;
     }
     for (const e of events) {
       if (!e.dateKey.startsWith(prefix)) continue;
-      c.all += 1; c[e.type] += 1;
+      c.all = (c.all ?? 0) + 1; c[e.type] = (c[e.type] ?? 0) + 1;
     }
     return c;
   }, [posts, events, view]);

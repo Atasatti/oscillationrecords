@@ -55,7 +55,7 @@ export default function Sparkline({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      <circle cx={x(n - 1)} cy={y(data[n - 1])} r="1.8" fill={color} />
+      <circle cx={x(n - 1)} cy={y(data[n - 1] ?? 0)} r="1.8" fill={color} />
     </svg>
   );
 }

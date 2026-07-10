@@ -104,7 +104,7 @@ export default function NewReleaseDialog({
     selected.length === 0
       ? `Create ${kindLabel}`
       : selected.length === 1
-        ? `Create ${kindLabel} for ${selected[0].name}`
+        ? `Create ${kindLabel} for ${selected[0]?.name ?? ""}`
         : `Create ${kindLabel} · ${selected.length} artists`;
 
   return (

@@ -95,7 +95,7 @@ export default function Breadcrumbs() {
     raw[0] === "admin" &&
     raw[1] === "catalog" &&
     (raw[2] === "release" || raw[2] === "artist") &&
-    isId(raw[3]);
+    isId(raw[3] ?? "");
 
   const subview = SUBVIEW_TRAIL[pathname];
 

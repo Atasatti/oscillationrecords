@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -170,6 +171,14 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
         .map((id) => release.artists.find((a) => a.id === id)?.name)
         .filter((name): name is string => Boolean(name))
     : [];
+  // Primary artists as {id,name} so the release page links each name to its artist
+  // page (release → artist internal links flow authority + relevant anchor text).
+  // Feature names stay plain text — some are manually entered and have no page.
+  const releasePrimaryArtists = release
+    ? release.primaryArtistIds
+        .map((id) => release.artists.find((a) => a.id === id))
+        .filter((a): a is NonNullable<typeof a> => Boolean(a))
+    : [];
   const artistMap = release ? buildArtistMap(release.artists) : new Map();
   const releaseFeatureNames = release
     ? combinedFeatureDisplayNames(
@@ -296,11 +305,22 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     <span className="break-words min-w-0">{release.name}</span>
                     {release.isrcExplicit ? <ExplicitBadge size="xl" /> : null}
                   </h1>
-                  {(releasePrimaryNames.length > 0 || releaseFeatureNames.length > 0) ? (
+                  {(releasePrimaryArtists.length > 0 || releaseFeatureNames.length > 0) ? (
                     <div className="space-y-0.5">
-                      {releasePrimaryNames.length > 0 ? (
+                      {releasePrimaryArtists.length > 0 ? (
                         <p className="text-lg sm:text-xl text-white/95 font-medium">
-                          {releasePrimaryNames.join(", ")}
+                          {releasePrimaryArtists.map((a, i) => (
+                            <span key={a.id}>
+                              {i > 0 ? ", " : ""}
+                              {a.isPublic ? (
+                                <Link href={`/artists/${slugify(a.name)}`} className="hover:underline">
+                                  {a.name}
+                                </Link>
+                              ) : (
+                                a.name
+                              )}
+                            </span>
+                          ))}
                         </p>
                       ) : null}
                       {releaseFeatureNames.length > 0 ? (

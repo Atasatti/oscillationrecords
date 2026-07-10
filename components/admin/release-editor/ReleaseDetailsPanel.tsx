@@ -143,7 +143,7 @@ export default function ReleaseDetailsPanel({
       <CollapsibleCard
         title="Basic"
         summary={basicSummary}
-        open={open.basic}
+        open={open.basic ?? false}
         onToggle={() => toggle("basic")}
       >
         <div className="space-y-4">
@@ -281,7 +281,7 @@ export default function ReleaseDetailsPanel({
       <CollapsibleCard
         title="Genre"
         summary={genreCount ? `${genreCount}/2 set` : "none"}
-        open={open.genre}
+        open={open.genre ?? false}
         onToggle={() => toggle("genre")}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -305,7 +305,7 @@ export default function ReleaseDetailsPanel({
       <CollapsibleCard
         title="Codes & copyright"
         summary={`${codeCount}/4`}
-        open={open.codes}
+        open={open.codes ?? false}
         onToggle={() => toggle("codes")}
       >
         <p className="mb-4 text-xs text-gray-500">
@@ -366,7 +366,7 @@ export default function ReleaseDetailsPanel({
       <CollapsibleCard
         title="Streaming"
         summary={`${linkCount}/6 links`}
-        open={open.streaming}
+        open={open.streaming ?? false}
         onToggle={() => toggle("streaming")}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -395,7 +395,7 @@ export default function ReleaseDetailsPanel({
       <CollapsibleCard
         title="Artists"
         summary={artistsSummary}
-        open={open.artists}
+        open={open.artists ?? false}
         onToggle={() => toggle("artists")}
       >
         {loadingArtists ? (

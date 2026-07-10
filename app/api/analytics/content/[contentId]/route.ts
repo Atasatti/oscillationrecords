@@ -128,7 +128,7 @@ export async function GET(
     // Plays over time
     const playsByDate = new Map<string, number>();
     playEvents.forEach(event => {
-      const date = event.createdAt.toISOString().split('T')[0];
+      const date = event.createdAt.toISOString().slice(0, 10);
       playsByDate.set(date, (playsByDate.get(date) || 0) + 1);
     });
 

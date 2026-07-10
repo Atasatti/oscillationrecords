@@ -102,7 +102,10 @@ export default function StudioPhotosAdmin() {
       const j = i + dir;
       if (j < 0 || j >= prev.length) return prev;
       const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
+      const a = next[i], b = next[j];
+      if (a === undefined || b === undefined) return prev;
+      next[i] = b;
+      next[j] = a;
       return next;
     });
   };

@@ -53,7 +53,7 @@ export default async function ReleaseDetailPage({
 
   return (
     <>
-      <p className="sr-only">{releaseLead}</p>
+      <p id="release-lead" className="sr-only">{releaseLead}</p>
       <ReleaseDetailView release={release} />
     </>
   );

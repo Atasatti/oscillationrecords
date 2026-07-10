@@ -80,9 +80,9 @@ const STATUSES = TASK_STATUSES;
 const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", blocked: "Blocked", done: "Done" };
 const STATUS_MENU_ITEMS = STATUSES.map((s) => ({
   key: s,
-  label: STATUS_LABELS[s],
+  label: STATUS_LABELS[s] ?? s,
   dot: STATUS_COL_DOT[s] ?? "bg-zinc-500",
-  pill: STATUS_PILL[s],
+  pill: STATUS_PILL[s] ?? "",
 }));
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
@@ -361,7 +361,7 @@ function initialsOf(a: Assignee) {
   const base = (a.name || a.email || "").trim();
   if (!base) return "?";
   const parts = base.split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
   return base.slice(0, 2).toUpperCase();
 }
 
@@ -469,7 +469,7 @@ function extractMentionIds(body: string, staff: Assignee[]): string[] {
   for (const tok of tokens) {
     for (const s of staff) {
       const name = (s.name || "").toLowerCase();
-      const emailLocal = (s.email || "").split("@")[0].toLowerCase();
+      const emailLocal = ((s.email || "").split("@")[0] ?? "").toLowerCase();
       if (name.split(/\s+/).some((w) => w === tok) || name.startsWith(tok) || (tok.length >= 2 && emailLocal.startsWith(tok))) {
         ids.add(s.id);
       }
@@ -968,7 +968,7 @@ export default function TasksPage() {
     const c: Record<string, number> = { all: 0, todo: 0, in_progress: 0, blocked: 0, done: 0 };
     for (const t of tasks) {
       if (!matchesFilters(t)) continue;
-      c.all++;
+      c.all = (c.all ?? 0) + 1;
       c[t.status] = (c[t.status] ?? 0) + 1;
     }
     return c;
@@ -1069,7 +1069,7 @@ export default function TasksPage() {
       (cols[key] ??= []).push(t);
     }
     for (const k of Object.keys(cols)) {
-      cols[k].sort((a, b) => {
+      cols[k]?.sort((a, b) => {
         const pr = (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
         if (pr !== 0) return pr;
         const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
@@ -1689,7 +1689,7 @@ export default function TasksPage() {
             </button>
           ))}
         </div>
-        {tab === "all" && counts.done > 0 ? (
+        {tab === "all" && (counts.done ?? 0) > 0 ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <input
               type="checkbox"
@@ -1987,17 +1987,31 @@ export default function TasksPage() {
                       {t.releaseIds?.map((id) => {
                         const name = releaseNameById.get(id);
                         return name ? (
-                          <span key={`r-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <Link
+                            key={`r-${id}`}
+                            href={`/admin/catalog/releases/${id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            title={`Open release "${name}"`}
+                            className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                          >
                             <Music2 className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
-                          </span>
+                          </Link>
                         ) : null;
                       })}
                       {t.artistIds?.map((id) => {
                         const name = artistNameById.get(id);
                         return name ? (
-                          <span key={`a-${id}`} className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <Link
+                            key={`a-${id}`}
+                            href={`/admin/catalog/artists/${id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            title={`Open artist "${name}"`}
+                            className="inline-flex max-w-[12rem] items-center gap-1 truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                          >
                             <UserRound className="h-3 w-3 shrink-0" aria-hidden /> <span className="truncate">{name}</span>
-                          </span>
+                          </Link>
                         ) : null;
                       })}
                     </div>
@@ -2144,9 +2158,9 @@ export default function TasksPage() {
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Description</label>
-                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2}
+                <textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={5}
                   placeholder="How to do it, what to look for…"
-                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+                  className="min-h-[7rem] max-h-[70vh] resize-y rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
@@ -2231,7 +2245,7 @@ export default function TasksPage() {
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(tagInput); }
-                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1]);
+                      else if (e.key === "Backspace" && !tagInput && form.tags.length) removeTag(form.tags[form.tags.length - 1] ?? "");
                     }}
                     onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
                     placeholder={form.tags.length ? "" : "Add a label, press Enter…"}

@@ -62,7 +62,7 @@ interface RawArtist {
 
 function normalize(a: RawArtist): SpotifyArtist {
   // Spotify returns images largest-first; take the first as the avatar.
-  const imageUrl = a.images && a.images.length > 0 ? a.images[0].url : null;
+  const imageUrl = a.images && a.images.length > 0 ? a.images[0]?.url ?? null : null;
   return {
     id: a.id,
     name: a.name,
@@ -111,7 +111,7 @@ function normalizeAlbum(a: RawAlbum): SpotifyAlbum {
   return {
     id: a.id,
     name: a.name,
-    imageUrl: a.images && a.images.length > 0 ? a.images[0].url : null,
+    imageUrl: a.images && a.images.length > 0 ? a.images[0]?.url ?? null : null,
     spotifyUrl: a.external_urls?.spotify ?? null,
     releaseDate: a.release_date ?? null,
     artistNames: (a.artists ?? []).map((x) => x.name),

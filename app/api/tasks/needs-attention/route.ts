@@ -469,6 +469,8 @@ export async function GET(request: NextRequest) {
     for (const [code, arr] of isrcByCode) {
       const distinctNames = [...new Set(arr.map((a) => a.name.trim()))];
       if (arr.length > 1 && distinctNames.length > 1) {
+        const first = arr[0];
+        if (!first) continue;
         const releaseNames = [...new Set(arr.map((a) => a.releaseName))];
         items.push({
           id: `isrc-dup-${code}`,
@@ -480,7 +482,7 @@ export async function GET(request: NextRequest) {
             releaseNames.length > 1
               ? `Clashing across ${releaseNames.slice(0, 3).join(", ")}. Each distinct recording needs its own ISRC.`
               : `On "${releaseNames[0]}". Each distinct recording needs its own ISRC — give one of them a new code.`,
-          href: `/admin/catalog/releases/${arr[0].releaseId}/tracks?isrc=${encodeURIComponent(code)}`,
+          href: `/admin/catalog/releases/${first.releaseId}/tracks?isrc=${encodeURIComponent(code)}`,
           priority: "high",
         });
       }

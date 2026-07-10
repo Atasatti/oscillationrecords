@@ -399,7 +399,7 @@ export function assessNameAmbiguity(name: string): NameAmbiguityResult {
 
   // Ignore a leading non-identifying prefix before judging distinctiveness.
   let tokens = n.split(/\s+/);
-  if (tokens.length > 1 && STAGE_PREFIXES.has(tokens[0].toLowerCase().replace(/[^a-z]/g, ""))) {
+  if (tokens.length > 1 && STAGE_PREFIXES.has((tokens[0] ?? "").toLowerCase().replace(/[^a-z]/g, ""))) {
     tokens = tokens.slice(1);
   }
   if (tokens.length >= 2) {
@@ -407,7 +407,7 @@ export function assessNameAmbiguity(name: string): NameAmbiguityResult {
   }
 
   // Single plain word.
-  const letters = tokens[0].replace(/[^\p{L}]/gu, "");
+  const letters = (tokens[0] ?? "").replace(/[^\p{L}]/gu, "");
   const isAllCaps = letters.length >= 2 && letters === letters.toUpperCase();
 
   // A real common word (e.g. "Portrait", "Phoenix") is the hardest to reconcile,

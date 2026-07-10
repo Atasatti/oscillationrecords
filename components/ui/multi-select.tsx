@@ -107,6 +107,7 @@ export function MultiSelect({
           ) : (
             selectedLabels.map((label, index) => {
               const value = selected[index];
+              if (value === undefined) return null;
               return (
                 <span
                   key={value}

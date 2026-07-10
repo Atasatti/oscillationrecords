@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       const end = new Date(now);
       end.setUTCHours(0, 0, 0, 0);
       while (cursor <= end) {
-        dayKeys.push(cursor.toISOString().split("T")[0]);
+        dayKeys.push(cursor.toISOString().slice(0, 10));
         cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
     }
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
     const viewsMap = zero();
     const clicksMap = zero();
     const bump = (m: Map<string, number>, d: Date) => {
-      const k = d.toISOString().split("T")[0];
+      const k = d.toISOString().slice(0, 10);
       if (m.has(k)) m.set(k, (m.get(k) || 0) + 1);
     };
     events.forEach((e) => {

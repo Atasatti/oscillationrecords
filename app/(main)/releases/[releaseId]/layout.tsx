@@ -46,9 +46,12 @@ export async function generateMetadata({
   const url = absoluteUrl(`/releases/${slugify(r.name)}`);
   const artistNames = r.primaryArtists.map((a) => a.name).join(", ");
   const artistSuffix = artistNames ? ` by ${artistNames}` : "";
-  const description =
-    metaDescription(r.description) ||
-    `Listen to ${r.name}${artistSuffix} on ${SITE_NAME}, an independent Manchester record label releasing electronic music — dubstep, drum & bass and house.`;
+  // Unique per-release fallback (artists + year + genre) so releases without a
+  // written description don't collapse into one duplicated boilerplate line.
+  const genreBit = r.genres.length ? r.genres.slice(0, 2).join(", ") : "electronic";
+  const yearBit = r.releaseDate ? ` (${new Date(r.releaseDate).getFullYear()})` : "";
+  const fallbackDesc = `${r.name}${artistSuffix}${yearBit} — ${genreBit} on ${SITE_NAME}. Stream this release and explore the full catalogue from the independent UK label.`;
+  const description = metaDescription(r.description) || metaDescription(fallbackDesc);
   return {
     title: r.name,
     description,
