@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Search, CornerDownLeft, ArrowUp, ArrowDown, Disc3, UserRound } from "lucide-react";
 import { adminGroups } from "./AdminSidebar";
@@ -42,6 +42,7 @@ type SearchData = { releases: { id: string; name: string }[]; artists: { id: str
 
 export default function CommandPalette() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const guard = useUnsavedChangesContext();
   const isOwner = !!session?.user?.isAdmin;
@@ -93,6 +94,11 @@ export default function CommandPalette() {
     close();
     router.push(href);
   }, [guard, close, router]);
+
+  // Close on any route change so navigation from ANY source — the palette itself,
+  // a sidebar link, a "g" shortcut, or the browser back/forward buttons — never
+  // leaves the modal (and its dimmed backdrop) stranded over the newly opened page.
+  useEffect(() => { close(); }, [pathname, close]);
 
   // Global: ⌘/Ctrl-K toggles; "g then key" jumps when not typing.
   useEffect(() => {
