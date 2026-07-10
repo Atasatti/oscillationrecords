@@ -487,6 +487,17 @@ function renderCommentBody(body: string) {
   );
 }
 
+// The @token to insert when a teammate is picked from the autocomplete. Uses the
+// first name (falling back to the email local-part), matching what
+// extractMentionIds recognises and renderCommentBody highlights.
+function mentionHandle(a: Assignee): string {
+  const first = ((a.name || "").trim().split(/\s+/)[0] || "").replace(/[^\w.-]/g, "");
+  if (/^[a-zA-Z]/.test(first)) return first;
+  const local = ((a.email.split("@")[0]) || "").replace(/[^\w.-]/g, "");
+  if (/^[a-zA-Z]/.test(local)) return local;
+  return first || local || "user";
+}
+
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
@@ -497,6 +508,56 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
   const byId = useMemo(() => new Map(assignees.map((a) => [a.id, a])), [assignees]);
+
+  // @-mention autocomplete: when the caret sits in an "@partial" token, show a
+  // dropdown of matching teammates to insert. State is local to the composer.
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionMatches = useMemo(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    return assignees
+      .filter((a) => {
+        if (!q) return true;
+        const name = (a.name || "").toLowerCase();
+        const local = ((a.email.split("@")[0]) || "").toLowerCase();
+        return name.includes(q) || local.startsWith(q);
+      })
+      .slice(0, 6);
+  }, [mentionQuery, assignees]);
+
+  // Reset the highlighted row when the query changes (arrow nav only moves the
+  // index, which leaves the query untouched, so navigation isn't clobbered).
+  useEffect(() => { setMentionIndex(0); }, [mentionQuery]);
+
+  // Recompute mention state from the text before the caret. A mention triggers
+  // only when "@" starts the text or follows whitespace, so an email address
+  // ("user@host") never opens the dropdown.
+  const syncMention = (value: string, caret: number) => {
+    const m = value.slice(0, caret).match(/(?:^|\s)@([\w.-]{0,30})$/);
+    if (m) { setMentionQuery(m[1] ?? ""); setMentionOpen(true); }
+    else setMentionOpen(false);
+  };
+
+  // Replace the "@partial" at the caret with the picked teammate's handle.
+  const insertMention = (a: Assignee) => {
+    const ta = taRef.current;
+    const caret = ta ? ta.selectionStart : text.length;
+    const m = text.slice(0, caret).match(/(?:^|\s)@([\w.-]{0,30})$/);
+    if (!m) { setMentionOpen(false); return; }
+    const handle = mentionHandle(a);
+    const atStart = caret - (m[1]?.length ?? 0) - 1; // index of the "@"
+    const next = `${text.slice(0, atStart)}@${handle} ${text.slice(caret)}`;
+    const newCaret = atStart + handle.length + 2; // just past "@handle "
+    setText(next);
+    setMentionOpen(false);
+    requestAnimationFrame(() => {
+      const el = taRef.current;
+      if (el) { el.focus(); el.setSelectionRange(newCaret, newCaret); }
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -576,14 +637,47 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
         </ul>
       )}
       <div className="flex items-end gap-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add(); }}
-          rows={2}
-          placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
-          className="flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+        <div className="relative flex-1">
+          {mentionOpen && mentionMatches.length > 0 ? (
+            <ul className="absolute bottom-full left-0 z-50 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-2xl shadow-black/50">
+              {mentionMatches.map((a, i) => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    // mousedown + preventDefault (not click) keeps the textarea
+                    // focused, so its caret is still valid when we insert.
+                    onMouseDown={(e) => { e.preventDefault(); insertMention(a); }}
+                    onMouseMove={() => setMentionIndex(i)}
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                      i === mentionIndex ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <AssigneeAvatar user={a} size={20} />
+                    <span className="min-w-0 flex-1 truncate">{displayName(a)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => { setText(e.target.value); syncMention(e.target.value, e.target.selectionStart ?? e.target.value.length); }}
+            onKeyDown={(e) => {
+              if (mentionOpen && mentionMatches.length > 0) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex((i) => Math.min(mentionMatches.length - 1, i + 1)); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex((i) => Math.max(0, i - 1)); return; }
+                if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); const a = mentionMatches[mentionIndex]; if (a) insertMention(a); return; }
+                if (e.key === "Escape") { e.preventDefault(); setMentionOpen(false); return; }
+              }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add();
+            }}
+            onBlur={() => setMentionOpen(false)}
+            rows={2}
+            placeholder="Add a comment — @name to notify a teammate (⌘/Ctrl+Enter)"
+            className="w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
         <Button type="button" onClick={add} disabled={posting || !text.trim()} size="sm" className="bg-white text-black hover:bg-gray-200">
           {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
