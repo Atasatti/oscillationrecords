@@ -761,7 +761,7 @@ export default function AdminArtistsClient({
       )}
 
       {/* Single delete dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete artist</DialogTitle>
@@ -776,7 +776,7 @@ export default function AdminArtistsClient({
             {deleteTarget?.name}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
@@ -796,7 +796,7 @@ export default function AdminArtistsClient({
       ) : null}
 
       {/* Bulk delete dialog */}
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => { setBulkDeleteOpen(o); if (!o) unlockBody(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {selectedCount} artists</DialogTitle>
@@ -806,7 +806,7 @@ export default function AdminArtistsClient({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={working}>
+            <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); unlockBody(); }} disabled={working}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={() => bulkAction("delete")} disabled={working}>

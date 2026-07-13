@@ -716,7 +716,7 @@ function ReleasesPageInner({
       </>
       )}
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete release</DialogTitle>
@@ -726,7 +726,7 @@ function ReleasesPageInner({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
@@ -737,7 +737,7 @@ function ReleasesPageInner({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => { setBulkDeleteOpen(o); if (!o) unlockBody(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {selectedCount} releases</DialogTitle>
@@ -747,7 +747,7 @@ function ReleasesPageInner({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={working}>
+            <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); unlockBody(); }} disabled={working}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmBulkDelete} disabled={working}>
