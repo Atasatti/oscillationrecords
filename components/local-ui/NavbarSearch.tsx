@@ -4,6 +4,7 @@ import Image from "next/image";
 import React, {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -48,6 +49,10 @@ export default function NavbarSearch({
 }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
+  // Unique per instance — the navbar renders TWO NavbarSearch (desktop + mobile
+  // drawer), so a shared id would collide (invalid HTML) and make the click-outside
+  // lookup + aria-controls point at the wrong panel.
+  const panelId = `navbar-search-panel${useId()}`;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -76,6 +81,14 @@ export default function NavbarSearch({
     const el = rootRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
+    // This instance's field is display:none at the current breakpoint (the desktop
+    // field below 2xl, or the drawer field at 2xl+) → a zero-size rect. Anchoring to
+    // it would fling the panel to the top-left corner, detached from the visible
+    // field. Keep the panel hidden so only the on-screen field's panel ever shows.
+    if (r.width === 0 && r.height === 0) {
+      setPanelStyle((s) => ({ ...s, visibility: "hidden" }));
+      return;
+    }
     const width = Math.max(r.width, 280);
     setPanelStyle({
       position: "fixed",
@@ -168,13 +181,13 @@ export default function NavbarSearch({
     const onDoc = (e: MouseEvent) => {
       const t = e.target as Node;
       if (rootRef.current?.contains(t)) return;
-      const panel = document.getElementById("navbar-search-panel");
+      const panel = document.getElementById(panelId);
       if (panel?.contains(t)) return;
       setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+  }, [panelId]);
 
   const go = useCallback(
     (id: string, type: SearchHit["type"]) => {
@@ -194,7 +207,7 @@ export default function NavbarSearch({
     showPanel &&
     createPortal(
       <div
-        id="navbar-search-panel"
+        id={panelId}
         role="listbox"
         aria-label="Search results"
         style={panelStyle}
@@ -264,7 +277,7 @@ export default function NavbarSearch({
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}
-        aria-controls={open ? "navbar-search-panel" : undefined}
+        aria-controls={open ? panelId : undefined}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
