@@ -1,6 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { fileNameFromUrl, guessMimeFromUrl } from "@/lib/asset";
+import { fileNameFromUrl, guessMimeFromUrl, isUsableFileUrl } from "@/lib/asset";
+import { isOwnBucketUrl } from "@/lib/s3";
 import AssetsClient, { type Asset, type Option } from "./AssetsClient";
+
+// The Download action routes through our same-origin shim (which forces a real
+// file download via a presigned S3 Content-Disposition) for files WE host; an
+// external URL keeps its direct link. fileUrl stays the open/preview target.
+function downloadHrefFor(url: string, name: string): string {
+  return isOwnBucketUrl(url)
+    ? `/api/assets/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`
+    : url;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +60,7 @@ export default async function AssetsPage() {
     // Files uploaded directly through the DAM (editable/deletable).
     const damAssets: Asset[] = rows.map((a) => ({
       id: a.id, category: a.category, title: a.title, fileName: a.fileName, fileUrl: a.fileUrl,
+      downloadHref: downloadHrefFor(a.fileUrl, a.fileName),
       mimeType: a.mimeType, size: a.size, releaseId: a.releaseId, artistId: a.artistId, notes: a.notes,
       createdAt: a.createdAt.toISOString(), uploader: a.uploadedById ? uploaderName.get(a.uploadedById) ?? null : null,
       source: "upload", readOnly: false, parentHref: null, parentLabel: null,
@@ -61,10 +72,15 @@ export default async function AssetsPage() {
     const seen = new Set(damAssets.map((a) => a.fileUrl));
     const derived: Asset[] = [];
     const add = (d: DerivedInput) => {
-      if (!d.url || seen.has(d.url)) return;
+      // Skip missing OR null-like values ("null"/"undefined"/blank persisted as a
+      // string): a release with no cover must not surface a downloadable artwork
+      // row whose link resolves to "null.html".
+      if (!isUsableFileUrl(d.url) || seen.has(d.url)) return;
       seen.add(d.url);
+      const fileName = fileNameFromUrl(d.url);
       derived.push({
-        id: d.id, category: d.category, title: d.title, fileName: fileNameFromUrl(d.url), fileUrl: d.url,
+        id: d.id, category: d.category, title: d.title, fileName, fileUrl: d.url,
+        downloadHref: downloadHrefFor(d.url, fileName),
         mimeType: guessMimeFromUrl(d.url), size: 0, releaseId: d.releaseId ?? null, artistId: d.artistId ?? null,
         notes: null, createdAt: d.createdAt, uploader: null, source: d.source, readOnly: true,
         parentHref: d.parentHref, parentLabel: d.parentLabel,

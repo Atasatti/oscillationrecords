@@ -11,6 +11,8 @@ export type GroupableAsset = {
   title: string;
   fileName: string;
   fileUrl: string;
+  /** Same-origin href that forces a real download (see AssetsClient.Asset). */
+  downloadHref: string;
   releaseId: string | null;
   artistId: string | null;
   parentLabel: string | null;
@@ -122,7 +124,7 @@ export function buildDownloadItems(
     const disambiguate = (counts.get(asset.category) ?? 0) > 1;
     return {
       label: disambiguate ? `Download ${catLabel} — ${asset.title || asset.fileName}` : `Download ${catLabel}`,
-      href: asset.fileUrl,
+      href: asset.downloadHref,
       downloadName: asset.fileName,
     };
   });

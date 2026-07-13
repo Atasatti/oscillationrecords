@@ -82,6 +82,21 @@ export function guessMimeFromUrl(url: string): string {
   return "application/octet-stream";
 }
 
+/**
+ * True only for a value usable as a real, downloadable/renderable file URL — an
+ * absolute http(s) URL or a root-relative path. Guards the dirty-catalog cases
+ * where a missing file was persisted as the string "null"/"undefined" or an
+ * empty/whitespace value: those must NOT become a downloadable asset row, whose
+ * `<a href download>` would otherwise resolve relative to the page and save a
+ * bogus file (e.g. "null.html").
+ */
+export function isUsableFileUrl(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const s = v.trim();
+  if (!s || s === "null" || s === "undefined") return false;
+  return /^https?:\/\//i.test(s) || s.startsWith("/");
+}
+
 /** The filename portion of a URL (decoded), or "file". */
 export function fileNameFromUrl(url: string): string {
   try {

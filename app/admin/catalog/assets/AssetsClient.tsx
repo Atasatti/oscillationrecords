@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
-  Image as ImageIcon, ExternalLink, Search, List, LayoutGrid, FolderInput, X,
+  Image as ImageIcon, ExternalLink, Eye, Search, List, LayoutGrid, FolderInput, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/components/local-ui/Toast";
 import Segmented from "@/components/admin/ui/Segmented";
 import {
-  ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_ACCEPT, formatBytes, type AssetCategory,
+  ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, ASSET_ACCEPT, formatBytes, isUsableFileUrl, type AssetCategory,
 } from "@/lib/asset";
 import AssetActions from "@/components/admin/AssetActions";
 import { groupAssets, buildDownloadItems, type GroupMode } from "@/lib/asset-grouping";
@@ -32,6 +32,10 @@ export type Asset = {
   title: string;
   fileName: string;
   fileUrl: string;
+  /** Same-origin href that forces a real download (presigned S3 + Content-
+   *  Disposition) for our own files; falls back to fileUrl for external URLs.
+   *  Use this for the Download action — fileUrl is for open/preview only. */
+  downloadHref: string;
   mimeType: string;
   size: number;
   releaseId: string | null;
@@ -120,6 +124,9 @@ export default function AssetsClient({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [prog, setProg] = useState<UploadRow[]>([]);
+  // Editable asset name (title) per queued file, so it can be set at upload time
+  // instead of only via Edit afterwards. Defaults to the filename; parallel to `files`.
+  const [titles, setTitles] = useState<string[]>([]);
   const [uploadCategory, setUploadCategory] = useState<AssetCategory>("master");
   const [uploadReleaseId, setUploadReleaseId] = useState("");
   const [uploadArtistId, setUploadArtistId] = useState("");
@@ -192,6 +199,34 @@ export default function AssetsClient({
   }, [activeGroup, groups, visible, sortBy, sortDir, nameOf]);
 
   const activeAsset = useMemo(() => assets.find((a) => a.id === activeId) ?? null, [assets, activeId]);
+
+  // Detail side panel: dismiss with Esc or an outside click, so it never gets
+  // stuck open. Esc defers to any open dialog (Radix owns Escape while a modal is
+  // up). An outside click ignores asset rows/cards (data-asset-item) so switching
+  // the selection to another item just re-targets the panel instead of closing it.
+  const detailRef = useRef<HTMLElement | null>(null);
+  const closeDetail = () => setActiveId(null);
+  useEffect(() => {
+    if (!activeId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return; // a dialog is up
+      setActiveId(null);
+    };
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (detailRef.current?.contains(target)) return; // inside the panel
+      if (target.closest("[data-asset-item]")) return; // clicking another item re-targets it
+      setActiveId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [activeId]);
   // When a release folder is selected, offer a "download everything for this release" menu
   // (its files + synthesized lyrics) — the consolidated-download feature, surfaced in context.
   const activeReleaseGroup = useMemo(
@@ -261,10 +296,11 @@ export default function AssetsClient({
     const fs = Array.from(list ?? []);
     setFiles(fs);
     setProg(fs.map(() => ({ status: "queued" as const, pct: 0 })));
+    setTitles(fs.map((f) => f.name)); // pre-fill the name field with the filename
   };
 
   const openUpload = () => {
-    setFiles([]); setProg([]); setUploadReleaseId(""); setUploadArtistId(""); setUploadOpen(true);
+    setFiles([]); setProg([]); setTitles([]); setUploadReleaseId(""); setUploadArtistId(""); setUploadOpen(true);
   };
 
   const startUpload = async () => {
@@ -296,7 +332,8 @@ export default function AssetsClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fileKey, fileName: file.name, title: file.name, category: uploadCategory,
+            // Admin-set name (falls back to the filename if left blank).
+            fileKey, fileName: file.name, title: titles[i]?.trim() || file.name, category: uploadCategory,
             releaseId: uploadReleaseId || null, artistId: uploadArtistId || null,
           }),
         });
@@ -305,7 +342,19 @@ export default function AssetsClient({
           throw new Error(j?.error || "Couldn't save");
         }
         const { asset } = await res.json();
-        created.push({ ...asset, uploader: myName });
+        // A freshly uploaded file always lives in our own bucket, so give it the
+        // same-origin download shim (real download) and the client-only fields the
+        // API row doesn't carry — otherwise the new card would render with a broken
+        // Download link until the next full page load.
+        created.push({
+          ...asset,
+          uploader: myName,
+          source: "upload",
+          readOnly: false,
+          parentHref: null,
+          parentLabel: null,
+          downloadHref: `/api/assets/download?url=${encodeURIComponent(asset.fileUrl)}&name=${encodeURIComponent(asset.fileName)}`,
+        });
         setRow(i, { status: "done", pct: 100 });
       } catch (e) {
         failed += 1;
@@ -393,22 +442,24 @@ export default function AssetsClient({
   const renderCard = (a: Asset) => {
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
     const art = a.artistId ? nameOf.get(a.artistId) : null;
-    const isImg = /^image\//.test(a.mimeType);
+    const hasFile = isUsableFileUrl(a.fileUrl);
+    const isImg = hasFile && /^image\//.test(a.mimeType);
+    const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
+    const thumbInner = isImg ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+    ) : (
+      <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
+    );
     return (
-      <div key={a.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-        <a
-          href={a.fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20"
-        >
-          {isImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
-          )}
-        </a>
+      <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+        {hasFile ? (
+          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={thumbClass}>
+            {thumbInner}
+          </a>
+        ) : (
+          <div className={thumbClass}>{thumbInner}</div>
+        )}
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
           <div className="flex items-center gap-1.5">
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
@@ -437,10 +488,23 @@ export default function AssetsClient({
               {fmtDate(a.createdAt)}{a.uploader ? ` · ${a.uploader}` : ""}
             </span>
             <div className="flex shrink-0 items-center gap-0.5">
-              <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
-                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-                <Download className="h-3.5 w-3.5" />
-              </a>
+              {hasFile ? (
+                <>
+                  <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                    <Eye className="h-3.5 w-3.5" />
+                  </a>
+                  <a href={a.downloadHref} download={a.fileName} title="Download" aria-label="Download"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+                    <Download className="h-3.5 w-3.5" />
+                  </a>
+                </>
+              ) : (
+                <span title="No file available" aria-label="No file available" aria-disabled="true"
+                  className="rounded p-1.5 cursor-not-allowed text-muted-foreground/40">
+                  <Download className="h-3.5 w-3.5" />
+                </span>
+              )}
               {a.readOnly ? (
                 a.parentHref ? (
                   <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
@@ -469,14 +533,20 @@ export default function AssetsClient({
 
   // One dense table row.
   const renderRow = (a: Asset) => {
-    const isImg = /^image\//.test(a.mimeType);
+    const hasFile = isUsableFileUrl(a.fileUrl);
+    const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
     const art = a.artistId ? nameOf.get(a.artistId) : null;
     const on = selected.has(a.id);
+    // Collapse the lower-priority columns (xl only) while the detail panel is open —
+    // must match the hideable header columns so cells and headers stay aligned.
+    const hideCol = activeId ? "xl:hidden" : "";
     return (
       <tr
         key={a.id}
-        onClick={() => setActiveId(a.id)}
+        data-asset-item
+        aria-selected={activeId === a.id}
+        onClick={() => setActiveId((p) => (p === a.id ? null : a.id))}
         className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
       >
         <td className="w-9 px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -499,21 +569,34 @@ export default function AssetsClient({
             </span>
           </div>
         </td>
-        <td className="px-3 py-2">
+        <td className={`px-3 py-2 ${hideCol}`}>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
             {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
           </span>
         </td>
-        <td className="truncate px-3 py-2 text-sm text-muted-foreground">{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="truncate px-3 py-2 text-sm text-muted-foreground">{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
         <td className="whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
         <td className="whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
-            <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName} title="Download" aria-label="Download"
-              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
-              <Download className="h-3.5 w-3.5" />
-            </a>
+            {hasFile ? (
+              <>
+                <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
+                  <Eye className="h-3.5 w-3.5" />
+                </a>
+                <a href={a.downloadHref} download={a.fileName} title="Download" aria-label="Download"
+                  className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+              </>
+            ) : (
+              <span title="No file available" aria-label="No file available" aria-disabled="true"
+                className="rounded p-1.5 cursor-not-allowed text-muted-foreground/40">
+                <Download className="h-3.5 w-3.5" />
+              </span>
+            )}
             {a.readOnly ? (
               a.parentHref ? (
                 <Link href={a.parentHref} title="Manage on its record" aria-label="Manage on its record"
@@ -572,7 +655,8 @@ export default function AssetsClient({
   const renderPreview = () => {
     const a = activeAsset;
     if (!a) return null;
-    const isImg = /^image\//.test(a.mimeType);
+    const hasFile = isUsableFileUrl(a.fileUrl);
+    const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
     const art = a.artistId ? nameOf.get(a.artistId) : null;
     const meta: [string, string][] = [
@@ -584,33 +668,65 @@ export default function AssetsClient({
       ["By", a.uploader ?? (a.readOnly ? "Catalog" : "—")],
     ];
     return (
-      <aside className="scroll-themed hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
-        <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
-          className="grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30">
-          {isImg ? (
+      <aside ref={detailRef} className="scroll-themed hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Details</span>
+          <button
+            type="button"
+            onClick={closeDetail}
+            aria-label="Close details"
+            title="Close (Esc)"
+            className="-mr-1 rounded p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {(() => {
+          const previewClass = "grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30";
+          const inner = isImg ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
-          )}
-        </a>
+          );
+          return hasFile ? (
+            <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={previewClass}>{inner}</a>
+          ) : (
+            <div className={previewClass}>{inner}</div>
+          );
+        })()}
         <div className="min-w-0">
           <p className="break-words text-sm font-semibold leading-tight">{a.title}</p>
           <p className="mt-0.5 truncate text-xs text-muted-foreground" title={a.fileName}>{a.fileName}</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" download={a.fileName}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-gray-200">
-            <Download className="h-3.5 w-3.5" /> Download
-          </a>
+          {hasFile ? (
+            <>
+              {/* Download saves the file (same-origin shim → presigned S3 with
+                  Content-Disposition); Open previews the raw file in a new tab. */}
+              <a href={a.downloadHref} download={a.fileName}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-gray-200">
+                <Download className="h-3.5 w-3.5" /> Download
+              </a>
+              <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium hover:bg-white/5">
+                <Eye className="h-3.5 w-3.5" /> Open
+              </a>
+            </>
+          ) : (
+            <span aria-disabled="true" title="No file available"
+              className="col-span-2 inline-flex h-8 cursor-not-allowed items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground/50">
+              No file available
+            </span>
+          )}
           {a.readOnly ? (
             a.parentHref ? (
-              <Link href={a.parentHref} className="inline-flex h-8 items-center justify-center rounded-md border border-border text-xs hover:bg-white/5">Manage on record</Link>
-            ) : <span />
+              <Link href={a.parentHref} className="col-span-2 inline-flex h-8 items-center justify-center rounded-md border border-border text-xs hover:bg-white/5">Manage on record</Link>
+            ) : null
           ) : (
             <>
               <button type="button" onClick={() => openEdit(a)} className="inline-flex h-8 items-center justify-center rounded-md border border-border text-xs hover:bg-white/5">Edit details</button>
-              <button type="button" onClick={() => setDeleteTarget(a)} className="col-span-2 inline-flex h-8 items-center justify-center rounded-md border border-border text-xs text-red-400 hover:bg-red-950/20">Delete</button>
+              <button type="button" onClick={() => setDeleteTarget(a)} className="inline-flex h-8 items-center justify-center rounded-md border border-border text-xs text-red-400 hover:bg-red-950/20">Delete</button>
             </>
           )}
         </div>
@@ -646,7 +762,10 @@ export default function AssetsClient({
           <Upload className="h-4 w-4" /> Upload
         </Button>
         {activeReleaseGroup ? (
-          <AssetActions items={buildDownloadItems(activeReleaseGroup, filter === "all" && activeReleaseGroup.entityId ? releaseLyrics[activeReleaseGroup.entityId] : undefined, ASSET_CATEGORY_LABELS)} />
+          <AssetActions
+            zipHref={`/api/releases/${activeReleaseGroup.entityId}/assets/download`}
+            items={buildDownloadItems(activeReleaseGroup, filter === "all" && activeReleaseGroup.entityId ? releaseLyrics[activeReleaseGroup.entityId] : undefined, ASSET_CATEGORY_LABELS)}
+          />
         ) : null}
         <div className="inline-flex overflow-hidden rounded-lg border border-border">
           {(["table", "grid"] as const).map((v) => (
@@ -684,18 +803,21 @@ export default function AssetsClient({
               <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-[4%] px-3 py-2">
+                    <th className="w-9 px-3 py-2">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
-                    {([["name", "Name", "w-[32%]"], ["type", "Type", "w-[10%]"], ["release", "Release", "w-[17%]"], ["artist", "Artist", "w-[13%]"], ["size", "Size", "w-[8%]"], ["date", "Added", "w-[11%]"]] as const).map(([col, label, w]) => (
-                      <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""}`}>
+                    {/* `hideable` columns collapse (xl only) while the detail panel is open, so the
+                        narrower table stays readable; below xl the panel is hidden, so they stay. */}
+                    {([["name", "Name", "w-[34%]", false], ["type", "Type", "w-[10%]", true], ["release", "Release", "w-[18%]", true], ["artist", "Artist", "w-[14%]", true], ["size", "Size", "w-[9%]", false], ["date", "Added", "w-[13%]", false]] as const).map(([col, label, w, hideable]) => (
+                      <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
-                    <th className="w-[5%] px-3 py-2" />
+                    {/* Fixed width so the 3–4 action icons always fit and never overlap the date. */}
+                    <th className="w-36 px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>
@@ -739,7 +861,7 @@ export default function AssetsClient({
               <label className="text-sm font-medium">Files</label>
               <input type="file" multiple accept={ASSET_ACCEPT} disabled={uploading} onChange={(e) => pickFiles(e.target.files)}
                 className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-sm file:text-foreground hover:file:bg-white/20" />
-              <p className="text-xs text-muted-foreground">Audio, images, PDF, zip or video. Up to 1&nbsp;GB each.</p>
+              <p className="text-xs text-muted-foreground">Audio, images, PDF, zip or video. Up to 1&nbsp;GB each. Set each asset&rsquo;s name below before uploading.</p>
             </div>
             {files.length > 0 ? (
               <div className="mt-4 flex flex-col gap-2">
@@ -747,12 +869,21 @@ export default function AssetsClient({
                   const r = prog[i] ?? { status: "queued", pct: 0 };
                   return (
                     <div key={i} className="rounded-lg border border-border bg-background/40 p-2.5">
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate">{f.name}</span>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={titles[i] ?? f.name}
+                          onChange={(e) => setTitles((t) => t.map((x, idx) => (idx === i ? e.target.value : x)))}
+                          disabled={uploading || r.status === "done"}
+                          aria-label={`Asset name for ${f.name}`}
+                          placeholder={f.name}
+                          className={`${inputCls} h-8 min-w-0 flex-1 !py-1 text-xs disabled:opacity-60`}
+                        />
+                        <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">
                           {r.status === "done" ? "Done" : r.status === "error" ? "Failed" : r.status === "uploading" ? `${r.pct}%` : formatBytes(f.size)}
                         </span>
                       </div>
+                      <p className="mt-1 truncate text-[10px] text-muted-foreground" title={f.name}>{f.name}</p>
                       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
                         <div
                           className={`h-full transition-all ${r.status === "error" ? "bg-red-500" : r.status === "done" ? "bg-emerald-500" : "bg-white"}`}
