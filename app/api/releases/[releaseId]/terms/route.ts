@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { normalizeTerms, isTermsEmpty, AGREEMENT_TYPE_LABELS } from "@/lib/release-terms";
+import { isOwnBucketUrl } from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,6 +39,9 @@ export async function PATCH(
     const { releaseId } = await params;
     const body = await request.json().catch(() => ({}));
     const terms = normalizeTerms(body);
+    // Documents only ever come from our own presign endpoint (own-bucket URLs);
+    // drop anything else so a crafted PATCH can't attach an external link.
+    terms.documents = terms.documents.filter((d) => isOwnBucketUrl(d.url));
 
     const release = await prisma.release.findUnique({ where: { id: releaseId }, select: { name: true } });
     if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
