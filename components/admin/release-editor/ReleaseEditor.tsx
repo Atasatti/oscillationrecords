@@ -44,6 +44,9 @@ export interface ReleaseEditorProps {
   initialArtistIds?: string[];
   /** Pre-set status on create (e.g. "SCHEDULED" from the Coming Soon page). */
   initialStatus?: ReleaseDetailsValue["status"];
+  /** Rendered inside the step-based workflow — the tracklist has its own step, so
+   *  hide the "Manage tracklist" block/link and adjust the intro copy. */
+  inStepper?: boolean;
 }
 
 export default function ReleaseEditor({
@@ -52,6 +55,7 @@ export default function ReleaseEditor({
   releaseId,
   initialArtistIds,
   initialStatus,
+  inStepper = false,
 }: ReleaseEditorProps) {
   const router = useRouter();
   const toast = useToast();
@@ -580,7 +584,9 @@ export default function ReleaseEditor({
         </div>
         <p className="text-gray-400 mt-2">
           {mode === "edit"
-            ? "Edit release details below. The tracklist saves automatically as you edit it."
+            ? inStepper
+              ? "Release details, artwork and metadata. Delivery sign-off and release tasks are below; tracks are the next step."
+              : "Edit release details below. The tracklist saves automatically as you edit it."
             : "Release details. Click “Next” to add the tracklist."}
         </p>
       </div>
@@ -692,6 +698,7 @@ export default function ReleaseEditor({
         />
 
         {mode === "edit" && releaseId ? (
+          inStepper ? null : (
           <div className="mt-8 flex flex-col gap-4 rounded-xl border border-white/10 bg-[#141414] p-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-medium text-gray-200">Tracklist</h3>
@@ -712,6 +719,7 @@ export default function ReleaseEditor({
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
+          )
         ) : (
           <p className="mt-8 rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
             Click “Next” to create the release — you’ll add the tracklist on the next step.
