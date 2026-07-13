@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -106,6 +106,15 @@ export default function AdminArtistsClient({
     return () => clearTimeout(t);
   }, [queryInput]);
 
+  // Bumped on every optimistic row mutation (visibility/featured toggle). A
+  // background SWR revalidation (load) that was already in flight when the user
+  // clicks returns pre-toggle data; applying it would repaint the just-flipped row
+  // with its old value — the flicker where Featured briefly reverts, then snaps
+  // back when the PATCH resolves. A load whose generation changed mid-fetch is
+  // stale, so it discards its own response and lets the toggle's own PATCH
+  // (applyServerRow) be the source of truth.
+  const mutationGen = useRef(0);
+
   const load = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(page),
@@ -131,10 +140,14 @@ export default function AdminArtistsClient({
     } else {
       setLoading(true);
     }
+    // Snapshot the mutation generation; if a toggle happens while this fetch is in
+    // flight, the response is pre-toggle and must not overwrite the optimistic row.
+    const gen = mutationGen.current;
     try {
       const res = await fetch(`/api/artists?${qs}`);
       if (!res.ok) throw new Error("Failed to load artists");
       const data = await res.json();
+      if (gen !== mutationGen.current) return; // a toggle raced this load — discard stale data
       setItems(data.items);
       setTotal(data.total);
       setSelected(new Set());
@@ -228,6 +241,7 @@ export default function AdminArtistsClient({
           : a
       )
     );
+    mutationGen.current++; // stale in-flight loads must not revert this row
     try {
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
@@ -247,6 +261,7 @@ export default function AdminArtistsClient({
     const prev = items;
     const row = items.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
+    mutationGen.current++; // stale in-flight loads must not revert this row
     try {
       // When featuring a row the admin sees as visible, assert showOnWebsite in the
       // same request. The server's "only visible artists can be Featured" guard reads
