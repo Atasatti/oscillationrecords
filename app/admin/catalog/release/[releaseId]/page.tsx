@@ -35,7 +35,9 @@ import {
   Send,
   CalendarClock,
   EyeOff,
+  ImageOff,
 } from "lucide-react";
+import { isUsableFileUrl } from "@/lib/asset";
 import { Badge } from "@/components/ui/badge";
 import {
   DndContext,
@@ -511,11 +513,26 @@ export default function AdminReleaseDetail() {
         <div className="mb-10 max-w-6xl xl:max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 xl:gap-12 items-start">
             <div className="w-full max-w-[min(100%,320px)] mx-auto lg:mx-0 shrink-0">
-              <img
-                src={release.coverImage}
-                alt={release.name}
-                className="w-full aspect-square object-cover rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40"
-              />
+              {/* Only render an <img> for a real URL — a missing cover is stored as
+                  "" (or the string "null") on some releases, and an empty src makes
+                  the browser refetch the whole page. Fall back to a clean placeholder. */}
+              {isUsableFileUrl(release.coverImage) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={release.coverImage}
+                  alt={release.name}
+                  className="w-full aspect-square object-cover rounded-2xl ring-1 ring-white/10 shadow-2xl shadow-black/40"
+                />
+              ) : (
+                <div
+                  role="img"
+                  aria-label={`${release.name} — no artwork available`}
+                  className="flex w-full aspect-square flex-col items-center justify-center gap-2 rounded-2xl bg-white/[0.03] text-center text-muted-foreground ring-1 ring-white/10 shadow-2xl shadow-black/40"
+                >
+                  <ImageOff className="h-10 w-10 opacity-50" aria-hidden />
+                  <span className="text-xs">No artwork available</span>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 min-w-0 w-full space-y-6">
