@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Save,
   Image as ImageIcon,
   Loader2,
@@ -593,16 +592,8 @@ export default function ArtistEditor({
 
   return (
     <div>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (confirmDiscard()) router.push("/admin/artists");
-        }}
-        className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to artists
-      </Button>
-
+      {/* No "Back to artists" button — the breadcrumb (Admin › Artists › Edit)
+          already provides the way back; a second control would be duplicate nav. */}
       <PageHeader
         title={mode === "edit" ? "Edit artist" : "New artist"}
         actions={
