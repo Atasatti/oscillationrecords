@@ -388,7 +388,7 @@ export default function AdminPressClient({
         </>
       )}
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete press item</DialogTitle>
@@ -403,7 +403,7 @@ export default function AdminPressClient({
             {deleteTarget?.title}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
