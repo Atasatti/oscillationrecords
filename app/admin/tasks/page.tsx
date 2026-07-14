@@ -2419,12 +2419,12 @@ export default function TasksPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete task</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Delete this task? This cannot be undone.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={working}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); unlockBody(); }} disabled={working}>Cancel</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={working}>
               {working ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
             </Button>
@@ -2432,12 +2432,12 @@ export default function TasksPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => !o && setBulkDeleteOpen(false)}>
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => { if (!o) { setBulkDeleteOpen(false); unlockBody(); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete {selected.size} task{selected.size === 1 ? "" : "s"}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Delete the {selected.size} selected task{selected.size === 1 ? "" : "s"}? This cannot be undone.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)} disabled={bulkWorking}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setBulkDeleteOpen(false); unlockBody(); }} disabled={bulkWorking}>Cancel</Button>
             <Button variant="destructive" onClick={() => runBulk({ delete: true })} disabled={bulkWorking}>
               {bulkWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Delete
             </Button>
