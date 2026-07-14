@@ -1,7 +1,7 @@
 // Automation rules ("when X → do Y") for the label ops. A small, curated set of
 // built-in rules the admin can toggle on/off — not a no-code rule builder. Each
 // rule creates OutreachTasks, at most once per source entity (idempotent via the
-// AutomationFire ledger). Server-only (touches prisma). See app/admin/automations.
+// AutomationFire ledger). Server-only (touches prisma). See app/admin/tasks/automations.
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";

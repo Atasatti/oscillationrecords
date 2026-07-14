@@ -925,7 +925,7 @@ export default function TasksPage() {
     const cached = getCached<{ releases: CatalogRef[]; artists: CatalogRef[] }>("task-catalog-refs");
     if (cached) { setReleaseRefs(cached.releases); setArtistRefs(cached.artists); }
     try {
-      const res = await fetch("/api/admin/catalog-refs");
+      const res = await fetch("/api/admin/site-content-refs");
       if (!res.ok) throw new Error();
       const data = await res.json();
       const refs = { releases: data.releases ?? [], artists: data.artists ?? [] };
@@ -2093,7 +2093,7 @@ export default function TasksPage() {
                         return name ? (
                           <Link
                             key={`r-${id}`}
-                            href={`/admin/catalog/releases/${id}/edit`}
+                            href={`/admin/releases/${id}/edit`}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             title={`Open release "${name}"`}
@@ -2108,7 +2108,7 @@ export default function TasksPage() {
                         return name ? (
                           <Link
                             key={`a-${id}`}
-                            href={`/admin/catalog/artists/${id}/edit`}
+                            href={`/admin/artists/${id}/edit`}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             title={`Open artist "${name}"`}

@@ -240,7 +240,7 @@ export default function ArtistEditor({
         setReleaseCount(typeof a.releaseCount === "number" ? a.releaseCount : 0);
       } catch {
         toast.error("Failed to load artist");
-        router.push("/admin/catalog/artists");
+        router.push("/admin/artists");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -521,7 +521,7 @@ export default function ArtistEditor({
       // which then makes the Featured action wrongly reject the artist as not visible.
       clearCached();
       toast.success(draft ? "Draft saved" : mode === "edit" ? "Artist saved" : "Artist created");
-      router.push("/admin/catalog/artists");
+      router.push("/admin/artists");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -596,7 +596,7 @@ export default function ArtistEditor({
       <Button
         variant="ghost"
         onClick={() => {
-          if (confirmDiscard()) router.push("/admin/catalog/artists");
+          if (confirmDiscard()) router.push("/admin/artists");
         }}
         className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
       >
@@ -1033,7 +1033,7 @@ export default function ArtistEditor({
                 type="button"
                 variant="ghost"
                 onClick={() => {
-                  if (confirmDiscard()) router.push("/admin/catalog/artists");
+                  if (confirmDiscard()) router.push("/admin/artists");
                 }}
               >
                 Cancel

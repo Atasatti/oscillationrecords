@@ -32,8 +32,8 @@ const ALL_DESTINATIONS: Dest[] = (() => {
 const G_SHORTCUTS: Record<string, string> = {
   d: "/admin",
   t: "/admin/tasks",
-  r: "/admin/catalog/releases",
-  a: "/admin/catalog/artists",
+  r: "/admin/releases",
+  a: "/admin/artists",
   m: "/admin/messages",
 };
 
@@ -80,9 +80,9 @@ export default function CommandPalette() {
       .map<Item>((d) => ({ kind: "nav", label: d.label, sub: d.group || "Go to", href: d.href }));
     if (!q || !data) return nav;
     const rel = data.releases.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/catalog/releases/${r.id}/edit` }));
+      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
     const art = data.artists.filter((a) => a.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/catalog/artists/${a.id}/edit` }));
+      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
     return [...nav, ...rel, ...art];
   }, [query, data, canSee]);
 

@@ -139,7 +139,7 @@ export default function ReleaseEditor({
         const res = await fetch(`/api/releases/${releaseId}`);
         if (!res.ok) {
           toast.error("Failed to load release");
-          router.push("/admin/catalog/releases");
+          router.push("/admin/releases");
           return;
         }
         const data = await res.json();
@@ -416,7 +416,7 @@ export default function ReleaseEditor({
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
-        else router.replace(`/admin/catalog/releases/${created.id}/tracks`);
+        else router.replace(`/admin/releases/${created.id}/tracks`);
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",
@@ -432,7 +432,7 @@ export default function ReleaseEditor({
           toast.success("Draft saved");
           if (redirectTo) router.push(redirectTo);
         } else {
-          router.push(`/admin/catalog/release/${releaseId}`);
+          router.push(`/admin/release/${releaseId}`);
         }
       }
     } catch (err) {
@@ -481,18 +481,18 @@ export default function ReleaseEditor({
       setLeaveOpen(true);
       return;
     }
-    router.push("/admin/catalog/releases");
+    router.push("/admin/releases");
   };
 
   const discardAndLeave = () => {
     setDirty(false); // release the unsaved-changes guard before navigating
     setLeaveOpen(false);
-    router.push("/admin/catalog/releases");
+    router.push("/admin/releases");
   };
 
   const saveDraftAndLeave = async () => {
     // Reuse handleSave forced to DRAFT; it navigates to the list on success.
-    await handleSave({ status: "DRAFT", redirectTo: "/admin/catalog/releases" });
+    await handleSave({ status: "DRAFT", redirectTo: "/admin/releases" });
     // On a validation/network failure handleSave surfaces the error and stays —
     // close the dialog so the form (and any field errors) is visible again.
     setLeaveOpen(false);
@@ -540,7 +540,7 @@ export default function ReleaseEditor({
                 variant="outline"
                 title="View the completed release (tracklist, streaming links and all)"
                 onClick={() => {
-                  if (confirmDiscard()) router.push(`/admin/catalog/release/${releaseId}`);
+                  if (confirmDiscard()) router.push(`/admin/release/${releaseId}`);
                 }}
               >
                 <Eye className="w-4 h-4 mr-2" />
@@ -628,7 +628,7 @@ export default function ReleaseEditor({
                   className="w-full border-white/10"
                   onClick={() => {
                     if (confirmDiscard())
-                      router.push(`/admin/catalog/releases/${releaseId}/tracks`);
+                      router.push(`/admin/releases/${releaseId}/tracks`);
                   }}
                 >
                   {lyricsCov.total > 0 && lyricsCov.withLyrics === lyricsCov.total
@@ -712,7 +712,7 @@ export default function ReleaseEditor({
               variant="outline"
               className="shrink-0"
               onClick={() => {
-                if (confirmDiscard()) router.push(`/admin/catalog/releases/${releaseId}/tracks`);
+                if (confirmDiscard()) router.push(`/admin/releases/${releaseId}/tracks`);
               }}
             >
               Manage tracklist
@@ -770,7 +770,7 @@ export default function ReleaseEditor({
             onClick={() =>
               handleSave({
                 status: "DRAFT",
-                redirectTo: isCreate ? "/admin/catalog/releases" : undefined,
+                redirectTo: isCreate ? "/admin/releases" : undefined,
               })
             }
             disabled={saving || uploadingImage || artists.length === 0}

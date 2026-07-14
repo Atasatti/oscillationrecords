@@ -430,7 +430,7 @@ export default function AnalyticsDashboard() {
               {jumpArtists.map((a) => (
                 <Link
                   key={a.id}
-                  href={`/admin/catalog/artist/${a.id}`}
+                  href={`/admin/artist/${a.id}`}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:border-white/25 hover:bg-white/[0.04]"
                 >
                   {a.name}
@@ -568,7 +568,7 @@ export default function AnalyticsDashboard() {
                 a.id ? (
                   <Link
                     key={a.id}
-                    href={`/admin/catalog/artist/${a.id}`}
+                    href={`/admin/artist/${a.id}`}
                     className="block w-full rounded-lg p-1 transition-colors hover:bg-white/[0.03]"
                   >
                     <BarRow label={a.name} value={a.plays} max={maxArtist} color="#34d399" />

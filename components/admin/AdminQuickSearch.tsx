@@ -102,7 +102,7 @@ export default function AdminQuickSearch() {
                     <button
                       key={a.id}
                       type="button"
-                      onClick={() => go(`/admin/catalog/artist/${a.id}`)}
+                      onClick={() => go(`/admin/artist/${a.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -119,7 +119,7 @@ export default function AdminQuickSearch() {
                     <button
                       key={r.id}
                       type="button"
-                      onClick={() => go(`/admin/catalog/release/${r.id}`)}
+                      onClick={() => go(`/admin/release/${r.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * Lightweight {id, name} lists of releases and artists for admin pickers (e.g.
  * linking a task to a release). Includes drafts, since it's an internal picker.
- * Staff-readable (see /api/admin/catalog-refs) so Outreach-role users can link
+ * Staff-readable (see /api/admin/site-content-refs) so Outreach-role users can link
  * tasks without holding catalog permissions.
  */
 export type CatalogRef = { id: string; name: string };

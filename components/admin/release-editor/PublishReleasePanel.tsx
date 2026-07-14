@@ -104,7 +104,7 @@ export default function PublishReleasePanel({
       else if (nextStatus === "SCHEDULED") toast.success("Release scheduled");
       else toast.success("Reverted to draft");
       if (navigateAway && nextStatus !== "DRAFT") {
-        router.push(`/admin/catalog/release/${releaseId}`);
+        router.push(`/admin/release/${releaseId}`);
       }
     } catch (err) {
       console.error(err);

@@ -5,7 +5,7 @@ import { getCatalogRefs } from "@/lib/catalog-refs";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// GET /api/admin/catalog-refs — {id,name} lists of releases + artists for admin
+// GET /api/admin/site-content-refs — {id,name} lists of releases + artists for admin
 // pickers (e.g. linking a task to a release/artist). Readable by ANY staff role
 // so Outreach staff can link without catalog permissions.
 export async function GET(request: NextRequest) {

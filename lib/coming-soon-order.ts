@@ -1,6 +1,6 @@
 // Client-safe (no server imports) so both the public server reader
 // (lib/catalog-data.ts → getUpcomingReleases) and the admin client list
-// (app/admin/catalog/page.tsx) sort the home "Coming Soon" strip identically.
+// (app/admin/page.tsx) sort the home "Coming Soon" strip identically.
 
 const COMING_SOON_LAST = Number.MAX_SAFE_INTEGER;
 

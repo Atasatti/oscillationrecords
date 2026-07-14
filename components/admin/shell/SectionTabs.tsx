@@ -26,24 +26,24 @@ export const TAB_GROUPS: readonly (readonly Tab[])[] = [
   ],
   [
     { label: "Board", href: "/admin/tasks" },
-    { label: "Automations", href: "/admin/automations", perm: "outreach:write" },
-    { label: "Templates", href: "/admin/outreach/templates", perm: "outreach:write" },
+    { label: "Automations", href: "/admin/tasks/automations", perm: "outreach:write" },
+    { label: "Templates", href: "/admin/tasks/templates", perm: "outreach:write" },
   ],
   [
-    { label: "Releases", href: "/admin/catalog/releases", perm: "catalog:read" },
-    { label: "Pipeline", href: "/admin/catalog/pipeline", perm: "catalog:read" },
-    { label: "Timeline", href: "/admin/catalog/timeline", perm: "catalog:read" },
+    { label: "Releases", href: "/admin/releases", perm: "catalog:read" },
+    { label: "Pipeline", href: "/admin/pipeline", perm: "catalog:read" },
+    { label: "Timeline", href: "/admin/timeline", perm: "catalog:read" },
   ],
   [
-    { label: "Artists", href: "/admin/catalog/artists", perm: "catalog:read" },
-    { label: "Onboarding", href: "/admin/catalog/artists/onboarding", perm: "catalog:read" },
+    { label: "Artists", href: "/admin/artists", perm: "catalog:read" },
+    { label: "Onboarding", href: "/admin/artists/onboarding", perm: "catalog:read" },
   ],
   [
-    { label: "Budgets", href: "/admin/catalog/budgets", perm: "catalog:read" },
+    { label: "Budgets", href: "/admin/budgets", perm: "catalog:read" },
   ],
   [
-    { label: "Newsletter", href: "/admin/outreach/newsletter", perm: "outreach:read" },
-    { label: "Subscribers", href: "/admin/subscribers", perm: "outreach:read" },
+    { label: "Newsletter", href: "/admin/newsletter", perm: "outreach:read" },
+    { label: "Subscribers", href: "/admin/newsletter/subscribers", perm: "outreach:read" },
   ],
 ];
 
@@ -63,8 +63,8 @@ export default function SectionTabs() {
   // noise mid-edit and add another nav path away from unsaved work. The only ways
   // out then are the guarded sidebar, breadcrumbs and the editor's own Save/Cancel.
   const onReleaseEditor =
-    pathname === "/admin/catalog/releases/new" ||
-    (pathname.startsWith("/admin/catalog/releases/") &&
+    pathname === "/admin/releases/new" ||
+    (pathname.startsWith("/admin/releases/") &&
       (pathname.endsWith("/edit") || pathname.endsWith("/tracks")));
   if (onReleaseEditor) return null;
 

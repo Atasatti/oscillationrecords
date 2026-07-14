@@ -63,7 +63,7 @@ export function groupAssets<T extends GroupableAsset>(
         put({
           key: `release:${a.releaseId}`, kind: "release", entityId: a.releaseId,
           name: ctx.releaseNames.get(a.releaseId) ?? a.parentLabel ?? "Untitled release",
-          href: a.parentHref ?? `/admin/catalog/release/${a.releaseId}`,
+          href: a.parentHref ?? `/admin/release/${a.releaseId}`,
         }, a);
       } else {
         put({ key: "none", kind: "release", entityId: null, name: "Not linked to a release", href: null }, a);
@@ -74,7 +74,7 @@ export function groupAssets<T extends GroupableAsset>(
         put({
           key: `artist:${artistId}`, kind: "artist", entityId: artistId,
           name: ctx.artistNames.get(artistId) ?? "Unknown artist",
-          href: `/admin/catalog/artist/${artistId}`,
+          href: `/admin/artist/${artistId}`,
         }, a);
       } else {
         put({ key: "none", kind: "artist", entityId: null, name: "No artist", href: null }, a);

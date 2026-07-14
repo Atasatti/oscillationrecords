@@ -158,7 +158,7 @@ export default function PressEditor({
         setIsDraft(p.draft === true);
       } catch {
         toast.error("Failed to load press item");
-        router.push("/admin/catalog/press");
+        router.push("/admin/press");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -282,7 +282,7 @@ export default function PressEditor({
       }
       setDirty(false);
       toast.success(draft ? "Draft saved" : mode === "edit" ? "Press item saved" : "Press item created");
-      router.push("/admin/catalog/press");
+      router.push("/admin/press");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -306,7 +306,7 @@ export default function PressEditor({
       if (!res.ok) throw new Error();
       setDirty(false);
       toast.success("Press item deleted");
-      router.push("/admin/catalog/press");
+      router.push("/admin/press");
     } catch {
       toast.error("Failed to delete press item");
       setDeleting(false);
@@ -673,7 +673,7 @@ export default function PressEditor({
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  if (confirmDiscard()) router.push("/admin/catalog/press");
+                  if (confirmDiscard()) router.push("/admin/press");
                 }}
               >
                 Cancel

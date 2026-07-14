@@ -41,7 +41,7 @@ export default function ReleaseTracksStep({ releaseId }: { releaseId: string }) 
           <ListMusic className="h-5 w-5 text-gray-400" /> Tracks
         </h2>
         <Link
-          href={`/admin/catalog/releases/${releaseId}/tracks`}
+          href={`/admin/releases/${releaseId}/tracks`}
           className="inline-flex items-center gap-1.5 rounded-md bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-gray-200"
         >
           Manage tracklist <ArrowRight className="h-4 w-4" />

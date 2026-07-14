@@ -18,8 +18,8 @@ function csvCell(value: string): string {
   return `"${escaped}"`;
 }
 
-// GET /api/admin/subscribers?q=&page=&pageSize=  (JSON list)
-//     /api/admin/subscribers?format=csv          (CSV download of all matches)
+// GET /api/admin/newsletter/subscribers?q=&page=&pageSize=  (JSON list)
+//     /api/admin/newsletter/subscribers?format=csv          (CSV download of all matches)
 export async function GET(request: NextRequest) {
   const guard = await requirePermission(request, "outreach:read");
   if (!guard.ok) return guard.response;
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ items, total });
 }
 
-// DELETE /api/admin/subscribers?id=...  (GDPR: remove a subscriber)
+// DELETE /api/admin/newsletter/subscribers?id=...  (GDPR: remove a subscriber)
 export async function DELETE(request: NextRequest) {
   const guard = await requirePermission(request, "outreach:write");
   if (!guard.ok) return guard.response;

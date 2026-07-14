@@ -25,7 +25,7 @@ const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days
  *
  * Usage:
  *   GET /api/dev/login                                   → primary admin → /admin
- *   GET /api/dev/login?email=<allowlisted>&callbackUrl=/admin/catalog/releases
+ *   GET /api/dev/login?email=<allowlisted>&callbackUrl=/admin/releases
  */
 export async function GET(request: NextRequest) {
   // Gates 1 + 2: environment.

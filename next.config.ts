@@ -63,6 +63,27 @@ const nextConfig: NextConfig = {
       { source: "/api/:path*", headers: noindex },
     ];
   },
+  async redirects() {
+    // The admin IA was flattened: the "catalog" / "content" routing-group segments
+    // were removed from URLs, and a few sub-views were re-nested under their nav
+    // parent. Keep the OLD paths working (bookmarks, any missed internal link) by
+    // redirecting them to the new locations. Temporary (307) — these are internal,
+    // noindexed admin routes. Exact rules precede their wildcard so a bare path and
+    // its sub-routes each map cleanly.
+    return [
+      { source: "/admin/catalog", destination: "/admin/site-content", permanent: false },
+      { source: "/admin/catalog/:path*", destination: "/admin/:path*", permanent: false },
+      { source: "/admin/content/calendar", destination: "/admin/calendar", permanent: false },
+      { source: "/admin/outreach/newsletter", destination: "/admin/newsletter", permanent: false },
+      { source: "/admin/outreach/newsletter/:path*", destination: "/admin/newsletter/:path*", permanent: false },
+      { source: "/admin/outreach/templates", destination: "/admin/tasks/templates", permanent: false },
+      { source: "/admin/outreach/templates/:path*", destination: "/admin/tasks/templates/:path*", permanent: false },
+      { source: "/admin/subscribers", destination: "/admin/newsletter/subscribers", permanent: false },
+      { source: "/admin/subscribers/:path*", destination: "/admin/newsletter/subscribers/:path*", permanent: false },
+      { source: "/admin/automations", destination: "/admin/tasks/automations", permanent: false },
+      { source: "/admin/automations/:path*", destination: "/admin/tasks/automations/:path*", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

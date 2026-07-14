@@ -96,7 +96,7 @@ export default function NewReleaseDialog({
       kind,
     });
     if (status) params.set("status", status);
-    router.push(`/admin/catalog/releases/new?${params.toString()}`);
+    router.push(`/admin/releases/new?${params.toString()}`);
   };
 
   const kindLabel = kind === "ep" ? "EP" : kind;
@@ -180,7 +180,7 @@ export default function NewReleaseDialog({
               ) : (
                 <>
                   No artists yet.{" "}
-                  <Link href="/admin/catalog/artists/new" className="text-foreground underline">
+                  <Link href="/admin/artists/new" className="text-foreground underline">
                     Create one
                   </Link>
                   .

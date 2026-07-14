@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
           detail: actionableMissing.length
             ? `Missing: ${actionableMissing.slice(0, 3).join(", ")}`
             : "Add more profile detail to strengthen the page",
-          href: `/admin/catalog/artists/${a.id}/edit`,
+          href: `/admin/artists/${a.id}/edit`,
           priority: "high",
         });
       } else if (idle && latestRelease) {
@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
           type: "artist",
           title: `${a.name} — no release in ${months} months`,
           detail: "Keep the momentum going: plan the next single or check in with the artist.",
-          href: `/admin/catalog/artists/${a.id}/edit`,
+          href: `/admin/artists/${a.id}/edit`,
           priority: "medium",
         });
       } else if (seo.grade === "good" && actionableMissing.length > 0) {
@@ -244,7 +244,7 @@ export async function GET(request: NextRequest) {
           type: "artist",
           title: `${a.name} — SEO could be stronger (${seo.score}/100)`,
           detail: `Quick wins: ${actionableMissing.slice(0, 2).join(", ")}`,
-          href: `/admin/catalog/artists/${a.id}/edit`,
+          href: `/admin/artists/${a.id}/edit`,
           priority: "medium",
         });
       } else if (!a.contactEmail) {
@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
           type: "artist",
           title: `${a.name} — no contact email on file`,
           detail: "Internal use only — useful for booking and sync opportunities",
-          href: `/admin/catalog/artists/${a.id}/edit`,
+          href: `/admin/artists/${a.id}/edit`,
           priority: "low",
         });
       }
@@ -285,7 +285,7 @@ export async function GET(request: NextRequest) {
           type: "release",
           title: `"${r.name}" — weak release SEO (${seo.score}/100)`,
           detail: `Missing: ${seo.missing.slice(0, 3).join(", ")}`,
-          href: `/admin/catalog/releases/${r.id}/edit`,
+          href: `/admin/releases/${r.id}/edit`,
           priority: "high",
         });
       }
@@ -296,7 +296,7 @@ export async function GET(request: NextRequest) {
           type: "release",
           title: `"${r.name}" — no description`,
           detail: "A description improves search visibility and gives context on the release page",
-          href: `/admin/catalog/releases/${r.id}/edit`,
+          href: `/admin/releases/${r.id}/edit`,
           priority: "medium",
         });
       }
@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
           type: "release",
           title: `"${r.name}" — no genre set`,
           detail: "Genre is used in release metadata and schema.org output",
-          href: `/admin/catalog/releases/${r.id}/edit`,
+          href: `/admin/releases/${r.id}/edit`,
           priority: "low",
         });
       }
@@ -318,7 +318,7 @@ export async function GET(request: NextRequest) {
           type: "release",
           title: `"${r.name}" — no tracks added`,
           detail: "Live release with no playable tracks",
-          href: `/admin/catalog/releases/${r.id}/edit`,
+          href: `/admin/releases/${r.id}/edit`,
           priority: "high",
         });
       }
@@ -329,7 +329,7 @@ export async function GET(request: NextRequest) {
           type: "release",
           title: `"${r.name}" — no streaming links`,
           detail: "Add Spotify, Apple Music or other links so listeners can stream it",
-          href: `/admin/catalog/releases/${r.id}/edit`,
+          href: `/admin/releases/${r.id}/edit`,
           priority: "high",
         });
       }
@@ -351,7 +351,7 @@ export async function GET(request: NextRequest) {
         type: "release",
         title: `"${r.name}" ${when} — missing ${gaps.join(" & ")}`,
         detail: "A scheduled release needs its artwork and tracklist ready before the date.",
-        href: `/admin/catalog/releases/${r.id}/edit`,
+        href: `/admin/releases/${r.id}/edit`,
         priority: "high",
       });
     }
@@ -370,7 +370,7 @@ export async function GET(request: NextRequest) {
         type: "release",
         title: `"${r.name}" — agreement ${when}`,
         detail: "Review the licensing terms and renew or re-license before it lapses.",
-        href: `/admin/catalog/releases/${r.id}/edit`,
+        href: `/admin/releases/${r.id}/edit`,
         priority: days <= 7 ? "high" : "medium",
       });
     }
@@ -461,7 +461,7 @@ export async function GET(request: NextRequest) {
         title: `"${g.releaseName}" — ${g.count} track${g.count > 1 ? "s" : ""} missing an ISRC`,
         detail: "ISRCs identify each recording for royalty tracking and neighbouring-rights claims.",
         // `?isrc=none` → the tracks page highlights the tracks with no ISRC.
-        href: `/admin/catalog/releases/${releaseId}/tracks?isrc=none`,
+        href: `/admin/releases/${releaseId}/tracks?isrc=none`,
         priority: "medium",
       });
       isrcGapItems += 1;
@@ -482,7 +482,7 @@ export async function GET(request: NextRequest) {
             releaseNames.length > 1
               ? `Clashing across ${releaseNames.slice(0, 3).join(", ")}. Each distinct recording needs its own ISRC.`
               : `On "${releaseNames[0]}". Each distinct recording needs its own ISRC — give one of them a new code.`,
-          href: `/admin/catalog/releases/${first.releaseId}/tracks?isrc=${encodeURIComponent(code)}`,
+          href: `/admin/releases/${first.releaseId}/tracks?isrc=${encodeURIComponent(code)}`,
           priority: "high",
         });
       }
@@ -511,7 +511,7 @@ export async function GET(request: NextRequest) {
         type: "system",
         title: `${drafts} draft release${drafts > 1 ? "s" : ""} not yet published`,
         detail: "Finish adding tracks and metadata, then set to Scheduled or Released",
-        href: "/admin/catalog/releases?status=DRAFT",
+        href: "/admin/releases?status=DRAFT",
         priority: "medium",
       });
     }

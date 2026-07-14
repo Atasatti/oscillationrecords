@@ -10,16 +10,37 @@ import type { Permission } from "@/lib/permissions";
 function requiredForAdminPath(pathname: string): Permission | "owner" | null {
   if (pathname.startsWith("/admin/settings")) return "owner";
   if (pathname.startsWith("/admin/audit")) return "owner";
-  if (pathname.startsWith("/admin/catalog")) return "catalog:read";
   if (pathname.startsWith("/admin/data")) return "analytics:read";
   if (pathname.startsWith("/admin/errors")) return "analytics:read";
+  // Catalog pages, now flattened to the top level ("catalog" kept so the old
+  // /admin/catalog/* URLs are still gated while they redirect). "release"/"artist"
+  // startsWith also covers the plural "releases"/"artists".
+  if (
+    pathname.startsWith("/admin/release") ||
+    pathname.startsWith("/admin/artist") ||
+    pathname.startsWith("/admin/press") ||
+    pathname.startsWith("/admin/assets") ||
+    pathname.startsWith("/admin/budgets") ||
+    pathname.startsWith("/admin/pipeline") ||
+    pathname.startsWith("/admin/timeline") ||
+    pathname.startsWith("/admin/edit") ||
+    pathname.startsWith("/admin/site-content") ||
+    pathname.startsWith("/admin/catalog")
+  )
+    return "catalog:read";
+  // outreach:WRITE sub-tools — must precede the read fallbacks (old + new paths).
+  if (pathname.startsWith("/admin/tasks/templates")) return "outreach:write";
+  if (pathname.startsWith("/admin/tasks/automations")) return "outreach:write";
   if (pathname.startsWith("/admin/outreach/templates")) return "outreach:write";
-  if (pathname.startsWith("/admin/outreach")) return "outreach:read";
   if (pathname.startsWith("/admin/automations")) return "outreach:write";
+  // outreach:READ sections (old + new paths).
   if (pathname.startsWith("/admin/tasks")) return "outreach:read";
-  if (pathname.startsWith("/admin/content")) return "outreach:read";
+  if (pathname.startsWith("/admin/outreach")) return "outreach:read";
+  if (pathname.startsWith("/admin/newsletter")) return "outreach:read"; // covers newsletter/subscribers
+  if (pathname.startsWith("/admin/calendar")) return "outreach:read";
   if (pathname.startsWith("/admin/messages")) return "outreach:read";
-  if (pathname.startsWith("/admin/subscribers")) return "outreach:read";
+  if (pathname.startsWith("/admin/content")) return "outreach:read"; // old calendar path
+  if (pathname.startsWith("/admin/subscribers")) return "outreach:read"; // old subscribers path
   // /admin dashboard (and anything unmapped) → any staff role.
   return null;
 }

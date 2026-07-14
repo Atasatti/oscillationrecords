@@ -41,32 +41,32 @@ export const adminGroups: readonly AdminGroup[] = [
     header: "Catalog",
     links: [
       {
-        href: "/admin/catalog/releases",
+        href: "/admin/releases",
         label: "Releases",
         icon: Disc3,
-        match: ["/admin/catalog/release", "/admin/catalog/edit/release", "/admin/catalog/pipeline", "/admin/catalog/timeline"],
+        match: ["/admin/release", "/admin/edit/release", "/admin/pipeline", "/admin/timeline"],
         perm: "catalog:read",
       },
       {
-        href: "/admin/catalog/artists",
+        href: "/admin/artists",
         label: "Artists",
         icon: Users,
-        match: ["/admin/catalog/artist", "/admin/catalog/edit/artist"],
+        match: ["/admin/artist", "/admin/edit/artist"],
         perm: "catalog:read",
       },
-      { href: "/admin/catalog/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
-      { href: "/admin/catalog/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
-      { href: "/admin/catalog/budgets", label: "Money", icon: Wallet, perm: "catalog:read" },
-      { href: "/admin/catalog", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
+      { href: "/admin/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
+      { href: "/admin/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
+      { href: "/admin/budgets", label: "Money", icon: Wallet, perm: "catalog:read" },
+      { href: "/admin/site-content", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
     ],
   },
   {
     header: "Promotion",
     links: [
       { href: "/admin/outreach", label: "Outreach", icon: Target, match: ["/admin/outreach/contacts", "/admin/outreach/pitches", "/admin/outreach/demos", "/admin/outreach/placements"], perm: "outreach:read" },
-      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, match: ["/admin/automations", "/admin/outreach/templates"], perm: "outreach:read" },
-      { href: "/admin/content/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
-      { href: "/admin/outreach/newsletter", label: "Newsletter", icon: Send, match: ["/admin/subscribers"], perm: "outreach:read" },
+      { href: "/admin/tasks", label: "Tasks", icon: ListChecks, match: ["/admin/tasks/automations", "/admin/tasks/templates"], perm: "outreach:read" },
+      { href: "/admin/calendar", label: "Calendar", icon: CalendarDays, perm: "outreach:read" },
+      { href: "/admin/newsletter", label: "Newsletter", icon: Send, match: ["/admin/newsletter/subscribers"], perm: "outreach:read" },
       { href: "/admin/messages", label: "Messages", icon: MessageSquare, perm: "outreach:read" },
     ],
   },
@@ -101,7 +101,7 @@ const linkPrefixes = (link: (typeof adminLinks)[number]): readonly string[] => [
 ];
 
 /** The active link is the one with the longest matching prefix, so
- * /admin/catalog/release/<id> highlights "Releases" rather than "Site content". */
+ * /admin/release/<id> highlights "Releases" rather than "Site content". */
 function activeHrefFor(pathname: string): string | undefined {
   let best: { href: string; len: number } | undefined;
   for (const link of adminLinks) {

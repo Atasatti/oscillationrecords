@@ -61,7 +61,7 @@ export async function buildDigest(now: Date = new Date()): Promise<DigestResult>
   if (drafts > 0) {
     parts.push(section(
       `${drafts} draft release${drafts === 1 ? "" : "s"}`,
-      line(`<a href="${base}/admin/catalog/releases" style="color:#7aa2ff">Finish and publish →</a>`)
+      line(`<a href="${base}/admin/releases" style="color:#7aa2ff">Finish and publish →</a>`)
     ));
   }
   if (upcoming.length > 0) {
