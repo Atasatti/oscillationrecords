@@ -71,13 +71,26 @@ export type SplitRow = {
   realName: string;
   email: string;
   percent: string;
+  /**
+   * Client-only, captured at load/add (not persisted): the LINKED artist's profile
+   * already holds this field. When true the editor shows it read-only (personal
+   * details live on the profile, not the split); when a linked artist is missing it,
+   * the field is editable and the entered value is written back to the profile on
+   * save. Always false/absent for manual (unlinked) rows.
+   */
+  profileHasRealName?: boolean;
+  profileHasEmail?: boolean;
 };
 
 export function emptySplitRow(): SplitRow {
   return { artistId: null, name: "", realName: "", email: "", percent: "" };
 }
 
-/** Stored/loaded Split[] → editable rows. */
+/**
+ * Stored/loaded Split[] → editable rows. For a linked artist the caller is expected
+ * to have resolved realName/email from the profile (the splits GET does), so a
+ * non-empty value here means the profile has it → mark it read-only in the editor.
+ */
 export function splitsToRows(splits: Split[]): SplitRow[] {
   return splits.map((s) => ({
     artistId: s.artistId ?? null,
@@ -85,6 +98,8 @@ export function splitsToRows(splits: Split[]): SplitRow[] {
     realName: s.realName ?? "",
     email: s.email ?? "",
     percent: s.percent ? String(s.percent) : "",
+    profileHasRealName: !!(s.artistId && s.realName && s.realName.trim()),
+    profileHasEmail: !!(s.artistId && s.email && s.email.trim()),
   }));
 }
 
