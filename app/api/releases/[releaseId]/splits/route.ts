@@ -74,8 +74,17 @@ export async function PUT(
     // profile — but only fill fields the profile is MISSING (never overwrite what's on
     // file). The editor shows on-file fields read-only, so anything sent here for a
     // linked artist is a detail the profile lacked; persist it so the profile stays
-    // the single source of truth. Best-effort and per-artist guarded: a write-back
-    // failure must not sink the split save.
+    // the single source of truth.
+    //
+    // Authorization: this route already requires catalog:write (top of PUT) — the SAME
+    // permission the artist-edit endpoints (PUT/PATCH /api/artists/[id]) require — and
+    // the catalog is single-tenant with no per-artist ownership (no labelId/owner on
+    // Artist). So filling a blank field here is a strict SUBSET of what the caller can
+    // already do by editing the artist directly (which also allows overwrite); it
+    // crosses no authorization boundary and is not an IDOR / cross-tenant write.
+    //
+    // Best-effort and per-artist guarded: a write-back failure must not sink the split
+    // save.
     const linkedIds = [...new Set(splits.map((s) => s.artistId).filter((x): x is string => !!x))];
     if (linkedIds.length) {
       const artists = await prisma.artist.findMany({
