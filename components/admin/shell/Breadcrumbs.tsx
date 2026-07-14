@@ -56,6 +56,17 @@ const SUBVIEW_TRAIL: Record<string, { parentLabel: string; parentHref: string; l
   "/admin/subscribers": { parentLabel: "Newsletter", parentHref: "/admin/outreach/newsletter", label: "Subscribers" },
 };
 
+// Routes that are their OWN top-level sidebar item but whose URL nests under
+// another section's REAL page, so the generic path-derived trail would show a
+// wrong parent. Render "Admin › <label>" to match the sidebar. Newsletter lives at
+// /admin/outreach/newsletter but is a top-level Promotion item, not a child of
+// Outreach. (Calendar — /admin/content/calendar — needs no entry here: its
+// "content" parent is a dropped routing group, so it already reads "Admin ›
+// Calendar".)
+const TOP_LEVEL_TRAIL: Record<string, string> = {
+  "/admin/outreach/newsletter": "Newsletter",
+};
+
 const isId = (seg: string) => /^[0-9a-f]{24}$/i.test(seg);
 
 function labelFor(seg: string) {
@@ -107,12 +118,20 @@ export default function Breadcrumbs() {
     isId(raw[3] ?? "");
 
   const subview = SUBVIEW_TRAIL[pathname];
+  const topLevel = TOP_LEVEL_TRAIL[pathname];
 
   if (subview) {
     crumbs = [
       { label: "Admin", href: "/admin", isLast: false },
       { label: subview.parentLabel, href: subview.parentHref, isLast: false },
       { label: subview.label, href: pathname, isLast: true },
+    ];
+  } else if (topLevel) {
+    // A top-level sidebar item that merely lives at a nested URL — drop the
+    // section parent so the trail matches the sidebar ("Admin › Newsletter").
+    crumbs = [
+      { label: "Admin", href: "/admin", isLast: false },
+      { label: topLevel, href: pathname, isLast: true },
     ];
   } else if (isIsniGuide) {
     const artistId = searchParams.get("artist");
