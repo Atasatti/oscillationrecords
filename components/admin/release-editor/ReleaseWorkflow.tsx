@@ -43,6 +43,9 @@ const EMPTY_STATUSES: Record<number, StepStatus> = { 1: "empty", 2: "empty", 3: 
 export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
   const [active, setActive] = useState(1);
   const [statuses, setStatuses] = useState<Record<number, StepStatus>>(EMPTY_STATUSES);
+  // The Tracks step hosts the full (heavy, autosaving) tracklist editor. Mount it
+  // lazily on first visit rather than in the background on step 1.
+  const [tracksMounted, setTracksMounted] = useState(false);
 
   const refreshStatuses = useCallback(async () => {
     const jsonOr = async (p: Promise<Response>): Promise<unknown> => {
@@ -76,6 +79,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
   // leaving is reflected in its indicator.
   useEffect(() => {
     refreshStatuses();
+    if (active === 2) setTracksMounted(true);
   }, [refreshStatuses, active]);
 
   return (
@@ -125,7 +129,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
         </div>
       </div>
       <div className={active === 2 ? "" : "hidden"}>
-        <ReleaseTracksStep releaseId={releaseId} />
+        {tracksMounted ? <ReleaseTracksStep releaseId={releaseId} /> : null}
       </div>
       <div className={active === 3 ? "" : "hidden"}>
         <ReleaseBudgetPanel releaseId={releaseId} />
