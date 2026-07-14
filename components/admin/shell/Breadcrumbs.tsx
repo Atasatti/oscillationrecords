@@ -35,6 +35,14 @@ const SEGMENT_HREF_OVERRIDES: Record<string, string> = {
   artist: "/admin/catalog/artists",
 };
 
+// Path segments that are routing groups, not navigable pages — a middle crumb
+// linking to their path would 404 (there's no /admin/content or /admin/catalog
+// index the user should land on mid-trail). Dropped from the trail unless the
+// segment is the LEAF: only "catalog" is ever a real page on its own (the Homepage
+// hub at /admin/catalog); "content" has no index page at all (only
+// /admin/content/calendar lives under it), so in practice it's always dropped.
+const ROUTING_GROUP_SEGMENTS = new Set(["catalog", "content"]);
+
 // Sub-views that live at their own route but belong under a primary section in
 // the new nav (reached via the in-page tab strip). Their path doesn't reflect
 // that nesting, so give them an explicit "Admin › <Parent> › <Leaf>" trail that
@@ -68,9 +76,10 @@ export default function Breadcrumbs() {
   const onLinkClick = (e: React.MouseEvent) => {
     if (guard && !guard.confirmNavigation()) e.preventDefault();
   };
-  // "catalog" is a routing group, not a place users navigate to (except when it
-  // IS the page — the Homepage hub). Drop it from the trail unless it's the leaf,
-  // so /admin/catalog/releases reads "Admin › Releases", not "Admin › Homepage › …".
+  // Routing-group segments (catalog/content — see ROUTING_GROUP_SEGMENTS) aren't
+  // places users navigate to mid-trail; they're dropped unless they're the leaf,
+  // so /admin/catalog/releases reads "Admin › Releases" and /admin/content/calendar
+  // reads "Admin › Calendar" instead of linking a middle crumb to a missing index.
   const raw = pathname.split("/").filter(Boolean); // e.g. ["admin","catalog","releases"]
   if (raw.length === 0) return null;
 
@@ -129,9 +138,11 @@ export default function Breadcrumbs() {
     const kept = raw
       .map((seg, i) => ({ seg, i }))
       .filter(({ seg, i }) => {
-        // "catalog" is a routing group, not a place users navigate to (except when
-        // it IS the leaf — the Homepage hub). Drop it otherwise.
-        if (seg === "catalog" && i !== raw.length - 1) return false;
+        // Routing-group segments (catalog/content) have no navigable index page
+        // mid-trail — drop them so a middle crumb never links to a 404 like
+        // /admin/content. Kept only when the segment itself is the leaf (the
+        // Homepage hub is a real page at /admin/catalog).
+        if (ROUTING_GROUP_SEGMENTS.has(seg) && i !== raw.length - 1) return false;
         // An id segment immediately before "edit" is redundant: the bare-id URL only
         // redirects into the editor, so the crumb would link back to the same Edit
         // page. Drop it so the trail reads "Admin › Releases › Edit" instead of the
