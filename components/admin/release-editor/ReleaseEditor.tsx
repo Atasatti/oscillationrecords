@@ -457,11 +457,12 @@ export default function ReleaseEditor({
     (a) => a.id === form.primaryArtistIds[0]
   )?.name;
 
-  // Create always advances to the tracklist next, saving the release as a draft
-  // — so the button reads "Next" and publishing happens later. In edit mode the
-  // primary button publishes to the chosen target (Publish / Schedule) when the
-  // release is still a draft, or just "Save changes" when it's already live; a
-  // separate "Save as draft" keeps/sets the draft state.
+  // Create always advances to the tracklist next (button reads "Next"): a Coming
+  // Soon pick saves as SCHEDULED (a valid, not-live pre-release state), everything
+  // else as a draft to publish later. In edit mode the primary button publishes to
+  // the chosen target (Publish / Schedule) when the release is still a draft, or
+  // just "Save changes" when it's already live; a separate "Save as draft"
+  // keeps/sets the draft state.
   const isCreate = mode === "create";
   const primaryLabel = isCreate
     ? "Next"
@@ -729,11 +730,21 @@ export default function ReleaseEditor({
         <div className="mt-8 flex flex-wrap gap-4">
           <Button
             type="button"
-            // Create → "Next" saves the release as a DRAFT and continues to the
-            // tracklist; it must NOT publish or set a live/scheduled status (that
-            // happens later from the edit flow, with full validation). Edit → the
-            // primary action publishes/saves to the chosen target (form.status).
-            onClick={() => handleSave(isCreate ? { status: "DRAFT" } : undefined)}
+            // Create → "Next" continues to the tracklist. A "Coming Soon" pick is
+            // persisted as SCHEDULED — a valid, NOT-live pre-release state
+            // (future-dated, tracks hidden until public) — so the admin's Coming Soon
+            // choice sticks and is validated here (a past/empty date is rejected)
+            // instead of silently saving a draft that then loads as "Released". Any
+            // other pick saves as a DRAFT to finish and publish later; a RELEASED
+            // target never goes live at create (it needs a tracklist first). Edit →
+            // the primary action publishes/saves to the chosen target (form.status).
+            onClick={() =>
+              handleSave(
+                isCreate
+                  ? { status: form.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT" }
+                  : undefined
+              )
+            }
             disabled={saving || uploadingImage || artists.length === 0}
             className="bg-white text-black hover:bg-gray-200"
           >
