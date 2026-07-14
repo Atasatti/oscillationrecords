@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Search, CornerDownLeft, ArrowUp, ArrowDown, Disc3, UserRound } from "lucide-react";
@@ -163,7 +164,14 @@ export default function CommandPalette() {
         <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">⌘K</kbd>
       </button>
 
-      {open ? (
+      {/* Portal to <body>: the admin topbar (this component's parent) uses
+          backdrop-blur, which makes it the containing block for any position:fixed
+          descendant. Rendered in place, this overlay's `fixed inset-0` resolved to
+          the ~60px header, so its backdrop never reached the page and the section
+          tabs / content stayed clickable behind the "modal". In document.body it has
+          no filtered/transformed ancestor, so it fills the viewport and blocks
+          background interaction the way a modal should. */}
+      {open && typeof document !== "undefined" ? createPortal(
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
           <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
@@ -217,7 +225,8 @@ export default function CommandPalette() {
               <span className="ml-auto hidden sm:inline">Tip: <kbd className="rounded border border-border px-1">g</kbd> then <kbd className="rounded border border-border px-1">t</kbd> · tasks, <kbd className="rounded border border-border px-1">r</kbd> · releases</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </>
   );
