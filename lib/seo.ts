@@ -71,6 +71,36 @@ export const LABEL = {
     "appearing on Beatport, Bandcamp or Discogs.",
 } as const;
 
+// The label's founder as a first-class Person entity. Ben Sharp Knowles records
+// as the artist "BSK" (his own MusicGroup node lives at /artists/bsk), so instead
+// of leaving Organization.founder a bare, unlinked name we give it a stable @id
+// and point sameAs at BOTH the artist page AND every verified authority ID. That
+// collapses "founder Ben Sharp Knowles" and "the artist BSK" into ONE entity for
+// Google rather than two disconnected strings. Every URL/ID here is copied from
+// the curated BSK Artist record — NOT a web-search guess: the homonym "BSK"
+// profiles on Beatport/Apple/Discogs belong to different people. His Wikidata
+// item is Q140354246; mirror this linkage with statements there.
+export const FOUNDER = {
+  name: "Ben Sharp Knowles",
+  alternateName: "BSK",
+  url: `${SITE_URL}/artists/bsk`,
+  wikidataId: "Q140354246",
+  sameAs: [
+    `${SITE_URL}/artists/bsk`,
+    "https://www.wikidata.org/wiki/Q140354246",
+    "https://musicbrainz.org/artist/7508f910-8b8f-46d4-b3f5-e127fa503878",
+    "https://isni.org/isni/000000053055225",
+    "https://www.discogs.com/artist/17962521",
+    "https://open.spotify.com/artist/7qlympIzm3SXJpmFl17WwX",
+    "https://music.apple.com/gb/artist/bsk/1565838955",
+    "https://soundcloud.com/ben-sharp-387112244",
+    "https://www.youtube.com/@bsk2002",
+    "https://www.instagram.com/ben_sharp_knowles",
+    "https://www.tiktok.com/@ben_sharp_knowles",
+    "https://www.facebook.com/OfficialBSKmusic",
+  ],
+} as const;
+
 // The SPECIFIC other entities that search / AI engines merge us with, expressed
 // as schema.org `differentFrom` — the machine-readable analogue of Wikidata's
 // P1889 ("different from"). This gives crawlers a typed edge to follow instead of
@@ -541,7 +571,18 @@ export function buildOrganizationJsonLd(opts?: { sameAs?: string[] }) {
     if (aliases.length) jsonLd.alternateName = aliases;
   }
   if (LABEL.foundingDate) jsonLd.foundingDate = LABEL.foundingDate;
-  if (LABEL.founder) jsonLd.founder = { "@type": "Person", name: LABEL.founder };
+  if (LABEL.founder) {
+    // Rich, linked Person node (not a bare name) so the founder resolves to the
+    // same real-world entity as the "BSK" artist page and its authority IDs.
+    jsonLd.founder = {
+      "@type": "Person",
+      "@id": `${FOUNDER.url}#person`,
+      name: LABEL.founder,
+      alternateName: FOUNDER.alternateName,
+      url: FOUNDER.url,
+      sameAs: FOUNDER.sameAs,
+    };
+  }
   if (LABEL.city || LABEL.country) {
     const address: Record<string, string> = {};
     if (LABEL.city) address.addressLocality = LABEL.city;
