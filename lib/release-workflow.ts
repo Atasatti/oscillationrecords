@@ -56,7 +56,7 @@ export function tracksStatus(r: WorkflowRelease | null): StepStatus {
   return "complete";
 }
 
-/** Step 3 — campaign budget. Green once a budget target is set, else not started. */
+/** Step 3 — budget. Green once a budget target is set, else not started. */
 export function budgetStatus(spend: { budget?: number | null } | null): StepStatus {
   return spend && spend.budget != null ? "complete" : "empty";
 }

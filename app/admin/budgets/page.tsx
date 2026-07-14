@@ -44,8 +44,8 @@ export default function BudgetsPage() {
   return (
     <div>
       <PageHeader
-        title="Campaign budgets"
-        description="Promo spend vs budget across every release. Set a budget and log spend on each release's editor."
+        title="Budgets"
+        description="Spend vs budget across every release — production, promo and everything else. Set a budget and log spend in each release's editor."
       />
 
       {/* Totals */}
@@ -136,7 +136,7 @@ export default function BudgetsPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card py-12 text-center text-sm text-muted-foreground">
-          No budgets or spend yet. Open a release editor to set a budget and log campaign spend.
+          No budgets or spend yet. Open a release editor to set a budget and log spend.
         </div>
       )}
     </div>

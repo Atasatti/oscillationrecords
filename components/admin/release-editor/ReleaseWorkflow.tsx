@@ -25,7 +25,7 @@ import {
 const STEPS = [
   { n: 1, label: "Release details" },
   { n: 2, label: "Tracks" },
-  { n: 3, label: "Campaign budget" },
+  { n: 3, label: "Budget" },
   { n: 4, label: "Documents" },
   { n: 5, label: "Money & outreach" },
 ] as const;
