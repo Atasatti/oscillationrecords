@@ -16,10 +16,19 @@ export default function SplitEditor({
   value,
   onChange,
   disabled,
+  linkWriteBack = false,
 }: {
   value: SplitRow[];
   onChange: (rows: SplitRow[]) => void;
   disabled?: boolean;
+  /**
+   * When true (the release Royalty Split panel), a row linked to a roster artist
+   * treats that artist's PROFILE as the source of truth for real name / contact
+   * email: a detail already on file shows read-only, and a missing one is entered
+   * here and written back to the profile on save. Off (default — e.g. per-track
+   * credits) keeps plain editable reference fields.
+   */
+  linkWriteBack?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RosterArtist[]>([]);
@@ -71,10 +80,56 @@ export default function SplitEditor({
     }
     onChange([
       ...value,
-      { artistId: a.id, name: a.name, realName: a.realName ?? "", email: a.email ?? "", percent: "" },
+      {
+        artistId: a.id,
+        name: a.name,
+        realName: a.realName ?? "",
+        email: a.email ?? "",
+        percent: "",
+        // Whatever the profile already holds shows read-only; a blank one stays
+        // editable and is written back to the profile on save.
+        profileHasRealName: !!a.realName,
+        profileHasEmail: !!a.email,
+      },
     ]);
     setOpen(false);
     setQuery("");
+  };
+
+  // One contributor-detail field (real name / email). For a linked artist whose
+  // profile already has it, it's read-only (the profile owns it); a linked artist
+  // missing it gets an editable field whose value is saved back to the profile;
+  // manual rows keep a plain optional field.
+  const personalField = (i: number, r: SplitRow, field: "realName" | "email") => {
+    const label = field === "realName" ? "Real name" : "Email";
+    const value = field === "realName" ? r.realName : r.email;
+    const onFile = field === "realName" ? r.profileHasRealName : r.profileHasEmail;
+    const linked = !!r.artistId;
+    if (linkWriteBack && linked && onFile) {
+      return (
+        <div
+          className={`${inputClass} flex items-center justify-between gap-2`}
+          title={`${label} is on ${r.name || "the artist"}'s profile`}
+        >
+          <span className="truncate text-muted-foreground">{value}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">on profile</span>
+        </div>
+      );
+    }
+    const savesToProfile = linkWriteBack && linked && !onFile;
+    return (
+      <input
+        value={value}
+        onChange={(e) => update(i, { [field]: e.target.value } as Partial<SplitRow>)}
+        disabled={disabled}
+        type={field === "email" ? "email" : undefined}
+        placeholder={
+          savesToProfile ? `${label} — saved to ${r.name || "artist"}'s profile` : `${label} (optional)`
+        }
+        aria-label={label}
+        className={inputClass}
+      />
+    );
   };
 
   const total = rowsTotal(value);
@@ -126,27 +181,15 @@ export default function SplitEditor({
                 </button>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <input
-                  value={r.realName}
-                  onChange={(e) => update(i, { realName: e.target.value })}
-                  disabled={disabled}
-                  placeholder="Real name (optional)"
-                  aria-label="Real name"
-                  className={inputClass}
-                />
-                <input
-                  value={r.email}
-                  onChange={(e) => update(i, { email: e.target.value })}
-                  disabled={disabled}
-                  type="email"
-                  placeholder="Email (optional)"
-                  aria-label="Email"
-                  className={inputClass}
-                />
+                {personalField(i, r, "realName")}
+                {personalField(i, r, "email")}
               </div>
               {r.artistId ? (
                 <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-400/80">
-                  <Check className="h-3 w-3" /> Linked to roster artist
+                  <Check className="h-3 w-3" />{" "}
+                  {linkWriteBack
+                    ? "Linked — real name & contact come from this artist's profile"
+                    : "Linked to roster artist"}
                 </p>
               ) : null}
             </li>

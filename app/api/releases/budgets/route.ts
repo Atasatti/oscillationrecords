@@ -23,8 +23,8 @@ export type BudgetReleaseRow = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// GET /api/releases/budgets — per-release campaign budget vs spend across ALL
-// releases that have a budget or any spend, plus totals and spend-by-category.
+// GET /api/releases/budgets — per-release budget vs spend across ALL releases that
+// have a budget or any spend, plus totals and spend-by-category.
 export async function GET(request: NextRequest) {
   const guard = await requirePermission(request, "catalog:read");
   if (!guard.ok) return guard.response;

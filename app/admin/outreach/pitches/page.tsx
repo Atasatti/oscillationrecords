@@ -261,7 +261,7 @@ export default function PitchesPage() {
                         </DropdownMenuItem>
                         {p.status === "accepted" && (
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/catalog/press/new?pitchId=${p.id}&contactName=${encodeURIComponent(p.contact.name)}&outlet=${encodeURIComponent(p.contact.outlet)}`}>
+                            <Link href={`/admin/press/new?pitchId=${p.id}&contactName=${encodeURIComponent(p.contact.name)}&outlet=${encodeURIComponent(p.contact.outlet)}`}>
                               <FileText className="mr-2 h-4 w-4" /> Create press item
                             </Link>
                           </DropdownMenuItem>

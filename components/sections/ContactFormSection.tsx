@@ -111,19 +111,33 @@ const ContactFormSection = () => {
       const attachments: { name: string; url: string; size: number; type: string }[] = [];
       for (const file of files) {
         const type = inferType(file);
-        const presign = await fetch("/api/contact/attachment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: file.name, fileType: type }),
-        });
+        // Ask our server for a presigned S3 URL. A network failure here throws a
+        // bare "Failed to fetch" — translate it into something actionable.
+        let presign: Response;
+        try {
+          presign = await fetch("/api/contact/attachment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileName: file.name, fileType: type }),
+          });
+        } catch {
+          throw new Error(`Couldn't reach the server to upload "${file.name}". Check your connection and try again.`);
+        }
         const pdata = await presign.json().catch(() => ({}));
-        if (!presign.ok) throw new Error(pdata?.error || "Couldn't upload an attachment.");
-        const put = await fetch(pdata.uploadURL, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": type },
-        });
-        if (!put.ok) throw new Error(`Couldn't upload "${file.name}". Please try again.`);
+        if (!presign.ok) throw new Error(pdata?.error || `Couldn't prepare the upload for "${file.name}".`);
+
+        // Direct-to-S3 PUT. A transient network error surfaces as "Failed to fetch",
+        // so retry once before giving up, then report a clear reason rather than the
+        // raw browser error.
+        const putToS3 = () =>
+          fetch(pdata.uploadURL, { method: "PUT", body: file, headers: { "Content-Type": type } });
+        let put: Response;
+        try {
+          put = await putToS3().catch(() => putToS3());
+        } catch {
+          throw new Error(`Couldn't upload "${file.name}" — the connection to file storage failed. Please try again.`);
+        }
+        if (!put.ok) throw new Error(`Couldn't upload "${file.name}" (storage error ${put.status}). Please try again.`);
         attachments.push({ name: file.name, url: pdata.fileURL, size: file.size, type });
       }
 

@@ -45,8 +45,8 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
   return (
     <div>
       <div className="min-h-screen  text-white">
-        <div className="px-[10%] py-14">
-          <div className="mb-12">
+        <div className="px-4 sm:px-6 md:px-[10%] py-10 sm:py-14">
+          <div className="mb-8 sm:mb-12">
             <Button
               variant="ghost"
               onClick={() => router.back()}
@@ -56,7 +56,9 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               Back
             </Button>
 
-            <div className="flex items-start gap-8">
+            {/* Stack on phones (image on top, then name + bio full-width) so the
+                bio can't spill off the right edge; side-by-side from sm up. */}
+            <div className="flex flex-col sm:flex-row items-start gap-5 sm:gap-8">
               {artist.profilePicture && (
                 <Image
                   src={artist.profilePicture}
@@ -68,14 +70,16 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
                   placeholder="blur"
                   blurDataURL={BLUR_DATA_URL}
                   priority
-                  className="w-48 h-48 rounded-2xl object-cover"
+                  className="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl object-cover shrink-0"
                 />
               )}
-              <div className="flex-1">
-                <h1 className="text-5xl font-light tracking-tighter mb-4 break-words">{artist.name}</h1>
-                <p className="text-gray-400 text-lg mb-6 max-w-3xl">{artist.biography}</p>
+              {/* min-w-0 lets this flex child shrink below its content width instead
+                  of forcing horizontal overflow. */}
+              <div className="min-w-0 w-full sm:flex-1">
+                <h1 className="text-3xl sm:text-5xl font-light tracking-tighter mb-3 sm:mb-4 break-words">{artist.name}</h1>
+                <p className="text-gray-400 text-base sm:text-lg mb-5 sm:mb-6 max-w-3xl break-words">{artist.biography}</p>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   {artist.xLink && (
                     <button
                       onClick={(e) => handleSocialClick(artist.xLink, "x", e)}
@@ -187,7 +191,7 @@ export default function ArtistDetailView({ artist, releases }: ArtistDetailViewP
               </h2>
               {/* DSP-style release wall: square album art, up to 4 across (2 rows of
                   4 before "Show all"). Two-up on phones so the artwork stays large. */}
-              <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:gap-6 sm:grid-cols-3 lg:grid-cols-4">
                 {releases.map((rel, i) => (
                   <div
                     key={rel.id}

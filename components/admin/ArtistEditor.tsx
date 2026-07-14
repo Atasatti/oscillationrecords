@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Save,
   Image as ImageIcon,
   Loader2,
@@ -240,7 +239,7 @@ export default function ArtistEditor({
         setReleaseCount(typeof a.releaseCount === "number" ? a.releaseCount : 0);
       } catch {
         toast.error("Failed to load artist");
-        router.push("/admin/catalog/artists");
+        router.push("/admin/artists");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -521,7 +520,7 @@ export default function ArtistEditor({
       // which then makes the Featured action wrongly reject the artist as not visible.
       clearCached();
       toast.success(draft ? "Draft saved" : mode === "edit" ? "Artist saved" : "Artist created");
-      router.push("/admin/catalog/artists");
+      router.push("/admin/artists");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -593,16 +592,8 @@ export default function ArtistEditor({
 
   return (
     <div>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (confirmDiscard()) router.push("/admin/catalog/artists");
-        }}
-        className="mb-3 -ml-2 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to artists
-      </Button>
-
+      {/* No "Back to artists" button — the breadcrumb (Admin › Artists › Edit)
+          already provides the way back; a second control would be duplicate nav. */}
       <PageHeader
         title={mode === "edit" ? "Edit artist" : "New artist"}
         actions={
@@ -1033,7 +1024,7 @@ export default function ArtistEditor({
                 type="button"
                 variant="ghost"
                 onClick={() => {
-                  if (confirmDiscard()) router.push("/admin/catalog/artists");
+                  if (confirmDiscard()) router.push("/admin/artists");
                 }}
               >
                 Cancel

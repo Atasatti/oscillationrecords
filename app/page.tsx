@@ -3,7 +3,6 @@ import HomeHeroSection from "@/components/sections/HomeHeroSection";
 import MeetArtistSection from "@/components/sections/MeetArtistSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import NewMusicSection from "@/components/sections/NewMusicSection";
-import NoProfitSection from "@/components/sections/NoProfitSection";
 import UpcomingReleasesSection from "@/components/sections/UpcomingReleasesSection";
 import Footer from "@/components/local-ui/Footer";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
@@ -80,20 +79,24 @@ export default async function Home() {
         <p className="sr-only">{LABEL.disambiguatingDescription}</p>
         {/* HomeHeroSection has its own 3D entrance — no wrapper needed */}
         <HomeHeroSection />
+        {/* Releases lead the page (after the hero) so the catalogue is the first
+            thing a visitor reaches — previously it was the 4th section, ~3 screens
+            down on mobile. */}
         <ScrollReveal3D>
-          <NoProfitSection />
+          <NewMusicSection initialReleases={carouselReleases} />
         </ScrollReveal3D>
         <ScrollReveal3D>
           <UpcomingReleasesSection initialReleases={upcomingReleases} />
         </ScrollReveal3D>
         <ScrollReveal3D>
-          <NewMusicSection initialReleases={carouselReleases} />
-        </ScrollReveal3D>
-        <ScrollReveal3D>
           <MeetArtistSection initialArtists={artists} />
         </ScrollReveal3D>
         <ScrollReveal3D>
+          {/* Closing section: the "built for artists, not profit" mission is
+              folded in here (its own standalone section was removed to shorten
+              the page) so the story still lands right before the CTA. */}
           <MusicHeardSection
+            mission="Built for artists, not profit — a Manchester team backing raw talent with smart marketing and real opportunities. No major-label BS, just results."
             heading="Let's get your music heard."
             subtext="Artist, visionary, or just someone with big ideas? We're here to listen. Let's talk. "
           />

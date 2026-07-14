@@ -3,25 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Target, Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
+import { SPEND_CATEGORY_OPTIONS, DEFAULT_SPEND_CATEGORY, spendCategoryLabel } from "@/lib/release-budget-categories";
 
 /**
- * Campaign budget & spend for a release — set a budget target and log promo spend
- * (playlist pitching, ads, PR, radio…), tracked against the budget. Sits below the
- * royalties panel on the release editor. A tracking aid, not accounting. Hides
- * itself if the viewer can't read the release (403).
+ * Budget & spend for a release — set a budget target and log every cost of putting
+ * the release out: recording / production, mixing & mastering, photography, artwork,
+ * music video, distribution, and promo (playlist pitching, ads, PR, radio), tracked
+ * against the budget. This is the release editor's Budget step. A tracking aid, not
+ * accounting. Hides itself if the viewer can't read the release (403).
  */
 type Entry = { id: string; amount: number; category: string; date: string | null; note: string | null };
 type Data = { budget: number | null; entries: Entry[]; total: number; remaining: number | null };
-
-const CATEGORIES = [
-  { value: "playlist", label: "Playlist / curators" },
-  { value: "ads", label: "Ads" },
-  { value: "pr", label: "PR / press" },
-  { value: "radio", label: "Radio" },
-  { value: "video", label: "Video / content" },
-  { value: "other", label: "Other" },
-] as const;
-const catLabel = (v: string) => CATEGORIES.find((c) => c.value === v)?.label ?? "Other";
 
 const money = (n: number) => (n < 0 ? "-£" + Math.abs(n).toFixed(2) : "£" + n.toFixed(2));
 const fmtDate = (iso: string | null) =>
@@ -36,7 +28,7 @@ export default function ReleaseBudgetPanel({ releaseId }: { releaseId: string })
   const [savingBudget, setSavingBudget] = useState(false);
 
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState<string>("playlist");
+  const [category, setCategory] = useState<string>(DEFAULT_SPEND_CATEGORY);
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(false);
@@ -124,7 +116,7 @@ export default function ReleaseBudgetPanel({ releaseId }: { releaseId: string })
     <section className="mb-12">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-2xl font-light tracking-tighter">
-          <Target className="h-5 w-5 text-gray-400" /> Campaign budget
+          <Target className="h-5 w-5 text-gray-400" /> Budget
         </h2>
         <span className="text-sm tabular-nums text-gray-300">Spent {money(data.total)}</span>
       </div>
@@ -167,10 +159,10 @@ export default function ReleaseBudgetPanel({ releaseId }: { releaseId: string })
             className={`${inputCls} w-full py-2 pl-6 pr-3 text-right tabular-nums`} />
         </div>
         <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category" className={`${inputCls} sm:w-44`}>
-          {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          {SPEND_CATEGORY_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" className={inputCls} />
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (Groover, Meta ads…)" aria-label="Note" className={`${inputCls} min-w-0 flex-1`} />
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (studio, cover art, Groover…)" aria-label="Note" className={`${inputCls} min-w-0 flex-1`} />
         <button type="button" onClick={addSpend} disabled={adding || !amount.trim()}
           className="inline-flex items-center justify-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-gray-200 disabled:opacity-50">
           {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add
@@ -181,7 +173,7 @@ export default function ReleaseBudgetPanel({ releaseId }: { releaseId: string })
           {data.entries.map((e) => (
             <li key={e.id} className="flex items-center gap-3 border-b border-gray-800 px-4 py-2.5 last:border-b-0">
               <span className="w-24 shrink-0 text-right text-sm tabular-nums text-gray-200">{money(e.amount)}</span>
-              <span className="w-32 shrink-0 truncate text-xs text-gray-400">{catLabel(e.category)}</span>
+              <span className="w-32 shrink-0 truncate text-xs text-gray-400">{spendCategoryLabel(e.category)}</span>
               <span className="min-w-0 flex-1 truncate text-xs text-gray-500">{[fmtDate(e.date), e.note].filter(Boolean).join(" · ") || "—"}</span>
               <button type="button" onClick={() => removeSpend(e.id)} disabled={busyId === e.id} aria-label="Remove entry"
                 className="shrink-0 rounded p-1.5 text-gray-500 transition-colors hover:bg-red-950/20 hover:text-red-400 disabled:opacity-50">
@@ -191,7 +183,7 @@ export default function ReleaseBudgetPanel({ releaseId }: { releaseId: string })
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-gray-600">No spend logged yet — add ad, playlist and PR costs to track them against the budget.</p>
+        <p className="text-xs text-gray-600">No spend logged yet — log production, artwork, video, promo and any release costs to track them against the budget.</p>
       )}
     </section>
   );

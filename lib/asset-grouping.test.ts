@@ -3,6 +3,7 @@ import { groupAssets, buildDownloadItems, type GroupableAsset, type GroupContext
 
 const a = (o: Partial<GroupableAsset>): GroupableAsset => ({
   id: "1", category: "artwork", title: "t", fileName: "t.jpg", fileUrl: "https://x/t.jpg",
+  downloadHref: "https://x/t.jpg",
   releaseId: null, artistId: null, parentLabel: null, parentHref: null,
   createdAt: "2026-07-02T00:00:00.000Z", ...o,
 });

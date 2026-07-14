@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Search, CornerDownLeft, ArrowUp, ArrowDown, Disc3, UserRound } from "lucide-react";
+import { Search, CornerDownLeft, ArrowUp, ArrowDown, Disc3, UserRound, Music } from "lucide-react";
 import { adminGroups } from "./AdminSidebar";
 import { TAB_GROUPS } from "./SectionTabs";
 import { roleCan, type Permission } from "@/lib/permissions";
@@ -32,13 +33,18 @@ const ALL_DESTINATIONS: Dest[] = (() => {
 const G_SHORTCUTS: Record<string, string> = {
   d: "/admin",
   t: "/admin/tasks",
-  r: "/admin/catalog/releases",
-  a: "/admin/catalog/artists",
+  r: "/admin/releases",
+  a: "/admin/artists",
   m: "/admin/messages",
 };
 
-type Item = { kind: "nav" | "release" | "artist"; label: string; sub: string; href: string };
-type SearchData = { releases: { id: string; name: string }[]; artists: { id: string; name: string }[] };
+type Item = { kind: "nav" | "release" | "artist" | "track"; label: string; sub: string; href: string };
+type TrackHit = { id: string; name: string; releaseId: string; releaseName: string | null };
+type SearchData = {
+  releases: { id: string; name: string }[];
+  artists: { id: string; name: string }[];
+  tracks: TrackHit[];
+};
 
 export default function CommandPalette() {
   const router = useRouter();
@@ -67,9 +73,9 @@ export default function CommandPalette() {
     if (!open || data) return;
     let cancelled = false;
     fetch("/api/admin/nav-search")
-      .then((r) => (r.ok ? r.json() : { releases: [], artists: [] }))
-      .then((j) => { if (!cancelled) setData({ releases: j.releases ?? [], artists: j.artists ?? [] }); })
-      .catch(() => { if (!cancelled) setData({ releases: [], artists: [] }); });
+      .then((r) => (r.ok ? r.json() : { releases: [], artists: [], tracks: [] }))
+      .then((j) => { if (!cancelled) setData({ releases: j.releases ?? [], artists: j.artists ?? [], tracks: j.tracks ?? [] }); })
+      .catch(() => { if (!cancelled) setData({ releases: [], artists: [], tracks: [] }); });
     return () => { cancelled = true; };
   }, [open, data]);
 
@@ -80,10 +86,18 @@ export default function CommandPalette() {
       .map<Item>((d) => ({ kind: "nav", label: d.label, sub: d.group || "Go to", href: d.href }));
     if (!q || !data) return nav;
     const rel = data.releases.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/catalog/releases/${r.id}/edit` }));
+      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
     const art = data.artists.filter((a) => a.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/catalog/artists/${a.id}/edit` }));
-    return [...nav, ...rel, ...art];
+      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
+    // Individual tracks — a song title jumps to its release's tracklist.
+    const trk = data.tracks.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 6)
+      .map<Item>((t) => ({
+        kind: "track",
+        label: t.name,
+        sub: t.releaseName ? `Track · ${t.releaseName}` : "Track",
+        href: `/admin/releases/${t.releaseId}/tracks`,
+      }));
+    return [...nav, ...rel, ...art, ...trk];
   }, [query, data, canSee]);
 
   useEffect(() => { setActive(0); }, [query]);
@@ -163,7 +177,14 @@ export default function CommandPalette() {
         <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">⌘K</kbd>
       </button>
 
-      {open ? (
+      {/* Portal to <body>: the admin topbar (this component's parent) uses
+          backdrop-blur, which makes it the containing block for any position:fixed
+          descendant. Rendered in place, this overlay's `fixed inset-0` resolved to
+          the ~60px header, so its backdrop never reached the page and the section
+          tabs / content stayed clickable behind the "modal". In document.body it has
+          no filtered/transformed ancestor, so it fills the viewport and blocks
+          background interaction the way a modal should. */}
+      {open && typeof document !== "undefined" ? createPortal(
         <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command palette">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
           <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
@@ -204,6 +225,7 @@ export default function CommandPalette() {
                   >
                     {it.kind === "release" ? <Disc3 className="h-4 w-4 shrink-0 text-muted-foreground" />
                       : it.kind === "artist" ? <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      : it.kind === "track" ? <Music className="h-4 w-4 shrink-0 text-muted-foreground" />
                       : <span className="h-4 w-4 shrink-0" />}
                     <span className="min-w-0 flex-1 truncate">{it.label}</span>
                     <span className="shrink-0 text-[11px] text-muted-foreground/70">{it.sub}</span>
@@ -217,7 +239,8 @@ export default function CommandPalette() {
               <span className="ml-auto hidden sm:inline">Tip: <kbd className="rounded border border-border px-1">g</kbd> then <kbd className="rounded border border-border px-1">t</kbd> · tasks, <kbd className="rounded border border-border px-1">r</kbd> · releases</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </>
   );

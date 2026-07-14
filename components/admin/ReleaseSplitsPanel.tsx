@@ -73,11 +73,13 @@ export default function ReleaseSplitsPanel({ releaseId }: { releaseId: string })
         <Coins className="h-5 w-5 text-gray-400" /> Royalty split
       </h2>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">
-        The contributing artists and their agreed shares (should total 100%). Reference
-        only — the label doesn&apos;t manage payments here (Ditto pays artists directly).
+        The contributing artists and their agreed shares (should total 100%). Add them
+        from your roster so each one&apos;s real name and contact come from — and are
+        saved back to — their artist profile. Reference only — the label doesn&apos;t
+        manage payments here (Ditto pays artists directly).
       </p>
 
-      <SplitEditor value={rows} onChange={onChange} disabled={saving} />
+      <SplitEditor value={rows} onChange={onChange} disabled={saving} linkWriteBack />
 
       <div className="mt-4">
         <button

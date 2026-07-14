@@ -40,7 +40,7 @@ export default async function IsniGuidePage({
   // list) so the back link mirrors the breadcrumb's artist context.
   const { artist } = await searchParams;
   const hasArtist = typeof artist === "string" && /^[0-9a-f]{24}$/i.test(artist);
-  const backHref = hasArtist ? `/admin/catalog/artists/${artist}/edit` : "/admin/catalog/artists";
+  const backHref = hasArtist ? `/admin/artists/${artist}/edit` : "/admin/artists";
   const backLabel = hasArtist ? "Back to artist" : "Back to artists";
 
   return (

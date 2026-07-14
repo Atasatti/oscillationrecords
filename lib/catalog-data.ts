@@ -789,7 +789,7 @@ export async function getUpcomingReleases(): Promise<UpcomingReleaseDTO[]> {
     // Order by the dedicated comingSoonOrder (set by the admin Coming Soon tab);
     // rows never ordered there (null) fall after the curated ones, soonest
     // release-date first. The admin Coming Soon list applies the identical
-    // comparator so the two views always agree (see app/admin/catalog/page.tsx).
+    // comparator so the two views always agree (see app/admin/page.tsx).
     releases.sort(compareComingSoon);
 
     // Resolve linked artist ids → names in one query.

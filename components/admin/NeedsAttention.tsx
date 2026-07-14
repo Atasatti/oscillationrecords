@@ -61,7 +61,7 @@ export default function NeedsAttention() {
       key: "drafts",
       label: `${drafts} draft${drafts === 1 ? "" : "s"} to finish`,
       count: drafts,
-      href: "/admin/catalog/releases?status=DRAFT",
+      href: "/admin/releases?status=DRAFT",
       hint: "Add tracks, then publish",
       icon: FileText,
     });
@@ -71,7 +71,7 @@ export default function NeedsAttention() {
       key: "soon",
       label: `${soon} release${soon === 1 ? "" : "s"} going live soon`,
       count: soon,
-      href: "/admin/catalog/releases?status=SCHEDULED",
+      href: "/admin/releases?status=SCHEDULED",
       hint: "Scheduled within 14 days",
       icon: CalendarClock,
     });

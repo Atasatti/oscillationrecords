@@ -59,7 +59,7 @@ export default async function PressPostPage({
     : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(buildPressPostJsonLd(post)) }}
@@ -89,7 +89,7 @@ export default async function PressPostPage({
               src={post.image}
               alt={post.title}
               fill
-              sizes="(max-width: 768px) 100vw, 768px"
+              sizes="(max-width: 1152px) 100vw, 1152px"
               placeholder="blur"
               blurDataURL={BLUR_DATA_URL}
               priority

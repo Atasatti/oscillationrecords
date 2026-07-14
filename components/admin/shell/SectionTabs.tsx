@@ -26,24 +26,24 @@ export const TAB_GROUPS: readonly (readonly Tab[])[] = [
   ],
   [
     { label: "Board", href: "/admin/tasks" },
-    { label: "Automations", href: "/admin/automations", perm: "outreach:write" },
-    { label: "Templates", href: "/admin/outreach/templates", perm: "outreach:write" },
+    { label: "Automations", href: "/admin/tasks/automations", perm: "outreach:write" },
+    { label: "Templates", href: "/admin/tasks/templates", perm: "outreach:write" },
   ],
   [
-    { label: "Releases", href: "/admin/catalog/releases", perm: "catalog:read" },
-    { label: "Pipeline", href: "/admin/catalog/pipeline", perm: "catalog:read" },
-    { label: "Timeline", href: "/admin/catalog/timeline", perm: "catalog:read" },
+    { label: "Releases", href: "/admin/releases", perm: "catalog:read" },
+    { label: "Pipeline", href: "/admin/pipeline", perm: "catalog:read" },
+    { label: "Timeline", href: "/admin/timeline", perm: "catalog:read" },
   ],
   [
-    { label: "Artists", href: "/admin/catalog/artists", perm: "catalog:read" },
-    { label: "Onboarding", href: "/admin/catalog/artists/onboarding", perm: "catalog:read" },
+    { label: "Artists", href: "/admin/artists", perm: "catalog:read" },
+    { label: "Onboarding", href: "/admin/artists/onboarding", perm: "catalog:read" },
   ],
   [
-    { label: "Budgets", href: "/admin/catalog/budgets", perm: "catalog:read" },
+    { label: "Budgets", href: "/admin/budgets", perm: "catalog:read" },
   ],
   [
-    { label: "Newsletter", href: "/admin/outreach/newsletter", perm: "outreach:read" },
-    { label: "Subscribers", href: "/admin/subscribers", perm: "outreach:read" },
+    { label: "Newsletter", href: "/admin/newsletter", perm: "outreach:read" },
+    { label: "Subscribers", href: "/admin/newsletter/subscribers", perm: "outreach:read" },
   ],
 ];
 
@@ -59,14 +59,19 @@ export default function SectionTabs() {
   const role = user?.role;
   const canSee = (perm?: Permission) => (!perm ? true : isOwner || roleCan(role, perm));
 
-  // Hide the tabs while editing a release (create / edit / tracklist): they're
-  // noise mid-edit and add another nav path away from unsaved work. The only ways
-  // out then are the guarded sidebar, breadcrumbs and the editor's own Save/Cancel.
-  const onReleaseEditor =
-    pathname === "/admin/catalog/releases/new" ||
-    (pathname.startsWith("/admin/catalog/releases/") &&
-      (pathname.endsWith("/edit") || pathname.endsWith("/tracks")));
-  if (onReleaseEditor) return null;
+  // Hide the section tabs on any individual item's create / edit / detail / sub-
+  // editor page (release, artist, contact, …). Section-level tabs belong to the
+  // list/overview, not inside a single record — there they're noise and add a nav
+  // path away from unsaved work; the ways out are the guarded sidebar, breadcrumbs
+  // and the editor's own Save/Cancel. List and sub-view pages (Artists, Onboarding,
+  // Pipeline, Timeline, Subscribers …) still show them.
+  const onItemPage =
+    pathname.endsWith("/new") ||
+    pathname.endsWith("/edit") ||
+    pathname.endsWith("/tracks") ||
+    // singular detail/VIEW routes: /admin/release/<id>, /admin/artist/<id>
+    /^\/admin\/(release|artist)\/[0-9a-f]{24}(\/|$)/i.test(pathname);
+  if (onItemPage) return null;
 
   // Guard tab navigation exactly like the sidebar + breadcrumbs do — otherwise a
   // tab click silently discards an editor's unsaved changes. SectionTabs was the

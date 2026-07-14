@@ -1,21 +1,21 @@
-// Campaign budget & spend for a release (Release.budget + Release.spend) — the
-// marketing-spend tracker (distinct from royalty splits, which are just artist
-// shares). A tracking aid, not accounting. Server-only (loadBudgetSummary touches
-// prisma); the panel declares its own inline types.
+// Budget & spend for a release (Release.budget + Release.spend) — tracks what it
+// costs to put a release out: production, artwork, photography, video, distribution
+// and promo (distinct from royalty splits, which are just artist shares). A tracking
+// aid, not accounting. Server-only (loadBudgetSummary touches prisma); the spend
+// category vocabulary lives in the client-safe ./release-budget-categories and is
+// re-exported here so existing "@/lib/release-budget" server imports keep working.
 
 import { prisma } from "@/lib/prisma";
+import { isSpendCategory, type SpendCategory } from "@/lib/release-budget-categories";
 
-export const SPEND_CATEGORIES = ["playlist", "ads", "pr", "radio", "video", "other"] as const;
-export type SpendCategory = (typeof SPEND_CATEGORIES)[number];
-
-export const SPEND_CATEGORY_LABELS: Record<SpendCategory, string> = {
-  playlist: "Playlist / curators",
-  ads: "Ads",
-  pr: "PR / press",
-  radio: "Radio",
-  video: "Video / content",
-  other: "Other",
-};
+export {
+  SPEND_CATEGORIES,
+  SPEND_CATEGORY_LABELS,
+  SPEND_CATEGORY_OPTIONS,
+  isSpendCategory,
+  spendCategoryLabel,
+  type SpendCategory,
+} from "@/lib/release-budget-categories";
 
 export interface SpendEntry {
   id: string;
@@ -23,15 +23,11 @@ export interface SpendEntry {
   category: SpendCategory;
   /** ISO date the spend relates to, or null. */
   date: string | null;
-  /** Optional note, e.g. "Groover campaign", "Meta ads". */
+  /** Optional note, e.g. "Abbey Road mastering", "Meta ads". */
   note: string | null;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-
-export function isSpendCategory(v: unknown): v is SpendCategory {
-  return typeof v === "string" && (SPEND_CATEGORIES as readonly string[]).includes(v);
-}
 
 /** Coerce arbitrary stored/submitted data into clean SpendEntry[]. */
 export function normalizeSpend(raw: unknown): SpendEntry[] {

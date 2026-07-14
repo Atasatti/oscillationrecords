@@ -89,7 +89,7 @@ function PipelineCard() {
   if (hidden || !data) return null;
   return (
     <Card
-      href="/admin/catalog/pipeline"
+      href="/admin/pipeline"
       icon={Rocket}
       label="Pipeline"
       primary={`${data.count} scheduled`}

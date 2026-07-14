@@ -22,6 +22,17 @@ export const s3Client = hasCredentials
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
       },
+      // AWS SDK v3 adds a default CRC32 integrity checksum to requests. For a
+      // PRESIGNED PUT that checksum is computed at sign time over an EMPTY body and
+      // baked into the URL (x-amz-checksum-crc32 / x-amz-sdk-checksum-algorithm);
+      // when the browser then PUTs the real file, S3 can reject the checksum
+      // mismatch and the upload dies as "Failed to fetch". Those params don't belong
+      // in a presigned browser-upload URL — "WHEN_REQUIRED" restores the old
+      // behavior (checksum only when an operation truly needs it), which is AWS's
+      // recommended setting for presigned uploads (contact attachments, assets,
+      // task attachments all presign browser PUTs).
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     })
   : null;
 
@@ -103,6 +114,25 @@ export function isOwnBucketUrl(url: unknown): boolean {
     );
   } catch {
     return false;
+  }
+}
+
+/**
+ * Reverse of {@link publicFileUrl}: the object key for one of OUR bucket URLs, or
+ * null for anything else (external host, malformed). The path is percent-decoded
+ * so the key round-trips (publicFileUrl encodes nothing, but S3 URLs in the wild
+ * may carry encoded spaces/unicode). Callers use this to presign a download for a
+ * file we host — the null result is what keeps the download route from ever
+ * redirecting to a foreign origin.
+ */
+export function keyFromOwnBucketUrl(url: unknown): string | null {
+  if (!isOwnBucketUrl(url)) return null;
+  try {
+    const path = new URL(url as string).pathname.replace(/^\/+/, "");
+    const key = decodeURIComponent(path);
+    return key.trim() ? key : null;
+  } catch {
+    return null;
   }
 }
 

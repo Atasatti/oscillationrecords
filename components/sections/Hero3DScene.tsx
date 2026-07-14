@@ -76,7 +76,7 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
         </div>
 
         {/* Mission block — flat */}
-        <div className="mt-10 sm:mt-14 md:mt-16 px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10">
+        <div className="mt-8 sm:mt-14 md:mt-16 px-5 py-4 sm:px-8 sm:py-8 md:px-10 md:py-10">
           <p className="text-[11px] sm:text-xs uppercase tracking-[0.24em] text-white/60 text-center">
             Our Mission
           </p>
@@ -106,8 +106,9 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
           </div>
         </div>
 
-        {/* Feature cards — flat */}
-        <div className="px-5 sm:px-8 md:px-10">
+        {/* Feature cards — flat. Hidden on phones (supplementary value-props) to
+            keep the mobile hero short; shown from sm up. */}
+        <div className="hidden px-5 sm:block sm:px-8 md:px-10">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
@@ -138,7 +139,7 @@ export default function Hero3DScene({ photos }: Hero3DSceneProps) {
       </div>
 
       {/* Studio photos — flat, full-width slow carousel */}
-      <div className="mt-12 mb-16 sm:mt-16 sm:mb-20 md:mt-20 md:mb-24">
+      <div className="mt-8 mb-10 sm:mt-16 sm:mb-20 md:mt-20 md:mb-24">
         <StudioPhotosCarousel photos={photos} />
       </div>
     </div>

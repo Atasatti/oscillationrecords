@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { isOwnBucketUrl } from "@/lib/s3";
-import { normalizeAttachments, isAllowedAttachmentType, type Attachment } from "@/lib/task-attachments";
+import { isAllowedAttachmentType, type Attachment } from "@/lib/task-attachments";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,9 +27,6 @@ export async function POST(
       return NextResponse.json({ error: "Invalid attachment" }, { status: 400 });
     }
 
-    const task = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { attachments: true } });
-    if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
-
     const attachment: Attachment = {
       id: crypto.randomUUID(),
       name,
@@ -37,11 +34,37 @@ export async function POST(
       size: typeof body.size === "number" && Number.isFinite(body.size) ? body.size : null,
       type,
     };
-    const next = [...normalizeAttachments(task.attachments), attachment];
-    await prisma.outreachTask.update({
-      where: { id: taskId },
-      data: { attachments: next as unknown as Prisma.InputJsonValue },
-    });
+
+    // Append atomically in a single document update so two people attaching files
+    // at the same time can't clobber each other — a read-modify-write on the whole
+    // array lets the second write drop the first attachment, orphaning its S3
+    // object. A single-document update is atomic in MongoDB, so no transaction is
+    // needed; the pipeline also seeds the array when attachments is null/absent, the
+    // $isArray guard tolerates a non-array value, and $literal keeps the
+    // user-supplied fields from being evaluated as aggregation expressions.
+    const result = (await prisma.$runCommandRaw({
+      update: "OutreachTask",
+      updates: [
+        {
+          q: { _id: { $oid: taskId } },
+          u: [
+            {
+              $set: {
+                attachments: {
+                  $concatArrays: [
+                    { $cond: [{ $isArray: "$attachments" }, "$attachments", []] },
+                    { $literal: [attachment] },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    } as unknown as Prisma.InputJsonObject)) as unknown as { n?: number };
+
+    // n = documents matched; 0 means the task doesn't exist.
+    if (!result?.n) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     return NextResponse.json({ attachment }, { status: 201 });
   } catch (e) {
@@ -63,14 +86,35 @@ export async function DELETE(
     const attachmentId = new URL(request.url).searchParams.get("attachmentId") || "";
     if (!attachmentId) return NextResponse.json({ error: "attachmentId is required" }, { status: 400 });
 
-    const task = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { attachments: true } });
-    if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    // Remove atomically in a single document update (see POST) — a read-filter-write
+    // has the same lost-update risk under a concurrent add/delete. $filter drops the
+    // matching attachment in place; $isArray tolerates a null/absent array and
+    // $literal stops a crafted attachmentId being read as an expression (which could
+    // otherwise make the condition always false and wipe every attachment).
+    const result = (await prisma.$runCommandRaw({
+      update: "OutreachTask",
+      updates: [
+        {
+          q: { _id: { $oid: taskId } },
+          u: [
+            {
+              $set: {
+                attachments: {
+                  $filter: {
+                    input: { $cond: [{ $isArray: "$attachments" }, "$attachments", []] },
+                    as: "a",
+                    cond: { $ne: ["$$a.id", { $literal: attachmentId }] },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    } as unknown as Prisma.InputJsonObject)) as unknown as { n?: number };
 
-    const next = normalizeAttachments(task.attachments).filter((a) => a.id !== attachmentId);
-    await prisma.outreachTask.update({
-      where: { id: taskId },
-      data: { attachments: next as unknown as Prisma.InputJsonValue },
-    });
+    // n = documents matched; 0 means the task doesn't exist.
+    if (!result?.n) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

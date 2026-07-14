@@ -130,11 +130,11 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
   }
 
   return (
-    <div className="px-[10%] w-full mx-auto py-14">
+    <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-10 sm:py-14">
       <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
         All releases
       </p>
-      <p className="font-light text-5xl text-center tracking-tighter mt-3">
+      <p className="font-light text-3xl sm:text-5xl text-center tracking-tighter mt-3">
         {filteredReleases.length} {filteredReleases.length === 1 ? 'Release' : 'Releases'}
       </p>
       <div className="flex gap-6 md:gap-8 mt-8 justify-center flex-wrap">
@@ -156,12 +156,12 @@ const ReleasesSection = ({ initialReleases }: ReleasesSectionProps) => {
       {filteredReleases.length === 0 ? (
         <p className="text-center text-muted-foreground mt-14">No releases found for the selected year.</p>
       ) : (
-        <div className="flex gap-5 items-center flex-wrap mt-14">
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:mt-12 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
           {filteredReleases.map((release) => (
             <div
               key={release.id}
               onClick={() => handleReleaseClick(release)}
-              className="cursor-pointer relative group w-72 max-w-full h-84"
+              className="cursor-pointer relative group w-full aspect-[6/7]"
             >
 
               <ReleaseCardSm

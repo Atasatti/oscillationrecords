@@ -11,6 +11,8 @@ export type GroupableAsset = {
   title: string;
   fileName: string;
   fileUrl: string;
+  /** Same-origin href that forces a real download (see AssetsClient.Asset). */
+  downloadHref: string;
   releaseId: string | null;
   artistId: string | null;
   parentLabel: string | null;
@@ -61,7 +63,7 @@ export function groupAssets<T extends GroupableAsset>(
         put({
           key: `release:${a.releaseId}`, kind: "release", entityId: a.releaseId,
           name: ctx.releaseNames.get(a.releaseId) ?? a.parentLabel ?? "Untitled release",
-          href: a.parentHref ?? `/admin/catalog/release/${a.releaseId}`,
+          href: a.parentHref ?? `/admin/release/${a.releaseId}`,
         }, a);
       } else {
         put({ key: "none", kind: "release", entityId: null, name: "Not linked to a release", href: null }, a);
@@ -72,7 +74,7 @@ export function groupAssets<T extends GroupableAsset>(
         put({
           key: `artist:${artistId}`, kind: "artist", entityId: artistId,
           name: ctx.artistNames.get(artistId) ?? "Unknown artist",
-          href: `/admin/catalog/artist/${artistId}`,
+          href: `/admin/artist/${artistId}`,
         }, a);
       } else {
         put({ key: "none", kind: "artist", entityId: null, name: "No artist", href: null }, a);
@@ -122,7 +124,7 @@ export function buildDownloadItems(
     const disambiguate = (counts.get(asset.category) ?? 0) > 1;
     return {
       label: disambiguate ? `Download ${catLabel} — ${asset.title || asset.fileName}` : `Download ${catLabel}`,
-      href: asset.fileUrl,
+      href: asset.downloadHref,
       downloadName: asset.fileName,
     };
   });
