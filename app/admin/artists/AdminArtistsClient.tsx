@@ -56,6 +56,219 @@ import { unlockBody } from "@/lib/unlock-body";
 
 const PAGE_SIZE = 25;
 
+type ArtistRowActions = {
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  onSetVisibility: (id: string, showOnWebsite: boolean) => void;
+  onSetFeatured: (id: string, featuredOnHome: boolean) => void;
+  onEdit: (id: string) => void;
+  onViewReleases: (id: string) => void;
+  onNewRelease: (row: { id: string; name: string }) => void;
+  onDelete: (row: { id: string; name: string }) => void;
+};
+
+/**
+ * One artist row, memoized so a single-row mutation (visibility / featured toggle)
+ * re-renders ONLY that row instead of every row on the page. Each row is heavy — a
+ * Radix actions dropdown plus two SEO badges — so re-rendering all ~25 for a
+ * one-boolean change was a ~200ms main-thread long task that made the toggle feel
+ * laggy. Optimistically updating one row now hands the other rows the SAME `a`
+ * object reference, so they skip re-rendering entirely.
+ *
+ * The comparator deliberately compares only `a` and `selected` and ignores the
+ * callback props: the parent recreates those each render, but they read live state
+ * through a ref / stable setters, so a row safely keeps an older closure without
+ * going stale. That lets the rows stay memoized without wrapping every handler in
+ * useCallback.
+ */
+const ArtistRow = React.memo(
+  function ArtistRow({
+    a,
+    selected,
+    onToggleSelect,
+    onSetVisibility,
+    onSetFeatured,
+    onEdit,
+    onViewReleases,
+    onNewRelease,
+    onDelete,
+  }: { a: AdminArtistRow } & ArtistRowActions) {
+    return (
+      <TableRow data-state={selected ? "selected" : undefined}>
+        <TableCell>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(a.id)}
+            aria-label={`Select ${a.name}`}
+            className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
+          />
+        </TableCell>
+        <TableCell>
+          <Link href={`/admin/artists/${a.id}/edit`} className="flex items-center gap-3 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={a.profilePicture || "/placeholder.svg"}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+            />
+            <span className="truncate font-medium group-hover:underline">{a.name}</span>
+            {a.draft ? (
+              <Badge variant="warning" className="shrink-0">Draft</Badge>
+            ) : null}
+          </Link>
+        </TableCell>
+        <TableCell className="hidden lg:table-cell">
+          {a.genres.length ? (
+            <div className="flex items-center gap-1">
+              {/* Only the first genre inline (keeps the column narrow on
+                  laptop widths); the rest collapse into a +N badge whose
+                  hover title lists them, so nothing is lost. */}
+              <Badge variant="muted" className="max-w-[9rem] truncate">{a.genres[0]}</Badge>
+              {a.genres.length > 1 ? (
+                <span title={a.genres.slice(1).join(", ")}>
+                  <Badge variant="muted" className="cursor-default">+{a.genres.length - 1}</Badge>
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
+          {a.releaseCount}
+        </TableCell>
+        <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
+          {a.playsLast90d.toLocaleString()}
+        </TableCell>
+        <TableCell className="hidden min-[1600px]:table-cell text-sm text-muted-foreground">
+          {a.lastReleaseDate
+            ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : "—"}
+        </TableCell>
+        <TableCell className="hidden sm:table-cell">
+          <Link
+            href={`/admin/artists/${a.id}/edit`}
+            title={
+              a.complete
+                ? "All key SEO fields filled"
+                : `To improve SEO, add: ${a.missing.join(", ")} — click to edit`
+            }
+            className="inline-flex"
+          >
+            <Badge
+              variant={
+                a.seoGrade === "strong"
+                  ? "success"
+                  : a.seoGrade === "good"
+                    ? "warning"
+                    : "destructive"
+              }
+              className="cursor-pointer tabular-nums hover:opacity-80"
+            >
+              {a.seoScore}
+            </Badge>
+          </Link>
+        </TableCell>
+        <TableCell className="hidden md:table-cell">
+          <Link
+            href={`/admin/artists/${a.id}/edit`}
+            title={
+              a.gkpComplete
+                ? "All Knowledge Panel signals filled"
+                : `To improve Knowledge Panel readiness, add: ${a.gkpMissing.join(", ")} — click to edit`
+            }
+            className="inline-flex"
+          >
+            <Badge
+              variant={
+                a.gkpGrade === "strong"
+                  ? "success"
+                  : a.gkpGrade === "good"
+                    ? "warning"
+                    : "destructive"
+              }
+              className="cursor-pointer tabular-nums hover:opacity-80"
+            >
+              {a.gkpScore}
+            </Badge>
+          </Link>
+        </TableCell>
+        <TableCell>
+          <button
+            type="button"
+            onClick={() => onSetVisibility(a.id, !a.showOnWebsite)}
+            title="Toggle visibility on the public site"
+            className="inline-flex w-[72px] justify-start"
+          >
+            {a.showOnWebsite ? (
+              <Badge variant="success">Live</Badge>
+            ) : (
+              <Badge variant="muted">Hidden</Badge>
+            )}
+          </button>
+        </TableCell>
+        <TableCell>
+          <button
+            type="button"
+            disabled={!a.showOnWebsite}
+            onClick={() => onSetFeatured(a.id, !a.featuredOnHome)}
+            title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
+            className="inline-flex w-[104px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {a.featuredOnHome ? (
+              <Badge variant="warning">
+                <Star className="h-3 w-3" /> Featured
+              </Badge>
+            ) : (
+              <Badge variant="muted">Off</Badge>
+            )}
+          </button>
+        </TableCell>
+        <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+          {new Date(a.createdAt).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })}
+        </TableCell>
+        <TableCell className="text-right">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${a.name}`}>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(a.id)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewReleases(a.id)}>
+                <Eye className="mr-2 h-4 w-4" /> View releases
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onNewRelease({ id: a.id, name: a.name })}>
+                <Plus className="mr-2 h-4 w-4" /> New release
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
+                onClick={() => onDelete({ id: a.id, name: a.name })}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+    );
+  },
+  (prev, next) => prev.a === next.a && prev.selected === next.selected
+);
+
 export default function AdminArtistsClient({
   initialData,
   initialGenres,
@@ -67,6 +280,12 @@ export default function AdminArtistsClient({
   const toast = useToast();
 
   const [items, setItems] = useState<AdminArtistRow[]>(initialData?.items ?? []);
+  // Mirror the latest rows in a ref so the row-mutation handlers can read the
+  // pre-optimistic list (for rollback) and a row's current flags without closing
+  // over `items`. That keeps them safe to hand to the memoized ArtistRow, which may
+  // hold an older closure for a row it skipped re-rendering.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [total, setTotal] = useState(initialData?.total ?? 0);
   const [page, setPage] = useState(1);
   const [queryInput, setQueryInput] = useState("");
@@ -111,8 +330,8 @@ export default function AdminArtistsClient({
   // clicks returns pre-toggle data; applying it would repaint the just-flipped row
   // with its old value — the flicker where Featured briefly reverts, then snaps
   // back when the PATCH resolves. A load whose generation changed mid-fetch is
-  // stale, so it discards its own response and lets the toggle's own PATCH
-  // (applyServerRow) be the source of truth.
+  // stale, so it discards its own response and lets the toggle's own optimistic
+  // update (reconciled with the server by the PATCH) be the source of truth.
   const mutationGen = useRef(0);
 
   const load = useCallback(async () => {
@@ -229,7 +448,7 @@ export default function AdminArtistsClient({
   };
 
   const setVisibility = async (id: string, showOnWebsite: boolean) => {
-    const prev = items;
+    const prev = itemsRef.current;
     // Mirror the server rule locally and immediately: hiding an artist also drops
     // it from the Featured set (a hidden artist can't be featured). Without this the
     // row kept a stale "Featured" badge after hide, which then read as inconsistent
@@ -258,8 +477,8 @@ export default function AdminArtistsClient({
   };
 
   const setFeatured = async (id: string, featuredOnHome: boolean) => {
-    const prev = items;
-    const row = items.find((a) => a.id === id);
+    const prev = itemsRef.current;
+    const row = itemsRef.current.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
     mutationGen.current++; // stale in-flight loads must not revert this row
     try {
@@ -280,8 +499,14 @@ export default function AdminArtistsClient({
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
-      applyServerRow(id, await res.json().catch(() => null));
-      clearCached(); // persisted change — keep cached views honest on revisit
+      // Optimistic-only, mirroring the Press page's toggle: the row already shows the
+      // new state from the setItems above. Re-reading the server's row here (as
+      // setVisibility does, where hiding also drops Featured) forced a SECOND
+      // full-table re-render after the network round-trip — the "changes, then updates
+      // again after a delay" lag. Featuring only flips one boolean, so the optimistic
+      // value is authoritative; just drop the cached views so a later revisit
+      // re-fetches the server's order.
+      clearCached();
     } catch (e) {
       setItems(prev);
       toast.error(e instanceof Error ? e.message : "Failed to update featured");
@@ -574,176 +799,18 @@ export default function AdminArtistsClient({
               </TableRow>
             ) : (
               items.map((a) => (
-                <TableRow key={a.id} data-state={selected.has(a.id) ? "selected" : undefined}>
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(a.id)}
-                      onChange={() => toggleSelect(a.id)}
-                      aria-label={`Select ${a.name}`}
-                      className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/admin/artists/${a.id}/edit`} className="flex items-center gap-3 group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={a.profilePicture || "/placeholder.svg"}
-                        alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                      />
-                      <span className="truncate font-medium group-hover:underline">{a.name}</span>
-                      {a.draft ? (
-                        <Badge variant="warning" className="shrink-0">Draft</Badge>
-                      ) : null}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {a.genres.length ? (
-                      <div className="flex items-center gap-1">
-                        {/* Only the first genre inline (keeps the column narrow on
-                            laptop widths); the rest collapse into a +N badge whose
-                            hover title lists them, so nothing is lost. */}
-                        <Badge variant="muted" className="max-w-[9rem] truncate">{a.genres[0]}</Badge>
-                        {a.genres.length > 1 ? (
-                          <span title={a.genres.slice(1).join(", ")}>
-                            <Badge variant="muted" className="cursor-default">+{a.genres.length - 1}</Badge>
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
-                    {a.releaseCount}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
-                    {a.playsLast90d.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="hidden min-[1600px]:table-cell text-sm text-muted-foreground">
-                    {a.lastReleaseDate
-                      ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Link
-                      href={`/admin/artists/${a.id}/edit`}
-                      title={
-                        a.complete
-                          ? "All key SEO fields filled"
-                          : `To improve SEO, add: ${a.missing.join(", ")} — click to edit`
-                      }
-                      className="inline-flex"
-                    >
-                      <Badge
-                        variant={
-                          a.seoGrade === "strong"
-                            ? "success"
-                            : a.seoGrade === "good"
-                              ? "warning"
-                              : "destructive"
-                        }
-                        className="cursor-pointer tabular-nums hover:opacity-80"
-                      >
-                        {a.seoScore}
-                      </Badge>
-                    </Link>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Link
-                      href={`/admin/artists/${a.id}/edit`}
-                      title={
-                        a.gkpComplete
-                          ? "All Knowledge Panel signals filled"
-                          : `To improve Knowledge Panel readiness, add: ${a.gkpMissing.join(", ")} — click to edit`
-                      }
-                      className="inline-flex"
-                    >
-                      <Badge
-                        variant={
-                          a.gkpGrade === "strong"
-                            ? "success"
-                            : a.gkpGrade === "good"
-                              ? "warning"
-                              : "destructive"
-                        }
-                        className="cursor-pointer tabular-nums hover:opacity-80"
-                      >
-                        {a.gkpScore}
-                      </Badge>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <button
-                      type="button"
-                      onClick={() => setVisibility(a.id, !a.showOnWebsite)}
-                      title="Toggle visibility on the public site"
-                      className="inline-flex w-[72px] justify-start"
-                    >
-                      {a.showOnWebsite ? (
-                        <Badge variant="success">Live</Badge>
-                      ) : (
-                        <Badge variant="muted">Hidden</Badge>
-                      )}
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <button
-                      type="button"
-                      disabled={!a.showOnWebsite}
-                      onClick={() => setFeatured(a.id, !a.featuredOnHome)}
-                      title={a.showOnWebsite ? "Feature in the home carousel" : "Set this artist to show on the website before featuring"}
-                      className="inline-flex w-[104px] justify-start disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {a.featuredOnHome ? (
-                        <Badge variant="warning">
-                          <Star className="h-3 w-3" /> Featured
-                        </Badge>
-                      ) : (
-                        <Badge variant="muted">Off</Badge>
-                      )}
-                    </button>
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                    {new Date(a.createdAt).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${a.name}`}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/admin/artists/${a.id}/edit`)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/artist/${a.id}`)}>
-                          <Eye className="mr-2 h-4 w-4" /> View releases
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setNewReleaseFor({ id: a.id, name: a.name })}>
-                          <Plus className="mr-2 h-4 w-4" /> New release
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          className="text-red-400 focus:text-red-300 focus:bg-red-950/20"
-                          onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                <ArtistRow
+                  key={a.id}
+                  a={a}
+                  selected={selected.has(a.id)}
+                  onToggleSelect={toggleSelect}
+                  onSetVisibility={setVisibility}
+                  onSetFeatured={setFeatured}
+                  onEdit={(id) => router.push(`/admin/artists/${id}/edit`)}
+                  onViewReleases={(id) => router.push(`/admin/artist/${id}`)}
+                  onNewRelease={setNewReleaseFor}
+                  onDelete={setDeleteTarget}
+                />
               ))
             )}
           </TableBody>
