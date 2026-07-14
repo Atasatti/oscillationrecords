@@ -34,7 +34,7 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { TASK_STATUSES } from "@/lib/task-status";
-import { type SavedViewConfig } from "@/lib/saved-view";
+import { type SavedViewConfig, SAVED_VIEW_NAME_MAX } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { useToast } from "@/components/local-ui/Toast";
@@ -820,6 +820,10 @@ export default function TasksPage() {
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [savingView, setSavingView] = useState(false);
+  // Inline rename of a saved-view chip.
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const escapeRenameRef = useRef(false);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
 
   // Task tags (#15): a filter across the freeform labels + the editor chip input.
@@ -1385,6 +1389,7 @@ export default function TasksPage() {
       setSavedViews((v) => [...v, j.view as SavedViewItem]);
       setSaveViewOpen(false);
       setNewViewName("");
+      toast.success(`Saved "${j.view?.name ?? name}" — find it under Saved views, just above the list.`);
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "Failed to save view");
     } finally {
@@ -1400,6 +1405,61 @@ export default function TasksPage() {
       if (!res.ok) throw new Error();
     } catch {
       toast.error("Failed to delete view");
+      setSavedViews(prev);
+    }
+  };
+
+  const startRename = (v: SavedViewItem) => {
+    escapeRenameRef.current = false;
+    setEditingViewId(v.id);
+    setRenameDraft(v.name);
+  };
+  // Commit runs once, on the input's blur (Enter blurs it; Escape blurs with a
+  // cancel flag), so the Enter-then-unmount-blur can't fire it twice.
+  const commitRename = async (id: string) => {
+    if (escapeRenameRef.current) {
+      escapeRenameRef.current = false;
+      setEditingViewId(null);
+      setRenameDraft("");
+      return;
+    }
+    const name = renameDraft.trim();
+    const current = savedViews.find((v) => v.id === id);
+    setEditingViewId(null);
+    setRenameDraft("");
+    if (!name || !current || name === current.name) return;
+    const prev = savedViews;
+    setSavedViews((vs) => vs.map((v) => (v.id === id ? { ...v, name } : v)));
+    try {
+      const res = await fetch(`/api/outreach/views/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Failed to rename view");
+      setSavedViews(prev);
+    }
+  };
+
+  // Re-save the current controls onto an existing view (so you don't have to
+  // delete and re-create it after tweaking filters).
+  const updateViewToCurrent = async (id: string) => {
+    const config: SavedViewConfig = { tab, view, groupBy, categoryFilter, assigneeFilter };
+    const current = savedViews.find((v) => v.id === id);
+    const prev = savedViews;
+    setSavedViews((vs) => vs.map((v) => (v.id === id ? { ...v, config } : v)));
+    try {
+      const res = await fetch(`/api/outreach/views/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Updated "${current?.name ?? "view"}" to the current filters.`);
+    } catch {
+      toast.error("Failed to update view");
       setSavedViews(prev);
     }
   };
@@ -1607,33 +1667,71 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* Saved views — named snapshots of the tab / filters / grouping / layout */}
+      {/* Saved views — private, named snapshots of the tab / filters / grouping /
+          layout. Apply in one click; rename / update / delete via each chip's menu. */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-          <Bookmark className="h-3.5 w-3.5" aria-hidden /> Views
+          <Bookmark className="h-3.5 w-3.5" aria-hidden /> Saved views
         </span>
-        {savedViews.map((v) => (
-          <span
-            key={v.id}
-            className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-              activeViewId === v.id
-                ? "border-primary/50 bg-primary/10 text-foreground"
-                : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <button type="button" onClick={() => applyView(v.config)} className="max-w-[10rem] truncate" title={`Apply "${v.name}"`}>
-              {v.name}
-            </button>
-            <button
-              type="button"
-              onClick={() => deleteView(v.id)}
-              aria-label={`Delete view ${v.name}`}
-              className="rounded-full text-muted-foreground opacity-60 transition-opacity hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100"
-            >
-              <X className="h-3 w-3" />
-            </button>
+        {savedViews.length === 0 && (
+          <span className="text-xs text-muted-foreground/70">
+            Save the current tab, filters, grouping and layout to jump back in one click.
           </span>
-        ))}
+        )}
+        {savedViews.map((v) =>
+          editingViewId === v.id ? (
+            <input
+              key={v.id}
+              autoFocus
+              value={renameDraft}
+              maxLength={SAVED_VIEW_NAME_MAX}
+              aria-label={`Rename view ${v.name}`}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onBlur={() => commitRename(v.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                else if (e.key === "Escape") { escapeRenameRef.current = true; e.currentTarget.blur(); }
+              }}
+              className="w-32 rounded-full border border-primary/50 bg-card px-2.5 py-1 text-xs text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          ) : (
+            <span
+              key={v.id}
+              className={`group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                activeViewId === v.id
+                  ? "border-primary/50 bg-primary/10 text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <button type="button" onClick={() => applyView(v.config)} className="max-w-[10rem] truncate" title={`Apply "${v.name}"`}>
+                {v.name}
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Options for view ${v.name}`}
+                    className="rounded-full text-muted-foreground opacity-60 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+                  <DropdownMenuItem onSelect={() => startRename(v)}>
+                    <Pencil className="mr-2 h-4 w-4" /> Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => updateViewToCurrent(v.id)} disabled={activeViewId === v.id}>
+                    <Check className="mr-2 h-4 w-4" /> Update to current filters
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => deleteView(v.id)} className="text-red-400 focus:text-red-400">
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </span>
+          )
+        )}
         <button
           type="button"
           onClick={() => setSaveViewOpen(true)}
@@ -2353,7 +2451,9 @@ export default function TasksPage() {
           <DialogHeader><DialogTitle>Save view</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-2 py-2">
             <p className="text-sm text-muted-foreground">
-              Name this view — it remembers the current tab, filters, grouping and layout.
+              Saves the current <span className="text-foreground">tab, filters, grouping and list/board/calendar layout</span> as
+              a named view, so you can jump back to it in one click. It appears under{" "}
+              <span className="text-foreground">Saved views</span> above the list, and only you can see it.
             </p>
             <input
               autoFocus
