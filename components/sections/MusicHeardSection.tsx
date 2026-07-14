@@ -7,23 +7,32 @@ import { usePageMedia } from "@/hooks/use-page-media";
 interface MusicHeardSectionProps {
   heading: string;
   subtext: string;
+  /** Optional brand/mission line shown as a small eyebrow above the heading —
+   * used on the homepage where the standalone mission section was folded in. */
+  mission?: string;
   className?: string; // optional className prop
 }
 
 const MusicHeardSection: React.FC<MusicHeardSectionProps> = ({
   heading,
   subtext,
+  mission,
   className,
 }) => {
   const { bgMusicHeard } = usePageMedia();
   return (
     <div
       className={clsx(
-        "bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28",
+        "bg-center bg-no-repeat px-4 sm:px-6 md:px-[10%] w-full mx-auto py-12 sm:py-16 md:py-24",
         className
       )}
       style={{ backgroundImage: `url('${bgMusicHeard}')` }}
     >
+      {mission ? (
+        <p className="mx-auto mb-5 max-w-2xl text-center text-sm font-light leading-relaxed text-muted-foreground sm:mb-6 sm:text-base">
+          {mission}
+        </p>
+      ) : null}
       <p className="font-light text-3xl sm:text-4xl md:text-5xl text-center tracking-tighter px-4">
         {heading}
       </p>

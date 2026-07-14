@@ -175,9 +175,9 @@ const NewMusicSection = ({ initialReleases }: NewMusicSectionProps) => {
   };
 
   return (
-    <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-14 sm:py-20 md:py-28">
-      <HeadingTag className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">New Music, No Compromise.</HeadingTag>
-      <p className="mt-4 sm:mt-5 text-muted-foreground text-base sm:text-lg md:text-xl">
+    <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-10 sm:py-20 md:py-28">
+      <HeadingTag className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">New Music, No Compromise.</HeadingTag>
+      <p className="mt-3 sm:mt-5 text-muted-foreground text-base sm:text-lg md:text-xl">
         From underground hits to future anthems, our releases are about pushing
         boundaries and setting trends.
       </p>

@@ -84,14 +84,14 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
   });
 
   return (
-    <div className=" px-[10%] w-full mx-auto py-14">
+    <div className="px-4 sm:px-6 md:px-[10%] w-full mx-auto py-10 sm:py-14">
       <p className="text-xs uppercase tracking-wider text-center text-muted-foreground">
         All Artists
       </p>
-      <p className="font-light text-5xl text-center tracking-tighter mt-3">
+      <p className="font-light text-3xl sm:text-5xl text-center tracking-tighter mt-3">
         {isLoading ? "Loading..." : `${filteredArtists.length} Artists`}
       </p>
-      <div className="flex gap-6 md:gap-8 mt-8">
+      <div className="flex flex-wrap justify-center gap-6 md:gap-8 mt-8">
         {dateFilters.map((filter) => (
           <button
             key={filter}
@@ -129,7 +129,7 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
           <p className="text-muted-foreground">Check back later for new releases</p>
         </div>
       ) : (
-        <div className="mt-14 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:mt-14 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4 2xl:grid-cols-5">
           {filteredArtists.map((artist) => (
             <Link key={artist.id} href={`/artists/${slugify(artist.name)}`} className="block">
               <ArtistCard artist={artist} />

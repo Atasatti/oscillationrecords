@@ -129,7 +129,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           boxShadow,
           transformStyle: "preserve-3d",
         }}
-        className="w-full h-full rounded-lg flex flex-col justify-end p-6 relative overflow-hidden"
+        className="w-full h-full rounded-lg flex flex-col justify-end p-4 sm:p-6 relative overflow-hidden"
       >
         {/* Real <img> (via next/image) instead of a CSS background so the photo
             is crawlable by Google Images and carries alt text. Sits behind the
@@ -163,14 +163,18 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
 
         {/* Content */}
         <div className="relative" style={{ zIndex: 3 }}>
-          <p className="text-white font-semibold">{artist.name}</p>
-          <p className="text-gray-300 text-xs mt-1">
+          <p className="text-white font-semibold text-sm sm:text-base">{artist.name}</p>
+          {/* Bio hidden on the small 2-up mobile cards (it overlapped the photo and
+              read as clutter); shown from sm up where there's room. */}
+          <p className="hidden sm:block text-gray-300 text-xs mt-1">
             {artist.biography.length > 100
               ? `${artist.biography.substring(0, 100)}...`
               : artist.biography}
           </p>
           <div className="h-[1px] bg-gray-600 w-full mt-2" />
-          <div className="flex justify-between items-center gap-2 mt-3">
+          {/* Icons wrap and shrink on mobile so a long social list can't overflow
+              the narrow card; the original nowrap/justify-between returns at sm. */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3 sm:flex-nowrap sm:justify-between sm:gap-2">
             {socials
               .filter((s) => s.url)
               .map(({ url, Icon, label }) => (
@@ -181,7 +185,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
                   onClick={(e) => handleSocialClick(url, e)}
                   className="inline-flex rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
-                  <Icon className="h-6 w-6" aria-hidden />
+                  <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6" aria-hidden />
                 </button>
               ))}
           </div>

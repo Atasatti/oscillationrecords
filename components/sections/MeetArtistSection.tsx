@@ -147,10 +147,14 @@ const MeetArtistSection = ({
       <div className="flex justify-center mt-5 sm:mt-6">
         <IconButton text="See Who's Here" href="/artists"/>
       </div>
-      <div className="mt-6 sm:mt-8 flex flex-col lg:flex-row justify-between items-center gap-6 lg:gap-6">
+      {/* Side-by-side (image + info + side arrows) only from xl up. At lg (iPad
+          portrait = 1024px) there isn't room for it inside the 10% padding, so it
+          used to overflow horizontally and make the whole page scroll sideways —
+          below xl we keep the stacked layout with the prev/next row underneath. */}
+      <div className="mt-6 sm:mt-8 flex flex-col xl:flex-row justify-between items-center gap-6 xl:gap-6">
         {/* Previous button - hidden on mobile, shown on desktop */}
         <div 
-          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
           onClick={handlePrevious}
         >
           <ArrowLeft className="w-4 h-4"/>
@@ -158,9 +162,9 @@ const MeetArtistSection = ({
         </div>
         
         {/* Main content - image + info side by side, centered as one group */}
-        <div className="w-full lg:flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
-          <div className="w-full max-w-[380px] lg:flex-shrink-0">
-            <Link href={artistHref} className="relative block w-full aspect-[5/6] max-h-[456px]">
+        <div className="w-full xl:flex-1 flex flex-col xl:flex-row items-center justify-center gap-8 xl:gap-12">
+          <div className="w-full max-w-[260px] sm:max-w-[320px] xl:max-w-[380px] xl:flex-shrink-0">
+            <Link href={artistHref} className="relative block w-full aspect-[4/5] sm:aspect-[5/6] max-h-[456px]">
               <Image
                 src={currentArtist.profilePicture || "/meet-artist-img.svg"}
                 width={500}
@@ -199,17 +203,17 @@ const MeetArtistSection = ({
             </div>
           </div>
           {/* Artist info - below image on mobile, beside it on desktop */}
-          <div className="w-full max-w-[380px] lg:max-w-none lg:w-80 lg:flex-shrink-0">
+          <div className="w-full max-w-[380px] xl:max-w-none xl:w-80 xl:flex-shrink-0">
               <p className="text-xs text-muted-foreground">({artistNumber})</p>
               <Link href={artistHref} className="block hover:opacity-80 transition-opacity">
-                <p className="font-light text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-1 break-words">{currentArtist.name}</p>
+                <p className="font-light text-2xl sm:text-4xl md:text-5xl xl:text-6xl mt-1 break-words">{currentArtist.name}</p>
               </Link>
-              <p className="text-xs sm:text-sm font-light text-muted-foreground mt-2 line-clamp-3 lg:line-clamp-4 min-h-[60px] sm:min-h-[80px]">
+              <p className="text-xs sm:text-sm font-light text-muted-foreground mt-2 line-clamp-3 xl:line-clamp-4 min-h-[54px] sm:min-h-[80px]">
                 {currentArtist.biography}
               </p>
               <Link
                 href={ctaHref}
-                className="mt-5 sm:mt-6 lg:mt-8 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                className="mt-5 sm:mt-6 xl:mt-8 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
               >
                 <p className="text-xs sm:text-sm font-medium">
                   {variant === "artists" ? "View detail" : "View all artists"}
@@ -221,15 +225,16 @@ const MeetArtistSection = ({
 
         {/* Next button - hidden on mobile, shown on desktop */}
         <div 
-          className="hidden lg:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
           onClick={handleNext}
         >
           <p className="text-muted-foreground text-sm uppercase">View next artist</p>
           <ArrowRight className="w-4 h-4"/>
         </div>
         
-        {/* Mobile navigation buttons */}
-        <div className="flex lg:hidden items-center justify-between w-full max-w-md mt-4">
+        {/* Prev/next row — shown below xl (mobile + tablet), where the layout is
+            stacked; from xl up the side arrows take over. */}
+        <div className="flex xl:hidden items-center justify-between w-full max-w-md mt-4">
           <div 
             className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
             onClick={handlePrevious}

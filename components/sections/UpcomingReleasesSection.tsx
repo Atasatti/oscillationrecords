@@ -29,15 +29,16 @@ function SectionHeader() {
       <p className="font-[family-name:var(--font-inter)] text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground sm:text-xs">
         On the horizon
       </p>
-      <h2 className="mt-3 text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">
+      <h2 className="mt-3 text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-tighter">
         <span className="text-foreground/55">Coming Soon,</span>{" "}
         <span className="text-foreground">Upcoming Releases.</span>
       </h2>
-      <p className="mt-4 max-w-2xl text-muted-foreground text-base leading-relaxed sm:mt-5 sm:text-lg md:text-xl">
+      <p className="mt-3 max-w-2xl text-muted-foreground text-base leading-relaxed sm:mt-5 sm:text-lg md:text-xl">
         Stay tuned for what&apos;s dropping next.
       </p>
+      {/* Ornamental divider — desktop only; on mobile it's just wasted height. */}
       <div
-        className="mt-8 flex max-w-xl items-center gap-4 sm:mt-10 sm:gap-6"
+        className="mt-8 hidden max-w-xl items-center gap-4 sm:mt-10 sm:flex sm:gap-6"
         aria-hidden
       >
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/18 to-white/5" />
@@ -199,12 +200,18 @@ const UpcomingReleasesSection = ({
   if (releases.length === 0) return null;
 
   return (
-    <section className="relative isolate -mt-px overflow-hidden bg-background px-4 sm:px-6 md:px-[10%] py-14 sm:py-20 md:py-28">
+    <section className="relative isolate -mt-px overflow-hidden bg-background px-4 sm:px-6 md:px-[10%] py-10 sm:py-20 md:py-28">
       {sectionChrome}
       <div className="relative z-10 w-full">
         <SectionHeader />
 
-        <div className="mt-10 grid grid-cols-1 gap-8 [perspective:1500px] motion-reduce:[perspective:none] sm:grid-cols-2 sm:gap-9 lg:grid-cols-3 lg:gap-10 xl:grid-cols-4">
+        {/* Mobile: 2-up for density, but a lone card stays single-column so it
+            isn't stranded in a half-width cell. Desktop keeps 2/3/4 up. */}
+        <div
+          className={`mt-7 grid gap-4 [perspective:1500px] motion-reduce:[perspective:none] sm:mt-10 sm:grid-cols-2 sm:gap-9 lg:grid-cols-3 lg:gap-10 xl:grid-cols-4 ${
+            releases.length === 1 ? "grid-cols-1" : "grid-cols-2"
+          }`}
+        >
           {releases.map((release, index) => (
             <div
               key={release.id}
