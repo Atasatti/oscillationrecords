@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { resolveUserId } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,11 +17,17 @@ export async function GET(
   if (!guard.ok) return guard.response;
   try {
     const { taskId } = await params;
-    const comments = await prisma.taskComment.findMany({
-      where: { taskId },
-      orderBy: { createdAt: "asc" },
-    });
-    return NextResponse.json({ comments }, { headers: { "Cache-Control": "private, no-store" } });
+    // Resolve the caller's real Mongo user id (token.sub is the Google OAuth
+    // subject, NOT our id) so we can flag each comment the caller owns — the client
+    // shows the delete affordance on `mine`, and DELETE enforces the same ownership.
+    const [comments, userId] = await Promise.all([
+      prisma.taskComment.findMany({ where: { taskId }, orderBy: { createdAt: "asc" } }),
+      resolveUserId(guard.token),
+    ]);
+    return NextResponse.json(
+      { comments: comments.map((c) => ({ ...c, mine: !!userId && c.authorId === userId })) },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
   } catch (e) {
     console.error("task comments GET error:", e);
     return NextResponse.json({ error: "Failed to load comments" }, { status: 500 });
@@ -48,11 +55,13 @@ export async function POST(
     const task = await prisma.outreachTask.findUnique({ where: { id: taskId }, select: { id: true } });
     if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
-    const sub = typeof guard.token.sub === "string" ? guard.token.sub : null;
+    // Store the caller's real Mongo user id (resolveUserId; token.sub is the Google
+    // OAuth subject, not our id) so ownership checks and author attribution work.
+    const authorId = await resolveUserId(guard.token);
     const comment = await prisma.taskComment.create({
       data: {
         taskId,
-        authorId: sub && OBJECT_ID.test(sub) ? sub : null,
+        authorId,
         authorEmail: typeof guard.token.email === "string" ? guard.token.email : null,
         body,
         mentions,
@@ -81,9 +90,10 @@ export async function DELETE(
     if (!comment || comment.taskId !== taskId) {
       return NextResponse.json({ error: "Comment not found" }, { status: 404 });
     }
-    // Only the author can delete their own comment.
-    const sub = typeof guard.token.sub === "string" ? guard.token.sub : null;
-    if (!sub || comment.authorId !== sub) {
+    // Only the author can delete their own comment — compare the real Mongo user id
+    // (resolveUserId), matching how authorId is stored on create.
+    const userId = await resolveUserId(guard.token);
+    if (!userId || comment.authorId !== userId) {
       return NextResponse.json({ error: "You can only delete your own comments." }, { status: 403 });
     }
 

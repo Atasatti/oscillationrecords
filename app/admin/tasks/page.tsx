@@ -460,7 +460,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
+type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string; mine?: boolean };
 
 // Match @tokens in a comment body against staff → their User ids (mentioned).
 function extractMentionIds(body: string, staff: Assignee[]): string[] {
@@ -502,7 +502,7 @@ function mentionHandle(a: Assignee): string {
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
-function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: Assignee[]; myId?: string }) {
+function TaskComments({ taskId, assignees }: { taskId: string; assignees: Assignee[] }) {
   const toast = useToast();
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -614,7 +614,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
           {comments.map((c) => {
             const author = c.authorId ? byId.get(c.authorId) ?? null : null;
             const name = author ? displayName(author) : c.authorEmail ?? "Unknown";
-            const mine = !!myId && c.authorId === myId;
+            const mine = c.mine === true;
             return (
               <li key={c.id} className="flex gap-2">
                 <AssigneeAvatar user={author} size={24} />
@@ -2430,7 +2430,7 @@ export default function TasksPage() {
                   initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
                   onChange={(a) => applyAttachments(editingId, a)}
                 />
-                <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+                <TaskComments taskId={editingId} assignees={assignees} />
               </div>
             ) : null}
           </div>
