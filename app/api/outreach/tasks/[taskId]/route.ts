@@ -158,6 +158,39 @@ export async function PATCH(
 
     const task = await prisma.outreachTask.update({ where: { id: taskId }, data });
 
+    // Record the meaningful state changes so inline edits — completing a task via
+    // the checkbox, board drag-and-drop, reprioritising or reassigning on a row —
+    // land in the audit trail like the full-form PUT and DELETE already do. A
+    // checklist-only tick is intentionally skipped to keep the log from flooding.
+    const changes: string[] = [];
+    if (typeof data.status === "string" && data.status !== existing.status) {
+      changes.push(
+        data.status === "done"
+          ? "marked done"
+          : existing.status === "done"
+            ? "reopened"
+            : `status → ${data.status}`
+      );
+    }
+    if (typeof data.priority === "string" && data.priority !== existing.priority) {
+      changes.push(`priority → ${data.priority}`);
+    }
+    if ("assigneeId" in data && (data.assigneeId ?? null) !== (existing.assigneeId ?? null)) {
+      changes.push(data.assigneeId ? "reassigned" : "unassigned");
+    }
+    if (changes.length) {
+      await recordAudit(request, guard.token, {
+        action: "update",
+        resource: "task",
+        resourceId: task.id,
+        summary: `Task "${task.title}" — ${changes.join(", ")}`,
+        metadata: {
+          before: { status: existing.status, priority: existing.priority, assigneeId: existing.assigneeId },
+          after: { status: task.status, priority: task.priority, assigneeId: task.assigneeId },
+        },
+      });
+    }
+
     // Completing a recurring task spawns its next occurrence.
     if (data.status === "done" && existing.status !== "done") {
       await spawnNextOccurrence(existing);
