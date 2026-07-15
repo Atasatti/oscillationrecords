@@ -58,6 +58,11 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [data, setData] = useState<SearchData | null>(null);
+  // Shortcut hint glyph: ⌘K on Apple platforms, Ctrl+K elsewhere. Starts false so the
+  // server render and first client paint agree, then a mount effect corrects it
+  // (navigator is client-only) — no hydration mismatch. The key handler below already
+  // accepts both Cmd and Ctrl; this only drives the visible / accessible label.
+  const [isMac, setIsMac] = useState(false);
   const gAt = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -78,6 +83,12 @@ export default function CommandPalette() {
       .catch(() => { if (!cancelled) setData({ releases: [], artists: [], tracks: [] }); });
     return () => { cancelled = true; };
   }, [open, data]);
+
+  // Detect Apple platforms once, client-side, to choose the shortcut glyph.
+  useEffect(() => {
+    const n = window.navigator;
+    setIsMac(/Mac|iPhone|iPod|iPad/i.test(n.platform || "") || /Mac OS X/i.test(n.userAgent || ""));
+  }, []);
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
@@ -162,6 +173,9 @@ export default function CommandPalette() {
     else if (e.key === "Tab") { e.preventDefault(); }
   };
 
+  const shortcutHint = isMac ? "⌘K" : "Ctrl+K";
+  const shortcutAria = isMac ? "Command K" : "Control K";
+
   return (
     <>
       {/* Topbar trigger */}
@@ -169,12 +183,12 @@ export default function CommandPalette() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search (Command K)"
+        aria-label={`Search (${shortcutAria})`}
         className="inline-flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
       >
         <Search className="h-4 w-4" />
         <span className="hidden lg:inline">Search</span>
-        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">⌘K</kbd>
+        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">{shortcutHint}</kbd>
       </button>
 
       {/* Portal to <body>: the admin topbar (this component's parent) uses
