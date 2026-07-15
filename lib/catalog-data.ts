@@ -576,7 +576,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     const ids = r.primaryArtistIds ?? [];
     if (ids.length) {
       const found = await prisma.artist.findMany({
-        where: { id: { in: ids } },
+        // Only PUBLIC artists may be named in the page title / OG / JSON-LD: a
+        // hidden or draft artist has no public /artists page (it 404s) and is
+        // already hidden from the release body (getReleaseDetail). Filtering here
+        // stops the metadata from naming — or linking to — a not-public artist.
+        where: { id: { in: ids }, showOnWebsite: true, draft: false },
         select: { id: true, name: true },
       });
       const byId = new Map(found.map((a) => [a.id, a]));
@@ -589,8 +593,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       id: r.id,
       name: r.name,
       type: prismaKindToApi(r.kind),
-      upcCode: r.upcCode ?? null,
-      catalogueNumber: r.catalogueNumber ?? null,
+      // Release identifiers (UPC / catalogue number) are useful SEO signals once
+      // the release is public, but must not leak before release — withhold them
+      // for a not-yet-public (Coming Soon / future-dated) release.
+      upcCode: isPublic ? (r.upcCode ?? null) : null,
+      catalogueNumber: isPublic ? (r.catalogueNumber ?? null) : null,
       coverImage: r.coverImage ?? null,
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
@@ -602,16 +609,21 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       amazonMusicLink: r.amazonMusicLink ?? null,
       youtubeLink: r.youtubeLink ?? null,
       soundcloudLink: r.soundcloudLink ?? null,
-      tracks: r.tracks.map((t) => ({
-        name: t.name,
-        duration: t.duration || null,
-        isrcCode: t.isrcCode ?? null,
-        iswc: t.iswc ?? null,
-        // Withhold lyrics for a not-yet-public (Coming Soon / future-dated)
-        // release: its tracklist is hidden everywhere else pre-release, so the
-        // JSON-LD must not leak full unreleased lyrics into the page source.
-        lyrics: isPublic ? (t.lyrics ?? null) : null,
-      })),
+      // Withhold the ENTIRE tracklist for a not-yet-public (Coming Soon /
+      // future-dated) release. Track names, ISRC/ISWC rights codes, durations and
+      // lyrics are hidden everywhere else pre-release — the detail page shows
+      // "Tracklist to be revealed", GET /api/releases masks them, and
+      // getReleaseDetail returns none — so the JSON-LD must not leak them into the
+      // page source either. Once the release is public, emit them for SEO.
+      tracks: isPublic
+        ? r.tracks.map((t) => ({
+            name: t.name,
+            duration: t.duration || null,
+            isrcCode: t.isrcCode ?? null,
+            iswc: t.iswc ?? null,
+            lyrics: t.lyrics ?? null,
+          }))
+        : [],
     };
   } catch (e) {
     console.error("getReleaseMeta: DB unavailable", e);
