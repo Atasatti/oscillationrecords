@@ -142,7 +142,16 @@ export default function Breadcrumbs() {
       // straight there — clearer than "Details", and consistent with the editor
       // being where you return for that release.
       if (isId(seg) && (raw[i - 1] === "releases" || raw[i - 1] === "artists")) {
-        label = "Edit";
+        // The new-release flow lands on the tracklist as
+        // /admin/releases/<id>/tracks?new=1 (see ReleaseEditor). Label that crumb
+        // "New" so the trail reads "Admin › Releases › New › Tracks" and doesn't
+        // masquerade as the edit flow. The draft already exists, so the crumb still
+        // links to its editor — a non-destructive way back to the release being
+        // built. Every other id-under-list route (incl. the edit-flow tracklist)
+        // stays "Edit".
+        const isNewReleaseFlow =
+          raw[i - 1] === "releases" && raw[i + 1] === "tracks" && searchParams.get("new") === "1";
+        label = isNewReleaseFlow ? "New" : "Edit";
         href = "/" + raw.slice(0, i + 1).join("/") + "/edit";
       }
       return { label, href, isLast: idx === kept.length - 1 };

@@ -19,7 +19,8 @@ export default function ReleaseTracksPage() {
     <div className="mx-auto max-w-6xl xl:max-w-7xl">
       <div className="mb-8">
         {/* No in-page back button — the breadcrumb (Admin › Releases › Edit ›
-            Tracks) is the way back to the editor. */}
+            Tracks, or › New › Tracks when reached from the new-release flow) is
+            the way back to the editor. */}
         <h1 className="text-4xl font-light tracking-tighter">Tracklist</h1>
         <p className="mt-2 text-gray-400">
           Tracks save automatically as you edit them. When they&rsquo;re ready, publish
