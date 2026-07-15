@@ -569,15 +569,16 @@ export default function AssetsClient({
             </span>
           </div>
         </td>
-        <td className={`px-3 py-2 ${hideCol}`}>
+        <td className={`hidden px-3 py-2 md:table-cell ${hideCol}`}>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
             {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
           </span>
         </td>
-        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
+        {/* Release / Artist truncate hard and show the full value on hover. */}
+        <td className={`hidden truncate px-3 py-2 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={rel ?? undefined}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className={`hidden truncate px-3 py-2 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={art ?? undefined}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="hidden whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground sm:table-cell">{a.size ? formatBytes(a.size) : "—"}</td>
+        <td className="hidden whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground sm:table-cell">{fmtDate(a.createdAt)}</td>
         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
             {hasFile ? (
@@ -744,20 +745,27 @@ export default function AssetsClient({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-6rem)] flex-col -mx-4 -mb-6 md:-mx-8 md:-mb-8">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+    // Keep the file-manager panel full-height, but drop the horizontal breakout
+    // so it sits inside the admin content padding like every other page (was
+    // -mx-4/-mx-8, which pushed the card flush to the screen edges).
+    <div className="flex h-[calc(100dvh-6rem)] flex-col -mb-6 md:-mb-8">
+      <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets…"
             className={`${inputCls} w-full pl-9`} />
         </div>
-        <Segmented
-          ariaLabel="Filter assets by category"
-          value={filter}
-          onChange={setFilter}
-          options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
-        />
-        <span className="flex-1" />
+        {/* On phones the 8-way filter can't fit — let it scroll inside its own
+            track instead of stretching the whole toolbar past the screen edge. */}
+        <div className="-mx-1 w-full overflow-x-auto px-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
+          <Segmented
+            ariaLabel="Filter assets by category"
+            value={filter}
+            onChange={setFilter}
+            options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
+          />
+        </div>
+        <span className="hidden flex-1 sm:block" />
         <Button onClick={openUpload} className="h-9 gap-1.5 bg-white text-black hover:bg-gray-200">
           <Upload className="h-4 w-4" /> Upload
         </Button>
@@ -807,10 +815,12 @@ export default function AssetsClient({
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
-                    {/* `hideable` columns collapse (xl only) while the detail panel is open, so the
-                        narrower table stays readable; below xl the panel is hidden, so they stay. */}
-                    {([["name", "Name", "w-[34%]", false], ["type", "Type", "w-[10%]", true], ["release", "Release", "w-[18%]", true], ["artist", "Artist", "w-[14%]", true], ["size", "Size", "w-[9%]", false], ["date", "Added", "w-[13%]", false]] as const).map(([col, label, w, hideable]) => (
-                      <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
+                    {/* Progressive columns: on phones only Name (+ actions) show; size/date
+                        appear at sm, Type at md, Release/Artist at lg. Artist is deliberately
+                        narrow. `hideable` columns also collapse (xl only) while the detail
+                        panel is open, so the narrower table stays readable. */}
+                    {([["name", "Name", "w-[30%]", false, ""], ["type", "Type", "w-[12%]", true, "hidden md:table-cell"], ["release", "Release", "w-[16%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[11%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[9%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[12%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
+                      <th key={col} className={`px-3 py-2 font-medium ${w} ${resp} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
