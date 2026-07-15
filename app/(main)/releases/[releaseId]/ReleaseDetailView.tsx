@@ -344,6 +344,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                                 year: "numeric",
                                 month: "long",
                                 day: "numeric",
+                                timeZone: "UTC",
                               })}
                             </span>
                           ) : null}
@@ -395,6 +396,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
+                  timeZone: "UTC",
                 })}
               </p>
               {release.preSaveUrl ? (

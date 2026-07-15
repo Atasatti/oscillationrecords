@@ -25,6 +25,7 @@ export default function PressCard({
         year: "numeric",
         month: "short",
         day: "numeric",
+        timeZone: "UTC",
       })
     : null;
 

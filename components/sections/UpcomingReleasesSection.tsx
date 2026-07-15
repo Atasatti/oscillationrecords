@@ -55,6 +55,7 @@ function UpcomingCard({ release }: { release: UpcomingRelease }) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 
   const body = (
