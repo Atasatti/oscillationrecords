@@ -183,9 +183,10 @@ export default function PrivacyPolicy() {
             restrict, or object to the processing of your data, to data portability, and
             to withdraw consent. Signed-in users can{" "}
             <a className="text-white underline" href="/account">
-              download or delete their data
+              download their data or delete their account
             </a>{" "}
-            directly, or contact{" "}
+            directly &mdash; deleting your account removes the personal data associated
+            with it &mdash; or contact{" "}
             <a className="text-white underline" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>
