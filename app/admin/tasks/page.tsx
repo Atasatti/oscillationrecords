@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import {
@@ -798,6 +799,12 @@ export default function TasksPage() {
   const toast = useToast();
   const { data: session } = useSession();
   const myId = session?.user?.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  // Task id we've already auto-opened from a ?task= deep-link, so closing the
+  // modal or a background list refresh can't reopen it (see the deep-link effect).
+  const openedTaskParamRef = useRef<string | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1136,7 +1143,7 @@ export default function TasksPage() {
   const removeTag = (tag: string) => setForm((p) => ({ ...p, tags: p.tags.filter((x) => x !== tag) }));
 
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
-  const openEdit = (t: Task) => {
+  const openEdit = useCallback((t: Task) => {
     setEditingId(t.id);
     setForm({
       title: t.title,
@@ -1153,7 +1160,24 @@ export default function TasksPage() {
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
     });
     setDialogOpen(true);
-  };
+  }, []);
+
+  // Deep-link from a task notification: /admin/tasks?task=<id> opens that task's
+  // editor automatically. We wait until the task is actually in the loaded list —
+  // if it's there, open its modal and strip the param so a refresh or a background
+  // list refresh can't reopen it. If the id never resolves (e.g. the task was
+  // deleted), nothing opens and the admin just lands on the full Tasks page — the
+  // graceful fallback the notification would otherwise give.
+  useEffect(() => {
+    const wantId = searchParams.get("task");
+    if (!wantId || loading) return;
+    if (openedTaskParamRef.current === wantId) return;
+    const t = tasks.find((x) => x.id === wantId);
+    if (!t) return; // not loaded yet (or gone) — wait for the list before consuming
+    openedTaskParamRef.current = wantId;
+    openEdit(t);
+    router.replace(pathname, { scroll: false });
+  }, [searchParams, loading, tasks, openEdit, router, pathname]);
 
   const save = async () => {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
