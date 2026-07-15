@@ -12,6 +12,21 @@ import { prisma } from "@/lib/prisma";
 export type ErrorSource = "server" | "client";
 export type ErrorLevel = "error" | "warn";
 
+/**
+ * The Live/Log split is recency-driven, not a manual backlog: an error is "Live"
+ * only while it's still firing. If a fingerprint goes this long without a new
+ * occurrence it's treated as resolved and drops into the Log on its own (a
+ * recurrence bumps `lastSeen` + clears `resolved`, snapping it back to Live). A
+ * manual resolve (`resolved = true`) can still move a still-recent error to the
+ * Log immediately. Keep this the single source of truth for the window.
+ */
+export const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Timestamp boundary: rows with lastSeen at/after this are "current" (Live). */
+export function liveCutoff(): Date {
+  return new Date(Date.now() - LIVE_WINDOW_MS);
+}
+
 export interface RecordErrorInput {
   level?: ErrorLevel;
   source: ErrorSource;

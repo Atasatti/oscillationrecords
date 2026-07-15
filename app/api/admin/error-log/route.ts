@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { liveCutoff } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,14 +17,25 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "25", 10) || 25));
 
-  const where: Prisma.ErrorLogWhereInput = {};
+  // Recency-driven split (see lib/error-log.ts): an error is "Live" only while
+  // it's still firing. Live = not manually resolved AND seen within the window;
+  // Log = manually resolved OR gone quiet past the window. This is what makes the
+  // feed genuinely reflect current bugs instead of an all-time backlog.
+  const cutoff = liveCutoff();
+  const liveWhere: Prisma.ErrorLogWhereInput = { resolved: false, lastSeen: { gte: cutoff } };
+  const logWhere: Prisma.ErrorLogWhereInput = {
+    OR: [{ resolved: true }, { lastSeen: { lt: cutoff } }],
+  };
+
+  // The active view's base filter, then AND in the optional source/level facets.
+  // Shallow-copy so adding source/level never mutates the pristine liveWhere/
+  // logWhere objects the badge counts below reuse.
+  const resolved = searchParams.get("resolved");
+  const where: Prisma.ErrorLogWhereInput = { ...(resolved === "true" ? logWhere : liveWhere) };
   const source = searchParams.get("source");
   if (source === "server" || source === "client") where.source = source;
   const level = searchParams.get("level");
   if (level === "error" || level === "warn") where.level = level;
-  const resolved = searchParams.get("resolved");
-  if (resolved === "true") where.resolved = true;
-  else if (resolved === "false") where.resolved = false;
 
   const [items, total, unresolved, resolvedCount] = await Promise.all([
     prisma.errorLog.findMany({
@@ -33,8 +45,10 @@ export async function GET(request: NextRequest) {
       take: pageSize,
     }),
     prisma.errorLog.count({ where }),
-    prisma.errorLog.count({ where: { resolved: false } }),
-    prisma.errorLog.count({ where: { resolved: true } }),
+    // Badges reflect the recency rule, source-independent (as before) so the
+    // tab counts always show the true current-vs-resolved totals.
+    prisma.errorLog.count({ where: liveWhere }),
+    prisma.errorLog.count({ where: logWhere }),
   ]);
 
   return NextResponse.json({ items, total, unresolved, resolvedCount, page, pageSize });

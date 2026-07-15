@@ -31,6 +31,10 @@ import {
 const PAGE_SIZE = 25;
 // How often the Live feed auto-refreshes (current bugs only).
 const LIVE_POLL_MS = 20_000;
+// Client mirror of lib/error-log.ts `LIVE_WINDOW_MS` — used only for labels and
+// deciding whether a resolved row can still be reopened back into Live. (Can't
+// import the server module here: it pulls in Prisma. Keep the two in sync.)
+const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type ErrorRow = {
   id: string;
@@ -192,7 +196,7 @@ export default function ErrorsPage() {
     <div>
       <PageHeader
         title="Errors"
-        description="Live feed of current bugs, plus a log of resolved ones. Investigate a live bug, then mark it resolved to move it to the log — or delete it."
+        description="Live feed of current bugs (anything seen in the last 24h), plus a log of resolved ones. Errors that stop recurring move to the log automatically after 24h — or hit ✓ to resolve one now."
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
@@ -270,10 +274,10 @@ export default function ErrorsPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
             </span>
-            Auto-refreshing
+            Seen in the last 24h · auto-refreshing
           </span>
         ) : (
-          <span className="ml-auto text-xs text-muted-foreground">Resolved history</span>
+          <span className="ml-auto text-xs text-muted-foreground">Resolved &amp; quiet history</span>
         )}
       </div>
 
@@ -377,19 +381,36 @@ export default function ErrorsPage() {
                       </td>
                       <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-8 w-8 text-muted-foreground ${
-                              isLive ? "hover:text-emerald-400" : "hover:text-amber-400"
-                            }`}
-                            onClick={() => setResolved(row, isLive)}
-                            disabled={busyId === row.id}
-                            aria-label={isLive ? "Mark resolved (move to log)" : "Reopen (move to live)"}
-                            title={isLive ? "Mark resolved → Log" : "Reopen → Live"}
-                          >
-                            {isLive ? <Check className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-                          </Button>
+                          {/* Live: ✓ resolves now. Log: Reopen only when it would
+                              actually return to Live — i.e. the row is in the Log
+                              because it was manually resolved AND is still recent.
+                              A row that aged out (quiet > 24h) can't be reopened;
+                              only a fresh occurrence brings it back. */}
+                          {isLive ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-emerald-400"
+                              onClick={() => setResolved(row, true)}
+                              disabled={busyId === row.id}
+                              aria-label="Mark resolved (move to log)"
+                              title="Mark resolved → Log"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          ) : row.resolved && new Date(row.lastSeen).getTime() >= Date.now() - LIVE_WINDOW_MS ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-amber-400"
+                              onClick={() => setResolved(row, false)}
+                              disabled={busyId === row.id}
+                              aria-label="Reopen (move to live)"
+                              title="Reopen → Live"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon"
