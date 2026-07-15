@@ -38,7 +38,11 @@ const G_SHORTCUTS: Record<string, string> = {
   m: "/admin/messages",
 };
 
-type Item = { kind: "nav" | "release" | "artist" | "track"; label: string; sub: string; href: string };
+// `id` is the item's own unique identity (entity id, or href for nav). It keys the
+// list — the href alone isn't unique: several tracks from one release all link to
+// that release's tracklist, so keying on href collided ("two children with the
+// same key"). The entity id never collides.
+type Item = { kind: "nav" | "release" | "artist" | "track"; id: string; label: string; sub: string; href: string };
 type TrackHit = { id: string; name: string; releaseId: string; releaseName: string | null };
 type SearchData = {
   releases: { id: string; name: string }[];
@@ -94,16 +98,18 @@ export default function CommandPalette() {
     const q = query.trim().toLowerCase();
     const nav = ALL_DESTINATIONS.filter((d) => canSee(d.perm) && (!q || d.label.toLowerCase().includes(q)))
       .slice(0, q ? 8 : 60)
-      .map<Item>((d) => ({ kind: "nav", label: d.label, sub: d.group || "Go to", href: d.href }));
+      .map<Item>((d) => ({ kind: "nav", id: d.href, label: d.label, sub: d.group || "Go to", href: d.href }));
     if (!q || !data) return nav;
     const rel = data.releases.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
+      .map<Item>((r) => ({ kind: "release", id: r.id, label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
     const art = data.artists.filter((a) => a.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
-    // Individual tracks — a song title jumps to its release's tracklist.
+      .map<Item>((a) => ({ kind: "artist", id: a.id, label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
+    // Individual tracks — a song title jumps to its release's tracklist. Several
+    // tracks can share one release (hence one href), so each carries its own id.
     const trk = data.tracks.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 6)
       .map<Item>((t) => ({
         kind: "track",
+        id: t.id,
         label: t.name,
         sub: t.releaseName ? `Track · ${t.releaseName}` : "Track",
         href: `/admin/releases/${t.releaseId}/tracks`,
@@ -224,7 +230,7 @@ export default function CommandPalette() {
               ) : (
                 items.map((it, i) => (
                   <button
-                    key={`${it.kind}-${it.href}`}
+                    key={`${it.kind}-${it.id}`}
                     type="button"
                     id={`cmdk-opt-${i}`}
                     role="option"
