@@ -24,7 +24,7 @@ const ContactPage = async () => {
     <div>
       <ScrollReveal3D>
         <div
-          className="bg-center bg-no-repeat bg-contain flex justify-between px-[10%] w-full mx-auto"
+          className="bg-center bg-no-repeat bg-contain flex flex-col md:flex-row md:justify-between gap-8 md:gap-0 px-6 md:px-[10%] w-full mx-auto"
           style={{ backgroundImage: `url('${media.bgProfit}')` }}
         >
           <ContactFormSection />
