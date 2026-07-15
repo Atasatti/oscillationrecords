@@ -470,7 +470,9 @@ export default function CalendarClient({
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Copy / caption</label>
-                <textarea value={form.copy} onChange={(e) => setField("copy", e.target.value)} rows={3} placeholder="Draft the caption…" className={`${inputCls} resize-none`} />
+                {/* Vertically resizable so a long caption can be dragged taller;
+                    the modal body scrolls, so the header/footer stay put. */}
+                <textarea value={form.copy} onChange={(e) => setField("copy", e.target.value)} rows={4} placeholder="Draft the caption…" className={`${inputCls} min-h-24 resize-y`} />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Asset link</label>
@@ -478,7 +480,7 @@ export default function CalendarClient({
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Notes</label>
-                <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={2} className={`${inputCls} resize-none`} />
+                <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={3} className={`${inputCls} min-h-16 resize-y`} />
               </div>
             </div>
           </div>
