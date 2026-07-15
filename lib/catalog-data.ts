@@ -648,7 +648,9 @@ export interface ReleaseDetailDTO {
   amazonMusicLink: string | null;
   youtubeLink: string | null;
   soundcloudLink: string | null;
-  artists: { id: string; name: string; profilePicture: string | null; isPublic: boolean }[];
+  // Only PUBLIC artists appear here — hidden/draft artists are filtered out in
+  // getReleaseDetail, so every entry is safe to name and link (mirrors Press).
+  artists: { id: string; name: string; profilePicture: string | null }[];
   tracks: ReleaseDetailTrackDTO[];
   songs: ReleaseDetailTrackDTO[];
 }
@@ -691,15 +693,19 @@ export const getReleaseDetail = cache(
           where: { id: { in: [...new Set(allArtistIds.map(String))] } },
           select: { id: true, name: true, profilePicture: true, showOnWebsite: true, draft: true },
         })
-      ).map((a) => ({
-        id: a.id,
-        name: a.name,
-        profilePicture: a.profilePicture,
-        // Only artists with a live public page are safe to link to — the artist
-        // route 404s hidden/draft artists, so the release page renders those names
-        // as plain text instead.
-        isPublic: a.showOnWebsite && !a.draft,
-      }));
+      )
+        // A public release page must never name or link a hidden/draft artist —
+        // the same policy Press applies (see mapPressItems). Drop them entirely so a
+        // hidden artist is handled identically on both surfaces, rather than shown
+        // as an unlinked name here but omitted on Press. A hidden primary artist
+        // simply falls out of the credit line; a release whose only artist is hidden
+        // shows no artist name (it has no public artist to attribute).
+        .filter((a) => a.showOnWebsite && !a.draft)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profilePicture: a.profilePicture,
+        }));
 
       const tracks = hideTracks ? [] : release.tracks.map(serializeTrackForPublic);
 

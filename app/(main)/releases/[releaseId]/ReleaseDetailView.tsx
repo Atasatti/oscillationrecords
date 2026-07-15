@@ -312,13 +312,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                           {releasePrimaryArtists.map((a, i) => (
                             <span key={a.id}>
                               {i > 0 ? ", " : ""}
-                              {a.isPublic ? (
-                                <Link href={`/artists/${slugify(a.name)}`} className="hover:underline">
-                                  {a.name}
-                                </Link>
-                              ) : (
-                                a.name
-                              )}
+                              {/* Every artist in release.artists is public (hidden/
+                                  draft are filtered out in getReleaseDetail), so the
+                                  name always links to a live artist page. */}
+                              <Link href={`/artists/${slugify(a.name)}`} className="hover:underline">
+                                {a.name}
+                              </Link>
                             </span>
                           ))}
                         </p>
