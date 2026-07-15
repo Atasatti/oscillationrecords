@@ -5,7 +5,7 @@ import { fuzzyScore } from "@/lib/fuzzy";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { requirePermission } from "@/lib/auth-guard";
+import { requirePermission, requireStaff } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { rehostExternalImage } from "@/lib/s3";
 import { isSafeUrl } from "@/lib/url-safety";
@@ -72,6 +72,15 @@ export async function GET(request: NextRequest) {
       }
     }
     const publicOnly = searchParams.get("public") === "1";
+    // The full (unfiltered) roster below includes hidden (showOnWebsite:false) and
+    // draft artists — admin-only data. Public callers must pass ?public=1 (every
+    // public-site component does); any request for the full roster must be an
+    // authenticated staff member, so an anonymous caller can't enumerate
+    // unpublished/hidden artists. The ?public=1 branch stays open for the public site.
+    if (!publicOnly) {
+      const guard = await requireStaff(request);
+      if (!guard.ok) return guard.response;
+    }
     const limitRaw = searchParams.get("limit");
     let take: number | undefined;
     if (limitRaw !== null && limitRaw !== "") {
