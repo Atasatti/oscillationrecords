@@ -37,29 +37,29 @@ model Session {
 }
 
 model User {
-  id                String             @id @default(auto()) @map("_id") @db.ObjectId
-  name              String?
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  name             String?
   /// Optional admin-set display nickname to tell similarly-named accounts apart
   /// (e.g. two staff both named "Ben"). Shown across the admin staff directory and
   /// pickers, preferred over the Google `name` when set. Purely a label — it has
   /// no bearing on auth/roles.
-  nickname          String?
-  email             String?            @unique
-  emailVerified     DateTime?
-  image             String?
+  nickname         String?
+  email            String?           @unique
+  emailVerified    DateTime?
+  image            String?
   /// Authorization role. "admin" grants admin access (in addition to the
   /// hardcoded bootstrap allowlist in lib/auth-session.ts). Optional so existing
   /// User documents (created before this field) read back as null rather than
   /// erroring; new users default to "user". Setting a (non-bootstrap) admin back
   /// to "user"/null revokes access on their next admin request, since requireAdmin
   /// re-checks this field server-side.
-  role              String?            @default("user")
-  accounts          Account[]
-  sessions          Session[]
-  profile           UserProfile?
-  playEvents        PlayEvent[]
-  benertRemixEntry  BenertRemixEntry?
-  savedViews        SavedView[]
+  role             String?           @default("user")
+  accounts         Account[]
+  sessions         Session[]
+  profile          UserProfile?
+  playEvents       PlayEvent[]
+  benertRemixEntry BenertRemixEntry?
+  savedViews       SavedView[]
 }
 
 model BenertRemixCompetition {
@@ -74,13 +74,13 @@ model BenertRemixCompetition {
 }
 
 model BenertRemixEntry {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String    @unique @db.ObjectId
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  releaseName     String?   // Name of the release (which song they remixed)
-  uploadedFileUrl String?   // S3 URL after upload; when set, user has submitted
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  releaseName     String? // Name of the release (which song they remixed)
+  uploadedFileUrl String? // S3 URL after upload; when set, user has submitted
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model VerificationToken {
@@ -93,67 +93,67 @@ model VerificationToken {
 }
 
 model Artist {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  biography     String
-  profilePicture String?
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  biography       String
+  profilePicture  String?
   /// Genre tags (auto-filled from Spotify on import, editable). Public.
-  genres        String[] @default([])
+  genres          String[] @default([])
   /// Spotify artist id (not just the URL) — enables re-sync / dedupe on import.
-  spotifyId     String?
+  spotifyId       String?
   /// MusicBrainz artist MBID — links our record to the MB entity to avoid
   /// duplicate submissions and enable re-syncing ISNI/links later.
-  musicBrainzId String?
+  musicBrainzId   String?
   /// Legal/real name — internal, never shown publicly.
-  realName      String?
-  country       String?
-  city          String?
+  realName        String?
+  country         String?
+  city            String?
   /// Manager name — internal.
-  managerName   String?
+  managerName     String?
   /// Contact email — internal.
-  contactEmail  String?
+  contactEmail    String?
   /// Free-form admin notes — internal.
-  internalNotes String?
+  internalNotes   String?
   /// IPI (Interested Parties Information) name numbers — a writer/publisher may
   /// have several. Rights/PRO admin; also seeded to MusicBrainz.
-  ipis          String[] @default([])
+  ipis            String[] @default([])
   /// ISNI (International Standard Name Identifier) — one per artist identity.
-  isni          String?
+  isni            String?
   /// Wikidata item id (e.g. "Q42") once the artist is reconciled to Wikidata.
   /// Emitted in the artist's schema.org `sameAs` so Google/AI can reconcile the
   /// page to the Knowledge-Graph entity. Set via the admin "Wikidata" panel.
-  wikidataId    String?
+  wikidataId      String?
   /// Wikipedia article URL — the single strongest Google Knowledge-Panel trigger.
   /// Emitted in the artist's schema.org `sameAs`. Public.
-  wikipediaUrl  String?
-  composer      String?
-  lyricist      String?
-  leadVocal     String?
-  xLink         String?
-  tiktokLink    String?
-  spotifyLink   String?
-  instagramLink String?
-  youtubeLink   String?
-  facebookLink  String?
-  appleMusicLink   String?
-  tidalLink        String?
-  amazonMusicLink  String?
-  soundcloudLink   String?
-  discogsLink      String?
-  sortOrder     Int      @default(0)
+  wikipediaUrl    String?
+  composer        String?
+  lyricist        String?
+  leadVocal       String?
+  xLink           String?
+  tiktokLink      String?
+  spotifyLink     String?
+  instagramLink   String?
+  youtubeLink     String?
+  facebookLink    String?
+  appleMusicLink  String?
+  tidalLink       String?
+  amazonMusicLink String?
+  soundcloudLink  String?
+  discogsLink     String?
+  sortOrder       Int      @default(0)
   /// Work-in-progress flag (like a Release DRAFT). A draft is never public —
   /// regardless of showOnWebsite — and can be saved with incomplete details;
   /// publishing it requires the full required fields. Defaults false (existing
   /// artists are live).
-  draft         Boolean  @default(false)
+  draft           Boolean  @default(false)
   /// When true, artist appears on the public /artists page (listed alphabetically).
-  showOnWebsite Boolean  @default(true)
+  showOnWebsite   Boolean  @default(true)
   /// When true, artist is featured in the home "Meet the Artists" carousel (curated subset).
-  featuredOnHome Boolean @default(false)
+  featuredOnHome  Boolean  @default(false)
   /// Order within the home carousel (lower = earlier); managed in the admin "Home order" tab.
-  homeOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  homeOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([sortOrder])
   @@index([name])
@@ -180,79 +180,79 @@ enum ReleaseStatus {
 
 /// A release (Single, EP, or Album) — same metadata shape; `kind` distinguishes presentation.
 model Release {
-  id               String       @id @default(auto()) @map("_id") @db.ObjectId
-  kind             ReleaseKind
+  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+  kind                ReleaseKind
   /// Publishing lifecycle. Existing rows default to RELEASED (no behaviour change).
-  status           ReleaseStatus @default(RELEASED)
+  status              ReleaseStatus @default(RELEASED)
   /// Pre-save link (e.g. Ditto) shown while SCHEDULED.
-  preSaveUrl       String?
-  name             String
-  coverImage       String
-  primaryArtistIds String[]     @db.ObjectId
-  featureArtistIds String[]     @db.ObjectId
+  preSaveUrl          String?
+  name                String
+  coverImage          String
+  primaryArtistIds    String[]      @db.ObjectId
+  featureArtistIds    String[]      @db.ObjectId
   /// Display-only featured credits (comma-free text split on save); used when not linking catalog artists.
-  featureArtistNames String[]  @default([])
-  releaseDate      DateTime?
-  description      String?
-  composer         String?
-  lyricist         String?
-  leadVocal        String?
-  upcCode          String?
+  featureArtistNames  String[]      @default([])
+  releaseDate         DateTime?
+  description         String?
+  composer            String?
+  lyricist            String?
+  leadVocal           String?
+  upcCode             String?
   /// Label-assigned catalogue number for this release (e.g. "OSC001"). Internal.
-  catalogueNumber  String?
+  catalogueNumber     String?
   /// ℗ (phonogram) line, e.g. "2024 Oscillation Records". Stored for future use.
-  pLine            String?
+  pLine               String?
   /// © (copyright) line, e.g. "2024 Oscillation Records". Stored for future use.
-  cLine            String?
-  isrcCode         String?
-  isrcExplicit     Boolean      @default(false)
-  primaryGenre     String?
-  secondaryGenre   String?
+  cLine               String?
+  isrcCode            String?
+  isrcExplicit        Boolean       @default(false)
+  primaryGenre        String?
+  secondaryGenre      String?
   /// Flexible credits: array of { role, people[] } (producers, songwriters, etc.).
-  credits          Json?
-  spotifyLink      String?
-  appleMusicLink   String?
-  tidalLink        String?
-  amazonMusicLink  String?
-  youtubeLink      String?
-  soundcloudLink   String?
+  credits             Json?
+  spotifyLink         String?
+  appleMusicLink      String?
+  tidalLink           String?
+  amazonMusicLink     String?
+  youtubeLink         String?
+  soundcloudLink      String?
   /// Catalog / public listing order (lower = earlier).
-  sortOrder        Int          @default(0)
+  sortOrder           Int           @default(0)
   /// When true, home New Music carousel shows a Latest pill on this release's featured track.
-  showLatestOnHome Boolean      @default(false)
+  showLatestOnHome    Boolean       @default(false)
   /// When true, release is featured in the "New Music" carousel on home and /releases. If none are featured, all releases are considered (fallback).
-  showOnHome       Boolean      @default(false)
+  showOnHome          Boolean       @default(false)
   /// Order within the New Music carousel (lower = earlier); managed in the admin "Home order" tab.
-  homeOrder        Int          @default(0)
+  homeOrder           Int           @default(0)
   /// Order within the home "Coming Soon" strip (lower = earlier). Kept separate
   /// from `sortOrder` so the Coming Soon and Custom-order tools don't overwrite
   /// each other. Optional: rows never ordered there are treated as last (+∞).
-  comingSoonOrder  Int?
+  comingSoonOrder     Int?
   /// Royalty split — an array of { artistId?, name, realName?, email?, percent }
   /// recording the contributing artists and their agreed shares. Reference only:
   /// the site does NOT track money/payouts (Ditto pays artists directly). Percent
   /// values should total 100. Shape/validation in lib/release-splits.ts.
-  splits            Json?
+  splits              Json?
   /// Promo campaign budget target (the label's own currency), or null if unset.
-  budget            Float?
+  budget              Float?
   /// Campaign spend — an array of { id, amount, category, date, note }. Totalled
   /// and compared against `budget`. Shape/validation in lib/release-budget.ts.
-  spend             Json?
+  spend               Json?
   /// Licensing/deal terms for this release — a single object { type, territory,
   /// rights, startDate, endDate, notes }. Given the label's non-exclusive model,
   /// records what each release is licensed under. Shape/validation in
   /// lib/release-terms.ts; `endDate` powers the "agreement expiring" alert.
-  terms             Json?
+  terms               Json?
   /// Operational delivery / sign-off status — distinct from the metadata SEO
   /// score. "not_started" | "ready" | "delivered" | "live". Shape in
   /// lib/release-delivery.ts.
-  deliveryStatus    String       @default("not_started")
-  deliveryNotes     String?
-  deliveryUpdatedAt DateTime?
-  deliveryUpdatedById String?    @db.ObjectId
-  tracks           Track[]
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  deliveryStatus      String        @default("not_started")
+  deliveryNotes       String?
+  deliveryUpdatedAt   DateTime?
+  deliveryUpdatedById String?       @db.ObjectId
+  tracks              Track[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([kind])
   @@index([sortOrder])
@@ -261,6 +261,11 @@ model Release {
   @@index([kind, sortOrder])
   @@index([status])
   @@index([status, releaseDate])
+  // Multikey indexes for has/hasSome artist-id lookups (getArtistDetail,
+  // collectReleaseCreditsByArtist, /api/artists/[id]/releases) — without these
+  // MongoDB COLLSCANs Release on every artist-detail render (#21).
+  @@index([primaryArtistIds])
+  @@index([featureArtistIds])
 }
 
 /// A press item — our own short, original summary of EXTERNAL coverage (a blog
@@ -269,46 +274,46 @@ model Release {
 /// never stored or rendered (copyright/ToS). Links to artists/releases use the
 /// same loose `String[] @db.ObjectId` convention as Release (no Prisma relation).
 model PressItem {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   /// Headline of the post / summary.
-  title       String
+  title         String
   /// Outlet/blog name, e.g. "Stereogum" (external coverage). Optional: an OWNED
   /// post (see `body`) is published by us, so it has no external outlet.
-  publisher   String?
+  publisher     String?
   /// External link ("Read full article") for coverage we link out to. Optional:
   /// an owned post lives on our own site (its page IS the article), so it has none.
-  articleUrl  String?
+  articleUrl    String?
   /// OUR original blurb. For external coverage it's a summary of what was said; for
   /// an owned post it's the excerpt/standfirst shown on the card and in metadata.
-  summary     String
+  summary       String
   /// Owned-post body in Markdown. When present, this PressItem is OUR OWN hosted
   /// article (a release post / press release) with its own page on the site — not a
   /// link-out to external coverage — so articleUrl/publisher aren't needed for it.
-  body        String?
+  body          String?
   /// Rehosted OG image (S3 url). Optional; falls back to original on rehost failure.
-  image       String?
+  image         String?
   /// Article publish date (for display + the nested Article node's datePublished).
-  publishedAt DateTime?
+  publishedAt   DateTime?
   /// Journalist/author of the external piece, for honest attribution in JSON-LD.
-  author      String?
+  author        String?
   /// Linked catalogue artists (loose ObjectId ids; queried with { has }/{ hasSome }).
-  artistIds   String[]  @db.ObjectId
+  artistIds     String[]  @db.ObjectId
   /// Linked releases (loose ObjectId ids).
-  releaseIds  String[]  @db.ObjectId
+  releaseIds    String[]  @db.ObjectId
   /// Work-in-progress flag (like a Release DRAFT). A draft is never public —
   /// regardless of showOnWebsite — and can be saved incomplete; publishing it
   /// requires the full required fields. Defaults false (existing items are live).
-  draft         Boolean @default(false)
+  draft         Boolean   @default(false)
   /// When true, the item appears on the public site (/press + artist/release sections).
-  showOnWebsite Boolean @default(true)
+  showOnWebsite Boolean   @default(true)
   /// Membership in a curated/featured press list (distinct from sortOrder).
-  featured    Boolean   @default(false)
+  featured      Boolean   @default(false)
   /// Manage-list + public list order (set by the reorder route; lower = earlier).
-  sortOrder   Int       @default(0)
+  sortOrder     Int       @default(0)
   /// Order within the featured list (kept separate so reorder/feature don't clobber).
-  homeOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  homeOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([sortOrder])
   @@index([showOnWebsite, sortOrder])
@@ -317,48 +322,52 @@ model PressItem {
 
 /// A playable track (song file). Former `Single` fields live here.
 model Track {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  releaseId        String   @db.ObjectId
-  release          Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  sortOrder        Int      @default(0)
-  name             String
-  image            String?
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  releaseId          String    @db.ObjectId
+  release            Release   @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  sortOrder          Int       @default(0)
+  name               String
+  image              String?
   // Optional so a track can be saved on a DRAFT release before its audio is
   // uploaded. Required (enforced in the API + publish gate) only when the release
   // is published/scheduled. duration stays 0 until audio exists.
-  audioFile        String?
-  duration         Int          @default(0)
-  releaseDate      DateTime?
-  composer         String?
-  lyricist         String?
-  leadVocal        String?
-  lyrics           String?
+  audioFile          String?
+  duration           Int       @default(0)
+  releaseDate        DateTime?
+  composer           String?
+  lyricist           String?
+  leadVocal          String?
+  lyrics             String?
   /// Time-synced lyrics (LRC, `[mm:ss.xx]` per line) pulled from Musixmatch —
   /// internal for now (not in the public payload); powers a future synced display.
-  syncedLyrics     String?
-  stemsFile        String?
-  trackCredits     Json?
+  syncedLyrics       String?
+  stemsFile          String?
+  trackCredits       Json?
   /// Per-track royalty split — same shape as Release.splits ({ artistId?, name,
   /// realName?, email?, percent }). Lets a track credit different contributors than
   /// the release (e.g. album collaborations). Reference only, no money.
-  splits           Json?
-  isrcCode         String?
+  splits             Json?
+  isrcCode           String?
   /// ISWC — the composition/work code (e.g. T3125086393). Publishing side.
-  iswc             String?
-  isrcExplicit     Boolean  @default(false)
-  spotifyLink      String?
-  appleMusicLink   String?
-  tidalLink        String?
-  amazonMusicLink  String?
-  youtubeLink      String?
-  soundcloudLink   String?
-  primaryArtistIds String[] @db.ObjectId
-  featureArtistIds String[] @db.ObjectId
-  featureArtistNames String[] @default([])
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  iswc               String?
+  isrcExplicit       Boolean   @default(false)
+  spotifyLink        String?
+  appleMusicLink     String?
+  tidalLink          String?
+  amazonMusicLink    String?
+  youtubeLink        String?
+  soundcloudLink     String?
+  primaryArtistIds   String[]  @db.ObjectId
+  featureArtistIds   String[]  @db.ObjectId
+  featureArtistNames String[]  @default([])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([releaseId])
+  // Multikey indexes for the has/hasSome artist-id subqueries in getArtistDetail /
+  // collectReleaseCreditsByArtist (Track-level credits) — avoids a Track COLLSCAN (#21).
+  @@index([primaryArtistIds])
+  @@index([featureArtistIds])
 }
 
 // UpcomingRelease was unified into Release (status=SCHEDULED) — see the
@@ -366,26 +375,26 @@ model Track {
 
 // Analytics Models
 model UserProfile {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @unique @db.ObjectId
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gender      String?  // "male", "female", "other", "prefer_not_to_say"
-  age         Int?     // Age in years
-  ageRange    String?  // "18-24", "25-34", "35-44", "45-54", "55+"
-  country     String?  // Country code or name
-  city        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gender    String? // "male", "female", "other", "prefer_not_to_say"
+  age       Int? // Age in years
+  ageRange  String? // "18-24", "25-34", "35-44", "45-54", "55+"
+  country   String? // Country code or name
+  city      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Singleton row id "site" — home page hero and other global settings
 model SiteSettings {
-  id                String   @id @map("_id")
-  stackedHeroImage1 String
-  stackedHeroImage2 String
-  stackedHeroImage3 String
+  id                   String   @id @map("_id")
+  stackedHeroImage1    String
+  stackedHeroImage2    String
+  stackedHeroImage3    String
   // Home "studio photos" carousel — admin-managed, ordered list of image URLs.
-  studioPhotos      String[] @default([])
+  studioPhotos         String[] @default([])
   footerXLink          String?
   footerTiktokLink     String?
   footerYoutubeLink    String?
@@ -413,26 +422,26 @@ model NewsletterSubscriber {
 /// submit; surfaced to admins for follow-up. `handled` lets an admin mark a
 /// message as dealt with.
 model ContactMessage {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  email     String
-  message   String
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String
+  message     String
   /// Logged-in submitter's User.id when the sender was authenticated (public
   /// visitors submit anonymously). Optional — never blocks a submission.
-  userId    String?  @db.ObjectId
+  userId      String?  @db.ObjectId
   /// Public-form attachments: [{ name, url, size, type }] stored on S3 and
   /// HEAD-validated (type + size) before write. Optional.
   attachments Json?
-  handled   Boolean  @default(false)
+  handled     Boolean  @default(false)
   /// Ticket status: "open" | "in_progress" | "resolved". Kept in sync with
   /// `handled` (resolved == handled) so the "unread" needs-attention count still
   /// works. Existing rows default to "open".
-  status     String  @default("open")
+  status      String   @default("open")
   /// Staff member (User.id) triaging this ticket. Null = unassigned.
-  assigneeId String? @db.ObjectId
+  assigneeId  String?  @db.ObjectId
   /// "low" | "medium" | "high".
-  priority   String  @default("medium")
-  createdAt DateTime @default(now())
+  priority    String   @default("medium")
+  createdAt   DateTime @default(now())
 
   @@index([createdAt])
   @@index([handled, createdAt])
@@ -504,23 +513,23 @@ model ContentPost {
 /// Purely internal (unlike the public PressItem). Optionally tied to a release
 /// and/or artist (ids, no hard relation). Shape/validation in lib/placement.ts.
 model Placement {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   /// "playlist" | "radio" | "press" | "other"
-  type       String   @default("playlist")
+  type      String    @default("playlist")
   /// The platform / station / publication, e.g. "Spotify", "BBC Radio 6 Music".
-  outlet     String
+  outlet    String
   /// The specific playlist / show / article, e.g. "New Music Friday UK".
-  name       String?
-  url        String?
+  name      String?
+  url       String?
   /// Followers / listeners / monthly reach — a headline number for pitching.
-  reach      Int?
+  reach     Int?
   /// When the placement happened, stored at UTC midnight (date-only).
-  placedOn   DateTime?
-  releaseId  String?  @db.ObjectId
-  artistId   String?  @db.ObjectId
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  placedOn  DateTime?
+  releaseId String?   @db.ObjectId
+  artistId  String?   @db.ObjectId
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([type, placedOn])
 }
@@ -578,23 +587,23 @@ model Campaign {
 }
 
 model PlayEvent {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   // Logged-in plays carry a userId; consented anonymous plays carry a visitorId
   // (first-party cookie) instead. One of the two identifies the listener.
-  userId      String?  @db.ObjectId
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  visitorId   String?  // anonymous first-party cookie id (analytics consent only)
-  country     String?  // coarse geo snapshot from request headers (no precise location)
-  city        String?
-  contentType String   // "track" (audio play), "release" (detail view), legacy: "single"|"album"|"ep"
-  contentId   String   @db.ObjectId
-  contentName String   // Name of the content for quick reference
-  artistId    String?  @db.ObjectId
-  artistName  String?  // Artist name for quick reference
-  playDuration Int?    // Duration played in seconds
-  completed   Boolean  @default(false) // Whether the play was completed
-  sessionId   String?  // groups events into a visit (30-min sliding window)
-  createdAt   DateTime @default(now())
+  userId       String?  @db.ObjectId
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visitorId    String? // anonymous first-party cookie id (analytics consent only)
+  country      String? // coarse geo snapshot from request headers (no precise location)
+  city         String?
+  contentType  String // "track" (audio play), "release" (detail view), legacy: "single"|"album"|"ep"
+  contentId    String   @db.ObjectId
+  contentName  String // Name of the content for quick reference
+  artistId     String?  @db.ObjectId
+  artistName   String? // Artist name for quick reference
+  playDuration Int? // Duration played in seconds
+  completed    Boolean  @default(false) // Whether the play was completed
+  sessionId    String? // groups events into a visit (30-min sliding window)
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@index([visitorId])
@@ -628,14 +637,14 @@ model PageView {
 
 /// Outbound click on a streaming/social link (anonymous), for click-through analytics.
 model LinkClick {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  context   String   // "release" | "artist" | "track"
-  contextId String   // id of the release/artist/track (not a relation — kept loose)
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  context     String // "release" | "artist" | "track"
+  contextId   String // id of the release/artist/track (not a relation — kept loose)
   contextName String? // name snapshot for quick reporting
-  linkType  String   // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
-  visitorId String?  // consented anonymous visitor (for attribution)
-  sessionId String?  // visit grouping for campaign attribution
-  createdAt DateTime @default(now())
+  linkType    String // "spotify" | "appleMusic" | "tidal" | "amazonMusic" | "youtube" | "soundcloud" | ...
+  visitorId   String? // consented anonymous visitor (for attribution)
+  sessionId   String? // visit grouping for campaign attribution
+  createdAt   DateTime @default(now())
 
   @@index([context, contextId])
   @@index([linkType])
@@ -697,22 +706,22 @@ model PitchLog {
 /// An outreach task for the PA — either a live action item or a reusable
 /// suggestion template (isTemplate: true).
 model OutreachTask {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   description String?
   /// "pitching" | "research" | "admin" | "social" | "sync" | "radio"
   category    String
   /// "low" | "medium" | "high" | "urgent"
-  priority    String   @default("medium")
+  priority    String    @default("medium")
   /// "todo" | "in_progress" | "done"
-  status      String   @default("todo")
+  status      String    @default("todo")
   /// Freeform labels for cross-cutting grouping/filtering (e.g. "Q3-campaign").
   /// Normalized (trimmed, deduped, capped) in the tasks API.
   tags        String[]
   /// The admin this task is assigned to (User.id). Null = unassigned. Optional so
   /// existing tasks (created before assignment) read back as null, and so a task
   /// survives its assignee losing admin access — the UI just shows it unassigned.
-  assigneeId  String?  @db.ObjectId
+  assigneeId  String?   @db.ObjectId
   /// Repeat cadence: "weekly" | "biweekly" | "monthly" (null = one-off). When a
   /// recurring task is completed, the API spawns the next occurrence with an
   /// advanced due date. See lib/task-recurrence.ts.
@@ -723,13 +732,13 @@ model OutreachTask {
   /// File attachments — an array of { id, name, url, size, type } on our S3.
   /// Shape/validation in lib/task-attachments.ts.
   attachments Json?
-  artistIds   String[] @db.ObjectId
-  releaseIds  String[] @db.ObjectId
+  artistIds   String[]  @db.ObjectId
+  releaseIds  String[]  @db.ObjectId
   dueAt       DateTime?
   notes       String?
-  isTemplate  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isTemplate  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([status])
   @@index([priority])
@@ -825,14 +834,14 @@ model ErrorLog {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   fingerprint String   @unique
   level       String   @default("error") // "error" | "warn"
-  source      String                      // "server" | "client"
+  source      String // "server" | "client"
   message     String
   stack       String?
-  path        String?  // URL path / route where it occurred
-  method      String?  // HTTP method (server requests)
+  path        String? // URL path / route where it occurred
+  method      String? // HTTP method (server requests)
   statusCode  Int?
-  digest      String?  // Next.js error digest (server)
-  userEmail   String?  // attributed when the caller is signed in
+  digest      String? // Next.js error digest (server)
+  userEmail   String? // attributed when the caller is signed in
   userAgent   String?
   count       Int      @default(1)
   resolved    Boolean  @default(false)
@@ -852,18 +861,18 @@ model ErrorLog {
 /// (email + role at the time) so the entry stays meaningful even if the user is
 /// later removed or re-roled. Surfaced read-only in the admin "Audit log" view.
 model AuditLog {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  at          DateTime @default(now())
-  actorId     String?  @db.ObjectId // User.id of who performed it (null if unknown)
-  actorEmail  String?               // denormalized actor email (survives user deletion)
-  actorRole   String?               // the actor's role at the time of the action
-  action      String                // "create" | "update" | "delete" | "role.change" | …
-  resource    String                // "release" | "artist" | "press" | "task" | "user" | …
-  resourceId  String?               // id of the affected record, when applicable
-  summary     String                // human-readable one-line description
-  metadata    Json?                 // optional structured context (e.g. before/after)
-  ip          String?
-  userAgent   String?
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  at         DateTime @default(now())
+  actorId    String?  @db.ObjectId // User.id of who performed it (null if unknown)
+  actorEmail String? // denormalized actor email (survives user deletion)
+  actorRole  String? // the actor's role at the time of the action
+  action     String // "create" | "update" | "delete" | "role.change" | …
+  resource   String // "release" | "artist" | "press" | "task" | "user" | …
+  resourceId String? // id of the affected record, when applicable
+  summary    String // human-readable one-line description
+  metadata   Json? // optional structured context (e.g. before/after)
+  ip         String?
+  userAgent  String?
 
   @@index([at])
   @@index([resource, at])
