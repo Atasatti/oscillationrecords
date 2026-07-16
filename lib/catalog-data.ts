@@ -481,6 +481,10 @@ export const getArtistSlugIndex = cache(
     try {
       const artists = await prisma.artist.findMany({
         where: { showOnWebsite: true, draft: false },
+        // Deterministic order so that if two names slugify identically the SAME
+        // (oldest) artist always wins the slug — resolution can't flip between
+        // renders/ISR regenerations and serve a different entity (#10).
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, name: true },
       });
       return artists.map((a) => ({ id: a.id, name: a.name, slug: slugify(a.name) }));
@@ -509,6 +513,9 @@ export const getReleaseSlugIndex = cache(
     try {
       const releases = await prisma.release.findMany({
         where: { status: { not: "DRAFT" } },
+        // Deterministic order so a title-slug collision always resolves to the
+        // SAME (oldest) release instead of flipping between renders/ISR (#10).
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, name: true },
       });
       return releases.map((r) => ({ id: r.id, name: r.name, slug: slugify(r.name) }));
