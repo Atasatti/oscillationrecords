@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { isOwnBucketUrl } from "@/lib/s3";
@@ -163,6 +163,20 @@ export default function AssetsClient({
     return m;
   }, [releases, artists]);
 
+  // The artist to show for a row. Uploaded/artist assets carry their own artistId;
+  // release- and track-derived media (a master, stems, a cover) carry only a
+  // releaseId, so fall back to that release's primary artist — otherwise a master
+  // audio row would show no artist at all. `viaRelease` flags the inferred case.
+  const artistFor = useCallback(
+    (a: Asset): { name: string | null; viaRelease: boolean } => {
+      if (a.artistId) return { name: nameOf.get(a.artistId) ?? null, viaRelease: false };
+      const rid = a.releaseId ? releaseArtistId[a.releaseId] : undefined;
+      if (rid) return { name: nameOf.get(rid) ?? null, viaRelease: true };
+      return { name: null, viaRelease: false };
+    },
+    [nameOf, releaseArtistId]
+  );
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: assets.length };
     for (const a of assets) c[a.category] = (c[a.category] ?? 0) + 1;
@@ -196,7 +210,7 @@ export default function AssetsClient({
     const grp = activeGroup ? groups.find((g) => g.key === activeGroup) : null;
     const base = grp ? grp.assets : visible;
     const relName = (a: Asset) => (a.releaseId ? nameOf.get(a.releaseId) : "") ?? "";
-    const artName = (a: Asset) => (a.artistId ? nameOf.get(a.artistId) : "") ?? "";
+    const artName = (a: Asset) => artistFor(a).name ?? "";
     const cmp = (x: Asset, y: Asset) => {
       let v = 0;
       switch (sortBy) {
@@ -210,7 +224,7 @@ export default function AssetsClient({
       return sortDir === "asc" ? v : -v;
     };
     return [...base].sort(cmp);
-  }, [activeGroup, groups, visible, sortBy, sortDir, nameOf]);
+  }, [activeGroup, groups, visible, sortBy, sortDir, nameOf, artistFor]);
 
   const activeAsset = useMemo(() => assets.find((a) => a.id === activeId) ?? null, [assets, activeId]);
 
@@ -470,7 +484,7 @@ export default function AssetsClient({
   // One asset card — shared by the flat grid and every grouped section.
   const renderCard = (a: Asset) => {
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const art = artistFor(a).name;
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
@@ -564,7 +578,8 @@ export default function AssetsClient({
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const artInfo = artistFor(a);
+    const art = artInfo.name;
     const on = selected.has(a.id);
     // Collapse the lower-priority columns (xl only) while the detail panel is open —
     // must match the hideable header columns so cells and headers stay aligned.
@@ -577,13 +592,13 @@ export default function AssetsClient({
         onClick={() => setActiveId((p) => (p === a.id ? null : a.id))}
         className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
       >
-        <td className="w-9 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+        <td className="w-9 py-3 pl-4 pr-2" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={on} onChange={() => toggleSelect(a.id)} aria-label={`Select ${a.title}`}
             className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
         </td>
-        <td className="py-2 pr-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
+        <td className="py-3 pr-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
                 <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
               ) : (
@@ -596,17 +611,19 @@ export default function AssetsClient({
             </span>
           </div>
         </td>
-        <td className={`hidden px-3 py-2 md:table-cell ${hideCol}`}>
+        <td className={`hidden px-3 py-3 md:table-cell ${hideCol}`}>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
             {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
           </span>
         </td>
-        {/* Release / Artist truncate hard and show the full value on hover. */}
-        <td className={`hidden truncate px-3 py-2 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={rel ?? undefined}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className={`hidden truncate px-3 py-2 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={art ?? undefined}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="hidden whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground sm:table-cell">{a.size ? formatBytes(a.size) : "—"}</td>
-        <td className="hidden whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground sm:table-cell">{fmtDate(a.createdAt)}</td>
-        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+        {/* Release / Artist truncate hard and show the full value on hover. The
+            artist can be inferred from the release (masters etc.) — flag that in
+            the tooltip so it's clear it's the release's primary artist. */}
+        <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={rel ?? undefined}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={art ? (artInfo.viaRelease ? `${art} — from linked release` : art) : undefined}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="hidden whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-muted-foreground sm:table-cell">{a.size ? formatBytes(a.size) : "—"}</td>
+        <td className="hidden whitespace-nowrap px-3 py-3 text-sm tabular-nums text-muted-foreground sm:table-cell">{fmtDate(a.createdAt)}</td>
+        <td className="py-3 pl-2 pr-4" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
             {hasFile ? (
               <>
@@ -686,7 +703,7 @@ export default function AssetsClient({
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const art = artistFor(a).name;
     const meta: [string, string][] = [
       ["Type", ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category],
       ["Release", rel ?? "—"],
@@ -837,23 +854,23 @@ export default function AssetsClient({
               <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-9 px-3 py-2">
+                    <th className="w-9 py-2.5 pl-4 pr-2">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
                     {/* Progressive columns: on phones only Name (+ actions) show; size/date
-                        appear at sm, Type at md, Release/Artist at lg. Artist is deliberately
-                        narrow. `hideable` columns also collapse (xl only) while the detail
-                        panel is open, so the narrower table stays readable. */}
-                    {([["name", "Name", "w-[30%]", false, ""], ["type", "Type", "w-[12%]", true, "hidden md:table-cell"], ["release", "Release", "w-[16%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[11%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[9%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[12%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
-                      <th key={col} className={`px-3 py-2 font-medium ${w} ${resp} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
+                        appear at sm, Type at md, Release/Artist at lg. `hideable` columns
+                        also collapse (xl only) while the detail panel is open, so the
+                        narrower table stays readable. */}
+                    {([["name", "Name", "w-[28%]", false, ""], ["type", "Type", "w-[11%]", true, "hidden md:table-cell"], ["release", "Release", "w-[17%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[16%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[8%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[11%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
+                      <th key={col} className={`px-3 py-2.5 font-medium ${w} ${resp} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
                     {/* Fixed width so the 3–4 action icons always fit and never overlap the date. */}
-                    <th className="w-36 px-3 py-2" />
+                    <th className="w-36 py-2.5 pl-2 pr-4" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>
