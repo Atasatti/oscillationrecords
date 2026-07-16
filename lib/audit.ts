@@ -21,6 +21,18 @@ export type AuditAction =
   | "reorder"
   | "bulk";
 
+/**
+ * Every `resource` value recordAudit is called with. The audit-log filter dropdown
+ * reads this fixed set instead of a `distinct` scan over the (never-evicted,
+ * one-row-per-admin-action) AuditLog collection, which grows unbounded (#31). Keep
+ * in sync when a new resource type starts being audited.
+ */
+export const AUDIT_RESOURCES = [
+  "artist", "asset", "automation", "campaign", "contact", "content_post",
+  "demo", "digest", "error", "message", "pitch", "placement", "press",
+  "release", "settings", "subscriber", "task", "template", "track", "user",
+] as const;
+
 export interface AuditInput {
   /** What happened — an AuditAction, or a custom verb for special cases. */
   action: AuditAction | string;

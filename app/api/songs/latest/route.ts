@@ -24,10 +24,22 @@ export async function GET(request: NextRequest) {
     // Public endpoint: only released (or now-due scheduled) releases — never
     // DRAFT / future-dated, so unreleased audio doesn't leak. (See catalog-data.)
     const releases = await prisma.release.findMany({
-      where: publicReleaseWhere(),
+      where: {
+        ...publicReleaseWhere(),
+        // Only releases that actually have a playable track, so we can bound the
+        // query to `limit` rows instead of loading the whole catalog to find them.
+        tracks: { some: { audioFile: { not: null } } },
+      },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: limit,
       include: {
-        tracks: { orderBy: { sortOrder: "asc" } },
+        // Just the first playable track per release — not every track's full row
+        // (the lyrics/syncedLyrics/stems/credits JSON we'd immediately discard).
+        tracks: {
+          where: { audioFile: { not: null } },
+          orderBy: { sortOrder: "asc" },
+          take: 1,
+        },
       },
     });
 
@@ -37,15 +49,12 @@ export async function GET(request: NextRequest) {
     }[] = [];
 
     for (const r of releases) {
-      const track = r.tracks.find(
-        (t) => t.audioFile && String(t.audioFile).trim() !== ""
-      );
-      if (!track) continue;
+      const track = r.tracks[0];
+      if (!track || !track.audioFile || String(track.audioFile).trim() === "") continue;
       trackReleasePairs.push({
         track,
         showLatestOnHome: r.showLatestOnHome,
       });
-      if (trackReleasePairs.length >= limit) break;
     }
 
     const allArtistIds = new Set<string>();

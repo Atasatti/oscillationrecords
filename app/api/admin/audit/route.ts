@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { AUDIT_RESOURCES } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,15 +33,10 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Distinct resources present, so the viewer's filter only offers real values.
-    const resourcesRaw = await prisma.auditLog.findMany({
-      distinct: ["resource"],
-      select: { resource: true },
-      orderBy: { resource: "asc" },
-    });
-
+    // Filter options come from the fixed AUDIT_RESOURCES constant, not a `distinct`
+    // scan over the ever-growing AuditLog collection (#31).
     return NextResponse.json(
-      { items, resources: resourcesRaw.map((r) => r.resource) },
+      { items, resources: [...AUDIT_RESOURCES] },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (e) {
