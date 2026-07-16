@@ -23,6 +23,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
   truncateReleaseDescription,
+  formatDuration,
 } from "@/lib/release-format";
 import type { ReleaseDetailDTO, ReleaseDetailTrackDTO } from "@/lib/catalog-data";
 
@@ -158,12 +159,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
     } catch (error) {
       console.error("Error tracking release view:", error);
     }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const releasePrimaryNames = release

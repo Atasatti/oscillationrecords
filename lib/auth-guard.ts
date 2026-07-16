@@ -16,10 +16,30 @@ export type Guard =
   | { ok: true; token: JWT }
   | { ok: false; response: NextResponse };
 
-async function readToken(req: NextRequest): Promise<JWT | null> {
+/** The shared 403 response every role/permission guard returns on denial. */
+function forbidden(): Guard {
+  return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+}
+
+/**
+ * Decode the JWT once, distinguishing a server misconfiguration (missing secret →
+ * 500) from a normal decode (which may still yield a null/anonymous token). The
+ * single place the four guards below get their token + config-error response, so a
+ * change to token handling can't drift across them.
+ */
+async function resolveToken(
+  req: NextRequest
+): Promise<{ token: JWT | null } | { response: NextResponse }> {
   const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) return null;
-  return getToken({ req, secret });
+  if (!secret) {
+    return { response: NextResponse.json({ error: "Server configuration error" }, { status: 500 }) };
+  }
+  return { token: await getToken({ req, secret }) };
+}
+
+async function readToken(req: NextRequest): Promise<JWT | null> {
+  const resolved = await resolveToken(req);
+  return "response" in resolved ? null : resolved.token;
 }
 
 /**
@@ -38,22 +58,10 @@ export async function isAdminRequest(req: NextRequest): Promise<boolean> {
  * even while their JWT still says "admin". Returns the token, or an error response.
  */
 export async function requireAdmin(req: NextRequest): Promise<Guard> {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      ),
-    };
-  }
-  const token = await getToken({ req, secret });
-  const forbidden: Guard = {
-    ok: false,
-    response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-  };
-  if (!token?.email) return forbidden;
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  if (!token?.email) return forbidden();
 
   // Bootstrap admins: always allowed, no DB hit.
   if (isAdminEmail(token.email)) return { ok: true, token };
@@ -71,7 +79,7 @@ export async function requireAdmin(req: NextRequest): Promise<Guard> {
       console.error("requireAdmin: role lookup failed", e);
     }
   }
-  return forbidden;
+  return forbidden();
 }
 
 /**
@@ -82,19 +90,10 @@ export async function requireAdmin(req: NextRequest): Promise<Guard> {
  * closed if the DB can't be read.
  */
 export async function requireStaff(req: NextRequest): Promise<Guard> {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Server configuration error" }, { status: 500 }),
-    };
-  }
-  const token = await getToken({ req, secret });
-  const forbidden: Guard = {
-    ok: false,
-    response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-  };
-  if (!token?.email) return forbidden;
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  if (!token?.email) return forbidden();
 
   // Owners (bootstrap email): always allowed, no DB hit.
   if (isAdminEmail(token.email)) return { ok: true, token };
@@ -111,7 +110,7 @@ export async function requireStaff(req: NextRequest): Promise<Guard> {
       console.error("requireStaff: role lookup failed", e);
     }
   }
-  return forbidden;
+  return forbidden();
 }
 
 /**
@@ -124,19 +123,10 @@ export async function requireStaff(req: NextRequest): Promise<Guard> {
  * permission unchanged.
  */
 export async function requirePermission(req: NextRequest, permission: Permission): Promise<Guard> {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Server configuration error" }, { status: 500 }),
-    };
-  }
-  const token = await getToken({ req, secret });
-  const forbidden: Guard = {
-    ok: false,
-    response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-  };
-  if (!token?.email) return forbidden;
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  if (!token?.email) return forbidden();
 
   // Owners (bootstrap email): full access, no DB hit.
   if (isAdminEmail(token.email)) return { ok: true, token };
@@ -155,27 +145,17 @@ export async function requirePermission(req: NextRequest, permission: Permission
       console.error("requirePermission: role lookup failed", e);
     }
   }
-  return forbidden;
+  return forbidden();
 }
 
 /** Require any authenticated user. Returns the token, or a ready-to-return error response. */
 export async function requireUser(req: NextRequest): Promise<Guard> {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      ),
-    };
-  }
-  const token = await getToken({ req, secret });
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  // Unauthenticated is 401 here (not the guards' 403) — preserve that.
   if (!token?.sub || !token?.email) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
+    return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { ok: true, token };
 }

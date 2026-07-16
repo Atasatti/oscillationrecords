@@ -18,6 +18,18 @@ export function truncateReleaseDescription(value: unknown): string | null {
   return text.length > RELEASE_DESCRIPTION_MAX ? text.slice(0, RELEASE_DESCRIPTION_MAX) : text;
 }
 
+/**
+ * mm:ss from seconds; "—" when zero/unknown. Single source of truth for track
+ * duration display — the public release page and the admin editor both use this,
+ * so an unknown duration renders identically ("—") in both.
+ */
+export function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 export function prismaKindToApi(kind: Release["kind"]): ApiReleaseKind {
   switch (kind) {
     case "SINGLE":

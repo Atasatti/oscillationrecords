@@ -67,13 +67,9 @@ export function isAudioFile(file: File): boolean {
   );
 }
 
-/** mm:ss from seconds (— when zero/unknown). */
-export function formatDuration(seconds: number): string {
-  if (!seconds || seconds <= 0) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
+// Duration formatting lives in the client-safe release-format module (the public
+// release page imports it too); re-exported here so admin editor imports are stable.
+export { formatDuration } from "@/lib/release-format";
 
 // ---------------------------------------------------------------------------
 // Track credits — the 5-category model shared by the dialog + the editor.
