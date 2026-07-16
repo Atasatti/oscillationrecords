@@ -154,13 +154,15 @@ const MeetArtistSection = ({
           below xl we keep the stacked layout with the prev/next row underneath. */}
       <div className="mt-6 sm:mt-8 flex flex-col xl:flex-row justify-between items-center gap-6 xl:gap-6">
         {/* Previous button - hidden on mobile, shown on desktop */}
-        <div 
-          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+        <button
+          type="button"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={handlePrevious}
+          aria-label="View previous artist"
         >
           <ArrowLeft className="w-4 h-4"/>
-          <p className="text-muted-foreground text-sm uppercase">View previous artist</p>
-        </div>
+          <span className="text-muted-foreground text-sm uppercase">View previous artist</span>
+        </button>
         
         {/* Main content - image + info side by side, centered as one group */}
         <div className="w-full xl:flex-1 flex flex-col xl:flex-row items-center justify-center gap-8 xl:gap-12">
@@ -229,31 +231,37 @@ const MeetArtistSection = ({
         </div>
 
         {/* Next button - hidden on mobile, shown on desktop */}
-        <div 
-          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+        <button
+          type="button"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={handleNext}
+          aria-label="View next artist"
         >
-          <p className="text-muted-foreground text-sm uppercase">View next artist</p>
+          <span className="text-muted-foreground text-sm uppercase">View next artist</span>
           <ArrowRight className="w-4 h-4"/>
-        </div>
+        </button>
         
         {/* Prev/next row — shown below xl (mobile + tablet), where the layout is
             stacked; from xl up the side arrows take over. */}
         <div className="flex xl:hidden items-center justify-between w-full max-w-md mt-4">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+          <button
+            type="button"
+            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
             onClick={handlePrevious}
+            aria-label="Previous artist"
           >
             <ArrowLeft className="w-4 h-4"/>
-            <p className="text-muted-foreground text-xs sm:text-sm uppercase">Previous</p>
-          </div>
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+            <span className="text-muted-foreground text-xs sm:text-sm uppercase">Previous</span>
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
             onClick={handleNext}
+            aria-label="Next artist"
           >
-            <p className="text-muted-foreground text-xs sm:text-sm uppercase">Next</p>
+            <span className="text-muted-foreground text-xs sm:text-sm uppercase">Next</span>
             <ArrowRight className="w-4 h-4"/>
-          </div>
+          </button>
         </div>
       </div>
     </div>
