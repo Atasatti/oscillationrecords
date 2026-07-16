@@ -11,7 +11,7 @@ import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 const SEGMENT_LABELS: Record<string, string> = {
   admin: "Admin",
   "site-content": "Site content",
-  budgets: "Money",
+  budgets: "Budgets",
   // Singular detail segments are labelled plural too — their crumb links to the
   // list page (see SEGMENT_HREF_OVERRIDES), so "Admin › Releases › Details" reads
   // consistently with where the link goes.

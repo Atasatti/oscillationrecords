@@ -56,7 +56,7 @@ export const adminGroups: readonly AdminGroup[] = [
       },
       { href: "/admin/press", label: "Press", icon: Newspaper, perm: "catalog:read" },
       { href: "/admin/assets", label: "Assets", icon: FolderArchive, perm: "catalog:read" },
-      { href: "/admin/budgets", label: "Money", icon: Wallet, perm: "catalog:read" },
+      { href: "/admin/budgets", label: "Budgets", icon: Wallet, perm: "catalog:read" },
       { href: "/admin/site-content", label: "Site content", icon: LayoutTemplate, perm: "catalog:read" },
     ],
   },
