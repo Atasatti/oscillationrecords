@@ -207,12 +207,14 @@ const Navbar = () => {
             ) : (
               /* Signed-out: desktop shows buttons; mobile signs in via the hamburger. */
               <div className="hidden 2xl:flex gap-2">
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" className="text-xs lg:text-sm">Sign In</Button>
-                </Link>
-                <Link href="/signup">
-                  <Button size="sm" className="text-xs lg:text-sm">Sign Up</Button>
-                </Link>
+                {/* asChild renders the Link AS the button (single <a>), not a
+                    <button> nested inside an <a> (invalid interactive nesting). */}
+                <Button asChild variant="ghost" size="sm" className="text-xs lg:text-sm">
+                  <Link href="/login">Sign In</Link>
+                </Button>
+                <Button asChild size="sm" className="text-xs lg:text-sm">
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
               </div>
             )}
 
@@ -283,12 +285,12 @@ const Navbar = () => {
           {!isLoading && !isAuthenticated ? (
             <div className="p-4 border-t">
               <div className="flex flex-col gap-2">
-                <Link href="/login" onClick={closeMobileMenu}>
-                  <Button variant="ghost" size="sm" className="w-full text-sm">Sign In</Button>
-                </Link>
-                <Link href="/signup" onClick={closeMobileMenu}>
-                  <Button size="sm" className="w-full text-sm">Sign Up</Button>
-                </Link>
+                <Button asChild variant="ghost" size="sm" className="w-full text-sm">
+                  <Link href="/login" onClick={closeMobileMenu}>Sign In</Link>
+                </Button>
+                <Button asChild size="sm" className="w-full text-sm">
+                  <Link href="/signup" onClick={closeMobileMenu}>Sign Up</Link>
+                </Button>
               </div>
             </div>
           ) : null}

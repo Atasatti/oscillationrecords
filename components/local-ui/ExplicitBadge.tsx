@@ -20,10 +20,13 @@ export default function ExplicitBadge({ className = "", size = "sm" }: Props) {
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded font-bold leading-none text-white ${sizeClasses} border-2 border-red-400 bg-red-600 shadow-[0_0_0_1px_rgba(0,0,0,0.35),0_2px_10px_rgba(220,38,38,0.55)] ring-1 ring-red-300/40 ${className}`}
+      role="img"
       aria-label="Explicit"
       title="Explicit content"
     >
-      E
+      {/* aria-hidden so screen readers announce the role="img" label "Explicit",
+          not the literal glyph "E" appended to the adjacent title. */}
+      <span aria-hidden="true">E</span>
     </span>
   );
 }
