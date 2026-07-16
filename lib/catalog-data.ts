@@ -152,8 +152,14 @@ export async function mapReleasesToCards(
     r.featureArtistIds.forEach((id) => allArtistIds.add(String(id)));
   });
 
+  // A public release grid/carousel (and its MusicAlbum ItemList JSON-LD) must never
+  // name or link a hidden/draft artist — mirror getReleaseMeta/getReleaseDetail and
+  // drop them from the lookup for public callers (admin still sees every credit).
   const artists = await prisma.artist.findMany({
-    where: { id: { in: Array.from(allArtistIds) } },
+    where: {
+      id: { in: Array.from(allArtistIds) },
+      ...(isAdmin ? {} : { showOnWebsite: true, draft: false }),
+    },
     select: { id: true, name: true },
   });
   const artistMap = buildArtistMap(artists);
@@ -196,7 +202,10 @@ export async function mapReleasesToCards(
       type: prismaKindToApi(r.kind),
       primaryArtistName: primaryName,
       artist: formatArtistLine(primaryName, featureArtistNames),
-      artistId: primaryArtistId ? String(primaryArtistId) : "",
+      // Only expose the id when the primary artist is in the (visibility-filtered)
+      // map, so a hidden/draft primary is neither linked nor used for "more by
+      // this artist" cross-referencing.
+      artistId: primaryArtistId && artistMap.has(String(primaryArtistId)) ? String(primaryArtistId) : "",
       featureArtistIds,
       featureArtistNames,
       upcCode: isAdmin ? r.upcCode : null,
