@@ -46,6 +46,12 @@ export async function PUT(
     const existing = await prisma.pitchLog.findUnique({ where: { id: pitchId } });
     if (!existing) return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
 
+    // Verify the referenced contact exists BEFORE mutating: otherwise we'd store a
+    // dangling contactId and then throw P2025 on the status-sync update below —
+    // after the pitch was already written (a partial write + a misleading 500).
+    const contact = await prisma.outreachContact.findUnique({ where: { id: contactId }, select: { id: true } });
+    if (!contact) return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+
     const pitch = await prisma.pitchLog.update({
       where: { id: pitchId },
       data: {
@@ -60,14 +66,16 @@ export async function PUT(
       },
     });
 
-    // Sync contact status when pitch is accepted or responded to
+    // Sync contact status when pitch is accepted or responded to. updateMany (not
+    // update) so a contact deleted in the TOCTOU window no-ops instead of throwing
+    // P2025 after the pitch commit.
     if (status === "accepted") {
-      await prisma.outreachContact.update({
+      await prisma.outreachContact.updateMany({
         where: { id: contactId },
         data: { relationshipStatus: "published", lastContactedAt: new Date() },
       });
     } else if (status === "followed_up" || status === "sent") {
-      await prisma.outreachContact.update({
+      await prisma.outreachContact.updateMany({
         where: { id: contactId },
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
@@ -118,14 +126,16 @@ export async function PATCH(
 
     const pitch = await prisma.pitchLog.update({ where: { id: pitchId }, data });
 
-    // Sync contact relationship status
+    // Sync contact relationship status. updateMany (not update) so a status toggle
+    // still succeeds when the pitch's stored contact has since been deleted — it
+    // no-ops instead of throwing P2025 after the pitch was already updated.
     if (body.status === "accepted") {
-      await prisma.outreachContact.update({
+      await prisma.outreachContact.updateMany({
         where: { id: existing.contactId },
         data: { relationshipStatus: "published", lastContactedAt: new Date() },
       });
     } else if (body.status === "sent" || body.status === "followed_up") {
-      await prisma.outreachContact.update({
+      await prisma.outreachContact.updateMany({
         where: { id: existing.contactId },
         data: { lastContactedAt: new Date(), relationshipStatus: "contacted" },
       });
