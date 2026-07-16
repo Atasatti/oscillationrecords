@@ -25,7 +25,7 @@ import {
   truncateReleaseDescription,
   formatDuration,
 } from "@/lib/release-format";
-import type { ReleaseDetailDTO, ReleaseDetailTrackDTO } from "@/lib/catalog-data";
+import type { ReleaseDetailDTO, ReleaseDetailTrackDTO, ReleaseCardDTO } from "@/lib/catalog-data";
 
 // Server-fetched, fully-typed release detail (see lib/catalog-data.ts). Tracks
 // use the public payload shape (no ISRC/ISWC/stems; lyrics included).
@@ -38,32 +38,22 @@ interface ParsedTrackCredit {
   role?: string;
 }
 
-interface OtherRelease {
-  id: string;
-  name: string;
-  thumbnail: string;
-  type: string;
-  artist: string;
-  primaryArtistName?: string;
-  featureArtistNames?: string[];
-  songCount?: number;
-  spotifyLink?: string | null;
-  appleMusicLink?: string | null;
-  tidalLink?: string | null;
-  amazonMusicLink?: string | null;
-  youtubeLink?: string | null;
-  soundcloudLink?: string | null;
-  isrcExplicit?: boolean;
-}
 
-export default function ReleaseDetailView({ release }: { release: Release }) {
+export default function ReleaseDetailView({
+  release,
+  moreByArtist,
+}: {
+  release: Release;
+  moreByArtist: ReleaseCardDTO[];
+}) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { playSong } = useMusic();
   const releaseId = release.id;
 
   const [selectedTrack, setSelectedTrack] = useState<TrackRow | null>(null);
-  const [otherReleases, setOtherReleases] = useState<OtherRelease[]>([]);
+  // Server-provided (scoped to the lead artist) — no client catalog download.
+  const otherReleases = moreByArtist;
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const moreScrollRef = useRef<HTMLDivElement>(null);
@@ -84,31 +74,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
     const delta = (first?.offsetWidth ?? 288) + 16;
     el.scrollBy({ left: dir === "next" ? delta : -delta, behavior: "smooth" });
   };
-
-  useEffect(() => {
-    if (!release) return;
-    (async () => {
-      try {
-        const res = await fetch("/api/releases");
-        if (!res.ok) return;
-        const all = await res.json() as Array<{
-          id: string;
-          name: string;
-          thumbnail: string;
-          type: string;
-          artist: string;
-          artistId: string;
-        }>;
-        const primaryIds = new Set(release.primaryArtistIds);
-        const filtered = all
-          .filter((r) => r.id !== release.id && primaryIds.has(r.artistId))
-          .slice(0, 6);
-        setOtherReleases(filtered);
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, [release]);
 
   useEffect(() => {
     const el = moreScrollRef.current;

@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { getReleaseDetail, resolveReleaseIdBySlug } from "@/lib/catalog-data";
+import { getReleaseDetail, resolveReleaseIdBySlug, getReleaseCardsByArtist } from "@/lib/catalog-data";
 import { OBJECT_ID_RE, slugify } from "@/lib/slug";
 import { SITE_NAME } from "@/lib/seo";
 import ReleaseDetailView from "./ReleaseDetailView";
@@ -31,6 +31,13 @@ export default async function ReleaseDetailPage({
   // Missing or DRAFT → a real 404 (not a soft-404 that serves 200 + "not found").
   if (!release) notFound();
 
+  // "More by this artist" — fetched server-side, scoped to the lead artist, so the
+  // client no longer downloads the whole catalog on mount just to keep 6 cards.
+  const leadArtistId = release.primaryArtistIds[0];
+  const moreByArtist = leadArtistId
+    ? await getReleaseCardsByArtist(leadArtistId, release.id, 6)
+    : [];
+
   // Crisp, factual lead — the sentence AI engines lift verbatim and attribute.
   // Visually hidden (the page leads with cover art) but in the DOM for crawlers.
   const kindLabel = release.type === "ep" ? "EP" : release.type;
@@ -54,7 +61,7 @@ export default async function ReleaseDetailPage({
   return (
     <>
       <p id="release-lead" className="sr-only">{releaseLead}</p>
-      <ReleaseDetailView release={release} />
+      <ReleaseDetailView release={release} moreByArtist={moreByArtist} />
     </>
   );
 }

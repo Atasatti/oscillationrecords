@@ -238,6 +238,37 @@ export async function mapReleasesToCards(
 }
 
 /**
+ * Public release cards crediting a given artist (primary or feature), newest
+ * first, excluding one release and capped. Powers the "More by this artist"
+ * carousel on the release page — fetched server-side and scoped to the artist so
+ * the client no longer downloads the entire /api/releases catalog just to keep 6.
+ */
+export async function getReleaseCardsByArtist(
+  artistId: string,
+  excludeReleaseId: string,
+  limit = 6
+): Promise<ReleaseCardDTO[]> {
+  if (!artistId) return [];
+  try {
+    const releases = await prisma.release.findMany({
+      where: {
+        AND: [
+          { OR: [{ primaryArtistIds: { has: artistId } }, { featureArtistIds: { has: artistId } }] },
+          publicReleaseWhere(),
+          { id: { not: excludeReleaseId } },
+        ],
+      },
+      take: limit,
+      ...releaseCardListArgs,
+    });
+    return mapReleasesToCards(releases, { isAdmin: false });
+  } catch (e) {
+    console.error("getReleaseCardsByArtist: DB unavailable", e);
+    return [];
+  }
+}
+
+/**
  * Releases for the "New Music" carousel — exactly the releases the admin curated
  * (`showOnHome`), in the order they set (`homeOrder`). No auto-fill: the homepage
  * mirrors the admin's New Music selection 1:1. Only publicly-visible (live)
