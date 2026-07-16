@@ -290,7 +290,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Fix:** Change to e.g. 'Check back later for new artists.'
 
 ## Remaining audit work
-- [ ] Runtime browser pass — partially done: `/contact` and `/` are clean at 390px mobile. Still to do: Lighthouse (a11y/SEO), keyboard nav on the carousel (#5), responsive on any flagged pages.
-- [ ] Performance numbers on a production build (dev-server metrics are not representative).
+- [x] Runtime browser pass — ✅ **done 2026-07-16.** Lighthouse (mobile) on `/`, `/artists`, `/press` and a release detail page → **100 / 100 / 100** (a11y / best-practices / SEO) on all four. Three new issues found + fixed during the pass: ArtistCard social tap-targets <24px (`232dea1`), PressCard + release-page sub-AA gray text (`7e6fa5e`); one flagged "hydration mismatch" was a dev-HMR staleness artifact of the #41 nav-label change (cleared on recompile — not a real bug). `/contact` + `/` already clean at 390px.
+- [ ] Performance numbers on a production build (dev-server metrics are not representative — needs the Vercel preview).
 
 _Generated from completed audit run `wf_58655fef-919`._
