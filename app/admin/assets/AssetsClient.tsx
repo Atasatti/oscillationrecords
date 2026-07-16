@@ -494,7 +494,11 @@ export default function AssetsClient({
       <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
     );
     return (
-      <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+      // In dark mode --card === --background, so a plain bg-card card is invisible
+      // against the bg-card panel behind the grid. Raise it with a lighter fill +
+      // shadow (and a matching hover) so each card reads as a distinct dark surface,
+      // consistent with the task board's separated cards.
+      <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-white/[0.04] shadow-sm transition-colors hover:border-white/20 hover:bg-white/[0.06]">
         {hasFile ? (
           <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={thumbClass}>
             {thumbInner}
