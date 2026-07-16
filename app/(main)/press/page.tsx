@@ -66,16 +66,17 @@ export default async function PressPage() {
                     <Star className="h-4 w-4 text-amber-400" aria-hidden />
                     Featured
                   </h2>
-                  {/* Desktop: every featured item as a card. */}
+                  {/* Desktop: every featured item as a card. The first is the
+                      LCP candidate, so preload its image. */}
                   <div className={DESKTOP_GRID}>
-                    {featured.map((item) => (
-                      <PressCard key={item.id} item={item} />
+                    {featured.map((item, i) => (
+                      <PressCard key={item.id} item={item} priority={i === 0} />
                     ))}
                   </div>
-                  {/* Mobile: just the top featured item as a hero card. */}
+                  {/* Mobile: just the top featured item as a hero card (LCP). */}
                   {featured[0] ? (
                     <div className="sm:hidden">
-                      <PressCard item={featured[0]} />
+                      <PressCard item={featured[0]} priority />
                     </div>
                   ) : null}
                 </div>

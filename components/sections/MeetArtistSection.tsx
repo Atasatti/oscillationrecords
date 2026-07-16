@@ -175,6 +175,10 @@ const MeetArtistSection = ({
                 alt={currentArtist.name}
                 placeholder="blur"
                 blurDataURL={BLUR_DATA_URL}
+                // On /artists this spotlight is the first/LCP image — preload it
+                // instead of lazy-loading. On the homepage it sits below the hero,
+                // so only prioritise it for variant="artists".
+                priority={variant === "artists"}
                 className="rounded-[18px] object-cover w-full h-full"
               />
             </Link>
