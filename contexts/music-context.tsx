@@ -41,7 +41,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   // Creates a new play event at song start and stores its ID
   const trackPlay = async (song: Song): Promise<void> => {
     try {
-      const artistName = typeof song.artist === 'string' ? song.artist : song.artist || 'Unknown Artist';
+      const artistName = song.artist?.trim() || 'Unknown Artist';
       const response = await fetch("/api/analytics/track-play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

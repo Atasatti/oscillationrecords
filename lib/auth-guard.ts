@@ -180,10 +180,6 @@ export async function requireUser(req: NextRequest): Promise<Guard> {
   return { ok: true, token };
 }
 
-export function tokenIsAdmin(token: JWT | null | undefined): boolean {
-  return isAdminToken(token);
-}
-
 /**
  * Defense-in-depth CSRF check for destructive, cookie-authenticated routes.
  * Same-origin browser requests always send an `Origin` header on state-changing
