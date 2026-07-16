@@ -277,7 +277,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** The sidebar link and breadcrumb read 'Money' while the page's H1 (and section tab) read 'Budgets', so a user clicks 'Money' and lands on a page headed 'Budgets' with the breadcrumb 'Admin › Money' — two words for one destination.
   - **Fix:** Pick one term for this section and use it in the sidebar, breadcrumb, tab, and page title.
 
-- [ ] **#41 · LOW — The catalogue page has three different names across nav, browser tab, and heading**
+- [x] **#41 · LOW — The catalogue page has three different names across nav, browser tab, and heading** — ✅ Fixed 2026-07-16 (per your call, align on "Music"): public nav label "Releases" → "Music" (the browser title is already "Music"; the H1 "New Music, No Compromise." carries the term). Admin "Releases" labels left as-is (separate context).
   - **Where:** `app/(main)/releases/page.tsx:11` · ux
   - **What:** The same destination (/releases) is called three things: the public nav labels it 'Releases' (components/local-ui/Navbar.tsx:24), the page metadata title (browser tab + SEO) is 'Music' (app/(main)/releases/page.tsx:11), and the on-page H1 is 'New Music, No Compromise.' (components/sections/NewMusicSection.tsx:179). Borderline — 'Music' as a <title> may be a deliberate broader-keyword SEO choice.
   - **Impact:** /releases is called 'Releases' in the nav, 'Music' in the <title>/tab, and 'New Music, No Compromise.' in the H1 — no shared anchor term ties the three surfaces together, mildly hurting cross-screen and tab-history recognition.
