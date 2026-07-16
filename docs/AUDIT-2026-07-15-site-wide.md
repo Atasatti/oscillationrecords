@@ -57,13 +57,13 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** Every release detail page, the homepage Upcoming Releases section and Coming-Soon banners display the wrong release date (off by one) and emit React hydration-mismatch errors for the large share of visitors in negative-UTC-offset (Americas) timezones.
   - **Fix:** Add `timeZone: "UTC"` to every `toLocaleDateString`/`toLocaleString` call that formats a date-only DB value in a client component (ReleaseDetailView.tsx lines 343 & 394, UpcomingReleasesSection.tsx line 54), matching the server lead sentence. This both fixes the off-by-one and eliminates the hydration mismatch.
 
-- [ ] **#4 · HIGH — Newsletter campaign can get permanently stuck in "sending" (unrecoverable)**
+- [x] **#4 · HIGH — Newsletter campaign can get permanently stuck in "sending" (unrecoverable)** — ✅ Fixed 2026-07-16 (`24934d4`): try/catch resets to "failed"; claim re-admits a stale "sending" row past 15m.
   - **Where:** `lib/newsletter-send.ts:33` · correctness
   - **What:** sendCampaignNow() atomically claims a campaign by moving draft/scheduled/failed -> "sending" (updateMany, lines 29-33), then loads subscribers and sends in batches, and only writes the final status at the very end (lines 53-56). The work between the claim and the final update is NOT wrapped in try/catch, and the batched sequential loop (10 recipients/batch, each sendEmail with a 15s AbortSignal.timeout) can exceed the serverless function's max duration. If the function times out, or findUnique/findMany/the final update throws, the row stays in status "sending" forever: the claim's where-filter only re-admits draft/scheduled/failed (line 30), and campaigns/[id] PATCH & DELETE reject any non-EDITABLE status (EDITABLE = draft/scheduled/failed; app/api/newsletter/campaigns/[id]/route.ts lines 14, 29-31, 88-90). The send route also calls sendCampaignNow with no try/catch (app/api/newsletter/campaigns/[id]/send/route.ts line 23), and the cron run only selects status="scheduled" (campaigns/run/route.ts line 21).
   - **Impact:** A mid-send serverless timeout or transient DB error leaves the campaign in status 'sending' forever — it can never be re-sent, edited, rescheduled or deleted in-app, and the scheduled-run cron won't retry it; recovery requires direct DB surgery.
   - **Fix:** Wrap the post-claim work in try/catch and reset status to "failed" (or back to "scheduled") on error; add a stale-"sending" reclaim (e.g. allow re-claim when status="sending" and updatedAt is older than N minutes) and/or move the actual send to a durable background job.
 
-- [ ] **#5 · HIGH — 'Meet the Artists' carousel prev/next controls are non-interactive <div onClick> (keyboard/AT inoperable) — WCAG 2.1.1 Level A**
+- [x] **#5 · HIGH — 'Meet the Artists' carousel prev/next controls are non-interactive <div onClick> (keyboard/AT inoperable) — WCAG 2.1.1 Level A** — ✅ Fixed + verified in-browser 2026-07-16 (`bcacc97`): all four controls → `<button>` with aria-label + focus ring; keyboard activation advances/returns the spotlight.
   - **Where:** `components/sections/MeetArtistSection.tsx:157` · ux
   - **Impact:** On the homepage (the only artist browser there) and /artists, keyboard and screen-reader users cannot advance the carousel past artist #1, so the per-artist spotlight content is unreachable without a mouse; a partial fallback exists only via the /artists grid.
   - **Fix:** Replace the four control <div>s with <button type='button' aria-label='Previous/Next artist'> (matching the sibling NewMusicSection, which already uses real buttons).
@@ -105,7 +105,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** session.user.id holds the OAuth subject rather than the Mongo id, so the @-mention reminders feed returns empty 100% of the time (app/api/outreach/mentions/route.ts:18) and the 'My tasks' filter / '(me)' markers never match for any staff; no privilege escalation, but session.user.id is an untrustworthy identifier.
   - **Fix:** Resolve the real User.id by email (as resolveUserId already does) and set session.user.id to it; use resolveUserId(guard.token) for the mentions query and any identity/ownership comparison instead of token.sub.
 
-- [ ] **#12 · MEDIUM — Release metadata/JSON-LD and release cards name hidden/draft primary artists and link them to 404 artist URLs**
+- [x] **#12 · MEDIUM — Release metadata/JSON-LD and release cards name hidden/draft primary artists and link them to 404 artist URLs** — ✅ Fixed + verified 2026-07-16 (`0cb5366`): mapReleasesToCards now visibility-filters artists (admin unaffected) + gates artistId; 44/44 public releases still named. Completes the earlier detail/metadata fixes.
   - **Where:** `lib/catalog-data.ts:155` · correctness
   - ◑ Partially addressed: the release **detail** body (`38307ab`) and **metadata/JSON-LD/OG/title** (`getReleaseMeta`, `b9f5e16`) are fixed; the **release-cards** path still names hidden artists.
   - **Impact:** A public release crediting a hidden/draft artist leaks that artist's name into the /releases grid, homepage carousel and MusicAlbum ItemList JSON-LD, with byArtist/music:musician links pointing to 404 artist pages — violating the codebase's own 'never name a hidden/draft artist' policy (getReleaseMeta was fixed; mapReleasesToCards is still unfiltered).
@@ -117,7 +117,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** updateStatus (the checkbox, StatusMenu and board-drag completion paths) refetches only on error, so a recurring task's newly-spawned next occurrence exists in the DB but is invisible until an unrelated refresh — the task appears to simply vanish and admins may re-create it, producing duplicates.
   - **Fix:** Call `loadTasks()` after a successful inline `updateStatus` (at least when the task's `recurrence` is set and the new status is 'done'), matching the dialog Save path, and update the `tasks-list` cache on the success path.
 
-- [ ] **#14 · MEDIUM — og:image dropped on /about, /artists, /releases, /press and /contact (partial openGraph overwrites the root default)**
+- [x] **#14 · MEDIUM — og:image dropped on /about, /artists, /releases, /press and /contact (partial openGraph overwrites the root default)** — ✅ Fixed + verified 2026-07-16 (`9f85ee6`): shared OG_DEFAULT_IMAGE spread into each page's openGraph; /artists now emits og:image + og:image:alt.
   - **Where:** `app/(main)/artists/page.tsx:14` · seo
   - **Impact:** These five key marketing/navigation pages emit Open Graph tags with no og:image (Next merges openGraph shallowly, not deep), so links unfurl with no preview image on Facebook, LinkedIn, Slack, Discord, WhatsApp and iMessage, materially reducing click-through.
   - **Fix:** Extract a shared openGraph base (including images:[og-default.png]) and spread it into each page's openGraph, or add an images field to each page's openGraph object.
@@ -233,7 +233,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** requireAdmin/requireStaff/requirePermission/requireUser each re-implement the same secret-check + getToken + forbidden preamble; since this file is the whole authorization surface, a future token-handling change must be replicated four times and missing one silently produces an inconsistent auth path.
   - **Fix:** Extract a shared `resolveToken(req): { token } | { response }` plus a `forbidden()` helper, and have the four guards call them, differing only in their role/permission predicate.
 
-- [ ] **#34 · LOW — Dead export tokenIsAdmin — an unused, revocation-blind admin check left in the auth module**
+- [x] **#34 · LOW — Dead export tokenIsAdmin — an unused, revocation-blind admin check left in the auth module** — ✅ Fixed 2026-07-16 (`a035f3c`): deleted; no callers (tsc/eslint clean).
   - **Where:** `lib/auth-guard.ts:183` · quality
   - **Impact:** tokenIsAdmin has no callers but remains exported; it's a token-only (non-revocation-aware) check whose misuse was the exact root cause of a prior fixed vulnerability (a demoted admin's still-valid JWT retaining upload access), inviting reintroduction of that class.
   - **Fix:** Delete tokenIsAdmin; if a token-only check is ever genuinely needed, reintroduce it with an explicit name and a documented revocation caveat.
@@ -244,7 +244,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** ReleaseDetailView's local formatDuration returns '0:00' for unknown duration while the shared lib/release-editor.ts helper returns '—', so a track with unknown duration renders differently on the public release page than in the admin editor — two drifting sources of truth.
   - **Fix:** Consolidate on one shared, client-safe helper — e.g. move formatDuration into lib/release-format.ts (already imported by this client component) and import it in both places — and settle the zero-case rendering once.
 
-- [ ] **#36 · LOW — Unreachable ternary branch makes the 'Unknown Artist' fallback dead code**
+- [x] **#36 · LOW — Unreachable ternary branch makes the 'Unknown Artist' fallback dead code** — ✅ Fixed 2026-07-16 (`a035f3c`): replaced with `song.artist?.trim() || 'Unknown Artist'` so the fallback fires on empty names.
   - **Where:** `contexts/music-context.tsx:44` · quality
   - **What:** `const artistName = typeof song.artist === 'string' ? song.artist : song.artist || 'Unknown Artist';`. `song.artist` is typed `string` in the Song interface (line 8), so `typeof song.artist === 'string'` is always true and the entire else branch — including the `'Unknown Artist'` fallback — is unreachable. The expression is always just `song.artist`.
   - **Impact:** Because song.artist is typed string, the typeof check is always true and the 'Unknown Artist' else-branch never runs; a song with artist:'' would record an empty artistName to play-analytics — currently prevented only by all three callers' own fallbacks, so a latent data-quality gap plus misleading dead code.
@@ -256,13 +256,13 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** FOUNDER.sameAs (emitted on the homepage and /about; the same malformed value is also stored on the BSK artist record) carries a 15-digit ISNI (needs 16), so the URI won't resolve at isni.org and won't help search engines reconcile the founder↔BSK entity — one weak signal among many strong ones.
   - **Fix:** Correct the ISNI to the real 16-digit value (likely a dropped digit) and confirm it matches the BSK artist record's `isni` field so both nodes point at the same identifier.
 
-- [ ] **#38 · LOW — Owned press posts (/press/[slug]) render a generic Twitter card (label name + default image, not the post)**
+- [x] **#38 · LOW — Owned press posts (/press/[slug]) render a generic Twitter card (label name + default image, not the post)** — ✅ Fixed 2026-07-16 (`9f85ee6`): added a twitter block mirroring openGraph (post image + default fallback).
   - **Where:** `app/(main)/press/[slug]/page.tsx:29` · seo
   - **What:** The press post generateMetadata sets `title:post.title` and `openGraph:{type:'article', title:post.title, images:[post.image]...}` but declares no `twitter` object (press/[slug]/page.tsx:25-37). The root layout declares an explicit `twitter` with `title:SITE_NAME` and `images:['/og-default.png']` (app/layout.tsx:53-59). Because the child doesn't define `twitter`, Next inherits the root's twitter object wholesale, so twitter:title resolves to 'Oscillation Records' (not the post title) and twitter:image to og-default.png (not post.image). Facebook/OG is correct; only the Twitter/X card is wrong. (Artist and release detail pages are unaffected — they each set their own `twitter` block.)
   - **Impact:** The press post metadata sets openGraph but declares no twitter block, so it inherits the root's twitter wholesale — twitter:title resolves to 'Oscillation Records' and twitter:image to og-default.png when an owned article is shared on X (Facebook/OG is correct).
   - **Fix:** Add a `twitter:{card:'summary_large_image', title:post.title, description, images:[post.image]}` block to the press post metadata (mirroring the artist/release detail pages).
 
-- [ ] **#39 · LOW — /accessibility is indexable but missing from the sitemap's static routes**
+- [x] **#39 · LOW — /accessibility is indexable but missing from the sitemap's static routes** — ✅ Fixed + verified 2026-07-16 (`9f85ee6`): added to staticRoutes; /sitemap.xml now lists it.
   - **Where:** `app/sitemap.ts:12` · seo
   - **What:** sitemap.ts enumerates every static public page (/, /artists, /releases, /press, /contact, /about, /privacy, /terms) at lines 12-26, but omits /accessibility. That route exists and is meant to be indexed — it exports a canonical (accessibility/page.tsx:7 `alternates:{canonical:'/accessibility'}`) and no noindex — so its absence from the sitemap is an inconsistent omission versus the other legal/static pages (which are all listed).
   - **Impact:** sitemap.ts lists every other static/legal page but omits /accessibility (which exports a canonical and isn't noindexed), so the statement isn't advertised to crawlers via the sitemap — bounded since it's still reachable via footer links.
@@ -280,7 +280,7 @@ The Oscillation Records codebase is a well-structured, actively-maintained Next.
   - **Impact:** /releases is called 'Releases' in the nav, 'Music' in the <title>/tab, and 'New Music, No Compromise.' in the H1 — no shared anchor term ties the three surfaces together, mildly hurting cross-screen and tab-history recognition.
   - **Fix:** Align the nav label, page title, and heading on a shared term (e.g. include 'Music'/'Releases' consistently) so the destination reads the same across surfaces.
 
-- [ ] **#42 · LOW — Artists empty-state copy tells users to check back for 'new releases' instead of artists**
+- [x] **#42 · LOW — Artists empty-state copy tells users to check back for 'new releases' instead of artists** — ✅ Fixed 2026-07-16 (`a035f3c`): now "Check back later for new artists."
   - **Where:** `components/sections/ArtistsSection.tsx:129` · ux
   - **What:** The empty state of the Artists listing renders `<p>No artists found</p>` followed by `<p>Check back later for new releases</p>` (lines 128-129). The secondary line references 'releases' inside the artists section.
   - **Impact:** The Artists listing's empty state renders 'Check back later for new releases' inside an artists section (reachable only when the whole roster is empty/hidden or on a DB error) — a minor contextual copy mismatch.
