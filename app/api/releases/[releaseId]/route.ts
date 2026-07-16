@@ -600,10 +600,7 @@ export async function PATCH(
             })
           );
         }
-        // NEW track. Build the row once, then UPSERT on the client-supplied stable
-        // id so a retried save (after a mid-batch failure) UPDATES the already-
-        // created track instead of duplicating it (#8). A missing/invalid id falls
-        // back to a plain create (Mongo assigns one) — legacy-safe.
+        // NEW track. Build the create row once.
         const data: Prisma.TrackUncheckedCreateInput = {
           releaseId,
           name: t.name,
@@ -632,15 +629,34 @@ export async function PATCH(
           featureArtistNames: t.featureArtistNames,
           sortOrder: t.sortOrder,
         };
-        if (t.id && OBJECT_ID.test(t.id)) {
-          return withWriteRetry(() =>
-            prisma.track.upsert({
-              where: { id: t.id },
-              create: { ...data, id: t.id },
-              // JSON fields take Prisma.JsonNull (not raw null) on UPDATE.
-              update: { ...data, trackCredits: t.trackCredits ?? Prisma.JsonNull } as Prisma.TrackUncheckedUpdateInput,
-            })
-          );
+        const clientId = t.id;
+        if (clientId && OBJECT_ID.test(clientId)) {
+          // Idempotent create for a NEW track carrying a client-generated stable id
+          // (#8) — but SCOPED to this release. A bare upsert({ where:{ id } }) would
+          // let a caller pass ANOTHER release's track id (track ids are exposed by
+          // the public API) and hijack it, moving its releaseId (IDOR). So:
+          //   1. update-if-it's-ours (retry-safe): updateMany pinned to { id, releaseId },
+          //      never touching releaseId;
+          //   2. else, refuse an id that already belongs to a different release;
+          //   3. else create it under THIS release.
+          const updateData: Prisma.TrackUncheckedUpdateManyInput = {
+            name: data.name, image: data.image, audioFile: data.audioFile, duration: data.duration,
+            releaseDate: data.releaseDate, composer: data.composer, lyricist: data.lyricist,
+            leadVocal: data.leadVocal, lyrics: data.lyrics, syncedLyrics: data.syncedLyrics,
+            stemsFile: data.stemsFile, trackCredits: t.trackCredits,
+            isrcCode: data.isrcCode, iswc: data.iswc, isrcExplicit: data.isrcExplicit,
+            spotifyLink: data.spotifyLink, appleMusicLink: data.appleMusicLink, tidalLink: data.tidalLink,
+            amazonMusicLink: data.amazonMusicLink, youtubeLink: data.youtubeLink, soundcloudLink: data.soundcloudLink,
+            primaryArtistIds: data.primaryArtistIds, featureArtistIds: data.featureArtistIds,
+            featureArtistNames: data.featureArtistNames, sortOrder: data.sortOrder,
+          };
+          return withWriteRetry(async () => {
+            const res = await prisma.track.updateMany({ where: { id: clientId, releaseId }, data: updateData });
+            if (res.count > 0) return;
+            const clash = await prisma.track.findUnique({ where: { id: clientId }, select: { releaseId: true } });
+            if (clash) throw new Error(`Track id ${clientId} belongs to another release`);
+            await prisma.track.create({ data: { ...data, id: clientId } });
+          });
         }
         return withWriteRetry(() => prisma.track.create({ data }));
       });
