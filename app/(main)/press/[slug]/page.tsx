@@ -22,6 +22,10 @@ export async function generateMetadata({
   if (!post) return { title: "Post not found", robots: { index: false } };
   const description = metaDescription(post.summary, 160);
   const canonical = `/press/${post.slug}`;
+  // Both the OG and Twitter cards need an explicit image — Next merges these
+  // objects shallowly, so omitting `images` here would inherit the root layout's
+  // generic og-default.png (and, for Twitter, the label name) instead of the post.
+  const cardImage = post.image || "/og-default.png";
   return {
     title: post.title,
     description,
@@ -31,8 +35,14 @@ export async function generateMetadata({
       title: post.title,
       description,
       url: canonical,
-      ...(post.image ? { images: [{ url: post.image }] } : {}),
+      images: [{ url: cardImage }],
       ...(post.publishedAt ? { publishedTime: post.publishedAt } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: [cardImage],
     },
   };
 }

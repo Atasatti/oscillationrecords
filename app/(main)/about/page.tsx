@@ -9,6 +9,7 @@ import {
   buildFaqJsonLd,
   buildOrganizationJsonLd,
   jsonLdScript,
+  OG_DEFAULT_IMAGE,
 } from "@/lib/seo";
 import { getFooterSocialLinks, sameAsFromFooterLinks } from "@/lib/footer-settings";
 import type { Metadata } from "next";
@@ -23,6 +24,7 @@ export const metadata: Metadata = {
     title: "About | Oscillation Records",
     description: "A record label that puts artists first.",
     url: "/about",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 

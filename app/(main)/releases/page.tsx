@@ -3,7 +3,7 @@ import NewMusicSection from "@/components/sections/NewMusicSection";
 import ReleasesSection from "@/components/sections/ReleasesSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import { getCarouselReleases, getPublicReleases } from "@/lib/catalog-data";
-import { buildReleaseListJsonLd, jsonLdScript } from "@/lib/seo";
+import { buildReleaseListJsonLd, jsonLdScript, OG_DEFAULT_IMAGE } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     title: "Music | Oscillation Records",
     description: "New music and the full release catalogue from Oscillation Records.",
     url: "/releases",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 

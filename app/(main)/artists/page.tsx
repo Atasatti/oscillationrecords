@@ -3,6 +3,7 @@ import MeetArtistSection from "@/components/sections/MeetArtistSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import { getPublicArtists } from "@/lib/catalog-data";
+import { OG_DEFAULT_IMAGE } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
     title: "Artists | Oscillation Records",
     description: "Meet the artists on Oscillation Records.",
     url: "/artists",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 

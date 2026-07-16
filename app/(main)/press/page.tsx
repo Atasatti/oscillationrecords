@@ -3,7 +3,7 @@ import { Star } from "lucide-react";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import PressCard from "@/components/local-ui/PressCard";
 import { getAllPress, getFeaturedPress } from "@/lib/catalog-data";
-import { buildPressListJsonLd, jsonLdScript, SITE_NAME } from "@/lib/seo";
+import { buildPressListJsonLd, jsonLdScript, SITE_NAME, OG_DEFAULT_IMAGE } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Press & Features",
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     title: `Press & Features | ${SITE_NAME}`,
     description: `Press, reviews and features covering ${SITE_NAME} artists and releases.`,
     url: "/press",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 
