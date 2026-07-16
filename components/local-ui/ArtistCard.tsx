@@ -211,7 +211,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick, href }) => {
                   type="button"
                   aria-label={label}
                   onClick={(e) => handleSocialClick(url, type, e)}
-                  className="inline-flex rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="inline-flex min-h-6 min-w-6 items-center justify-center rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6" aria-hidden />
                 </button>
