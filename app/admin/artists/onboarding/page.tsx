@@ -1,10 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { requirePagePermission } from "@/lib/page-guard";
 import { artistPublishChecks } from "@/lib/artist-onboarding";
 import OnboardingClient, { type Row } from "./OnboardingClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function ArtistOnboardingPage() {
+  // Revocation-aware gate before reading the artist roster. Matches catalog:read.
+  await requirePagePermission("catalog:read");
+
   let rows: Row[] = [];
   try {
     const artists = await prisma.artist.findMany({

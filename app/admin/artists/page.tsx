@@ -1,4 +1,5 @@
 import { getArtistsPage, getDistinctGenres } from "@/lib/admin-data";
+import { requirePagePermission } from "@/lib/page-guard";
 import AdminArtistsClient from "./AdminArtistsClient";
 
 // Server component: fetch the default first page + genre list on the server so
@@ -9,6 +10,9 @@ import AdminArtistsClient from "./AdminArtistsClient";
 export const dynamic = "force-dynamic";
 
 export default async function AdminArtistsPage() {
+  // Revocation-aware gate before reading admin catalog data. Matches catalog:read.
+  await requirePagePermission("catalog:read");
+
   let initialData: { items: Awaited<ReturnType<typeof getArtistsPage>>["items"]; total: number } | null = null;
   let initialGenres: string[] = [];
   try {

@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { requirePagePermission } from "@/lib/page-guard";
 import { dayKeyUtc } from "@/lib/content-post";
 import CalendarClient, { type Post, type ReleaseOption, type CalEvent } from "./CalendarClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function ContentCalendarPage() {
+  // Revocation-aware gate before reading the content calendar (posts, tasks,
+  // placements, campaigns). Matches the content API's outreach:read.
+  await requirePagePermission("outreach:read");
+
   let posts: Post[] = [];
   let releases: ReleaseOption[] = [];
   let events: CalEvent[] = [];

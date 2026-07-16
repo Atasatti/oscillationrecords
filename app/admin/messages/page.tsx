@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requirePagePermission } from "@/lib/page-guard";
 import { getStaffDirectory } from "@/lib/staff-directory";
 import { normalizeStatus, normalizePriority } from "@/lib/contact-ticket";
 import AdminMessagesClient, {
@@ -6,11 +7,17 @@ import AdminMessagesClient, {
   type StaffOption,
 } from "./AdminMessagesClient";
 
-// Server component: ship the contact messages in the initial HTML. Middleware
-// gates /admin, so this only runs for admins. Open first, then newest.
+// Server component: ship the contact messages in the initial HTML. Open first,
+// then newest.
 export const dynamic = "force-dynamic";
 
 export default async function AdminMessagesPage() {
+  // Revocation-aware gate BEFORE reading message PII (names/emails/bodies) —
+  // middleware is token-only, so this direct-read page would otherwise leak up to
+  // 500 tickets to a demoted staffer's still-valid JWT. Matches the API's
+  // outreach:read.
+  await requirePagePermission("outreach:read");
+
   let initialMessages: ContactMessageDTO[] = [];
   let staff: StaffOption[] = [];
   try {
