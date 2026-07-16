@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCached, setCached } from "@/lib/admin-cache";
@@ -114,8 +115,11 @@ export default function TimelinePage() {
                     href={`/admin/releases/${it.id}/edit`}
                     className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={it.coverImage} alt="" className="h-10 w-10 shrink-0 rounded-md border border-border object-cover" />
+                    {it.coverImage ? (
+                      <Image src={it.coverImage} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-md border border-border object-cover" />
+                    ) : (
+                      <div className="h-10 w-10 shrink-0 rounded-md border border-border bg-black/20" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium group-hover:underline">{it.name}</p>
                       <p className="truncate text-xs text-muted-foreground">{it.artistNames.join(", ") || "—"}</p>

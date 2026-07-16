@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { isOwnBucketUrl } from "@/lib/s3";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
@@ -78,6 +80,18 @@ function AssetGlyph({ mime, className }: { mime: string; className?: string }) {
   if (/zip/.test(mime)) return <FileArchive className={className} />;
   if (/^image\//.test(mime)) return <ImageIcon className={className} />;
   return <FileIcon className={className} />;
+}
+
+/** Image-asset thumbnail. Serves a resized WebP via next/image for objects on our
+ *  own S3 (allow-listed for the optimizer) instead of downloading the full-res
+ *  original into a small box (#24); an external/unknown host falls back to a raw
+ *  <img> (not optimizable). */
+function AssetThumb({ url, className }: { url: string; className: string }) {
+  if (isOwnBucketUrl(url)) {
+    return <Image src={url} alt="" width={256} height={256} className={className} />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className={className} />;
 }
 
 type UploadRow = { status: "queued" | "uploading" | "done" | "error"; pct: number; error?: string };
@@ -461,8 +475,7 @@ export default function AssetsClient({
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
     const thumbInner = isImg ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+      <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
     ) : (
       <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
     );
@@ -572,8 +585,7 @@ export default function AssetsClient({
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+                <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
               ) : (
                 <AssetGlyph mime={a.mimeType} className="h-4 w-4 text-muted-foreground" />
               )}
@@ -700,8 +712,7 @@ export default function AssetsClient({
         {(() => {
           const previewClass = "grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30";
           const inner = isImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+            <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
           ) : (
             <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
           );
