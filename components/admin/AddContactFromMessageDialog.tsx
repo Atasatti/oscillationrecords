@@ -110,12 +110,13 @@ export default function AddContactFromMessageDialog({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Name *</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Contact name" />
+            <label htmlFor="acfm-name" className="text-sm font-medium">Name *</label>
+            <Input id="acfm-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contact name" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Outlet / media group *</label>
+            <label htmlFor="acfm-outlet" className="text-sm font-medium">Outlet / media group *</label>
             <Input
+              id="acfm-outlet"
               value={outlet}
               onChange={(e) => setOutlet(e.target.value)}
               placeholder="e.g. Stereogum, BBC Introducing…"
@@ -126,8 +127,9 @@ export default function AddContactFromMessageDialog({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Type *</label>
+              <label htmlFor="acfm-type" className="text-sm font-medium">Type *</label>
               <select
+                id="acfm-type"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -138,8 +140,9 @@ export default function AddContactFromMessageDialog({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Email</label>
+              <label htmlFor="acfm-email" className="text-sm font-medium">Email</label>
               <Input
+                id="acfm-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
@@ -148,8 +151,9 @@ export default function AddContactFromMessageDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Notes</label>
+            <label htmlFor="acfm-notes" className="text-sm font-medium">Notes</label>
             <Textarea
+              id="acfm-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}

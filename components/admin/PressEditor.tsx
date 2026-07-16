@@ -495,6 +495,7 @@ export default function PressEditor({
                         if (errors.publisher) setErrors((p) => ({ ...p, publisher: undefined }));
                       }}
                       placeholder="Publisher / blog *"
+                      aria-label="Publisher / blog"
                       className={errors.publisher ? "border-red-500/70" : ""}
                     />
                     {errors.publisher ? <p className="mt-1 text-sm text-red-400">{errors.publisher}</p> : null}
@@ -504,6 +505,7 @@ export default function PressEditor({
                   value={form.author}
                   onChange={(e) => setField("author", e.target.value)}
                   placeholder={form.kind === "owned" ? "Author / byline (optional)" : "Author (optional)"}
+                  aria-label="Author"
                 />
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
