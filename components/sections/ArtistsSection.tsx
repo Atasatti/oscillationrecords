@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import ArtistCard from "../local-ui/ArtistCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { slugify } from "@/lib/slug";
@@ -131,9 +130,7 @@ const ArtistsSection = ({ initialArtists }: ArtistsSectionProps) => {
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-4 sm:mt-14 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4 2xl:grid-cols-5">
           {filteredArtists.map((artist) => (
-            <Link key={artist.id} href={`/artists/${slugify(artist.name)}`} className="block">
-              <ArtistCard artist={artist} />
-            </Link>
+            <ArtistCard key={artist.id} artist={artist} href={`/artists/${slugify(artist.name)}`} />
           ))}
         </div>
       )}

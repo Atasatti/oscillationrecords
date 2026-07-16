@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { BLUR_DATA_URL } from "@/lib/image-blur";
 import {
   motion,
@@ -46,9 +47,13 @@ interface Artist {
 interface ArtistCardProps {
   artist: Artist;
   onClick?: () => void;
+  /** When set, the whole card navigates here (via a transparent overlay link,
+   *  kept as a SIBLING of the social buttons so no interactive control is nested
+   *  inside an anchor — WCAG 4.1.2 / valid HTML). */
+  href?: string;
 }
 
-const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
+const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick, href }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   // When the user prefers reduced motion, the JS-driven tilt/shimmer/scale are
@@ -171,8 +176,21 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           }}
         />
 
+        {/* Whole-card navigation overlay (z-3, above the art). The content layer
+            above is pointer-events-none, so clicking the card — name, bio, empty
+            space — activates THIS link; the social buttons below re-enable pointer
+            events, so they stay clickable SIBLINGS, never nested inside an anchor
+            (fixes the invalid <a><button> nesting + the 11-tab-stops-per-card). */}
+        {href ? (
+          <Link
+            href={href}
+            aria-label={artist.name}
+            className="absolute inset-0 z-[3] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          />
+        ) : null}
+
         {/* Content */}
-        <div className="relative" style={{ zIndex: 3 }}>
+        <div className="relative pointer-events-none" style={{ zIndex: 4 }}>
           <p className="text-white font-semibold text-sm sm:text-base">{artist.name}</p>
           {/* Bio hidden on the small 2-up mobile cards (it overlapped the photo and
               read as clutter); shown from sm up where there's room. */}
@@ -184,7 +202,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           <div className="h-[1px] bg-gray-600 w-full mt-2" />
           {/* Icons wrap and shrink on mobile so a long social list can't overflow
               the narrow card; the original nowrap/justify-between returns at sm. */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3 sm:flex-nowrap sm:justify-between sm:gap-2">
+          <div className="pointer-events-auto mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3 sm:flex-nowrap sm:justify-between sm:gap-2">
             {socials
               .filter((s) => s.url)
               .map(({ url, Icon, label, type }) => (
