@@ -30,7 +30,7 @@ const Artists = async () => {
 
   return (
     <div>
-      <ScrollReveal3D>
+      <ScrollReveal3D immediate>
         <MeetArtistSection variant="artists" initialArtists={artists} />
       </ScrollReveal3D>
       <ScrollReveal3D>

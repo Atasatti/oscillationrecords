@@ -41,7 +41,7 @@ export default async function Releases() {
           __html: jsonLdScript(buildReleaseListJsonLd(allReleases)),
         }}
       />
-      <ScrollReveal3D>
+      <ScrollReveal3D immediate>
         <NewMusicSection initialReleases={carouselReleases} />
       </ScrollReveal3D>
       <ScrollReveal3D>

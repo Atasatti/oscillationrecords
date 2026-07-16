@@ -49,7 +49,7 @@ export default async function PressPage() {
         />
       ) : null}
 
-      <ScrollReveal3D>
+      <ScrollReveal3D immediate>
         <section className="px-4 py-10 text-white sm:px-6 sm:py-14 md:px-[10%]">
           <h1 className="mb-2 text-3xl font-light tracking-tighter">Press &amp; Features</h1>
           <p className="mb-8 max-w-2xl text-sm text-gray-400">
