@@ -150,6 +150,8 @@ export default function BenertRemixPageContent({
         body: JSON.stringify({
           audioFileName,
           audioFileType: selectedFile.type,
+          // Sign the presign to this exact size so the PUT can't exceed it (#6).
+          size: selectedFile.size,
         }),
       });
       if (!resUrl.ok) {

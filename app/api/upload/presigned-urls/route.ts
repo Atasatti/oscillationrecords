@@ -22,6 +22,10 @@ export const runtime = "nodejs";
 
 // Non-admin uploads (the public Benert Remix competition) are confined to this prefix.
 const PUBLIC_UPLOAD_PREFIX = "benert-remix/";
+// Hard size cap for a competition upload, matched to upload-complete's MAX_AUDIO_BYTES.
+// Signed into the presign as an exact Content-Length so an entrant can neither
+// declare nor PUT more than this (#6).
+const MAX_COMPETITION_AUDIO_BYTES = 200 * 1024 * 1024;
 
 // POST /api/upload/presigned-urls - Get presigned URLs for audio (+ optional image).
 // Admin: full catalog uploads (any key/type, incl. stems). Other signed-in users:
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { audioFileName, audioFileType, imageFileName, imageFileType } = body;
+    const declaredSize = Number(body.size);
 
     // Audio is required
     if (!audioFileName || !audioFileType) {
@@ -79,12 +84,23 @@ export async function POST(request: NextRequest) {
     }
 
     let audioKey = sanitizedAudio;
+    // When set, the presign is bound to this exact Content-Length so the browser's
+    // PUT can't exceed it. Enforced for the untrusted competition path; admin
+    // catalog uploads (trusted, rate-limited) keep the current unbound behaviour.
+    let audioContentLength: number | undefined;
 
     // Untrusted (non-admin) users may only upload audio, and the SERVER owns the
     // key: we discard the client's path and force `benert-remix/<userId>/<name>`.
     // This stops an entrant from overwriting another's submission or writing
     // outside the competition prefix (the client just uses the returned fileURL).
     if (!isAdmin) {
+      // Size-cap at SIGN time: reject an oversized (or missing) declared size, and
+      // bind the presign to it so a huge PUT is refused by S3 even if never
+      // registered via upload-complete (#6).
+      if (!Number.isFinite(declaredSize) || declaredSize <= 0 || declaredSize > MAX_COMPETITION_AUDIO_BYTES) {
+        return NextResponse.json({ error: "File is missing a valid size or is too large" }, { status: 400 });
+      }
+      audioContentLength = declaredSize;
       const base = sanitizeKey(sanitizedAudio.split("/").pop() || "");
       const safeSub = String(guard.token.sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
       if (!base || !safeSub) {
@@ -111,6 +127,7 @@ export async function POST(request: NextRequest) {
         Bucket: S3_BUCKET,
         Key: audioKey,
         ContentType: audioFileType,
+        ...(audioContentLength !== undefined ? { ContentLength: audioContentLength } : {}),
       }),
       { expiresIn: 3600 }
     );
