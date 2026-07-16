@@ -256,15 +256,27 @@ export default function AssetsClient({
     const editable = selectedAssets().filter((a) => !a.readOnly);
     if (editable.length === 0) { toast.error("Only uploaded files can be deleted — catalog media is managed on its record"); return; }
     setWorking(true);
-    let ok = 0;
-    for (const a of editable) {
-      try { const r = await fetch(`/api/assets/${a.id}`, { method: "DELETE" }); if (r.ok) ok += 1; } catch { /* skip */ }
-    }
-    const ids = new Set(editable.map((a) => a.id));
-    setAssets((list) => list.filter((x) => !ids.has(x.id)));
-    setSelected(new Set());
+    // Track which deletes actually succeeded so we only drop those rows and can
+    // report failures — the previous version removed every selected row and always
+    // toasted success even when deletes 500'd, silently diverging from the DB.
+    const results = await Promise.allSettled(
+      editable.map((a) =>
+        fetch(`/api/assets/${a.id}`, { method: "DELETE" }).then((r) => {
+          if (!r.ok) throw new Error(String(r.status));
+          return a.id;
+        })
+      )
+    );
+    const deleted = new Set(
+      results.filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled").map((r) => r.value)
+    );
+    const failed = editable.filter((a) => !deleted.has(a.id)).map((a) => a.id);
+    setAssets((list) => list.filter((x) => !deleted.has(x.id)));
+    // Keep any that failed selected so the admin can retry; clear the rest.
+    setSelected(new Set(failed));
     setWorking(false);
-    toast.success(`Deleted ${ok} file${ok === 1 ? "" : "s"}`);
+    if (deleted.size) toast.success(`Deleted ${deleted.size} file${deleted.size === 1 ? "" : "s"}`);
+    if (failed.length) toast.error(`${failed.length} file${failed.length === 1 ? "" : "s"} could not be deleted`);
   };
   const applyReassign = async () => {
     const editable = selectedAssets().filter((a) => !a.readOnly);
@@ -274,11 +286,12 @@ export default function AssetsClient({
     if (reassignArtist) body.artistId = reassignArtist === "__none__" ? null : reassignArtist;
     if (Object.keys(body).length === 0) { setReassignOpen(false); return; }
     setWorking(true);
+    let ok = 0;
     for (const a of editable) {
       try {
         const r = await fetch(`/api/assets/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const j = await r.json().catch(() => ({}));
-        if (r.ok && j.asset) setAssets((list) => list.map((x) => (x.id === a.id ? { ...x, ...j.asset } : x)));
+        if (r.ok && j.asset) { setAssets((list) => list.map((x) => (x.id === a.id ? { ...x, ...j.asset } : x))); ok += 1; }
       } catch { /* skip */ }
     }
     setWorking(false);
@@ -286,7 +299,9 @@ export default function AssetsClient({
     setSelected(new Set());
     setReassignRelease("");
     setReassignArtist("");
-    toast.success(`Reassigned ${editable.length} file${editable.length === 1 ? "" : "s"}`);
+    // Report the real success count, not the attempted count.
+    if (ok) toast.success(`Reassigned ${ok} file${ok === 1 ? "" : "s"}`);
+    if (ok < editable.length) toast.error(`${editable.length - ok} file${editable.length - ok === 1 ? "" : "s"} could not be reassigned`);
   };
 
   const setRow = (i: number, patch: Partial<UploadRow>) =>

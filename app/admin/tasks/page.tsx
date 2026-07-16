@@ -1234,7 +1234,9 @@ export default function TasksPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
+    const prev = tasks.find((t) => t.id === id);
     setTasks((list) => list.map((t) => (t.id === id ? { ...t, status } : t)));
+    setCached("tasks-list", tasks.map((t) => (t.id === id ? { ...t, status } : t)));
     try {
       const res = await fetch(`/api/outreach/tasks/${id}`, {
         method: "PATCH",
@@ -1242,6 +1244,12 @@ export default function TasksPage() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error();
+      // Completing a recurring task spawns its next occurrence server-side; refetch
+      // so that new 'todo' row appears instead of silently vanishing until an
+      // unrelated refresh (which made admins think it was lost and re-create it).
+      if (status === "done" && prev?.status !== "done" && isRecurrence(prev?.recurrence ?? null)) {
+        loadTasks();
+      }
     } catch {
       toast.error("Failed to update task");
       loadTasks();
