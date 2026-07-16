@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requirePermission } from "@/lib/auth-guard";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  CATALOG_IMAGE_PREFIXES,
   isImageContentType,
+  keyHasPrefix,
   publicFileUrl,
   s3Client,
   s3Configured,
@@ -27,6 +30,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Per-user presign rate-limit (curbs storage/cost abuse from a compromised
+    // catalog session), matching the sibling presigned-urls / task-attachment routes.
+    const rl = rateLimit(`presign-img:${guard.token.sub}`, 60, 60_000);
+    if (!rl.ok) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const body = await request.json();
     const { imageFileName, imageFileType } = body;
 
@@ -40,6 +50,11 @@ export async function POST(request: NextRequest) {
     const key = sanitizeKey(imageFileName);
     if (!key) {
       return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
+    }
+    // Confine the client-supplied key to catalog image namespaces so a catalog
+    // session can't sign a PUT to an arbitrary bucket key (#26).
+    if (!keyHasPrefix(key, CATALOG_IMAGE_PREFIXES)) {
+      return NextResponse.json({ error: "imageFileName must be under an allowed path" }, { status: 400 });
     }
 
     // Raster images only — reject image/svg+xml (and non-image types): an SVG

@@ -64,6 +64,18 @@ export function sanitizeKey(name: unknown): string | null {
   return trimmed;
 }
 
+// Server-owned key namespaces the catalog upload routes may write to. Confining
+// client-supplied presign keys to these stops a catalog editor (or a compromised
+// catalog session) from signing a PUT to an ARBITRARY key — e.g. overwriting a
+// competition entry (benert-remix/) or a task attachment or another scope's object.
+export const CATALOG_IMAGE_PREFIXES = ["artists/", "press/", "releases/", "site/"] as const;
+export const CATALOG_AUDIO_PREFIXES = ["tracks/"] as const;
+
+/** True when `key` sits under one of the allowed prefixes. */
+export function keyHasPrefix(key: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((p) => key.startsWith(p));
+}
+
 /** Delete an object from our bucket. Best-effort: returns false (never throws)
  *  when S3 isn't configured or the delete fails, so callers can proceed. */
 export async function deleteS3Object(key: string): Promise<boolean> {

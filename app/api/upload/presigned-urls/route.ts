@@ -5,8 +5,11 @@ import { requireUser, requirePermission } from "@/lib/auth-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  CATALOG_AUDIO_PREFIXES,
+  CATALOG_IMAGE_PREFIXES,
   isAudioContentType,
   isImageContentType,
+  keyHasPrefix,
   publicFileUrl,
   s3Client,
   s3Configured,
@@ -88,6 +91,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
       }
       audioKey = `${PUBLIC_UPLOAD_PREFIX}${safeSub}/${base}`;
+    } else if (!keyHasPrefix(audioKey, CATALOG_AUDIO_PREFIXES)) {
+      // Admin audio keys are client-supplied — confine them to the tracks/ namespace
+      // so a catalog session can't sign a PUT to an arbitrary key (#26). Non-admin
+      // keys are already server-forced to the competition prefix above.
+      return NextResponse.json({ error: "audioFileName must be under an allowed path" }, { status: 400 });
     }
 
     const results: {
@@ -125,6 +133,9 @@ export async function POST(request: NextRequest) {
       const imageKey = sanitizeKey(imageFileName);
       if (!imageKey) {
         return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
+      }
+      if (!keyHasPrefix(imageKey, CATALOG_IMAGE_PREFIXES)) {
+        return NextResponse.json({ error: "imageFileName must be under an allowed path" }, { status: 400 });
       }
       const imageUploadURL = await getSignedUrl(
         s3Client,
