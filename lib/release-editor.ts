@@ -306,12 +306,31 @@ export function makeRowId(): string {
   return `row-${Date.now().toString(36)}-${rowSeq}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/**
+ * A MongoDB-style 24-hex ObjectId generated client-side. Assigned to a NEW editor
+ * track so it carries a STABLE id from creation: the PATCH route upserts tracks on
+ * their id, so if a save half-completes and the client retries the same payload,
+ * the already-created track is updated (idempotent) instead of duplicated (#8).
+ */
+export function newObjectId(): string {
+  const ts = Math.floor(Date.now() / 1000).toString(16).padStart(8, "0").slice(0, 8);
+  const g = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
+  const bytes =
+    g?.getRandomValues
+      ? Array.from(g.getRandomValues(new Uint8Array(8)))
+      : Array.from({ length: 8 }, () => Math.floor(Math.random() * 256));
+  return ts + bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** A blank editor track, seeded with the release's default primary artists. */
 export function newEditorTrack(
   defaults: { name?: string; primaryArtistIds?: string[]; featureArtistText?: string } = {}
 ): EditorTrack {
   return {
     rowId: makeRowId(),
+    // Stable server id from creation so a retried save can't duplicate this track
+    // (the PATCH route upserts on it — see newObjectId / #8).
+    id: newObjectId(),
     name: defaults.name ?? "",
     audioFile: "",
     duration: 0,

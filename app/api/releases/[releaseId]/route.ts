@@ -115,6 +115,10 @@ export async function GET(
   }
 }
 
+// A 24-hex Mongo ObjectId — used to decide whether a client-supplied track id can
+// be trusted as an upsert key (#8).
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+
 function parseTrackInput(
   t: Record<string, unknown>,
   index: number,
@@ -400,9 +404,15 @@ export async function PATCH(
         // Per-track audio/artist are enforced only when the release is going fully
         // live (RELEASED); drafts and Coming-Soon save freely.
         const enforceTrackPublishRules = nextStatus === "RELEASED";
+        // A track is NEW when its id isn't already stored on this release. Clients
+        // now send a stable client-generated id for new tracks too (#8), so "new"
+        // can't be inferred from id-absence alone — check DB membership.
+        const existingTrackIdSet = new Set(existing.tracks.map((t) => String(t.id)));
+        const isNewTrack = (t: Record<string, unknown>) =>
+          !t.id || !existingTrackIdSet.has(String(t.id));
         try {
           parsedTracks = tracksRaw.map((t: Record<string, unknown>, i: number) =>
-            parseTrackInput(t, i, !t.id, enforceTrackPublishRules)
+            parseTrackInput(t, i, isNewTrack(t), enforceTrackPublishRules)
           );
         } catch (e) {
           return NextResponse.json(
@@ -590,38 +600,49 @@ export async function PATCH(
             })
           );
         }
-        return withWriteRetry(() =>
-          prisma.track.create({
-            data: {
-              releaseId,
-              name: t.name,
-              image: t.image,
-              audioFile: t.audioFile,
-              duration: t.duration,
-              releaseDate: t.releaseDate,
-              composer: t.composer,
-              lyricist: t.lyricist,
-              leadVocal: t.leadVocal,
-              lyrics: t.lyrics,
-              syncedLyrics: t.syncedLyrics,
-              stemsFile: t.stemsFile,
-              trackCredits: t.trackCredits,
-              isrcCode: t.isrcCode,
-              iswc: t.iswc,
-              isrcExplicit: t.isrcExplicit,
-              spotifyLink: t.spotifyLink,
-              appleMusicLink: t.appleMusicLink,
-              tidalLink: t.tidalLink,
-              amazonMusicLink: t.amazonMusicLink,
-              youtubeLink: t.youtubeLink,
-              soundcloudLink: t.soundcloudLink,
-              primaryArtistIds: t.primaryArtistIds,
-              featureArtistIds: t.featureArtistIds,
-              featureArtistNames: t.featureArtistNames,
-              sortOrder: t.sortOrder,
-            },
-          })
-        );
+        // NEW track. Build the row once, then UPSERT on the client-supplied stable
+        // id so a retried save (after a mid-batch failure) UPDATES the already-
+        // created track instead of duplicating it (#8). A missing/invalid id falls
+        // back to a plain create (Mongo assigns one) — legacy-safe.
+        const data: Prisma.TrackUncheckedCreateInput = {
+          releaseId,
+          name: t.name,
+          image: t.image,
+          audioFile: t.audioFile,
+          duration: t.duration,
+          releaseDate: t.releaseDate,
+          composer: t.composer,
+          lyricist: t.lyricist,
+          leadVocal: t.leadVocal,
+          lyrics: t.lyrics,
+          syncedLyrics: t.syncedLyrics,
+          stemsFile: t.stemsFile,
+          trackCredits: t.trackCredits,
+          isrcCode: t.isrcCode,
+          iswc: t.iswc,
+          isrcExplicit: t.isrcExplicit,
+          spotifyLink: t.spotifyLink,
+          appleMusicLink: t.appleMusicLink,
+          tidalLink: t.tidalLink,
+          amazonMusicLink: t.amazonMusicLink,
+          youtubeLink: t.youtubeLink,
+          soundcloudLink: t.soundcloudLink,
+          primaryArtistIds: t.primaryArtistIds,
+          featureArtistIds: t.featureArtistIds,
+          featureArtistNames: t.featureArtistNames,
+          sortOrder: t.sortOrder,
+        };
+        if (t.id && OBJECT_ID.test(t.id)) {
+          return withWriteRetry(() =>
+            prisma.track.upsert({
+              where: { id: t.id },
+              create: { ...data, id: t.id },
+              // JSON fields take Prisma.JsonNull (not raw null) on UPDATE.
+              update: { ...data, trackCredits: t.trackCredits ?? Prisma.JsonNull } as Prisma.TrackUncheckedUpdateInput,
+            })
+          );
+        }
+        return withWriteRetry(() => prisma.track.create({ data }));
       });
       // Bounded concurrency: fast, but won't exhaust the DB connection pool.
       for (let i = 0; i < writes.length; i += 5) {
