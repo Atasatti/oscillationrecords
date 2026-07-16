@@ -79,7 +79,7 @@ export default function PressCard({
           ) : (
             <span>{item.publisher}</span>
           )}
-          {date ? <span className="text-gray-500">· {date}</span> : null}
+          {date ? <span className="text-gray-400">· {date}</span> : null}
         </p>
         {/* line-clamp bounds the height; break-words stops a long unbroken token
             (e.g. a URL-like headline) from overflowing the card width. */}

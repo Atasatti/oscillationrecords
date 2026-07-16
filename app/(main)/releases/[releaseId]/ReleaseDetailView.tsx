@@ -400,7 +400,7 @@ export default function ReleaseDetailView({
                     className="border-b border-white/5 last:border-b-0"
                   >
                     <div className="grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
-                      <span className="w-5 text-xs text-gray-500 text-right">{index + 1}</span>
+                      <span className="w-5 text-xs text-gray-400 text-right">{index + 1}</span>
                       <button
                         type="button"
                         onClick={() => playTrackFromArtwork(song)}
@@ -448,7 +448,7 @@ export default function ReleaseDetailView({
                           contextName={song.name}
                         />
                       </div>
-                      <span className="hidden sm:block text-xs text-gray-500 tabular-nums">
+                      <span className="hidden sm:block text-xs text-gray-400 tabular-nums">
                         {formatDuration(song.duration)}
                       </span>
                       <button
@@ -492,7 +492,7 @@ export default function ReleaseDetailView({
                 <button
                   type="button"
                   onClick={() => router.push("/releases")}
-                  className="text-xs text-gray-500 hover:text-white transition-colors shrink-0 ml-4"
+                  className="text-xs text-gray-400 hover:text-white transition-colors shrink-0 ml-4"
                 >
                   View all →
                 </button>
@@ -588,23 +588,23 @@ export default function ReleaseDetailView({
                 ) : null}
               </div>
               <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(6rem,auto)_1fr]">
-                <dt className="text-gray-500">Duration</dt>
+                <dt className="text-gray-400">Duration</dt>
                 <dd className="text-gray-200">{formatDuration(selectedTrack.duration)}</dd>
                 {selectedTrack.composer ? (
                   <>
-                    <dt className="text-gray-500">Composer</dt>
+                    <dt className="text-gray-400">Composer</dt>
                     <dd className="text-gray-200">{selectedTrack.composer}</dd>
                   </>
                 ) : null}
                 {selectedTrack.lyricist ? (
                   <>
-                    <dt className="text-gray-500">Lyricist</dt>
+                    <dt className="text-gray-400">Lyricist</dt>
                     <dd className="text-gray-200">{selectedTrack.lyricist}</dd>
                   </>
                 ) : null}
                 {selectedTrack.leadVocal ? (
                   <>
-                    <dt className="text-gray-500">Lead vocal</dt>
+                    <dt className="text-gray-400">Lead vocal</dt>
                     <dd className="text-gray-200">{selectedTrack.leadVocal}</dd>
                   </>
                 ) : null}
@@ -618,7 +618,7 @@ export default function ReleaseDetailView({
                         key={`${credit.name}-${credit.role ?? "role"}-${idx}`}
                         className="grid gap-x-3 gap-y-1 sm:grid-cols-[minmax(8rem,auto)_1fr]"
                       >
-                        <p className="text-gray-500">{formatCreditCategory(credit.category)}</p>
+                        <p className="text-gray-400">{formatCreditCategory(credit.category)}</p>
                         <p className="text-gray-200">
                           {credit.name}
                           {credit.role ? (
