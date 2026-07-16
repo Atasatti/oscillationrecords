@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  deleteS3Object,
   isAudioContentType,
   isOwnBucketUrl,
   s3Client,
@@ -88,9 +89,14 @@ export async function POST(request: NextRequest) {
           new HeadObjectCommand({ Bucket: S3_BUCKET, Key: objectKey })
         );
         if (typeof head.ContentLength === "number" && head.ContentLength > MAX_AUDIO_BYTES) {
+          // Sweep the rejected object instead of leaving it in the bucket — an
+          // oversized upload that's validated-but-kept is exactly the unswept-object
+          // storage abuse the audit flagged (#6). Mirrors the assets route.
+          await deleteS3Object(objectKey);
           return NextResponse.json({ error: "File is too large" }, { status: 400 });
         }
         if (head.ContentType && !isAudioContentType(head.ContentType)) {
+          await deleteS3Object(objectKey);
           return NextResponse.json({ error: "Uploaded file must be audio" }, { status: 400 });
         }
       } catch (e) {
