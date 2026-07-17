@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 import { useParams } from "next/navigation";
 import ReleaseWorkflow from "@/components/admin/release-editor/ReleaseWorkflow";
 
@@ -10,5 +11,11 @@ import ReleaseWorkflow from "@/components/admin/release-editor/ReleaseWorkflow";
 export default function EditReleasePage() {
   const params = useParams();
   const releaseId = params.releaseId as string;
-  return <ReleaseWorkflow releaseId={releaseId} />;
+  // ReleaseWorkflow reads ?step=<slug> via useSearchParams — needs a Suspense
+  // boundary so it doesn't force a client-side bailout of the whole route.
+  return (
+    <Suspense fallback={null}>
+      <ReleaseWorkflow releaseId={releaseId} />
+    </Suspense>
+  );
 }
