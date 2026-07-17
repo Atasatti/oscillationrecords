@@ -460,7 +460,7 @@ function ReleasesPageInner({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="@container rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -478,8 +478,8 @@ function ReleasesPageInner({
                   Release {sortIcon("name")}
                 </button>
               </TableHead>
-              <TableHead className="hidden md:table-cell">Artist</TableHead>
-              <TableHead>
+              <TableHead className="hidden @xl:table-cell">Artist</TableHead>
+              <TableHead className="hidden @md:table-cell">
                 <button type="button" onClick={() => toggleSort("kind")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Type {sortIcon("kind")}
                 </button>
@@ -487,24 +487,24 @@ function ReleasesPageInner({
               <TableHead>
                 <span className="inline-flex items-center gap-1">Status <InfoHint text="Draft = hidden. Scheduled = future-dated, shows in Coming Soon. Live = public." /></span>
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden @6xl:table-cell">
                 <span className="inline-flex items-center gap-1">Latest <InfoHint text="Shows a 'Latest' badge on the home page. Only one release can be Latest at a time — turning it on clears the others." /></span>
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden @6xl:table-cell">
                 <span className="inline-flex items-center gap-1">New Music <InfoHint text="Feature this release in the home page's New Music carousel. Set the carousel order on the Homepage screen." /></span>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">
+              <TableHead className="hidden @2xl:table-cell">
                 <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-release SEO score (0–100) from the fields that drive search ranking and rich results: streaming links, description, cover image, tracklist, genres, release date and primary artist. The badge shows the highest-impact gap — click it to fill it." /></span>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">
+              <TableHead className="hidden @4xl:table-cell">
                 <span className="inline-flex items-center gap-1">Lyrics <InfoHint text="How many of the release's tracks have lyrics entered. Lyrics show on the release page and feed the search / AI structured data. Click to edit them on the tracklist." /></span>
               </TableHead>
-              <TableHead className="hidden xl:table-cell">
+              <TableHead className="hidden @5xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
                 </button>
               </TableHead>
-              <TableHead className="w-10 text-right">Actions</TableHead>
+              <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -518,13 +518,13 @@ function ReleasesPageInner({
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                  <TableCell className="hidden @xl:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell className="hidden @md:table-cell"><Skeleton className="h-5 w-14" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
-                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden @6xl:table-cell"><Skeleton className="h-5 w-10" /></TableCell>
+                  <TableCell className="hidden @6xl:table-cell"><Skeleton className="h-5 w-10" /></TableCell>
+                  <TableCell className="hidden @2xl:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell className="hidden @4xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
@@ -546,21 +546,28 @@ function ReleasesPageInner({
                       className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
                     />
                   </TableCell>
-                  <TableCell>
-                    <Link href={`/admin/releases/${r.id}/edit`} className="flex items-center gap-3 group">
+                  <TableCell className="w-full max-w-0">
+                    <Link href={`/admin/releases/${r.id}/edit`} className="flex min-w-0 items-center gap-3 group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={r.thumbnail || "/new-music-img1.svg"}
                         alt=""
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                        className="h-11 w-11 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
                       />
-                      <span className="truncate font-medium group-hover:underline">{r.name}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium group-hover:underline">{r.name}</span>
+                        {/* Artist + Type columns are hidden until the table is wide enough — surface
+                            them here (until the Artist column appears at @xl) so nothing key is lost. */}
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground @xl:hidden">
+                          {[r.primaryArtistName || r.artist, kindLabel(r.type)].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
                     </Link>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground truncate">
+                  <TableCell className="hidden @xl:table-cell max-w-[8rem] truncate text-sm text-muted-foreground">
                     {r.primaryArtistName || r.artist || "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden @md:table-cell">
                     <Badge variant="outline">{kindLabel(r.type)}</Badge>
                   </TableCell>
                   <TableCell>
@@ -572,7 +579,7 @@ function ReleasesPageInner({
                       <Badge variant="muted">Draft</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden @6xl:table-cell">
                     <button
                       type="button"
                       disabled={!isLiveRelease(r) || pendingFlags.has(r.id)}
@@ -583,7 +590,7 @@ function ReleasesPageInner({
                       {r.showLatestOnHome ? <Badge variant="destructive">Latest</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden @6xl:table-cell">
                     <button
                       type="button"
                       disabled={r.status === "DRAFT" || pendingFlags.has(r.id)}
@@ -594,7 +601,7 @@ function ReleasesPageInner({
                       {r.showOnHome ? <Badge variant="warning"><Star className="h-3 w-3" /> On</Badge> : <Badge variant="muted">Off</Badge>}
                     </button>
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell className="hidden @2xl:table-cell">
                     {r.seoScore === null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
@@ -622,7 +629,7 @@ function ReleasesPageInner({
                       </Link>
                     )}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell className="hidden @4xl:table-cell">
                     {r.lyricsCoverage && r.lyricsCoverage.total > 0 ? (
                       <Link
                         href={`/admin/releases/${r.id}/tracks`}
@@ -651,7 +658,7 @@ function ReleasesPageInner({
                     )}
                   </TableCell>
                   <TableCell
-                    className="hidden xl:table-cell text-sm text-muted-foreground"
+                    className="hidden @5xl:table-cell whitespace-nowrap text-sm text-muted-foreground"
                     suppressHydrationWarning
                   >
                     {/* Pin locale + timeZone so the server (Node) and client (browser)
