@@ -932,7 +932,7 @@ export default function TasksPage() {
     const cached = getCached<{ releases: CatalogRef[]; artists: CatalogRef[] }>("task-catalog-refs");
     if (cached) { setReleaseRefs(cached.releases); setArtistRefs(cached.artists); }
     try {
-      const res = await fetch("/api/admin/site-content-refs");
+      const res = await fetch("/api/admin/catalog-refs");
       if (!res.ok) throw new Error();
       const data = await res.json();
       const refs = { releases: data.releases ?? [], artists: data.artists ?? [] };
