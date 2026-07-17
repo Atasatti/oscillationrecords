@@ -281,7 +281,7 @@ export default function ErrorsPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="@container rounded-xl border border-border bg-card">
         <div className="border-b border-border px-4 py-2.5 text-sm text-muted-foreground">
           {isLive ? (
             <>
@@ -295,15 +295,20 @@ export default function ErrorsPage() {
         </div>
         {/* table-fixed so a long error message truncates inside the Error column
             instead of stretching the table wider than the page (horizontal
-            scroll). Column widths come from the <th> below. */}
+            scroll). Column widths come from the <th> below. Lower-priority columns
+            (Source / Count / Last seen) are hidden on a narrow card and surfaced in
+            the Error cell's meta line instead, so the table always fits the width
+            and the Actions stay reachable. overflow-x-auto is a belt-and-braces
+            guard. */}
+        <div className="overflow-x-auto">
         <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="w-8 px-2 py-2" />
               <th className="px-3 py-2 text-left font-medium">Error</th>
-              <th className="w-20 px-3 py-2 text-left font-medium">Source</th>
-              <th className="w-16 px-3 py-2 text-right font-medium">Count</th>
-              <th className="w-40 px-3 py-2 text-left font-medium">Last seen</th>
+              <th className="hidden w-20 px-3 py-2 text-left font-medium @xl:table-cell">Source</th>
+              <th className="hidden w-16 px-3 py-2 text-right font-medium @md:table-cell">Count</th>
+              <th className="hidden w-40 px-3 py-2 text-left font-medium @2xl:table-cell">Last seen</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -362,8 +367,22 @@ export default function ErrorsPage() {
                             {row.path}
                           </span>
                         ) : null}
+                        {/* Source / Count / Last seen live in their own columns on a
+                            wide card; on a narrow one those columns are hidden, so
+                            show the same triage info here. Each piece drops out at the
+                            width its column appears, so nothing is ever shown twice. */}
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground @2xl:hidden">
+                          <span className="tabular-nums @md:hidden">{row.count.toLocaleString()}×</span>
+                          <span className="inline-flex items-center gap-1 @xl:hidden">
+                            {row.source === "server" ? <ServerCog className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                            {row.source}
+                          </span>
+                          <span className="@2xl:hidden">
+                            {new Date(row.lastSeen).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 @xl:table-cell">
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           {row.source === "server" ? (
                             <ServerCog className="h-3.5 w-3.5" />
@@ -373,10 +392,10 @@ export default function ErrorsPage() {
                           {row.source}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums text-foreground @md:table-cell">
                         {row.count.toLocaleString()}
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
+                      <td className="hidden px-3 py-2.5 text-muted-foreground @2xl:table-cell">
                         {new Date(row.lastSeen).toLocaleString()}
                       </td>
                       <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
@@ -452,6 +471,7 @@ export default function ErrorsPage() {
             )}
           </tbody>
         </table>
+        </div>
         <div className="border-t border-border px-4 py-3">
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
