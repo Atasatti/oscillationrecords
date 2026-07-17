@@ -160,31 +160,43 @@ export default function Breadcrumbs() {
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
-      <ol className="flex items-center gap-1.5 text-sm">
-        {crumbs.map((c, idx) => (
+      <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm">
+        {crumbs.map((c, idx) => {
+          // On a narrow topbar the whole trail can't fit, and shrinking every crumb
+          // equally turns it into an unreadable "Ad… › Outre… › Pitc… › E…". Instead
+          // keep only the current page and its immediate parent on mobile — enough to
+          // know where you are and step back — and restore the full trail at ≥sm,
+          // where the header has room. Ancestors never truncate; only the (usually
+          // short) current-page crumb may, as a safety for long names.
+          const hideOnMobile = idx < crumbs.length - 2;
           // Key by index, not href: some trails legitimately repeat an href, and
           // duplicate React keys corrupt reconciliation — leaving stale crumb nodes
           // behind across navigations. The trail is fully re-derived from the
           // pathname each render, so the index is a stable, collision-free key.
-          <li key={idx} className="flex items-center gap-1.5 min-w-0">
-            {c.isLast ? (
-              <span className="truncate font-medium text-foreground" aria-current="page">
-                {c.label}
-              </span>
-            ) : (
-              <>
-                <Link
-                  href={c.href}
-                  onClick={onLinkClick}
-                  className="truncate text-muted-foreground transition-colors hover:text-foreground"
-                >
+          return (
+            <li
+              key={idx}
+              className={`flex items-center gap-1.5 ${c.isLast ? "min-w-0" : "shrink-0"} ${hideOnMobile ? "hidden sm:flex" : ""}`}
+            >
+              {c.isLast ? (
+                <span className="truncate font-medium text-foreground" aria-current="page">
                   {c.label}
-                </Link>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
-              </>
-            )}
-          </li>
-        ))}
+                </span>
+              ) : (
+                <>
+                  <Link
+                    href={c.href}
+                    onClick={onLinkClick}
+                    className="whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {c.label}
+                  </Link>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+                </>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );
