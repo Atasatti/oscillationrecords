@@ -1791,6 +1791,9 @@ export default function TasksPage() {
         <>
       {/* Tabs: Needs attention + status filters, then category */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
+        {/* The status filter is wider than a phone; let it scroll within its own
+            full-width row instead of pushing the whole page sideways. */}
+        <div className="w-full overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0">
         <div className="inline-flex items-center rounded-lg border border-border p-0.5">
           <button
             type="button"
@@ -1824,6 +1827,7 @@ export default function TasksPage() {
               <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
             </button>
           ))}
+        </div>
         </div>
         {tab === "all" && (counts.done ?? 0) > 0 ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
