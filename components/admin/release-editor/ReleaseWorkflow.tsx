@@ -88,7 +88,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
         aria-label="Release sections"
         className="sticky top-0 z-20 -mx-4 mb-8 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8"
       >
-        <ol className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <ol className="flex flex-wrap gap-1.5">
           {STEPS.map((s) => {
             const st = statuses[s.n] ?? "empty";
             const isActive = active === s.n;
