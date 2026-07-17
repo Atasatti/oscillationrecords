@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Search, X, Loader2 } from "lucide-react";
+import { isObjectId } from "@/lib/object-id";
 
 type ArtistHit = { id: string; name: string; profilePicture: string | null };
 type ReleaseHit = { id: string; name: string; thumbnail: string | null; primaryArtistName: string | null };
@@ -33,8 +34,10 @@ export default function AdminQuickSearch() {
           fetch(`/api/releases?pageSize=5&q=${encodeURIComponent(term)}`).then((x) => (x.ok ? x.json() : { items: [] })),
         ]);
         if (cancelled) return; // a newer query superseded this one
-        setArtists(a.items || []);
-        setReleases(r.items || []);
+        // Only keep hits with a valid id — a result whose id is missing would build
+        // a dead jump URL like `/admin/artist/null`, so drop it rather than show it.
+        setArtists((a.items || []).filter((x: ArtistHit) => isObjectId(x.id)));
+        setReleases((r.items || []).filter((x: ReleaseHit) => isObjectId(x.id)));
       } finally {
         if (!cancelled) setLoading(false);
       }

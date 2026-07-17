@@ -9,6 +9,7 @@ import { adminGroups } from "./AdminSidebar";
 import { TAB_GROUPS } from "./SectionTabs";
 import { roleCan, type Permission } from "@/lib/permissions";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
+import { isObjectId } from "@/lib/object-id";
 
 // Flattened, deduped nav destinations (sidebar sections + in-page tab sub-views),
 // computed once. Permission is applied per-viewer at render.
@@ -100,13 +101,15 @@ export default function CommandPalette() {
       .slice(0, q ? 8 : 60)
       .map<Item>((d) => ({ kind: "nav", id: d.href, label: d.label, sub: d.group || "Go to", href: d.href }));
     if (!q || !data) return nav;
-    const rel = data.releases.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 6)
+    // Guard every entity id before it becomes part of a jump URL — a hit with a
+    // missing/invalid id would route to a dead page like `/admin/releases/null/edit`.
+    const rel = data.releases.filter((r) => isObjectId(r.id) && r.name.toLowerCase().includes(q)).slice(0, 6)
       .map<Item>((r) => ({ kind: "release", id: r.id, label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
-    const art = data.artists.filter((a) => a.name.toLowerCase().includes(q)).slice(0, 6)
+    const art = data.artists.filter((a) => isObjectId(a.id) && a.name.toLowerCase().includes(q)).slice(0, 6)
       .map<Item>((a) => ({ kind: "artist", id: a.id, label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
     // Individual tracks — a song title jumps to its release's tracklist. Several
     // tracks can share one release (hence one href), so each carries its own id.
-    const trk = data.tracks.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 6)
+    const trk = data.tracks.filter((t) => isObjectId(t.releaseId) && t.name.toLowerCase().includes(q)).slice(0, 6)
       .map<Item>((t) => ({
         kind: "track",
         id: t.id,

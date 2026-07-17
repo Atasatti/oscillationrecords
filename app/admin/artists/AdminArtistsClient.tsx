@@ -53,6 +53,7 @@ import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 import { unlockBody } from "@/lib/unlock-body";
+import { isObjectId } from "@/lib/object-id";
 
 const PAGE_SIZE = 25;
 
@@ -289,6 +290,16 @@ export default function AdminArtistsClient({
 }) {
   const router = useRouter();
   const toast = useToast();
+
+  // Never navigate to an entity route built from a missing/invalid id — that would
+  // request a dead URL like `/admin/artist/null`. Bail (with a toast) instead.
+  const goToEntity = (href: string, id: string) => {
+    if (!isObjectId(id)) {
+      toast.error("This item can’t be opened — it has no valid id.");
+      return;
+    }
+    router.push(href);
+  };
 
   const [items, setItems] = useState<AdminArtistRow[]>(initialData?.items ?? []);
   // Mirror the latest rows in a ref so the row-mutation handlers can read the
@@ -817,8 +828,8 @@ export default function AdminArtistsClient({
                   onToggleSelect={toggleSelect}
                   onSetVisibility={setVisibility}
                   onSetFeatured={setFeatured}
-                  onEdit={(id) => router.push(`/admin/artists/${id}/edit`)}
-                  onViewReleases={(id) => router.push(`/admin/artist/${id}`)}
+                  onEdit={(id) => goToEntity(`/admin/artists/${id}/edit`, id)}
+                  onViewReleases={(id) => goToEntity(`/admin/artist/${id}`, id)}
                   onNewRelease={setNewReleaseFor}
                   onDelete={setDeleteTarget}
                 />

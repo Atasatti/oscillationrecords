@@ -54,6 +54,7 @@ import type { ReleaseCardDTO } from "@/lib/catalog-data";
 import type { ReleaseSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 import { unlockBody } from "@/lib/unlock-body";
+import { isObjectId } from "@/lib/object-id";
 import { buildHarmonyReleaseUrl, canSeedRelease } from "@/lib/musicbrainz-seed";
 
 const PAGE_SIZE = 25;
@@ -84,6 +85,16 @@ function ReleasesPageInner({
   const router = useRouter();
   const toast = useToast();
   const searchParams = useSearchParams();
+
+  // Never navigate to an entity route built from a missing/invalid id — that would
+  // request a dead URL like `/admin/release/null`. Bail (with a toast) instead.
+  const goToEntity = (href: string, id: string) => {
+    if (!isObjectId(id)) {
+      toast.error("This release can’t be opened — it has no valid id.");
+      return;
+    }
+    router.push(href);
+  };
 
   const [items, setItems] = useState<ReleaseCardDTO[]>(initialData?.items ?? []);
   // Releases with a home/latest flag write currently in flight. A ref is the
@@ -679,10 +690,10 @@ function ReleasesPageInner({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/admin/release/${r.id}`)}>
+                        <DropdownMenuItem onClick={() => goToEntity(`/admin/release/${r.id}`, r.id)}>
                           <Eye className="mr-2 h-4 w-4" /> View / tracks
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/releases/${r.id}/edit`)}>
+                        <DropdownMenuItem onClick={() => goToEntity(`/admin/releases/${r.id}/edit`, r.id)}>
                           <Pencil className="mr-2 h-4 w-4" /> Edit details
                         </DropdownMenuItem>
                         {canSeedRelease({ gtin: r.upcCode, urls: [r.spotifyLink, r.appleMusicLink] }) ? (
