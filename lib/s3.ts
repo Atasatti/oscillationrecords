@@ -1,15 +1,21 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
+import {
+  S3_BUCKET,
+  AWS_REGION,
+  isOwnBucketUrl,
+  isImageContentType,
+  publicFileUrl,
+} from "./s3-url";
 
 /**
- * Centralized S3 configuration + key/URL helpers so every upload route applies
- * the same bucket, region, and validation rules.
+ * Server-side S3: the configured client, presigning, delete/head, and SSRF
+ * protection for outbound image fetches. The pure URL / key / content-type
+ * helpers live in ./s3-url (client-safe — no AWS SDK or node:* deps) and are
+ * re-exported here so every existing `@/lib/s3` importer is unchanged.
  */
-
-export const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-export const S3_BUCKET =
-  process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || "osrecord";
+export * from "./s3-url";
 
 const hasCredentials = Boolean(
   process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
@@ -40,42 +46,6 @@ export function s3Configured(): boolean {
   return hasCredentials && s3Client !== null;
 }
 
-export function publicFileUrl(key: string): string {
-  return `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
-}
-
-/**
- * Validates and normalizes a client-supplied object key. Rejects empty keys,
- * path traversal, absolute paths, and backslashes. Returns the trimmed key or
- * null if invalid.
- */
-export function sanitizeKey(name: unknown): string | null {
-  if (typeof name !== "string") return null;
-  const trimmed = name.trim();
-  if (!trimmed) return null;
-  if (
-    trimmed.includes("..") ||
-    trimmed.startsWith("/") ||
-    trimmed.includes("\\") ||
-    trimmed.length > 512
-  ) {
-    return null;
-  }
-  return trimmed;
-}
-
-// Server-owned key namespaces the catalog upload routes may write to. Confining
-// client-supplied presign keys to these stops a catalog editor (or a compromised
-// catalog session) from signing a PUT to an ARBITRARY key — e.g. overwriting a
-// competition entry (benert-remix/) or a task attachment or another scope's object.
-export const CATALOG_IMAGE_PREFIXES = ["artists/", "press/", "releases/", "site/"] as const;
-export const CATALOG_AUDIO_PREFIXES = ["tracks/"] as const;
-
-/** True when `key` sits under one of the allowed prefixes. */
-export function keyHasPrefix(key: string, prefixes: readonly string[]): boolean {
-  return prefixes.some((p) => key.startsWith(p));
-}
-
 /** Delete an object from our bucket. Best-effort: returns false (never throws)
  *  when S3 isn't configured or the delete fails, so callers can proceed. */
 export async function deleteS3Object(key: string): Promise<boolean> {
@@ -102,47 +72,6 @@ export async function headS3Object(
       size: typeof r.ContentLength === "number" ? r.ContentLength : 0,
       contentType: r.ContentType || "application/octet-stream",
     };
-  } catch {
-    return null;
-  }
-}
-
-export function isAudioContentType(t: unknown): boolean {
-  return typeof t === "string" && /^audio\//i.test(t);
-}
-
-export function isImageContentType(t: unknown): boolean {
-  return typeof t === "string" && /^image\//i.test(t);
-}
-
-/** True only when the URL points at this project's own S3 bucket over https. */
-export function isOwnBucketUrl(url: unknown): boolean {
-  if (typeof url !== "string") return false;
-  try {
-    const u = new URL(url);
-    return (
-      u.protocol === "https:" &&
-      u.hostname === `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Reverse of {@link publicFileUrl}: the object key for one of OUR bucket URLs, or
- * null for anything else (external host, malformed). The path is percent-decoded
- * so the key round-trips (publicFileUrl encodes nothing, but S3 URLs in the wild
- * may carry encoded spaces/unicode). Callers use this to presign a download for a
- * file we host — the null result is what keeps the download route from ever
- * redirecting to a foreign origin.
- */
-export function keyFromOwnBucketUrl(url: unknown): string | null {
-  if (!isOwnBucketUrl(url)) return null;
-  try {
-    const path = new URL(url as string).pathname.replace(/^\/+/, "");
-    const key = decodeURIComponent(path);
-    return key.trim() ? key : null;
   } catch {
     return null;
   }
