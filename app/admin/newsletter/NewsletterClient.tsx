@@ -8,6 +8,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import ScheduleDateTimePicker from "@/components/admin/ScheduleDateTimePicker";
 import {
   CAMPAIGN_STATUS_LABELS, renderNewsletterBody, type CampaignStatus,
 } from "@/lib/newsletter";
@@ -284,20 +285,21 @@ export default function NewsletterClient({
 
       {/* Schedule */}
       <Dialog open={!!scheduleTarget} onOpenChange={(o) => { if (!working && !o) setScheduleTarget(null); }}>
-        <DialogContent className="flex w-full flex-col sm:min-h-[28rem] sm:max-w-md">
-          <DialogHeader><DialogTitle>Schedule send</DialogTitle></DialogHeader>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Send date &amp; time</label>
-            <input type="datetime-local" value={scheduleValue} onChange={(e) => setScheduleValue(e.target.value)} className={inputCls} />
-            <p className="text-sm text-muted-foreground">
-              “{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.
-            </p>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-border px-6 py-4"><DialogTitle>Schedule send</DialogTitle></DialogHeader>
+          {/* Scrollable body: the picker renders in-flow (never a floating native
+              popup), so it fits any width and the sticky footer keeps Schedule
+              reachable on a small phone. */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Send date &amp; time</label>
+              <ScheduleDateTimePicker value={scheduleValue} onChange={setScheduleValue} />
+              <p className="text-sm text-muted-foreground">
+                “{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.
+              </p>
+            </div>
           </div>
-          {/* The browser's date/time picker floats down from the field and can't be
-              repositioned in CSS. On desktop, reserve space below the field so it
-              opens over empty modal space instead of covering the actions. */}
-          <div className="hidden flex-1 sm:block" aria-hidden />
-          <DialogFooter className="items-center justify-between border-t border-border pt-4 sm:justify-between">
+          <DialogFooter className="items-center justify-between border-t border-border px-6 py-4 sm:justify-between">
             <div>
               {scheduleTarget?.status === "scheduled" ? (
                 <Button variant="ghost" onClick={() => submitSchedule(true)} disabled={working} className="text-muted-foreground">Clear schedule</Button>
