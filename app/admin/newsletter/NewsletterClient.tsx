@@ -284,11 +284,20 @@ export default function NewsletterClient({
 
       {/* Schedule */}
       <Dialog open={!!scheduleTarget} onOpenChange={(o) => { if (!working && !o) setScheduleTarget(null); }}>
-        <DialogContent>
+        <DialogContent className="flex w-full flex-col sm:min-h-[28rem] sm:max-w-md">
           <DialogHeader><DialogTitle>Schedule send</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">“{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.</p>
-          <input type="datetime-local" value={scheduleValue} onChange={(e) => setScheduleValue(e.target.value)} className={inputCls} />
-          <DialogFooter className="items-center justify-between sm:justify-between">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Send date &amp; time</label>
+            <input type="datetime-local" value={scheduleValue} onChange={(e) => setScheduleValue(e.target.value)} className={inputCls} />
+            <p className="text-sm text-muted-foreground">
+              “{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.
+            </p>
+          </div>
+          {/* The browser's date/time picker floats down from the field and can't be
+              repositioned in CSS. On desktop, reserve space below the field so it
+              opens over empty modal space instead of covering the actions. */}
+          <div className="hidden flex-1 sm:block" aria-hidden />
+          <DialogFooter className="items-center justify-between border-t border-border pt-4 sm:justify-between">
             <div>
               {scheduleTarget?.status === "scheduled" ? (
                 <Button variant="ghost" onClick={() => submitSchedule(true)} disabled={working} className="text-muted-foreground">Clear schedule</Button>
