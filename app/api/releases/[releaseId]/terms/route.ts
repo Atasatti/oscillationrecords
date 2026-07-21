@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isObjectId } from "@/lib/object-id";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { normalizeTerms, isTermsEmpty, AGREEMENT_TYPE_LABELS } from "@/lib/release-terms";
@@ -18,6 +19,10 @@ export async function GET(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const release = await prisma.release.findUnique({ where: { id: releaseId }, select: { terms: true } });
     if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
     return NextResponse.json({ terms: normalizeTerms(release.terms) }, { headers: { "Cache-Control": "private, no-store" } });
@@ -37,6 +42,10 @@ export async function PATCH(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const body = await request.json().catch(() => ({}));
     const terms = normalizeTerms(body);
     // Documents only ever come from our own presign endpoint (own-bucket URLs);

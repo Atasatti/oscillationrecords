@@ -37,21 +37,29 @@ export async function GET(request: NextRequest) {
   const level = searchParams.get("level");
   if (level === "error" || level === "warn") where.level = level;
 
-  const [items, total, unresolved, resolvedCount] = await Promise.all([
-    prisma.errorLog.findMany({
-      where,
-      orderBy: { lastSeen: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.errorLog.count({ where }),
-    // Badges reflect the recency rule, source-independent (as before) so the
-    // tab counts always show the true current-vs-resolved totals.
-    prisma.errorLog.count({ where: liveWhere }),
-    prisma.errorLog.count({ where: logWhere }),
-  ]);
+  // Wrapped like every other handler here: an unwrapped DB hiccup surfaced as a
+  // bare 500 with nothing in the log, and the Errors page just failed to load
+  // with no way to tell why.
+  try {
+    const [items, total, unresolved, resolvedCount] = await Promise.all([
+      prisma.errorLog.findMany({
+        where,
+        orderBy: { lastSeen: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.errorLog.count({ where }),
+      // Badges reflect the recency rule, source-independent (as before) so the
+      // tab counts always show the true current-vs-resolved totals.
+      prisma.errorLog.count({ where: liveWhere }),
+      prisma.errorLog.count({ where: logWhere }),
+    ]);
 
-  return NextResponse.json({ items, total, unresolved, resolvedCount, page, pageSize });
+    return NextResponse.json({ items, total, unresolved, resolvedCount, page, pageSize });
+  } catch (e) {
+    console.error("error-log GET error:", e);
+    return NextResponse.json({ error: "Failed to load errors" }, { status: 500 });
+  }
 }
 
 // PATCH /api/admin/error-log  { id, resolved }  — mark an error resolved/open.

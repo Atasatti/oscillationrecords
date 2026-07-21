@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { normalizeChecklist } from "@/lib/task-checklist";
 import { normalizeTags } from "@/lib/task-tags";
+import { isObjectId } from "@/lib/object-id";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,6 +23,20 @@ export async function GET(request: NextRequest) {
     const releaseId = searchParams.get("releaseId");
     const artistId = searchParams.get("artistId");
     const isTemplate = searchParams.get("isTemplate");
+
+    // A malformed id (e.g. "null" reaching us from a stale link) can't match any
+    // row, but handing it to Prisma throws "Malformed ObjectID" and 500s the whole
+    // list — which is what filled the error log. Answer with an empty page instead.
+    if (
+      (releaseId && !isObjectId(releaseId)) ||
+      (artistId && !isObjectId(artistId)) ||
+      (assigneeId && assigneeId !== "none" && !isObjectId(assigneeId))
+    ) {
+      return NextResponse.json(
+        { items: [], total: 0 },
+        { headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;

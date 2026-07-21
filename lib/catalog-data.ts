@@ -1066,6 +1066,9 @@ export const getPressForArtist = cache(
 /** Public press items linked to one release (for the release page section). */
 export const getPressForRelease = cache(
   async (releaseId: string): Promise<PressItemDTO[]> => {
+    // A malformed id throws in Prisma and lands in the catch below, which then
+    // logs a misleading "DB unavailable". Nothing can match it — bail early.
+    if (!OBJECT_ID_RE.test(releaseId)) return [];
     try {
       const rows = await prisma.pressItem.findMany({
         where: { showOnWebsite: true, draft: false, releaseIds: { has: releaseId } },

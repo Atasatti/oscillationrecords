@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { onPitchAccepted } from "@/lib/automations";
+import { isObjectId } from "@/lib/object-id";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +20,15 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "";
     const releaseId = searchParams.get("releaseId");
     const artistId = searchParams.get("artistId");
+
+    // See the tasks route: a malformed id matches nothing, but passing it to
+    // Prisma throws "Malformed ObjectID" and 500s the list. Return an empty page.
+    if ((releaseId && !isObjectId(releaseId)) || (artistId && !isObjectId(artistId))) {
+      return NextResponse.json(
+        { items: [], total: 0, page, pageSize },
+        { headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;

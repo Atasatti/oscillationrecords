@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isObjectId } from "@/lib/object-id";
 import { withWriteRetry } from "@/lib/db-retry";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
@@ -27,6 +28,10 @@ export async function GET(
 ) {
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
 
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
@@ -216,6 +221,10 @@ export async function PATCH(
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const existing = await prisma.release.findUnique({
       where: { id: releaseId },
       include: { tracks: true },
@@ -727,6 +736,10 @@ export async function DELETE(
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const existing = await prisma.release.findUnique({ where: { id: releaseId } });
     if (!existing) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
