@@ -53,6 +53,7 @@ import InfoHint from "@/components/admin/InfoHint";
 import type { AdminArtistRow, ArtistSort, SortDir } from "@/lib/admin-data";
 import { getCached, setCached, clearCached, isFresh } from "@/lib/admin-cache";
 import { unlockBody } from "@/lib/unlock-body";
+import { isObjectId } from "@/lib/object-id";
 
 const PAGE_SIZE = 25;
 
@@ -104,27 +105,38 @@ const ArtistRow = React.memo(
             className="h-4 w-4 rounded border-gray-600 bg-black accent-white"
           />
         </TableCell>
-        <TableCell>
-          <Link href={`/admin/artists/${a.id}/edit`} className="flex items-center gap-3 group">
+        <TableCell className="w-full max-w-0">
+          <Link href={`/admin/artists/${a.id}/edit`} className="flex min-w-0 items-center gap-3 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={a.profilePicture || "/placeholder.svg"}
               alt=""
-              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+              className="h-11 w-11 shrink-0 rounded-lg object-cover @sm:h-12 @sm:w-12"
             />
-            <span className="truncate font-medium group-hover:underline">{a.name}</span>
-            {a.draft ? (
-              <Badge variant="warning" className="shrink-0">Draft</Badge>
-            ) : null}
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 truncate font-medium group-hover:underline">{a.name}</span>
+                {a.draft ? (
+                  <Badge variant="warning" className="shrink-0">Draft</Badge>
+                ) : null}
+              </span>
+              {/* Genre column is hidden until the table is wide enough — surface
+                  the genres here so they stay visible on small screens. */}
+              {a.genres.length ? (
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground @lg:hidden">
+                  {a.genres.join(", ")}
+                </span>
+              ) : null}
+            </span>
           </Link>
         </TableCell>
-        <TableCell className="hidden lg:table-cell">
+        <TableCell className="hidden @lg:table-cell">
           {a.genres.length ? (
             <div className="flex items-center gap-1">
               {/* Only the first genre inline (keeps the column narrow on
                   laptop widths); the rest collapse into a +N badge whose
                   hover title lists them, so nothing is lost. */}
-              <Badge variant="muted" className="max-w-[9rem] truncate">{a.genres[0]}</Badge>
+              <Badge variant="muted" className="max-w-[7rem] truncate">{a.genres[0]}</Badge>
               {a.genres.length > 1 ? (
                 <span title={a.genres.slice(1).join(", ")}>
                   <Badge variant="muted" className="cursor-default">+{a.genres.length - 1}</Badge>
@@ -135,13 +147,13 @@ const ArtistRow = React.memo(
             <span className="text-muted-foreground">—</span>
           )}
         </TableCell>
-        <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
+        <TableCell className="hidden @2xl:table-cell text-right text-sm tabular-nums">
           {a.releaseCount}
         </TableCell>
-        <TableCell className="hidden lg:table-cell text-right text-sm tabular-nums text-muted-foreground">
+        <TableCell className="hidden @5xl:table-cell text-right text-sm tabular-nums text-muted-foreground">
           {a.playsLast90d.toLocaleString()}
         </TableCell>
-        <TableCell className="hidden min-[1600px]:table-cell text-sm text-muted-foreground">
+        <TableCell className="hidden @7xl:table-cell whitespace-nowrap text-sm text-muted-foreground">
           {a.lastReleaseDate
             ? new Date(a.lastReleaseDate).toLocaleDateString(undefined, {
                 year: "numeric",
@@ -150,7 +162,7 @@ const ArtistRow = React.memo(
               })
             : "—"}
         </TableCell>
-        <TableCell className="hidden sm:table-cell">
+        <TableCell className="hidden @xl:table-cell">
           <Link
             href={`/admin/artists/${a.id}/edit`}
             title={
@@ -174,7 +186,7 @@ const ArtistRow = React.memo(
             </Badge>
           </Link>
         </TableCell>
-        <TableCell className="hidden md:table-cell">
+        <TableCell className="hidden @3xl:table-cell">
           <Link
             href={`/admin/artists/${a.id}/edit`}
             title={
@@ -198,7 +210,7 @@ const ArtistRow = React.memo(
             </Badge>
           </Link>
         </TableCell>
-        <TableCell>
+        <TableCell className="hidden @xs:table-cell">
           <button
             type="button"
             onClick={() => onSetVisibility(a.id, !a.showOnWebsite)}
@@ -212,7 +224,7 @@ const ArtistRow = React.memo(
             )}
           </button>
         </TableCell>
-        <TableCell>
+        <TableCell className="hidden @4xl:table-cell">
           <button
             type="button"
             disabled={!a.showOnWebsite}
@@ -229,7 +241,7 @@ const ArtistRow = React.memo(
             )}
           </button>
         </TableCell>
-        <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+        <TableCell className="hidden @6xl:table-cell whitespace-nowrap text-sm text-muted-foreground">
           {new Date(a.createdAt).toLocaleDateString(undefined, {
             year: "numeric",
             month: "short",
@@ -278,6 +290,16 @@ export default function AdminArtistsClient({
 }) {
   const router = useRouter();
   const toast = useToast();
+
+  // Never navigate to an entity route built from a missing/invalid id — that would
+  // request a dead URL like `/admin/artist/null`. Bail (with a toast) instead.
+  const goToEntity = (href: string, id: string) => {
+    if (!isObjectId(id)) {
+      toast.error("This item can’t be opened — it has no valid id.");
+      return;
+    }
+    router.push(href);
+  };
 
   const [items, setItems] = useState<AdminArtistRow[]>(initialData?.items ?? []);
   // Mirror the latest rows in a ref so the row-mutation handlers can read the
@@ -422,31 +444,6 @@ export default function AdminArtistsClient({
       return next;
     });
 
-  // Adopt the server's authoritative flags for one row from a PATCH response, so
-  // the on-screen row can never drift from what was actually persisted. This is
-  // what keeps Featured honest through hide/unhide: the server drops Featured when
-  // an artist is hidden and does NOT restore it on unhide, and reading that back
-  // here stops the stale "Featured" badge that otherwise lingered until a refresh.
-  const applyServerRow = (
-    id: string,
-    updated: { showOnWebsite?: unknown; featuredOnHome?: unknown; homeOrder?: unknown } | null
-  ) => {
-    if (!updated || typeof updated.featuredOnHome !== "boolean") return;
-    setItems((list) =>
-      list.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              showOnWebsite:
-                typeof updated.showOnWebsite === "boolean" ? updated.showOnWebsite : a.showOnWebsite,
-              featuredOnHome: updated.featuredOnHome as boolean,
-              homeOrder: typeof updated.homeOrder === "number" ? updated.homeOrder : a.homeOrder,
-            }
-          : a
-      )
-    );
-  };
-
   const setVisibility = async (id: string, showOnWebsite: boolean) => {
     const prev = itemsRef.current;
     // Mirror the server rule locally and immediately: hiding an artist also drops
@@ -461,6 +458,12 @@ export default function AdminArtistsClient({
       )
     );
     mutationGen.current++; // stale in-flight loads must not revert this row
+    // Clear cached views UP-FRONT (not after the round-trip): a revalidation that
+    // races the PATCH would otherwise repaint this row from the pre-toggle cache —
+    // the flicker where the toggle briefly reverts, then settles. The optimistic
+    // row above already mirrors the server rule (hiding drops Featured), so — like
+    // the Press page — we trust it and only roll back if the PATCH fails.
+    clearCached();
     try {
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
@@ -468,8 +471,6 @@ export default function AdminArtistsClient({
         body: JSON.stringify({ showOnWebsite }),
       });
       if (!res.ok) throw new Error();
-      applyServerRow(id, await res.json().catch(() => null));
-      clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
       toast.error("Failed to update visibility");
@@ -481,6 +482,9 @@ export default function AdminArtistsClient({
     const row = itemsRef.current.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
     mutationGen.current++; // stale in-flight loads must not revert this row
+    // Clear cached views up-front (same reason as setVisibility): a revalidation
+    // racing the PATCH must not repaint the pre-toggle row from the cache.
+    clearCached();
     try {
       // When featuring a row the admin sees as visible, assert showOnWebsite in the
       // same request. The server's "only visible artists can be Featured" guard reads
@@ -499,14 +503,9 @@ export default function AdminArtistsClient({
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
-      // Optimistic-only, mirroring the Press page's toggle: the row already shows the
-      // new state from the setItems above. Re-reading the server's row here (as
-      // setVisibility does, where hiding also drops Featured) forced a SECOND
-      // full-table re-render after the network round-trip — the "changes, then updates
-      // again after a delay" lag. Featuring only flips one boolean, so the optimistic
-      // value is authoritative; just drop the cached views so a later revisit
-      // re-fetches the server's order.
-      clearCached();
+      // Optimistic-only, mirroring the smooth Press-page toggle: the row already
+      // shows the new state, so we don't re-read (that second render was the
+      // "updates again after a delay" lag) — just leave the optimistic value.
     } catch (e) {
       setItems(prev);
       toast.error(e instanceof Error ? e.message : "Failed to update featured");
@@ -720,7 +719,7 @@ export default function AdminArtistsClient({
       ) : null}
 
       {/* Table */}
-      <div className="rounded-xl border border-border bg-card">
+      <div className="@container rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -738,34 +737,34 @@ export default function AdminArtistsClient({
                   Artist {sortIcon("name")}
                 </button>
               </TableHead>
-              <TableHead className="hidden lg:table-cell">Genre</TableHead>
-              <TableHead className="hidden md:table-cell text-right">
+              <TableHead className="hidden @lg:table-cell">Genre</TableHead>
+              <TableHead className="hidden @2xl:table-cell text-right">
                 <span className="inline-flex items-center gap-1"><Disc3 className="h-3.5 w-3.5" /> Releases</span>
               </TableHead>
-              <TableHead className="hidden lg:table-cell text-right">
+              <TableHead className="hidden @5xl:table-cell text-right">
                 <span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Plays 90d</span>
               </TableHead>
-              <TableHead className="hidden min-[1600px]:table-cell">
+              <TableHead className="hidden @7xl:table-cell">
                 <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Last release</span>
               </TableHead>
-              <TableHead className="hidden sm:table-cell">
+              <TableHead className="hidden @xl:table-cell">
                 <span className="inline-flex items-center gap-1">SEO <InfoHint text="Per-artist SEO score (0–100) from the fields that drive search ranking: streaming/social links, MusicBrainz ID, ISNI, bio, photo, genres and releases. The badge shows the highest-impact gaps — click it to fill them." /></span>
               </TableHead>
-              <TableHead className="hidden md:table-cell">
+              <TableHead className="hidden @3xl:table-cell">
                 <span className="inline-flex items-center gap-1">GKP <InfoHint text="Google Knowledge Panel readiness (0–100): how ready this artist is to earn a Knowledge Panel — the entity info box shown beside Google results. Unlike the SEO score (page discoverability), this grades entity identity: a Wikidata item, MusicBrainz ID and ISNI, plus streaming/social links (sameAs), a release and a bio — the signals Google's Knowledge Graph uses to confirm a distinct real-world artist. The badge shows the highest-impact gap; click it to fill them in." /></span>
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden @xs:table-cell">
                 <span className="inline-flex items-center gap-1">Visibility <InfoHint text="Whether this artist appears on the public site. Hidden artists aren’t shown to visitors." /></span>
               </TableHead>
-              <TableHead>
+              <TableHead className="hidden @4xl:table-cell">
                 <span className="inline-flex items-center gap-1">Featured <InfoHint text="Feature this artist in the home page carousel. Set the carousel order on the Homepage screen." /></span>
               </TableHead>
-              <TableHead className="hidden xl:table-cell">
+              <TableHead className="hidden @6xl:table-cell">
                 <button type="button" onClick={() => toggleSort("createdAt")} className="inline-flex items-center gap-1 hover:text-foreground">
                   Added {sortIcon("createdAt")}
                 </button>
               </TableHead>
-              <TableHead className="w-10 text-right">Actions</TableHead>
+              <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -779,15 +778,15 @@ export default function AdminArtistsClient({
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell className="hidden md:table-cell"><Skeleton className="ml-auto h-4 w-8" /></TableCell>
-                  <TableCell className="hidden lg:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
-                  <TableCell className="hidden min-[1600px]:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden @lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden @2xl:table-cell"><Skeleton className="ml-auto h-4 w-8" /></TableCell>
+                  <TableCell className="hidden @5xl:table-cell"><Skeleton className="ml-auto h-4 w-10" /></TableCell>
+                  <TableCell className="hidden @7xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="hidden @xl:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden @3xl:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden @xs:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell className="hidden @4xl:table-cell"><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell className="hidden @6xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
                 </TableRow>
               ))
@@ -806,8 +805,8 @@ export default function AdminArtistsClient({
                   onToggleSelect={toggleSelect}
                   onSetVisibility={setVisibility}
                   onSetFeatured={setFeatured}
-                  onEdit={(id) => router.push(`/admin/artists/${id}/edit`)}
-                  onViewReleases={(id) => router.push(`/admin/artist/${id}`)}
+                  onEdit={(id) => goToEntity(`/admin/artists/${id}/edit`, id)}
+                  onViewReleases={(id) => goToEntity(`/admin/artist/${id}`, id)}
                   onNewRelease={setNewReleaseFor}
                   onDelete={setDeleteTarget}
                 />

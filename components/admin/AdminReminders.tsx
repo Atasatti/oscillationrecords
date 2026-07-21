@@ -103,7 +103,7 @@ export default function AdminReminders() {
             <ul className="max-h-56 overflow-y-auto pb-1">
               {mentions.slice(0, 10).map((m) => (
                 <li key={m.id}>
-                  <Link href="/admin/tasks" className="block px-3 py-2 transition-colors hover:bg-accent">
+                  <Link href={`/admin/tasks?task=${m.taskId}`} className="block px-3 py-2 transition-colors hover:bg-accent">
                     <span className="block truncate text-xs text-muted-foreground">
                       <span className="text-foreground">{m.authorEmail ?? "Someone"}</span> on {m.taskTitle}
                     </span>
@@ -131,7 +131,7 @@ export default function AdminReminders() {
               const mine = !!myId && t.assigneeId === myId;
               return (
                 <li key={t.id}>
-                  <Link href="/admin/tasks" className="flex items-start gap-2 px-3 py-2 transition-colors hover:bg-accent">
+                  <Link href={`/admin/tasks?task=${t.id}`} className="flex items-start gap-2 px-3 py-2 transition-colors hover:bg-accent">
                     <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${overdue ? "bg-red-500" : "bg-amber-400"}`} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-foreground">{t.title}</span>

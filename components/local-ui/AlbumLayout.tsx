@@ -11,7 +11,7 @@ export default function AlbumLayout() {
   const rightColumn = contactArtworks.slice(5);
 
   return (
-    <div className="h-screen p-6 overflow-hidden w-4/10">
+    <div className="hidden md:block h-screen p-6 overflow-hidden md:w-2/5">
       <div className="h-full max-w-4xl mx-auto -mt-32">
         <div className="grid grid-cols-2 gap-6 h-full">
           {/* Left Column */}

@@ -416,7 +416,10 @@ export default function ReleaseEditor({
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
-        else router.replace(`/admin/releases/${created.id}/tracks`);
+        // Flag the new-release flow (?new=1) so the tracklist breadcrumb reads
+        // "Releases › New › Tracks", not "… › Edit › Tracks" (see Breadcrumbs) —
+        // the admin is still creating, not editing an existing release.
+        else router.replace(`/admin/releases/${created.id}/tracks?new=1`);
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",

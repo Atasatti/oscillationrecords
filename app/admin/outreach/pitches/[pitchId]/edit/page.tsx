@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { useToast } from "@/components/local-ui/Toast";
 
 type ContactOption = { id: string; name: string; outlet: string };
@@ -62,13 +63,6 @@ export default function EditPitchPage() {
 
   const set = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }));
 
-  const toggleId = (field: "artistIds" | "releaseIds", id: string) => {
-    setForm((f) => {
-      const arr = f[field];
-      return { ...f, [field]: arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id] };
-    });
-  };
-
   const save = async () => {
     if (!form.contactId) { toast.error("Select a contact"); return; }
     setSaving(true);
@@ -92,8 +86,8 @@ export default function EditPitchPage() {
     return (
       <div>
         <PageHeader title="Edit pitch" description="" />
-        <div className="max-w-xl space-y-4">
-          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+        <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
         </div>
       </div>
     );
@@ -104,33 +98,54 @@ export default function EditPitchPage() {
       <PageHeader
         title="Edit pitch"
         description="Update pitch details and status."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/admin/outreach/pitches"><ArrowLeft className="h-4 w-4" /> Back</Link>
-          </Button>
-        }
       />
 
-      <div className="max-w-xl space-y-5">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">Contact <span className="text-destructive">*</span></label>
-          <select value={form.contactId} onChange={(e) => set("contactId", e.target.value)}
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-            <option value="">Select a contact…</option>
-            {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.outlet}</option>)}
-          </select>
+      <div className="max-w-4xl space-y-6">
+        {/* Contact + Status pair up on wider screens; stack on mobile. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Contact <span className="text-destructive">*</span></label>
+            <select value={form.contactId} onChange={(e) => set("contactId", e.target.value)}
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <option value="">Select a contact…</option>
+              {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.outlet}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Status</label>
+            <select value={form.status} onChange={(e) => set("status", e.target.value)}
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+              <option value="not_sent">Not sent</option>
+              <option value="sent">Sent</option>
+              <option value="followed_up">Followed up</option>
+              <option value="accepted">Accepted</option>
+              <option value="declined">Declined</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">Status</label>
-          <select value={form.status} onChange={(e) => set("status", e.target.value)}
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-            <option value="not_sent">Not sent</option>
-            <option value="sent">Sent</option>
-            <option value="followed_up">Followed up</option>
-            <option value="accepted">Accepted</option>
-            <option value="declined">Declined</option>
-          </select>
+        {/* Relations use searchable multi-selects — they collapse to just the
+            chosen artists/releases, so a big catalog never floods the form. */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Linked releases <span className="font-normal text-muted-foreground">(optional)</span></label>
+            <MultiSelect
+              options={releases.map((r) => ({ value: r.id, label: r.name }))}
+              selected={form.releaseIds}
+              onChange={(v) => set("releaseIds", v)}
+              placeholder="Link this pitch to releases…"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Linked artists <span className="font-normal text-muted-foreground">(optional)</span></label>
+            <MultiSelect
+              options={artists.map((a) => ({ value: a.id, label: a.name }))}
+              selected={form.artistIds}
+              onChange={(v) => set("artistIds", v)}
+              placeholder="Link this pitch to artists…"
+            />
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -146,54 +161,19 @@ export default function EditPitchPage() {
           </div>
         </div>
 
-        {artists.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Linked artists</label>
-            <div className="flex flex-wrap gap-2">
-              {artists.map((a) => (
-                <button key={a.id} type="button" onClick={() => toggleId("artistIds", a.id)}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                    form.artistIds.includes(a.id)
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground"
-                  }`}>
-                  {a.name}
-                </button>
-              ))}
-            </div>
+            <label className="text-sm font-medium">Response notes</label>
+            <textarea value={form.responseNotes} onChange={(e) => set("responseNotes", e.target.value)} rows={4}
+              placeholder="What did they say?"
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
           </div>
-        )}
-
-        {releases.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Linked releases</label>
-            <div className="flex flex-wrap gap-2">
-              {releases.map((r) => (
-                <button key={r.id} type="button" onClick={() => toggleId("releaseIds", r.id)}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                    form.releaseIds.includes(r.id)
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground"
-                  }`}>
-                  {r.name}
-                </button>
-              ))}
-            </div>
+            <label className="text-sm font-medium">Internal notes</label>
+            <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={4}
+              placeholder="Anything else to remember."
+              className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
           </div>
-        )}
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">Response notes</label>
-          <textarea value={form.responseNotes} onChange={(e) => set("responseNotes", e.target.value)} rows={2}
-            placeholder="What did they say?"
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium">Internal notes</label>
-          <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2}
-            placeholder="Anything else to remember."
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
         </div>
 
         <div className="flex gap-3 pt-2">

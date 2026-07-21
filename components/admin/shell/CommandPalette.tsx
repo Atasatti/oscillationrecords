@@ -9,6 +9,7 @@ import { adminGroups } from "./AdminSidebar";
 import { TAB_GROUPS } from "./SectionTabs";
 import { roleCan, type Permission } from "@/lib/permissions";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
+import { isObjectId } from "@/lib/object-id";
 
 // Flattened, deduped nav destinations (sidebar sections + in-page tab sub-views),
 // computed once. Permission is applied per-viewer at render.
@@ -38,7 +39,11 @@ const G_SHORTCUTS: Record<string, string> = {
   m: "/admin/messages",
 };
 
-type Item = { kind: "nav" | "release" | "artist" | "track"; label: string; sub: string; href: string };
+// `id` is the item's own unique identity (entity id, or href for nav). It keys the
+// list — the href alone isn't unique: several tracks from one release all link to
+// that release's tracklist, so keying on href collided ("two children with the
+// same key"). The entity id never collides.
+type Item = { kind: "nav" | "release" | "artist" | "track"; id: string; label: string; sub: string; href: string };
 type TrackHit = { id: string; name: string; releaseId: string; releaseName: string | null };
 type SearchData = {
   releases: { id: string; name: string }[];
@@ -58,6 +63,11 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [data, setData] = useState<SearchData | null>(null);
+  // Shortcut hint glyph: ⌘K on Apple platforms, Ctrl+K elsewhere. Starts false so the
+  // server render and first client paint agree, then a mount effect corrects it
+  // (navigator is client-only) — no hydration mismatch. The key handler below already
+  // accepts both Cmd and Ctrl; this only drives the visible / accessible label.
+  const [isMac, setIsMac] = useState(false);
   const gAt = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -79,20 +89,30 @@ export default function CommandPalette() {
     return () => { cancelled = true; };
   }, [open, data]);
 
+  // Detect Apple platforms once, client-side, to choose the shortcut glyph.
+  useEffect(() => {
+    const n = window.navigator;
+    setIsMac(/Mac|iPhone|iPod|iPad/i.test(n.platform || "") || /Mac OS X/i.test(n.userAgent || ""));
+  }, []);
+
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
     const nav = ALL_DESTINATIONS.filter((d) => canSee(d.perm) && (!q || d.label.toLowerCase().includes(q)))
       .slice(0, q ? 8 : 60)
-      .map<Item>((d) => ({ kind: "nav", label: d.label, sub: d.group || "Go to", href: d.href }));
+      .map<Item>((d) => ({ kind: "nav", id: d.href, label: d.label, sub: d.group || "Go to", href: d.href }));
     if (!q || !data) return nav;
-    const rel = data.releases.filter((r) => r.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((r) => ({ kind: "release", label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
-    const art = data.artists.filter((a) => a.name.toLowerCase().includes(q)).slice(0, 6)
-      .map<Item>((a) => ({ kind: "artist", label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
-    // Individual tracks — a song title jumps to its release's tracklist.
-    const trk = data.tracks.filter((t) => t.name.toLowerCase().includes(q)).slice(0, 6)
+    // Guard every entity id before it becomes part of a jump URL — a hit with a
+    // missing/invalid id would route to a dead page like `/admin/releases/null/edit`.
+    const rel = data.releases.filter((r) => isObjectId(r.id) && r.name.toLowerCase().includes(q)).slice(0, 6)
+      .map<Item>((r) => ({ kind: "release", id: r.id, label: r.name, sub: "Release", href: `/admin/releases/${r.id}/edit` }));
+    const art = data.artists.filter((a) => isObjectId(a.id) && a.name.toLowerCase().includes(q)).slice(0, 6)
+      .map<Item>((a) => ({ kind: "artist", id: a.id, label: a.name, sub: "Artist", href: `/admin/artists/${a.id}/edit` }));
+    // Individual tracks — a song title jumps to its release's tracklist. Several
+    // tracks can share one release (hence one href), so each carries its own id.
+    const trk = data.tracks.filter((t) => isObjectId(t.releaseId) && t.name.toLowerCase().includes(q)).slice(0, 6)
       .map<Item>((t) => ({
         kind: "track",
+        id: t.id,
         label: t.name,
         sub: t.releaseName ? `Track · ${t.releaseName}` : "Track",
         href: `/admin/releases/${t.releaseId}/tracks`,
@@ -162,6 +182,9 @@ export default function CommandPalette() {
     else if (e.key === "Tab") { e.preventDefault(); }
   };
 
+  const shortcutHint = isMac ? "⌘K" : "Ctrl+K";
+  const shortcutAria = isMac ? "Command K" : "Control K";
+
   return (
     <>
       {/* Topbar trigger */}
@@ -169,12 +192,12 @@ export default function CommandPalette() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search (Command K)"
+        aria-label={`Search (${shortcutAria})`}
         className="inline-flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
       >
         <Search className="h-4 w-4" />
         <span className="hidden lg:inline">Search</span>
-        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">⌘K</kbd>
+        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">{shortcutHint}</kbd>
       </button>
 
       {/* Portal to <body>: the admin topbar (this component's parent) uses
@@ -210,7 +233,7 @@ export default function CommandPalette() {
               ) : (
                 items.map((it, i) => (
                   <button
-                    key={`${it.kind}-${it.href}`}
+                    key={`${it.kind}-${it.id}`}
                     type="button"
                     id={`cmdk-opt-${i}`}
                     role="option"

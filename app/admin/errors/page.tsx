@@ -31,6 +31,10 @@ import {
 const PAGE_SIZE = 25;
 // How often the Live feed auto-refreshes (current bugs only).
 const LIVE_POLL_MS = 20_000;
+// Client mirror of lib/error-log.ts `LIVE_WINDOW_MS` — used only for labels and
+// deciding whether a resolved row can still be reopened back into Live. (Can't
+// import the server module here: it pulls in Prisma. Keep the two in sync.)
+const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type ErrorRow = {
   id: string;
@@ -192,7 +196,7 @@ export default function ErrorsPage() {
     <div>
       <PageHeader
         title="Errors"
-        description="Live feed of current bugs, plus a log of resolved ones. Investigate a live bug, then mark it resolved to move it to the log — or delete it."
+        description="Live feed of current bugs (anything seen in the last 24h), plus a log of resolved ones. Errors that stop recurring move to the log automatically after 24h — or hit ✓ to resolve one now."
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
@@ -270,14 +274,14 @@ export default function ErrorsPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
             </span>
-            Auto-refreshing
+            Seen in the last 24h · auto-refreshing
           </span>
         ) : (
-          <span className="ml-auto text-xs text-muted-foreground">Resolved history</span>
+          <span className="ml-auto text-xs text-muted-foreground">Resolved &amp; quiet history</span>
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="@container rounded-xl border border-border bg-card">
         <div className="border-b border-border px-4 py-2.5 text-sm text-muted-foreground">
           {isLive ? (
             <>
@@ -291,15 +295,20 @@ export default function ErrorsPage() {
         </div>
         {/* table-fixed so a long error message truncates inside the Error column
             instead of stretching the table wider than the page (horizontal
-            scroll). Column widths come from the <th> below. */}
+            scroll). Column widths come from the <th> below. Lower-priority columns
+            (Source / Count / Last seen) are hidden on a narrow card and surfaced in
+            the Error cell's meta line instead, so the table always fits the width
+            and the Actions stay reachable. overflow-x-auto is a belt-and-braces
+            guard. */}
+        <div className="overflow-x-auto">
         <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="w-8 px-2 py-2" />
               <th className="px-3 py-2 text-left font-medium">Error</th>
-              <th className="w-20 px-3 py-2 text-left font-medium">Source</th>
-              <th className="w-16 px-3 py-2 text-right font-medium">Count</th>
-              <th className="w-40 px-3 py-2 text-left font-medium">Last seen</th>
+              <th className="hidden w-20 px-3 py-2 text-left font-medium @xl:table-cell">Source</th>
+              <th className="hidden w-16 px-3 py-2 text-right font-medium @md:table-cell">Count</th>
+              <th className="hidden w-40 px-3 py-2 text-left font-medium @2xl:table-cell">Last seen</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -358,8 +367,22 @@ export default function ErrorsPage() {
                             {row.path}
                           </span>
                         ) : null}
+                        {/* Source / Count / Last seen live in their own columns on a
+                            wide card; on a narrow one those columns are hidden, so
+                            show the same triage info here. Each piece drops out at the
+                            width its column appears, so nothing is ever shown twice. */}
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground @2xl:hidden">
+                          <span className="tabular-nums @md:hidden">{row.count.toLocaleString()}×</span>
+                          <span className="inline-flex items-center gap-1 @xl:hidden">
+                            {row.source === "server" ? <ServerCog className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                            {row.source}
+                          </span>
+                          <span className="@2xl:hidden">
+                            {new Date(row.lastSeen).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="hidden px-3 py-2.5 @xl:table-cell">
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           {row.source === "server" ? (
                             <ServerCog className="h-3.5 w-3.5" />
@@ -369,27 +392,44 @@ export default function ErrorsPage() {
                           {row.source}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                      <td className="hidden px-3 py-2.5 text-right tabular-nums text-foreground @md:table-cell">
                         {row.count.toLocaleString()}
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
+                      <td className="hidden px-3 py-2.5 text-muted-foreground @2xl:table-cell">
                         {new Date(row.lastSeen).toLocaleString()}
                       </td>
                       <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-8 w-8 text-muted-foreground ${
-                              isLive ? "hover:text-emerald-400" : "hover:text-amber-400"
-                            }`}
-                            onClick={() => setResolved(row, isLive)}
-                            disabled={busyId === row.id}
-                            aria-label={isLive ? "Mark resolved (move to log)" : "Reopen (move to live)"}
-                            title={isLive ? "Mark resolved → Log" : "Reopen → Live"}
-                          >
-                            {isLive ? <Check className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-                          </Button>
+                          {/* Live: ✓ resolves now. Log: Reopen only when it would
+                              actually return to Live — i.e. the row is in the Log
+                              because it was manually resolved AND is still recent.
+                              A row that aged out (quiet > 24h) can't be reopened;
+                              only a fresh occurrence brings it back. */}
+                          {isLive ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-emerald-400"
+                              onClick={() => setResolved(row, true)}
+                              disabled={busyId === row.id}
+                              aria-label="Mark resolved (move to log)"
+                              title="Mark resolved → Log"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          ) : row.resolved && new Date(row.lastSeen).getTime() >= Date.now() - LIVE_WINDOW_MS ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-amber-400"
+                              onClick={() => setResolved(row, false)}
+                              disabled={busyId === row.id}
+                              aria-label="Reopen (move to live)"
+                              title="Reopen → Live"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -431,6 +471,7 @@ export default function ErrorsPage() {
             )}
           </tbody>
         </table>
+        </div>
         <div className="border-t border-border px-4 py-3">
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>

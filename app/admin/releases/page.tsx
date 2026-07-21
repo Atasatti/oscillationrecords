@@ -1,4 +1,5 @@
 import { getReleasesPage } from "@/lib/admin-data";
+import { requirePagePermission } from "@/lib/page-guard";
 import AdminReleasesClient from "./AdminReleasesClient";
 
 // Server component: fetch the first page (for the requested status tab) on the
@@ -13,6 +14,9 @@ export default async function AdminReleasesPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  // Revocation-aware gate before reading admin catalog data. Matches catalog:read.
+  await requirePagePermission("catalog:read");
+
   const sp = await searchParams;
   const s = (sp.status || "").toUpperCase();
   const status =

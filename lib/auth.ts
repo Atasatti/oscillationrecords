@@ -6,6 +6,8 @@ import { isAdminEmail } from "@/lib/auth-session";
 
 interface ExtendedToken extends JWT {
   role?: string;
+  /** Our Mongo User.id — NOT token.sub (which is the Google OAuth subject). */
+  uid?: string;
   [key: string]: unknown;
 }
 
@@ -70,6 +72,9 @@ export const authOptions: AuthOptions = {
             },
           });
           extendedToken.role = dbUser.role ?? undefined;
+          // Persist OUR Mongo user id on the token so session.user.id and every
+          // identity/ownership check use it (token.sub is the Google OAuth subject).
+          extendedToken.uid = dbUser.id;
 
           // Brand-new account → flag it so the client shows a one-time newsletter
           // prompt after signup. Stored as a raw field (no schema change — mirrors
@@ -94,12 +99,29 @@ export const authOptions: AuthOptions = {
         }
       }
 
+      // Backfill uid for tokens minted before we started storing it (existing
+      // 30-day sessions). One DB lookup per stale token, then it's cached on the
+      // token; fresh sign-ins already set uid above.
+      if (!extendedToken.uid && typeof extendedToken.email === "string") {
+        try {
+          const u = await prisma.user.findUnique({
+            where: { email: extendedToken.email },
+            select: { id: true },
+          });
+          if (u) extendedToken.uid = u.id;
+        } catch (e) {
+          console.error("Auth: failed to backfill user id", e);
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
       const extendedToken = token as ExtendedToken;
       if (session.user) {
-        session.user.id = extendedToken.sub as string;
+        // Our Mongo user id (uid); fall back to sub only if a token predates the
+        // backfill and its user can't be resolved, so id is never undefined.
+        session.user.id = (extendedToken.uid as string) ?? (extendedToken.sub as string);
         session.user.role = (extendedToken.role as string) ?? "user";
         // Single client-visible admin flag: bootstrap email OR role === "admin".
         session.user.isAdmin =

@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requirePermission } from "@/lib/auth-guard";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  CATALOG_AUDIO_PREFIXES,
+  CATALOG_IMAGE_PREFIXES,
   isAudioContentType,
   isImageContentType,
+  keyHasPrefix,
   publicFileUrl,
   s3Client,
   s3Configured,
@@ -27,6 +31,13 @@ export async function POST(request: NextRequest) {
         { error: "AWS credentials not configured" },
         { status: 500 }
       );
+    }
+
+    // Per-user presign rate-limit. Lower than the single-file routes since each
+    // call signs a whole album (up to 50 URLs) — 30 bulk requests/min is ample.
+    const rl = rateLimit(`presign-bulk:${guard.token.sub}`, 30, 60_000);
+    if (!rl.ok) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     const body = await request.json();
@@ -71,6 +82,9 @@ export async function POST(request: NextRequest) {
     if (!imageKey) {
       return NextResponse.json({ error: "Invalid imageFileName" }, { status: 400 });
     }
+    if (!keyHasPrefix(imageKey, CATALOG_IMAGE_PREFIXES)) {
+      return NextResponse.json({ error: "imageFileName must be under an allowed path" }, { status: 400 });
+    }
 
     const results: {
       image: { uploadURL: string; fileURL: string };
@@ -107,6 +121,9 @@ export async function POST(request: NextRequest) {
           const key = sanitizeKey(fileName);
           if (!key) {
             throw new Error("Invalid audio fileName");
+          }
+          if (!keyHasPrefix(key, CATALOG_AUDIO_PREFIXES)) {
+            throw new Error("audio fileName must be under an allowed path");
           }
 
           const uploadURL = await getSignedUrl(

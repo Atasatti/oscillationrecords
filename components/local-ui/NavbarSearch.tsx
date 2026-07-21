@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import IconInput from "./IconInput";
 import { cn } from "@/lib/utils";
+import { slugify } from "@/lib/slug";
 
 type SearchHit = {
   id: string;
@@ -190,12 +191,17 @@ export default function NavbarSearch({
   }, [panelId]);
 
   const go = useCallback(
-    (id: string, type: SearchHit["type"]) => {
+    (hit: SearchHit) => {
       setOpen(false);
       setQuery("");
       setResults([]);
       onNavigate?.();
-      router.push(type === "artist" ? `/artists/${id}` : `/releases/${id}`);
+      // Navigate to the canonical slug, not the id. Both resolve, but the id
+      // form only 308s to the slug — so searching used to cost every visitor a
+      // redirect hop and put id-based URLs in circulation for anyone who shared
+      // one (Search Console then reports them as "Page with redirect").
+      const base = hit.type === "artist" ? "/artists" : "/releases";
+      router.push(`${base}/${slugify(hit.name)}`);
     },
     [onNavigate, router]
   );
@@ -230,7 +236,7 @@ export default function NavbarSearch({
               <li key={r.id} role="option" aria-selected={i === activeIndex}>
                 <button
                   type="button"
-                  onClick={() => go(r.id, r.type)}
+                  onClick={() => go(r)}
                   onMouseEnter={() => setActiveIndex(i)}
                   className={cn(
                     "flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/30",
@@ -307,11 +313,11 @@ export default function NavbarSearch({
           if (e.key === "Enter" && synced && !loading && results.length) {
             e.preventDefault();
             const pick = activeIndex >= 0 ? results[activeIndex] : results[0];
-            if (pick) go(pick.id, pick.type);
+            if (pick) go(pick);
           }
         }}
         onArrowClick={() => {
-          if (synced && !loading && results[0]) go(results[0].id, results[0].type);
+          if (synced && !loading && results[0]) go(results[0]);
           else if (query.trim()) setOpen(true);
         }}
       />

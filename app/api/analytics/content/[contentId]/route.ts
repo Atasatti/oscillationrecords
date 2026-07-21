@@ -51,26 +51,50 @@ export async function GET(
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Get all play events for this content
+    // Play events for this content — LEAN scalar select, NOT include:{user:{profile}}.
+    // Joining a user + profile object onto every play row was the heavy cost the
+    // sibling dashboard route deliberately avoids; we resolve the few distinct
+    // logged-in members' user/profile in bulk maps below instead (#23).
     const playEvents = await prisma.playEvent.findMany({
       where: {
         contentId,
         contentType,
-        createdAt: {
-          gte: startDate,
-        },
+        createdAt: { gte: startDate },
       },
-      include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+      select: {
+        userId: true,
+        visitorId: true,
+        completed: true,
+        playDuration: true,
+        country: true,
+        city: true,
+        createdAt: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
+
+    // Distinct logged-in members in the window (small set), resolved once.
+    const memberIds = Array.from(
+      new Set(playEvents.map((e) => e.userId).filter((v): v is string => Boolean(v)))
+    );
+    const [profileRows, userRows] = await Promise.all([
+      memberIds.length
+        ? prisma.userProfile.findMany({
+            where: { userId: { in: memberIds } },
+            select: { userId: true, gender: true, ageRange: true, country: true, city: true },
+          })
+        : Promise.resolve([]),
+      memberIds.length
+        ? prisma.user.findMany({
+            where: { id: { in: memberIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const profileMap = new Map(profileRows.map((p) => [p.userId, p]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
+    const profileOf = (userId: string | null) => (userId ? profileMap.get(userId) ?? null : null);
+    const userOf = (userId: string | null) => (userId ? userMap.get(userId) ?? null : null);
 
     // Calculate statistics. Identity = logged-in userId, else anonymous visitor id.
     const idOf = (e: { userId: string | null; visitorId: string | null }) =>
@@ -105,7 +129,7 @@ export async function GET(
     const cityStats = new Map<string, number>();
 
     playEvents.forEach(event => {
-      const profile = event.user?.profile ?? null;
+      const profile = profileOf(event.userId);
       if (profile?.gender) {
         genderStats[profile.gender as keyof typeof genderStats] =
           (genderStats[profile.gender as keyof typeof genderStats] || 0) + 1;
@@ -137,18 +161,22 @@ export async function GET(
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // User engagement details
-    const userEngagement = playEvents.map(event => ({
-      userId: event.userId,
-      userName: event.user?.name || event.user?.email || "Anonymous visitor",
-      userEmail: event.user?.email || "",
-      gender: event.user?.profile?.gender || null,
-      ageRange: event.user?.profile?.ageRange || null,
-      country: event.country || event.user?.profile?.country || null,
-      city: event.city || event.user?.profile?.city || null,
-      playDuration: event.playDuration,
-      completed: event.completed,
-      createdAt: event.createdAt,
-    }));
+    const userEngagement = playEvents.map(event => {
+      const u = userOf(event.userId);
+      const profile = profileOf(event.userId);
+      return {
+        userId: event.userId,
+        userName: u?.name || u?.email || "Anonymous visitor",
+        userEmail: u?.email || "",
+        gender: profile?.gender || null,
+        ageRange: profile?.ageRange || null,
+        country: event.country || profile?.country || null,
+        city: event.city || profile?.city || null,
+        playDuration: event.playDuration,
+        completed: event.completed,
+        createdAt: event.createdAt,
+      };
+    });
 
     // Top users by play count
     const userPlayCounts = new Map<string, number>();
@@ -161,11 +189,12 @@ export async function GET(
     const topUsers = Array.from(userPlayCounts.entries())
       .map(([id, count]) => {
         const userEvent = playEvents.find(e => idOf(e) === id);
+        const u = userOf(userEvent?.userId ?? null);
         return {
           userId: id,
-          userName: userEvent?.user?.name || userEvent?.user?.email || "Anonymous visitor",
+          userName: u?.name || u?.email || "Anonymous visitor",
           playCount: count,
-          profile: userEvent?.user?.profile ?? undefined,
+          profile: profileOf(userEvent?.userId ?? null) ?? undefined,
         };
       })
       .sort((a, b) => b.playCount - a.playCount)

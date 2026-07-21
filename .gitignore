@@ -57,3 +57,12 @@ lyrics-review.json
 
 # Playwright MCP scratch (screenshots, snapshots, console logs)
 .playwright-mcp/
+
+# Claude Code local tooling / config (machine-specific — not shared).
+# The rest of .claude/ (settings.json, agents, commands, hooks) IS shared.
+.mcp.json
+.superpowers/
+.claude/settings.local.json
+
+# Genius manual-add paste-pack helper (generated locally for copy/paste ingest)
+genius-add-pack.html

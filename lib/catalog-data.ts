@@ -152,8 +152,14 @@ export async function mapReleasesToCards(
     r.featureArtistIds.forEach((id) => allArtistIds.add(String(id)));
   });
 
+  // A public release grid/carousel (and its MusicAlbum ItemList JSON-LD) must never
+  // name or link a hidden/draft artist — mirror getReleaseMeta/getReleaseDetail and
+  // drop them from the lookup for public callers (admin still sees every credit).
   const artists = await prisma.artist.findMany({
-    where: { id: { in: Array.from(allArtistIds) } },
+    where: {
+      id: { in: Array.from(allArtistIds) },
+      ...(isAdmin ? {} : { showOnWebsite: true, draft: false }),
+    },
     select: { id: true, name: true },
   });
   const artistMap = buildArtistMap(artists);
@@ -196,7 +202,10 @@ export async function mapReleasesToCards(
       type: prismaKindToApi(r.kind),
       primaryArtistName: primaryName,
       artist: formatArtistLine(primaryName, featureArtistNames),
-      artistId: primaryArtistId ? String(primaryArtistId) : "",
+      // Only expose the id when the primary artist is in the (visibility-filtered)
+      // map, so a hidden/draft primary is neither linked nor used for "more by
+      // this artist" cross-referencing.
+      artistId: primaryArtistId && artistMap.has(String(primaryArtistId)) ? String(primaryArtistId) : "",
       featureArtistIds,
       featureArtistNames,
       upcCode: isAdmin ? r.upcCode : null,
@@ -226,6 +235,37 @@ export async function mapReleasesToCards(
       seoMissing: seo?.missing ?? [],
     };
   });
+}
+
+/**
+ * Public release cards crediting a given artist (primary or feature), newest
+ * first, excluding one release and capped. Powers the "More by this artist"
+ * carousel on the release page — fetched server-side and scoped to the artist so
+ * the client no longer downloads the entire /api/releases catalog just to keep 6.
+ */
+export async function getReleaseCardsByArtist(
+  artistId: string,
+  excludeReleaseId: string,
+  limit = 6
+): Promise<ReleaseCardDTO[]> {
+  if (!artistId) return [];
+  try {
+    const releases = await prisma.release.findMany({
+      where: {
+        AND: [
+          { OR: [{ primaryArtistIds: { has: artistId } }, { featureArtistIds: { has: artistId } }] },
+          publicReleaseWhere(),
+          { id: { not: excludeReleaseId } },
+        ],
+      },
+      take: limit,
+      ...releaseCardListArgs,
+    });
+    return mapReleasesToCards(releases, { isAdmin: false });
+  } catch (e) {
+    console.error("getReleaseCardsByArtist: DB unavailable", e);
+    return [];
+  }
 }
 
 /**
@@ -441,6 +481,10 @@ export const getArtistSlugIndex = cache(
     try {
       const artists = await prisma.artist.findMany({
         where: { showOnWebsite: true, draft: false },
+        // Deterministic order so that if two names slugify identically the SAME
+        // (oldest) artist always wins the slug — resolution can't flip between
+        // renders/ISR regenerations and serve a different entity (#10).
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, name: true },
       });
       return artists.map((a) => ({ id: a.id, name: a.name, slug: slugify(a.name) }));
@@ -469,6 +513,9 @@ export const getReleaseSlugIndex = cache(
     try {
       const releases = await prisma.release.findMany({
         where: { status: { not: "DRAFT" } },
+        // Deterministic order so a title-slug collision always resolves to the
+        // SAME (oldest) release instead of flipping between renders/ISR (#10).
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, name: true },
       });
       return releases.map((r) => ({ id: r.id, name: r.name, slug: slugify(r.name) }));
@@ -576,7 +623,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
     const ids = r.primaryArtistIds ?? [];
     if (ids.length) {
       const found = await prisma.artist.findMany({
-        where: { id: { in: ids } },
+        // Only PUBLIC artists may be named in the page title / OG / JSON-LD: a
+        // hidden or draft artist has no public /artists page (it 404s) and is
+        // already hidden from the release body (getReleaseDetail). Filtering here
+        // stops the metadata from naming — or linking to — a not-public artist.
+        where: { id: { in: ids }, showOnWebsite: true, draft: false },
         select: { id: true, name: true },
       });
       const byId = new Map(found.map((a) => [a.id, a]));
@@ -589,8 +640,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       id: r.id,
       name: r.name,
       type: prismaKindToApi(r.kind),
-      upcCode: r.upcCode ?? null,
-      catalogueNumber: r.catalogueNumber ?? null,
+      // Release identifiers (UPC / catalogue number) are useful SEO signals once
+      // the release is public, but must not leak before release — withhold them
+      // for a not-yet-public (Coming Soon / future-dated) release.
+      upcCode: isPublic ? (r.upcCode ?? null) : null,
+      catalogueNumber: isPublic ? (r.catalogueNumber ?? null) : null,
       coverImage: r.coverImage ?? null,
       description: r.description ?? null,
       releaseDate: r.releaseDate ? r.releaseDate.toISOString() : null,
@@ -602,16 +656,21 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
       amazonMusicLink: r.amazonMusicLink ?? null,
       youtubeLink: r.youtubeLink ?? null,
       soundcloudLink: r.soundcloudLink ?? null,
-      tracks: r.tracks.map((t) => ({
-        name: t.name,
-        duration: t.duration || null,
-        isrcCode: t.isrcCode ?? null,
-        iswc: t.iswc ?? null,
-        // Withhold lyrics for a not-yet-public (Coming Soon / future-dated)
-        // release: its tracklist is hidden everywhere else pre-release, so the
-        // JSON-LD must not leak full unreleased lyrics into the page source.
-        lyrics: isPublic ? (t.lyrics ?? null) : null,
-      })),
+      // Withhold the ENTIRE tracklist for a not-yet-public (Coming Soon /
+      // future-dated) release. Track names, ISRC/ISWC rights codes, durations and
+      // lyrics are hidden everywhere else pre-release — the detail page shows
+      // "Tracklist to be revealed", GET /api/releases masks them, and
+      // getReleaseDetail returns none — so the JSON-LD must not leak them into the
+      // page source either. Once the release is public, emit them for SEO.
+      tracks: isPublic
+        ? r.tracks.map((t) => ({
+            name: t.name,
+            duration: t.duration || null,
+            isrcCode: t.isrcCode ?? null,
+            iswc: t.iswc ?? null,
+            lyrics: t.lyrics ?? null,
+          }))
+        : [],
     };
   } catch (e) {
     console.error("getReleaseMeta: DB unavailable", e);
@@ -648,7 +707,9 @@ export interface ReleaseDetailDTO {
   amazonMusicLink: string | null;
   youtubeLink: string | null;
   soundcloudLink: string | null;
-  artists: { id: string; name: string; profilePicture: string | null; isPublic: boolean }[];
+  // Only PUBLIC artists appear here — hidden/draft artists are filtered out in
+  // getReleaseDetail, so every entry is safe to name and link (mirrors Press).
+  artists: { id: string; name: string; profilePicture: string | null }[];
   tracks: ReleaseDetailTrackDTO[];
   songs: ReleaseDetailTrackDTO[];
 }
@@ -691,15 +752,19 @@ export const getReleaseDetail = cache(
           where: { id: { in: [...new Set(allArtistIds.map(String))] } },
           select: { id: true, name: true, profilePicture: true, showOnWebsite: true, draft: true },
         })
-      ).map((a) => ({
-        id: a.id,
-        name: a.name,
-        profilePicture: a.profilePicture,
-        // Only artists with a live public page are safe to link to — the artist
-        // route 404s hidden/draft artists, so the release page renders those names
-        // as plain text instead.
-        isPublic: a.showOnWebsite && !a.draft,
-      }));
+      )
+        // A public release page must never name or link a hidden/draft artist —
+        // the same policy Press applies (see mapPressItems). Drop them entirely so a
+        // hidden artist is handled identically on both surfaces, rather than shown
+        // as an unlinked name here but omitted on Press. A hidden primary artist
+        // simply falls out of the credit line; a release whose only artist is hidden
+        // shows no artist name (it has no public artist to attribute).
+        .filter((a) => a.showOnWebsite && !a.draft)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          profilePicture: a.profilePicture,
+        }));
 
       const tracks = hideTracks ? [] : release.tracks.map(serializeTrackForPublic);
 
@@ -1001,6 +1066,9 @@ export const getPressForArtist = cache(
 /** Public press items linked to one release (for the release page section). */
 export const getPressForRelease = cache(
   async (releaseId: string): Promise<PressItemDTO[]> => {
+    // A malformed id throws in Prisma and lands in the catch below, which then
+    // logs a misleading "DB unavailable". Nothing can match it — bail early.
+    if (!OBJECT_ID_RE.test(releaseId)) return [];
     try {
       const rows = await prisma.pressItem.findMany({
         where: { showOnWebsite: true, draft: false, releaseIds: { has: releaseId } },

@@ -249,6 +249,7 @@ export default function TrackRow({
             value={track.name}
             onChange={(e) => onChange({ name: e.target.value })}
             placeholder="Track name *"
+            aria-label="Track name"
             className="h-9 w-full border-white/10 bg-black/40"
           />
           {track.expanded ? (
@@ -361,6 +362,7 @@ export default function TrackRow({
                   value={track.featureArtistText}
                   onChange={(e) => onChange({ featureArtistText: e.target.value })}
                   placeholder="e.g. Guest Name, Another Artist"
+                  aria-label="Featured artists"
                 />
               </div>
             </div>
@@ -408,6 +410,7 @@ export default function TrackRow({
                     if (lyricsNote) setLyricsNote(null);
                   }}
                   placeholder="Lyrics"
+                  aria-label="Lyrics"
                   rows={5}
                 />
                 {lyricsNote ? (
@@ -423,6 +426,7 @@ export default function TrackRow({
                   value={track.syncedLyrics}
                   onChange={(e) => onChange({ syncedLyrics: e.target.value })}
                   placeholder="[00:08.95] time-synced lyrics…"
+                  aria-label="Synced lyrics (LRC)"
                   rows={3}
                   className="font-mono text-xs"
                 />
@@ -476,6 +480,7 @@ export default function TrackRow({
                     value={track.isrcCode}
                     onChange={(e) => onChange({ isrcCode: e.target.value })}
                     placeholder="e.g. GBXXX2400123"
+                    aria-label="ISRC"
                     className={`font-mono text-sm ${isrcMissing ? "border-red-500/70" : ""}`}
                   />
                   {isrcMissing ? (
@@ -488,6 +493,7 @@ export default function TrackRow({
                     value={track.iswc}
                     onChange={(e) => onChange({ iswc: e.target.value })}
                     placeholder="e.g. T3125086393"
+                    aria-label="ISWC"
                     className="font-mono text-sm"
                   />
                 </div>
@@ -531,6 +537,7 @@ export default function TrackRow({
                       value={track[k]}
                       onChange={(e) => onChange({ [k]: e.target.value } as Partial<EditorTrack>)}
                       placeholder={label}
+                      aria-label={`${label} link`}
                     />
                   ))}
                 </div>

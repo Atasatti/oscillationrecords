@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
-import { normalizeContentPostInput } from "@/lib/content-post";
+import { normalizeContentPostInput, isPastContentDay } from "@/lib/content-post";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,6 +34,11 @@ export async function POST(request: NextRequest) {
     const input = normalizeContentPostInput(body);
     if (!input) {
       return NextResponse.json({ error: "A title and a valid date are required" }, { status: 400 });
+    }
+    // A brand-new post can't be scheduled in the past (guards a hand-crafted
+    // request too, not just the picker). Editing keeps a historical post's date.
+    if (isPastContentDay(input.scheduledFor)) {
+      return NextResponse.json({ error: "Past dates are not allowed" }, { status: 400 });
     }
     // Drop a release link that doesn't resolve (deleted/foreign id) — the field
     // is display-only, so store null rather than a dangling reference.

@@ -22,6 +22,32 @@ export const STEP_STATUS_DOT: Record<StepStatus, string> = {
   complete: "bg-emerald-500",
 };
 
+// Deep-linkable step identity for the release editor (?step=<slug>). Lets other
+// admin areas open a release straight at the relevant step — e.g. the Budget list
+// links to ?step=budget instead of dumping the admin on step 1. Keep in sync with
+// the STEPS array in ReleaseWorkflow.tsx.
+export const RELEASE_STEP_BY_SLUG = {
+  details: 1,
+  tracks: 2,
+  budget: 3,
+  documents: 4,
+  money: 5,
+} as const;
+export type ReleaseStepSlug = keyof typeof RELEASE_STEP_BY_SLUG;
+export const RELEASE_STEP_SLUG_BY_N: Record<number, ReleaseStepSlug> = {
+  1: "details",
+  2: "tracks",
+  3: "budget",
+  4: "documents",
+  5: "money",
+};
+
+/** Deep link to a release editor step, e.g. releaseEditHref(id, "budget"). */
+export function releaseEditHref(releaseId: string, step?: ReleaseStepSlug): string {
+  const base = `/admin/releases/${releaseId}/edit`;
+  return step ? `${base}?step=${step}` : base;
+}
+
 export type WorkflowRelease = {
   name?: string | null;
   status?: string | null;

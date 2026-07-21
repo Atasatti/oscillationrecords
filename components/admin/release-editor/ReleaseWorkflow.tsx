@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ReleaseEditor from "@/components/admin/release-editor/ReleaseEditor";
 import ReleaseTracksStep from "@/components/admin/release-editor/ReleaseTracksStep";
 import ReleaseDeliveryPanel from "@/components/admin/ReleaseDeliveryPanel";
@@ -18,6 +19,8 @@ import {
   moneyStatus,
   STEP_STATUS_DOT,
   STEP_STATUS_LABEL,
+  RELEASE_STEP_BY_SLUG,
+  RELEASE_STEP_SLUG_BY_N,
   type StepStatus,
   type WorkflowRelease,
 } from "@/lib/release-workflow";
@@ -30,6 +33,11 @@ const STEPS = [
   { n: 5, label: "Money & outreach" },
 ] as const;
 
+/** Resolve the active step number from a ?step=<slug> value (defaults to 1). */
+function stepFromParam(slug: string | null): number {
+  return (slug && RELEASE_STEP_BY_SLUG[slug as keyof typeof RELEASE_STEP_BY_SLUG]) || 1;
+}
+
 const EMPTY_STATUSES: Record<number, StepStatus> = { 1: "empty", 2: "empty", 3: "empty", 4: "empty", 5: "empty" };
 
 /**
@@ -41,7 +49,15 @@ const EMPTY_STATUSES: Record<number, StepStatus> = { 1: "empty", 2: "empty", 3: 
  * time you switch steps, so the indicators reflect edits on the step you left.
  */
 export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
-  const [active, setActive] = useState(1);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const stepParam = searchParams.get("step");
+
+  // The active step is driven by ?step=<slug> so a deep link (e.g. the Budget list
+  // → ?step=budget) opens the right step and a refresh keeps it. Initialised from
+  // the URL, then kept in sync both ways below.
+  const [active, setActive] = useState(() => stepFromParam(stepParam));
   const [statuses, setStatuses] = useState<Record<number, StepStatus>>(EMPTY_STATUSES);
   // The Tracks step hosts the full (heavy, autosaving) tracklist editor. Mount it
   // lazily on first visit rather than in the background on step 1.
@@ -82,13 +98,32 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
     if (active === 2) setTracksMounted(true);
   }, [refreshStatuses, active]);
 
+  // Keep the URL in sync when a step is picked (so a refresh stays on it), and
+  // follow the URL when it changes underneath us (a deep link to this same page
+  // from another area, or browser back/forward).
+  useEffect(() => {
+    const fromUrl = stepFromParam(stepParam);
+    if (fromUrl !== active) setActive(fromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepParam]);
+
+  const selectStep = useCallback(
+    (n: number) => {
+      setActive(n);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("step", RELEASE_STEP_SLUG_BY_N[n] ?? "details");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
   return (
     <div>
       <nav
         aria-label="Release sections"
         className="sticky top-0 z-20 -mx-4 mb-8 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8"
       >
-        <ol className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <ol className="flex flex-wrap gap-1.5">
           {STEPS.map((s) => {
             const st = statuses[s.n] ?? "empty";
             const isActive = active === s.n;
@@ -96,7 +131,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
               <li key={s.n} className="shrink-0">
                 <button
                   type="button"
-                  onClick={() => setActive(s.n)}
+                  onClick={() => selectStep(s.n)}
                   aria-current={isActive ? "step" : undefined}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                     isActive

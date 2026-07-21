@@ -11,7 +11,7 @@ import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 const SEGMENT_LABELS: Record<string, string> = {
   admin: "Admin",
   "site-content": "Site content",
-  budgets: "Money",
+  budgets: "Budgets",
   // Singular detail segments are labelled plural too — their crumb links to the
   // list page (see SEGMENT_HREF_OVERRIDES), so "Admin › Releases › Details" reads
   // consistently with where the link goes.
@@ -142,7 +142,16 @@ export default function Breadcrumbs() {
       // straight there — clearer than "Details", and consistent with the editor
       // being where you return for that release.
       if (isId(seg) && (raw[i - 1] === "releases" || raw[i - 1] === "artists")) {
-        label = "Edit";
+        // The new-release flow lands on the tracklist as
+        // /admin/releases/<id>/tracks?new=1 (see ReleaseEditor). Label that crumb
+        // "New" so the trail reads "Admin › Releases › New › Tracks" and doesn't
+        // masquerade as the edit flow. The draft already exists, so the crumb still
+        // links to its editor — a non-destructive way back to the release being
+        // built. Every other id-under-list route (incl. the edit-flow tracklist)
+        // stays "Edit".
+        const isNewReleaseFlow =
+          raw[i - 1] === "releases" && raw[i + 1] === "tracks" && searchParams.get("new") === "1";
+        label = isNewReleaseFlow ? "New" : "Edit";
         href = "/" + raw.slice(0, i + 1).join("/") + "/edit";
       }
       return { label, href, isLast: idx === kept.length - 1 };
@@ -151,31 +160,43 @@ export default function Breadcrumbs() {
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">
-      <ol className="flex items-center gap-1.5 text-sm">
-        {crumbs.map((c, idx) => (
+      <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm">
+        {crumbs.map((c, idx) => {
+          // On a narrow topbar the whole trail can't fit, and shrinking every crumb
+          // equally turns it into an unreadable "Ad… › Outre… › Pitc… › E…". Instead
+          // keep only the current page and its immediate parent on mobile — enough to
+          // know where you are and step back — and restore the full trail at ≥sm,
+          // where the header has room. Ancestors never truncate; only the (usually
+          // short) current-page crumb may, as a safety for long names.
+          const hideOnMobile = idx < crumbs.length - 2;
           // Key by index, not href: some trails legitimately repeat an href, and
           // duplicate React keys corrupt reconciliation — leaving stale crumb nodes
           // behind across navigations. The trail is fully re-derived from the
           // pathname each render, so the index is a stable, collision-free key.
-          <li key={idx} className="flex items-center gap-1.5 min-w-0">
-            {c.isLast ? (
-              <span className="truncate font-medium text-foreground" aria-current="page">
-                {c.label}
-              </span>
-            ) : (
-              <>
-                <Link
-                  href={c.href}
-                  onClick={onLinkClick}
-                  className="truncate text-muted-foreground transition-colors hover:text-foreground"
-                >
+          return (
+            <li
+              key={idx}
+              className={`flex items-center gap-1.5 ${c.isLast ? "min-w-0" : "shrink-0"} ${hideOnMobile ? "hidden sm:flex" : ""}`}
+            >
+              {c.isLast ? (
+                <span className="truncate font-medium text-foreground" aria-current="page">
                   {c.label}
-                </Link>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
-              </>
-            )}
-          </li>
-        ))}
+                </span>
+              ) : (
+                <>
+                  <Link
+                    href={c.href}
+                    onClick={onLinkClick}
+                    className="whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {c.label}
+                  </Link>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden />
+                </>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );

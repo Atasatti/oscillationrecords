@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isObjectId } from "@/lib/object-id";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import {
@@ -22,6 +23,10 @@ export async function GET(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const res = await loadBudgetSummary(releaseId);
     if (!res) return NextResponse.json({ error: "Release not found" }, { status: 404 });
     return NextResponse.json(res, { headers: { "Cache-Control": "private, no-store" } });
@@ -40,6 +45,10 @@ export async function POST(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const body = await request.json().catch(() => ({}));
     const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
     if (!Number.isFinite(amount) || amount < 0) {
@@ -117,6 +126,10 @@ export async function PATCH(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const body = await request.json().catch(() => ({}));
     const budget = normalizeBudget(body.budget); // null clears it
 
@@ -149,6 +162,10 @@ export async function DELETE(
   if (!guard.ok) return guard.response;
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const entryId = new URL(request.url).searchParams.get("entryId") || "";
     if (!entryId) return NextResponse.json({ error: "entryId is required" }, { status: 400 });
 

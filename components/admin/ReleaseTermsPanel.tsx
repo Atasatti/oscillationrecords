@@ -184,31 +184,31 @@ export default function ReleaseTermsPanel({ releaseId }: { releaseId: string }) 
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>Licence type</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Licence type" className={`${inputCls} w-full`}>
+          <label htmlFor="rt-type" className={labelCls}>Licence type</label>
+          <select id="rt-type" value={type} onChange={(e) => setType(e.target.value)} aria-label="Licence type" className={`${inputCls} w-full`}>
             <option value="">Not set</option>
             {AGREEMENT_TYPES.map((t) => <option key={t} value={t}>{AGREEMENT_TYPE_LABELS[t]}</option>)}
           </select>
         </div>
         <div>
-          <label className={labelCls}>Territory</label>
-          <input value={territory} onChange={(e) => setTerritory(e.target.value)} placeholder="Worldwide, UK & EU…" className={`${inputCls} w-full`} />
+          <label htmlFor="rt-territory" className={labelCls}>Territory</label>
+          <input id="rt-territory" value={territory} onChange={(e) => setTerritory(e.target.value)} placeholder="Worldwide, UK & EU…" className={`${inputCls} w-full`} />
         </div>
         <div className="sm:col-span-2">
-          <label className={labelCls}>Rights granted</label>
-          <input value={rights} onChange={(e) => setRights(e.target.value)} placeholder="e.g. Distribution + sync, digital only…" className={`${inputCls} w-full`} />
+          <label htmlFor="rt-rights" className={labelCls}>Rights granted</label>
+          <input id="rt-rights" value={rights} onChange={(e) => setRights(e.target.value)} placeholder="e.g. Distribution + sync, digital only…" className={`${inputCls} w-full`} />
         </div>
         <div>
-          <label className={labelCls}>Term start</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputCls} w-full`} />
+          <label htmlFor="rt-start" className={labelCls}>Term start</label>
+          <input id="rt-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputCls} w-full`} />
         </div>
         <div>
-          <label className={labelCls}>Term end</label>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputCls} w-full`} />
+          <label htmlFor="rt-end" className={labelCls}>Term end</label>
+          <input id="rt-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputCls} w-full`} />
         </div>
         <div className="sm:col-span-2">
-          <label className={labelCls}>Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Split summary, contract reference, special conditions…" className={`${inputCls} w-full resize-none`} />
+          <label htmlFor="rt-notes" className={labelCls}>Notes</label>
+          <textarea id="rt-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Split summary, contract reference, special conditions…" className={`${inputCls} w-full resize-none`} />
         </div>
       </div>
 

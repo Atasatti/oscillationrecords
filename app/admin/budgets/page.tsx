@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCached, setCached } from "@/lib/admin-cache";
+import { releaseEditHref } from "@/lib/release-workflow";
 
 type ReleaseRow = {
   id: string;
@@ -120,7 +121,7 @@ export default function BudgetsPage() {
             return (
               <Link
                 key={r.id}
-                href={`/admin/releases/${r.id}/edit`}
+                href={releaseEditHref(r.id, "budget")}
                 className="group flex items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.02]"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground group-hover:underline">{r.name}</span>

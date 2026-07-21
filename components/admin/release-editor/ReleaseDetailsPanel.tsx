@@ -150,6 +150,8 @@ export default function ReleaseDetailsPanel({
           <div>
             <Input
               name="name"
+              id="rd-name"
+              aria-label="Release name"
               value={value.name}
               onChange={handleInput}
               placeholder="Release name *"
@@ -165,6 +167,8 @@ export default function ReleaseDetailsPanel({
           <div>
             <Textarea
               name="description"
+              id="rd-description"
+              aria-label="Description"
               value={value.description}
               onChange={handleInput}
               placeholder="Description"
@@ -196,11 +200,12 @@ export default function ReleaseDetailsPanel({
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            <label htmlFor="rd-status" className="mb-1.5 block text-xs font-medium text-gray-400">
               Status
             </label>
             <select
               name="status"
+              id="rd-status"
               value={value.status}
               onChange={(e) =>
                 onChange({ status: e.target.value as ReleaseStatus })
@@ -220,11 +225,12 @@ export default function ReleaseDetailsPanel({
           </div>
           {value.status === "SCHEDULED" ? (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-400">
+              <label htmlFor="rd-presave" className="mb-1.5 block text-xs font-medium text-gray-400">
                 Pre-save link
               </label>
               <Input
                 name="preSaveUrl"
+                id="rd-presave"
                 type="url"
                 value={value.preSaveUrl}
                 onChange={handleInput}
@@ -236,6 +242,8 @@ export default function ReleaseDetailsPanel({
           <div>
             <Input
               name="releaseDate"
+              id="rd-release-date"
+              aria-label="Release date"
               type="date"
               value={value.releaseDate}
               onChange={handleInput}
@@ -287,6 +295,7 @@ export default function ReleaseDetailsPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             name="primaryGenre"
+            aria-label="Primary genre"
             value={value.primaryGenre}
             onChange={handleInput}
             placeholder="Primary genre"
@@ -294,6 +303,7 @@ export default function ReleaseDetailsPanel({
           />
           <Input
             name="secondaryGenre"
+            aria-label="Secondary genre"
             value={value.secondaryGenre}
             onChange={handleInput}
             placeholder="Secondary genre (optional)"
@@ -313,11 +323,12 @@ export default function ReleaseDetailsPanel({
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            <label htmlFor="rd-upc" className="mb-1.5 block text-xs font-medium text-gray-400">
               UPC / barcode
             </label>
             <Input
               name="upcCode"
+              id="rd-upc"
               value={value.upcCode}
               onChange={handleInput}
               placeholder="e.g. 012345678905"
@@ -325,11 +336,12 @@ export default function ReleaseDetailsPanel({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            <label htmlFor="rd-catno" className="mb-1.5 block text-xs font-medium text-gray-400">
               Catalogue number
             </label>
             <Input
               name="catalogueNumber"
+              id="rd-catno"
               value={value.catalogueNumber}
               onChange={handleInput}
               placeholder="e.g. OSC001"
@@ -337,11 +349,12 @@ export default function ReleaseDetailsPanel({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            <label htmlFor="rd-pline" className="mb-1.5 block text-xs font-medium text-gray-400">
               ℗ line (recording)
             </label>
             <Input
               name="pLine"
+              id="rd-pline"
               value={value.pLine}
               onChange={handleInput}
               placeholder="2024 Oscillation Records"
@@ -349,11 +362,12 @@ export default function ReleaseDetailsPanel({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-400">
+            <label htmlFor="rd-cline" className="mb-1.5 block text-xs font-medium text-gray-400">
               © line (composition)
             </label>
             <Input
               name="cLine"
+              id="rd-cline"
               value={value.cLine}
               onChange={handleInput}
               placeholder="2024 Oscillation Records"
@@ -383,6 +397,7 @@ export default function ReleaseDetailsPanel({
             <Input
               key={k}
               name={k}
+              aria-label={`${label} link`}
               value={value[k]}
               onChange={handleInput}
               placeholder={label}
@@ -417,6 +432,7 @@ export default function ReleaseDetailsPanel({
             <p className="text-xs text-gray-500">Featured (optional)</p>
             <Input
               name="featureArtistText"
+              aria-label="Featured artists"
               value={value.featureArtistText}
               onChange={handleInput}
               placeholder="e.g. Guest Name, Another Artist"

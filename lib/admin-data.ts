@@ -587,6 +587,11 @@ export async function getFeaturedReleases(): Promise<ReleaseCardDTO[]> {
 /** Admin press row = the public DTO plus the visibility flag (admin-only). */
 export type AdminPressRow = PressItemDTO & { showOnWebsite: boolean; draft: boolean };
 
+// The full press row as loaded by prisma.pressItem.findMany (no select): every
+// field mapPressItems reads, plus the admin-only showOnWebsite/draft flags. Typing
+// the call sites with this lets the compiler verify the shape instead of `as never`.
+type PressItemRow = Awaited<ReturnType<typeof prisma.pressItem.findMany>>[number];
+
 /**
  * Cached default (no-search) press listing — the hot path hit on every full page
  * load. Inlines the admin-visibility attach (the closure form can't cross into
@@ -600,7 +605,7 @@ const listPressCached = unstable_cache(
       prisma.pressItem.findMany({ orderBy: pressOrderBy, skip: (safePage - 1) * size, take: size }),
     ]);
     const metaById = new Map(rows.map((r) => [r.id, { showOnWebsite: r.showOnWebsite, draft: r.draft }]));
-    const dtos = await mapPressItems(rows as never, { isAdmin: true });
+    const dtos = await mapPressItems(rows, { isAdmin: true });
     const items: AdminPressRow[] = dtos.map((d) => ({
       ...d,
       showOnWebsite: metaById.get(d.id)?.showOnWebsite ?? true,
@@ -631,10 +636,10 @@ export async function getPressPage({
 
   // Attach the admin-only showOnWebsite + draft flags onto each mapped DTO by id.
   const withVisibility = async (
-    rows: { id: string; showOnWebsite: boolean; draft: boolean }[]
+    rows: PressItemRow[]
   ): Promise<AdminPressRow[]> => {
     const metaById = new Map(rows.map((r) => [r.id, { showOnWebsite: r.showOnWebsite, draft: r.draft }]));
-    const dtos = await mapPressItems(rows as never, { isAdmin: true });
+    const dtos = await mapPressItems(rows, { isAdmin: true });
     return dtos.map((d) => ({
       ...d,
       showOnWebsite: metaById.get(d.id)?.showOnWebsite ?? true,

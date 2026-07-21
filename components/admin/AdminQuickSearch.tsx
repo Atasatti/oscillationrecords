@@ -1,7 +1,9 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Search, X, Loader2 } from "lucide-react";
+import { isObjectId } from "@/lib/object-id";
 
 type ArtistHit = { id: string; name: string; profilePicture: string | null };
 type ReleaseHit = { id: string; name: string; thumbnail: string | null; primaryArtistName: string | null };
@@ -32,8 +34,10 @@ export default function AdminQuickSearch() {
           fetch(`/api/releases?pageSize=5&q=${encodeURIComponent(term)}`).then((x) => (x.ok ? x.json() : { items: [] })),
         ]);
         if (cancelled) return; // a newer query superseded this one
-        setArtists(a.items || []);
-        setReleases(r.items || []);
+        // Only keep hits with a valid id — a result whose id is missing would build
+        // a dead jump URL like `/admin/artist/null`, so drop it rather than show it.
+        setArtists((a.items || []).filter((x: ArtistHit) => isObjectId(x.id)));
+        setReleases((r.items || []).filter((x: ReleaseHit) => isObjectId(x.id)));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -105,8 +109,12 @@ export default function AdminQuickSearch() {
                       onClick={() => go(`/admin/artist/${a.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.profilePicture || "/placeholder.svg"} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      {a.profilePicture ? (
+                        <Image src={a.profilePicture} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src="/placeholder.svg" alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      )}
                       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.name}</span>
                     </button>
                   ))}
@@ -122,8 +130,12 @@ export default function AdminQuickSearch() {
                       onClick={() => go(`/admin/release/${r.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-white/[0.04]"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={r.thumbnail || "/new-music-img1.svg"} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      {r.thumbnail ? (
+                        <Image src={r.thumbnail} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src="/new-music-img1.svg" alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                      )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-foreground">{r.name}</span>
                         {r.primaryArtistName ? <span className="block truncate text-xs text-muted-foreground">{r.primaryArtistName}</span> : null}

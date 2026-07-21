@@ -23,21 +23,22 @@ const AboutHeroSection = () => {
           Oscillation Records: Built for
         </h1>
 
-        {/* Second line with embedded vinyl record — continuous spin */}
+        {/* Second line with the embedded brand logo — gentle float. "Artists" is
+            emphasised the same bright white as "Not Profit." (was muted grey). */}
         <div className="flex items-center justify-center gap-2 mt-2">
-          <span className="text-gray-500 text-5xl font-bold">Artists,</span>
+          <span className="text-5xl font-bold">Artists,</span>
 
-          <div style={{ perspective: "400px" }} className="relative w-15 h-15 md:w-20 md:h-20 lg:w-24 lg:h-24">
+          <div className="relative w-15 h-15 md:w-20 md:h-20 lg:w-24 lg:h-24">
             <motion.div
               className="relative w-full h-full"
-              animate={reduced ? undefined : { rotateZ: 360 }}
-              transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "linear" }}
+              animate={reduced ? undefined : { y: [0, -8, 0, 8, 0] }}
+              transition={reduced ? undefined : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
             >
               <Image
-                src="/record-disk.svg"
-                alt="Vinyl Record"
+                src="/logo-icon.svg"
+                alt="Oscillation Records logo"
                 fill
-                className="object-contain mt-2"
+                className="object-contain"
               />
             </motion.div>
           </div>

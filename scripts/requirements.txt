@@ -1,1 +1,2 @@
-musicxmatch_api
+requests
+truststore

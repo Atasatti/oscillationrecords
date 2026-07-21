@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Image as ImageIcon, Loader2, ExternalLink, Trash2, Eye, Pencil } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
@@ -54,6 +54,29 @@ const emptyForm: FormState = {
 
 type Option = { value: string; label: string };
 
+// A content fingerprint of the form + chosen image, used to decide "dirty" by
+// comparing against the snapshot captured when the item loaded — instead of a
+// sticky flag that any interaction trips forever. This way, poking the kind
+// switcher (or typing then undoing) leaves the form pristine unless the content
+// actually differs. Id lists are sorted so reordering alone isn't a change.
+function formSignature(form: FormState, imageUrl: string, imageFile: File | null): string {
+  return JSON.stringify({
+    kind: form.kind,
+    title: form.title,
+    publisher: form.publisher,
+    articleUrl: form.articleUrl,
+    author: form.author,
+    publishedAt: form.publishedAt,
+    summary: form.summary,
+    body: form.body,
+    showOnWebsite: form.showOnWebsite,
+    artistIds: [...form.artistIds].sort(),
+    releaseIds: [...form.releaseIds].sort(),
+    // A freshly chosen file supersedes any URL; identify it by name + size.
+    image: imageFile ? `file:${imageFile.name}:${imageFile.size}` : `url:${imageUrl}`,
+  });
+}
+
 // Mirror lib/press-input.ts (PRESS_TITLE_MAX / PRESS_SUMMARY_MAX) — the server
 // caps to these too, so a long headline/summary can't break the press-card layout.
 const TITLE_MAX = 120;
@@ -91,9 +114,18 @@ export default function PressEditor({
   // Toggle the Markdown body between edit and rendered preview (owned posts).
   const [showPreview, setShowPreview] = useState(false);
 
-  const [dirty, setDirty] = useState(false);
+  // Snapshot of the form as it was last loaded/saved. "dirty" is derived by
+  // comparing the live form to this baseline, so the discard prompt only fires on
+  // a real net change. Seeded to the empty form (matches create mode, and the
+  // pre-load state in edit mode); the load effect resets it to the fetched item.
+  const [baseline, setBaseline] = useState<string>(() => formSignature(emptyForm, "", null));
+  const dirty = useMemo(
+    () => formSignature(form, imageUrl, imageFile) !== baseline,
+    [form, imageUrl, imageFile, baseline]
+  );
   const { confirmDiscard } = useUnsavedChangesGuard(dirty);
-  const markDirty = () => setDirty(true);
+  // Mark the current form state as the clean baseline (after load / save).
+  const markPristine = () => setBaseline(formSignature(form, imageUrl, imageFile));
 
   // Load artist + release options for the link pickers.
   useEffect(() => {
@@ -139,7 +171,7 @@ export default function PressEditor({
         if (!res.ok) throw new Error();
         const p = await res.json();
         if (cancelled) return;
-        setForm({
+        const loaded: FormState = {
           // An item with a body is one of our own posts; otherwise it's external coverage.
           kind: p.body ? "owned" : "external",
           title: p.title || "",
@@ -152,10 +184,13 @@ export default function PressEditor({
           showOnWebsite: p.showOnWebsite !== false,
           artistIds: Array.isArray(p.artistIds) ? p.artistIds : [],
           releaseIds: Array.isArray(p.releaseIds) ? p.releaseIds : [],
-        });
+        };
+        setForm(loaded);
         setImageUrl(p.image || "");
         setImagePreview(p.image || null);
         setIsDraft(p.draft === true);
+        // The just-loaded item is the clean baseline — nothing to discard yet.
+        setBaseline(formSignature(loaded, p.image || "", null));
       } catch {
         toast.error("Failed to load press item");
         router.push("/admin/press");
@@ -175,14 +210,12 @@ export default function PressEditor({
   }, [imagePreview]);
 
   const setField = (name: keyof FormState, value: string) => {
-    markDirty();
     setForm((p) => ({ ...p, [name]: value }));
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    markDirty();
     setImageFile(file);
     setImageUrl("");
     if (imagePreview && imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
@@ -280,7 +313,7 @@ export default function PressEditor({
           body: JSON.stringify({ showOnWebsite: form.showOnWebsite }),
         }).catch(() => {});
       }
-      setDirty(false);
+      markPristine(); // saved — the current form is now the clean baseline
       toast.success(draft ? "Draft saved" : mode === "edit" ? "Press item saved" : "Press item created");
       router.push("/admin/press");
     } catch (e) {
@@ -304,7 +337,7 @@ export default function PressEditor({
     try {
       const res = await fetch(`/api/press/${pressId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      setDirty(false);
+      markPristine(); // item removed — nothing left to guard against
       toast.success("Press item deleted");
       router.push("/admin/press");
     } catch {
@@ -347,7 +380,6 @@ export default function PressEditor({
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      markDirty();
                       if (imagePreview.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
                       setImageFile(null);
                       setImageUrl("");
@@ -385,7 +417,6 @@ export default function PressEditor({
                   value={imageFile ? "" : imageUrl}
                   disabled={!!imageFile}
                   onChange={(e) => {
-                    markDirty();
                     setImageUrl(e.target.value);
                     setImagePreview(e.target.value || null);
                   }}
@@ -409,7 +440,6 @@ export default function PressEditor({
                       key={k}
                       type="button"
                       onClick={() => {
-                        markDirty();
                         setForm((p) => ({ ...p, kind: k }));
                         setErrors({});
                       }}
@@ -465,6 +495,7 @@ export default function PressEditor({
                         if (errors.publisher) setErrors((p) => ({ ...p, publisher: undefined }));
                       }}
                       placeholder="Publisher / blog *"
+                      aria-label="Publisher / blog"
                       className={errors.publisher ? "border-red-500/70" : ""}
                     />
                     {errors.publisher ? <p className="mt-1 text-sm text-red-400">{errors.publisher}</p> : null}
@@ -474,6 +505,7 @@ export default function PressEditor({
                   value={form.author}
                   onChange={(e) => setField("author", e.target.value)}
                   placeholder={form.kind === "owned" ? "Author / byline (optional)" : "Author (optional)"}
+                  aria-label="Author"
                 />
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -600,7 +632,6 @@ export default function PressEditor({
                   options={artistOptions}
                   selected={form.artistIds}
                   onChange={(v) => {
-                    markDirty();
                     setForm((p) => ({ ...p, artistIds: v }));
                   }}
                   placeholder="Link artists…"
@@ -612,7 +643,6 @@ export default function PressEditor({
                   options={releaseOptions}
                   selected={form.releaseIds}
                   onChange={(v) => {
-                    markDirty();
                     setForm((p) => ({ ...p, releaseIds: v }));
                   }}
                   placeholder="Link releases…"
@@ -628,7 +658,6 @@ export default function PressEditor({
                     type="checkbox"
                     checked={form.showOnWebsite}
                     onChange={(e) => {
-                      markDirty();
                       setForm((p) => ({ ...p, showOnWebsite: e.target.checked }));
                     }}
                     className="h-4 w-4 rounded border-gray-600 bg-black accent-white"

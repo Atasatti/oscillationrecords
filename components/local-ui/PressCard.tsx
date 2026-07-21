@@ -1,6 +1,5 @@
-"use client";
-
 import Link from "next/link";
+import Image from "next/image";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import type { PressItemDTO } from "@/lib/catalog-data";
 import { slugify } from "@/lib/slug";
@@ -16,15 +15,19 @@ import { slugify } from "@/lib/slug";
 export default function PressCard({
   item,
   mobileRow = false,
+  priority = false,
 }: {
   item: PressItemDTO;
   mobileRow?: boolean;
+  /** Set on the first Featured card so its LCP image preloads (not lazy). */
+  priority?: boolean;
 }) {
   const date = item.publishedAt
     ? new Date(item.publishedAt).toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
+        timeZone: "UTC",
       })
     : null;
 
@@ -38,17 +41,29 @@ export default function PressCard({
       }
     >
       {item.image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={item.image}
-          alt=""
+        // next/image serves resized WebP from the S3 original (allow-listed in
+        // next.config). fill + a sized container keeps the two responsive shapes:
+        // a 72px square row on mobile, a full aspect-video card from sm up.
+        <div
           className={
             mobileRow
-              ? "h-[72px] w-[72px] shrink-0 rounded-lg object-cover sm:h-auto sm:w-full sm:rounded-none sm:aspect-video"
-              : "aspect-video w-full object-cover"
+              ? "relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg sm:h-auto sm:w-full sm:rounded-none sm:aspect-video"
+              : "relative aspect-video w-full overflow-hidden"
           }
-          loading="lazy"
-        />
+        >
+          <Image
+            src={item.image}
+            alt=""
+            fill
+            sizes={
+              mobileRow
+                ? "(max-width: 640px) 72px, (max-width: 1024px) 50vw, 33vw"
+                : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            }
+            priority={priority}
+            className="object-cover"
+          />
+        </div>
       ) : null}
       <div
         className={
@@ -64,7 +79,7 @@ export default function PressCard({
           ) : (
             <span>{item.publisher}</span>
           )}
-          {date ? <span className="text-gray-500">· {date}</span> : null}
+          {date ? <span className="text-gray-400">· {date}</span> : null}
         </p>
         {/* line-clamp bounds the height; break-words stops a long unbroken token
             (e.g. a URL-like headline) from overflowing the card width. */}

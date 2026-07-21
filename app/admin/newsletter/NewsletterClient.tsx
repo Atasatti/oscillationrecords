@@ -8,6 +8,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/local-ui/Toast";
+import ScheduleDateTimePicker from "@/components/admin/ScheduleDateTimePicker";
 import {
   CAMPAIGN_STATUS_LABELS, renderNewsletterBody, type CampaignStatus,
 } from "@/lib/newsletter";
@@ -284,11 +285,21 @@ export default function NewsletterClient({
 
       {/* Schedule */}
       <Dialog open={!!scheduleTarget} onOpenChange={(o) => { if (!working && !o) setScheduleTarget(null); }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Schedule send</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">“{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.</p>
-          <input type="datetime-local" value={scheduleValue} onChange={(e) => setScheduleValue(e.target.value)} className={inputCls} />
-          <DialogFooter className="items-center justify-between sm:justify-between">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-border px-6 py-4"><DialogTitle>Schedule send</DialogTitle></DialogHeader>
+          {/* Scrollable body: the picker renders in-flow (never a floating native
+              popup), so it fits any width and the sticky footer keeps Schedule
+              reachable on a small phone. */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Send date &amp; time</label>
+              <ScheduleDateTimePicker value={scheduleValue} onChange={setScheduleValue} />
+              <p className="text-sm text-muted-foreground">
+                “{scheduleTarget?.subject}” will send automatically at this time{!emailConfigured ? " (once email is configured)" : ""}.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="items-center justify-between border-t border-border px-6 py-4 sm:justify-between">
             <div>
               {scheduleTarget?.status === "scheduled" ? (
                 <Button variant="ghost" onClick={() => submitSchedule(true)} disabled={working} className="text-muted-foreground">Clear schedule</Button>

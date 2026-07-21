@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { isOwnBucketUrl } from "@/lib/s3-url";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
@@ -80,6 +82,18 @@ function AssetGlyph({ mime, className }: { mime: string; className?: string }) {
   return <FileIcon className={className} />;
 }
 
+/** Image-asset thumbnail. Serves a resized WebP via next/image for objects on our
+ *  own S3 (allow-listed for the optimizer) instead of downloading the full-res
+ *  original into a small box (#24); an external/unknown host falls back to a raw
+ *  <img> (not optimizable). */
+function AssetThumb({ url, className }: { url: string; className: string }) {
+  if (isOwnBucketUrl(url)) {
+    return <Image src={url} alt="" width={256} height={256} className={className} />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className={className} />;
+}
+
 type UploadRow = { status: "queued" | "uploading" | "done" | "error"; pct: number; error?: string };
 
 function putWithProgress(url: string, file: File, onPct: (n: number) => void): Promise<void> {
@@ -149,6 +163,20 @@ export default function AssetsClient({
     return m;
   }, [releases, artists]);
 
+  // The artist to show for a row. Uploaded/artist assets carry their own artistId;
+  // release- and track-derived media (a master, stems, a cover) carry only a
+  // releaseId, so fall back to that release's primary artist — otherwise a master
+  // audio row would show no artist at all. `viaRelease` flags the inferred case.
+  const artistFor = useCallback(
+    (a: Asset): { name: string | null; viaRelease: boolean } => {
+      if (a.artistId) return { name: nameOf.get(a.artistId) ?? null, viaRelease: false };
+      const rid = a.releaseId ? releaseArtistId[a.releaseId] : undefined;
+      if (rid) return { name: nameOf.get(rid) ?? null, viaRelease: true };
+      return { name: null, viaRelease: false };
+    },
+    [nameOf, releaseArtistId]
+  );
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: assets.length };
     for (const a of assets) c[a.category] = (c[a.category] ?? 0) + 1;
@@ -182,7 +210,7 @@ export default function AssetsClient({
     const grp = activeGroup ? groups.find((g) => g.key === activeGroup) : null;
     const base = grp ? grp.assets : visible;
     const relName = (a: Asset) => (a.releaseId ? nameOf.get(a.releaseId) : "") ?? "";
-    const artName = (a: Asset) => (a.artistId ? nameOf.get(a.artistId) : "") ?? "";
+    const artName = (a: Asset) => artistFor(a).name ?? "";
     const cmp = (x: Asset, y: Asset) => {
       let v = 0;
       switch (sortBy) {
@@ -196,7 +224,7 @@ export default function AssetsClient({
       return sortDir === "asc" ? v : -v;
     };
     return [...base].sort(cmp);
-  }, [activeGroup, groups, visible, sortBy, sortDir, nameOf]);
+  }, [activeGroup, groups, visible, sortBy, sortDir, nameOf, artistFor]);
 
   const activeAsset = useMemo(() => assets.find((a) => a.id === activeId) ?? null, [assets, activeId]);
 
@@ -256,15 +284,27 @@ export default function AssetsClient({
     const editable = selectedAssets().filter((a) => !a.readOnly);
     if (editable.length === 0) { toast.error("Only uploaded files can be deleted — catalog media is managed on its record"); return; }
     setWorking(true);
-    let ok = 0;
-    for (const a of editable) {
-      try { const r = await fetch(`/api/assets/${a.id}`, { method: "DELETE" }); if (r.ok) ok += 1; } catch { /* skip */ }
-    }
-    const ids = new Set(editable.map((a) => a.id));
-    setAssets((list) => list.filter((x) => !ids.has(x.id)));
-    setSelected(new Set());
+    // Track which deletes actually succeeded so we only drop those rows and can
+    // report failures — the previous version removed every selected row and always
+    // toasted success even when deletes 500'd, silently diverging from the DB.
+    const results = await Promise.allSettled(
+      editable.map((a) =>
+        fetch(`/api/assets/${a.id}`, { method: "DELETE" }).then((r) => {
+          if (!r.ok) throw new Error(String(r.status));
+          return a.id;
+        })
+      )
+    );
+    const deleted = new Set(
+      results.filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled").map((r) => r.value)
+    );
+    const failed = editable.filter((a) => !deleted.has(a.id)).map((a) => a.id);
+    setAssets((list) => list.filter((x) => !deleted.has(x.id)));
+    // Keep any that failed selected so the admin can retry; clear the rest.
+    setSelected(new Set(failed));
     setWorking(false);
-    toast.success(`Deleted ${ok} file${ok === 1 ? "" : "s"}`);
+    if (deleted.size) toast.success(`Deleted ${deleted.size} file${deleted.size === 1 ? "" : "s"}`);
+    if (failed.length) toast.error(`${failed.length} file${failed.length === 1 ? "" : "s"} could not be deleted`);
   };
   const applyReassign = async () => {
     const editable = selectedAssets().filter((a) => !a.readOnly);
@@ -274,11 +314,12 @@ export default function AssetsClient({
     if (reassignArtist) body.artistId = reassignArtist === "__none__" ? null : reassignArtist;
     if (Object.keys(body).length === 0) { setReassignOpen(false); return; }
     setWorking(true);
+    let ok = 0;
     for (const a of editable) {
       try {
         const r = await fetch(`/api/assets/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const j = await r.json().catch(() => ({}));
-        if (r.ok && j.asset) setAssets((list) => list.map((x) => (x.id === a.id ? { ...x, ...j.asset } : x)));
+        if (r.ok && j.asset) { setAssets((list) => list.map((x) => (x.id === a.id ? { ...x, ...j.asset } : x))); ok += 1; }
       } catch { /* skip */ }
     }
     setWorking(false);
@@ -286,7 +327,9 @@ export default function AssetsClient({
     setSelected(new Set());
     setReassignRelease("");
     setReassignArtist("");
-    toast.success(`Reassigned ${editable.length} file${editable.length === 1 ? "" : "s"}`);
+    // Report the real success count, not the attempted count.
+    if (ok) toast.success(`Reassigned ${ok} file${ok === 1 ? "" : "s"}`);
+    if (ok < editable.length) toast.error(`${editable.length - ok} file${editable.length - ok === 1 ? "" : "s"} could not be reassigned`);
   };
 
   const setRow = (i: number, patch: Partial<UploadRow>) =>
@@ -441,18 +484,21 @@ export default function AssetsClient({
   // One asset card — shared by the flat grid and every grouped section.
   const renderCard = (a: Asset) => {
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const art = artistFor(a).name;
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
     const thumbInner = isImg ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+      <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
     ) : (
       <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
     );
     return (
-      <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+      // In dark mode --card === --background, so a plain bg-card card is invisible
+      // against the bg-card panel behind the grid. Raise it with a lighter fill +
+      // shadow (and a matching hover) so each card reads as a distinct dark surface,
+      // consistent with the task board's separated cards.
+      <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-white/[0.04] shadow-sm transition-colors hover:border-white/20 hover:bg-white/[0.06]">
         {hasFile ? (
           <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={thumbClass}>
             {thumbInner}
@@ -536,7 +582,8 @@ export default function AssetsClient({
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const artInfo = artistFor(a);
+    const art = artInfo.name;
     const on = selected.has(a.id);
     // Collapse the lower-priority columns (xl only) while the detail panel is open —
     // must match the hideable header columns so cells and headers stay aligned.
@@ -549,16 +596,15 @@ export default function AssetsClient({
         onClick={() => setActiveId((p) => (p === a.id ? null : a.id))}
         className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
       >
-        <td className="w-9 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+        <td className="w-9 py-3 pl-4 pr-2" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={on} onChange={() => toggleSelect(a.id)} aria-label={`Select ${a.title}`}
             className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
         </td>
-        <td className="py-2 pr-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
+        <td className="py-3 pr-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+                <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
               ) : (
                 <AssetGlyph mime={a.mimeType} className="h-4 w-4 text-muted-foreground" />
               )}
@@ -569,16 +615,19 @@ export default function AssetsClient({
             </span>
           </div>
         </td>
-        <td className={`px-3 py-2 ${hideCol}`}>
+        <td className={`hidden px-3 py-3 md:table-cell ${hideCol}`}>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${CAT_PILL[a.category] ?? CAT_PILL.other}`}>
             {ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category}
           </span>
         </td>
-        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className={`truncate px-3 py-2 text-sm text-muted-foreground ${hideCol}`}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">{a.size ? formatBytes(a.size) : "—"}</td>
-        <td className="whitespace-nowrap px-3 py-2 text-sm tabular-nums text-muted-foreground">{fmtDate(a.createdAt)}</td>
-        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+        {/* Release / Artist truncate hard and show the full value on hover. The
+            artist can be inferred from the release (masters etc.) — flag that in
+            the tooltip so it's clear it's the release's primary artist. */}
+        <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={rel ?? undefined}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={art ? (artInfo.viaRelease ? `${art} — from linked release` : art) : undefined}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        <td className="hidden whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-muted-foreground sm:table-cell">{a.size ? formatBytes(a.size) : "—"}</td>
+        <td className="hidden whitespace-nowrap px-3 py-3 text-sm tabular-nums text-muted-foreground sm:table-cell">{fmtDate(a.createdAt)}</td>
+        <td className="py-3 pl-2 pr-4" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end gap-0.5">
             {hasFile ? (
               <>
@@ -658,7 +707,7 @@ export default function AssetsClient({
     const hasFile = isUsableFileUrl(a.fileUrl);
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const rel = a.releaseId ? nameOf.get(a.releaseId) : null;
-    const art = a.artistId ? nameOf.get(a.artistId) : null;
+    const art = artistFor(a).name;
     const meta: [string, string][] = [
       ["Type", ASSET_CATEGORY_LABELS[a.category as AssetCategory] ?? a.category],
       ["Release", rel ?? "—"],
@@ -684,8 +733,7 @@ export default function AssetsClient({
         {(() => {
           const previewClass = "grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30";
           const inner = isImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={a.fileUrl} alt="" className="h-full w-full object-cover" />
+            <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
           ) : (
             <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
           );
@@ -744,20 +792,27 @@ export default function AssetsClient({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-6rem)] flex-col -mx-4 -mb-6 md:-mx-8 md:-mb-8">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+    // Keep the file-manager panel full-height, but drop the horizontal breakout
+    // so it sits inside the admin content padding like every other page (was
+    // -mx-4/-mx-8, which pushed the card flush to the screen edges).
+    <div className="flex h-[calc(100dvh-6rem)] flex-col -mb-6 md:-mb-8">
+      <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets…"
             className={`${inputCls} w-full pl-9`} />
         </div>
-        <Segmented
-          ariaLabel="Filter assets by category"
-          value={filter}
-          onChange={setFilter}
-          options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
-        />
-        <span className="flex-1" />
+        {/* On phones the 8-way filter can't fit — let it scroll inside its own
+            track instead of stretching the whole toolbar past the screen edge. */}
+        <div className="-mx-1 w-full overflow-x-auto px-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
+          <Segmented
+            ariaLabel="Filter assets by category"
+            value={filter}
+            onChange={setFilter}
+            options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
+          />
+        </div>
+        <span className="hidden flex-1 sm:block" />
         <Button onClick={openUpload} className="h-9 gap-1.5 bg-white text-black hover:bg-gray-200">
           <Upload className="h-4 w-4" /> Upload
         </Button>
@@ -803,21 +858,23 @@ export default function AssetsClient({
               <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-9 px-3 py-2">
+                    <th className="w-9 py-2.5 pl-4 pr-2">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
                         className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
-                    {/* `hideable` columns collapse (xl only) while the detail panel is open, so the
-                        narrower table stays readable; below xl the panel is hidden, so they stay. */}
-                    {([["name", "Name", "w-[34%]", false], ["type", "Type", "w-[10%]", true], ["release", "Release", "w-[18%]", true], ["artist", "Artist", "w-[14%]", true], ["size", "Size", "w-[9%]", false], ["date", "Added", "w-[13%]", false]] as const).map(([col, label, w, hideable]) => (
-                      <th key={col} className={`px-3 py-2 font-medium ${w} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
+                    {/* Progressive columns: on phones only Name (+ actions) show; size/date
+                        appear at sm, Type at md, Release/Artist at lg. `hideable` columns
+                        also collapse (xl only) while the detail panel is open, so the
+                        narrower table stays readable. */}
+                    {([["name", "Name", "w-[28%]", false, ""], ["type", "Type", "w-[11%]", true, "hidden md:table-cell"], ["release", "Release", "w-[17%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[16%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[8%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[11%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
+                      <th key={col} className={`px-3 py-2.5 font-medium ${w} ${resp} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
                     {/* Fixed width so the 3–4 action icons always fit and never overlap the date. */}
-                    <th className="w-36 px-3 py-2" />
+                    <th className="w-36 py-2.5 pl-2 pr-4" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>

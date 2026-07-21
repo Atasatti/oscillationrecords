@@ -3,6 +3,7 @@ import ContactFormSection from "@/components/sections/ContactFormSection";
 import MusicHeardSection from "@/components/sections/MusicHeardSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import { getPageMedia } from "@/lib/page-media";
+import { OG_DEFAULT_IMAGE } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
     title: "Contact | Oscillation Records",
     description: "Get in touch with Oscillation Records.",
     url: "/contact",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 
@@ -24,7 +26,7 @@ const ContactPage = async () => {
     <div>
       <ScrollReveal3D>
         <div
-          className="bg-center bg-no-repeat bg-contain flex justify-between px-[10%] w-full mx-auto"
+          className="bg-center bg-no-repeat bg-contain flex flex-col md:flex-row md:justify-between gap-8 md:gap-0 px-6 md:px-[10%] w-full mx-auto"
           style={{ backgroundImage: `url('${media.bgProfit}')` }}
         >
           <ContactFormSection />

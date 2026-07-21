@@ -1,4 +1,5 @@
 import { getPressPage } from "@/lib/admin-data";
+import { requirePagePermission } from "@/lib/page-guard";
 import AdminPressClient from "./AdminPressClient";
 
 // Server component: fetch the first page on the server so the rows ship in the
@@ -7,6 +8,9 @@ import AdminPressClient from "./AdminPressClient";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPressPage() {
+  // Revocation-aware gate before reading admin catalog data. Matches catalog:read.
+  await requirePagePermission("catalog:read");
+
   let initialData: { items: Awaited<ReturnType<typeof getPressPage>>["items"]; total: number } | null = null;
   try {
     const page = await getPressPage({ page: 1, pageSize: 25 });

@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { BLUR_DATA_URL } from "@/lib/image-blur";
 import {
   motion,
@@ -22,6 +23,7 @@ import {
 import { SiAmazonmusic, SiTidal } from "react-icons/si";
 import { LuX } from "react-icons/lu";
 import { RiTiktokFill } from "react-icons/ri";
+import { trackLinkClick } from "@/lib/track-link-click";
 
 interface Artist {
   id: string;
@@ -45,9 +47,13 @@ interface Artist {
 interface ArtistCardProps {
   artist: Artist;
   onClick?: () => void;
+  /** When set, the whole card navigates here (via a transparent overlay link,
+   *  kept as a SIBLING of the social buttons so no interactive control is nested
+   *  inside an anchor — WCAG 4.1.2 / valid HTML). */
+  href?: string;
 }
 
-const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
+const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick, href }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   // When the user prefers reduced motion, the JS-driven tilt/shimmer/scale are
@@ -86,24 +92,33 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
     setIsHovered(false);
   };
 
-  const handleSocialClick = (url: string | null | undefined, e: React.MouseEvent) => {
+  const handleSocialClick = (
+    url: string | null | undefined,
+    linkType: string,
+    e: React.MouseEvent
+  ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (!url) return;
+    // Record the outbound click for click-through analytics (same as release
+    // streaming links + the artist detail page).
+    trackLinkClick("artist", artist.id, linkType, artist.name);
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // Real, labelled, keyboard-operable social buttons (were bare clickable <svg>s).
-  const socials: { url: string | null | undefined; Icon: typeof LuX; label: string }[] = [
-    { url: artist.xLink, Icon: LuX, label: "X (Twitter)" },
-    { url: artist.tiktokLink, Icon: RiTiktokFill, label: "TikTok" },
-    { url: artist.youtubeLink, Icon: FaYoutube, label: "YouTube" },
-    { url: artist.instagramLink, Icon: FaInstagram, label: "Instagram" },
-    { url: artist.facebookLink, Icon: FaFacebookF, label: "Facebook" },
-    { url: artist.spotifyLink, Icon: FaSpotify, label: "Spotify" },
-    { url: artist.appleMusicLink, Icon: FaApple, label: "Apple Music" },
-    { url: artist.tidalLink, Icon: SiTidal, label: "Tidal" },
-    { url: artist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music" },
-    { url: artist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud" },
+  // `type` is the analytics linkType recorded on click.
+  const socials: { url: string | null | undefined; Icon: typeof LuX; label: string; type: string }[] = [
+    { url: artist.xLink, Icon: LuX, label: "X (Twitter)", type: "x" },
+    { url: artist.tiktokLink, Icon: RiTiktokFill, label: "TikTok", type: "tiktok" },
+    { url: artist.youtubeLink, Icon: FaYoutube, label: "YouTube", type: "youtube" },
+    { url: artist.instagramLink, Icon: FaInstagram, label: "Instagram", type: "instagram" },
+    { url: artist.facebookLink, Icon: FaFacebookF, label: "Facebook", type: "facebook" },
+    { url: artist.spotifyLink, Icon: FaSpotify, label: "Spotify", type: "spotify" },
+    { url: artist.appleMusicLink, Icon: FaApple, label: "Apple Music", type: "appleMusic" },
+    { url: artist.tidalLink, Icon: SiTidal, label: "Tidal", type: "tidal" },
+    { url: artist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music", type: "amazonMusic" },
+    { url: artist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud", type: "soundcloud" },
   ];
 
   return (
@@ -161,8 +176,21 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           }}
         />
 
+        {/* Whole-card navigation overlay (z-3, above the art). The content layer
+            above is pointer-events-none, so clicking the card — name, bio, empty
+            space — activates THIS link; the social buttons below re-enable pointer
+            events, so they stay clickable SIBLINGS, never nested inside an anchor
+            (fixes the invalid <a><button> nesting + the 11-tab-stops-per-card). */}
+        {href ? (
+          <Link
+            href={href}
+            aria-label={artist.name}
+            className="absolute inset-0 z-[3] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          />
+        ) : null}
+
         {/* Content */}
-        <div className="relative" style={{ zIndex: 3 }}>
+        <div className="relative pointer-events-none" style={{ zIndex: 4 }}>
           <p className="text-white font-semibold text-sm sm:text-base">{artist.name}</p>
           {/* Bio hidden on the small 2-up mobile cards (it overlapped the photo and
               read as clutter); shown from sm up where there's room. */}
@@ -174,16 +202,16 @@ const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onClick }) => {
           <div className="h-[1px] bg-gray-600 w-full mt-2" />
           {/* Icons wrap and shrink on mobile so a long social list can't overflow
               the narrow card; the original nowrap/justify-between returns at sm. */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3 sm:flex-nowrap sm:justify-between sm:gap-2">
+          <div className="pointer-events-auto mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-3 sm:flex-nowrap sm:justify-between sm:gap-2">
             {socials
               .filter((s) => s.url)
-              .map(({ url, Icon, label }) => (
+              .map(({ url, Icon, label, type }) => (
                 <button
                   key={label}
                   type="button"
                   aria-label={label}
-                  onClick={(e) => handleSocialClick(url, e)}
-                  className="inline-flex rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  onClick={(e) => handleSocialClick(url, type, e)}
+                  className="inline-flex min-h-6 min-w-6 items-center justify-center rounded text-white transition-colors hover:text-gray-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6" aria-hidden />
                 </button>

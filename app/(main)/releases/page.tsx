@@ -3,19 +3,20 @@ import NewMusicSection from "@/components/sections/NewMusicSection";
 import ReleasesSection from "@/components/sections/ReleasesSection";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import { getCarouselReleases, getPublicReleases } from "@/lib/catalog-data";
-import { buildReleaseListJsonLd, jsonLdScript } from "@/lib/seo";
+import { buildReleaseListJsonLd, jsonLdScript, OG_DEFAULT_IMAGE } from "@/lib/seo";
 import type { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Music",
+  title: "Releases",
   description:
     "Stream the full catalogue from Oscillation Records, an independent Manchester record label — every single, EP and album of electronic music we've released.",
   alternates: { canonical: "/releases" },
   openGraph: {
-    title: "Music | Oscillation Records",
+    title: "Releases | Oscillation Records",
     description: "New music and the full release catalogue from Oscillation Records.",
     url: "/releases",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 
@@ -40,7 +41,7 @@ export default async function Releases() {
           __html: jsonLdScript(buildReleaseListJsonLd(allReleases)),
         }}
       />
-      <ScrollReveal3D>
+      <ScrollReveal3D immediate>
         <NewMusicSection initialReleases={carouselReleases} />
       </ScrollReveal3D>
       <ScrollReveal3D>

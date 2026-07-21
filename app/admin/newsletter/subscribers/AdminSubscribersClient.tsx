@@ -145,16 +145,21 @@ export default function AdminSubscribersClient({
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="@container rounded-xl border border-border bg-card">
         <div className="border-b border-border px-4 py-2.5 text-sm text-muted-foreground">
           {total.toLocaleString()} subscriber{total === 1 ? "" : "s"}
         </div>
-        <table className="w-full text-sm">
+        {/* table-fixed so a long email truncates instead of widening the table, and
+            the lower-priority Subscribed column is hidden on a narrow card (its date
+            is surfaced under the email) — so the row always fits without horizontal
+            scroll. overflow-x-auto is a final guard. */}
+        <div className="overflow-x-auto">
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground">
               <th className="px-4 py-2 text-left font-medium">Email</th>
-              <th className="px-4 py-2 text-left font-medium">Subscribed</th>
-              <th className="w-10 px-4 py-2 text-right font-medium">Remove</th>
+              <th className="hidden w-44 px-4 py-2 text-left font-medium @lg:table-cell">Subscribed</th>
+              <th className="w-16 px-4 py-2 text-right font-medium"><span className="sr-only">Remove</span></th>
             </tr>
           </thead>
           <tbody>
@@ -173,8 +178,14 @@ export default function AdminSubscribersClient({
             ) : (
               items.map((s) => (
                 <tr key={s.id} className="border-b border-border hover:bg-white/[0.02]">
-                  <td className="px-4 py-2.5 text-foreground">{s.email}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{new Date(s.createdAt).toLocaleString()}</td>
+                  <td className="min-w-0 px-4 py-2.5">
+                    <span className="block truncate text-foreground" title={s.email}>{s.email}</span>
+                    {/* The Subscribed column is hidden on a narrow card — surface the date here. */}
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground @lg:hidden">
+                      {new Date(s.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                    </span>
+                  </td>
+                  <td className="hidden px-4 py-2.5 text-muted-foreground @lg:table-cell">{new Date(s.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-right">
                     <Button
                       variant="ghost"
@@ -191,6 +202,7 @@ export default function AdminSubscribersClient({
             )}
           </tbody>
         </table>
+        </div>
         <div className="border-t border-border px-4 py-3">
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>

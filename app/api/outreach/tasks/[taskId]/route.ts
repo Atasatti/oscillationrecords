@@ -3,50 +3,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
-import { isRecurrence, nextDueDate } from "@/lib/task-recurrence";
 import { normalizeChecklist } from "@/lib/task-checklist";
 import { normalizeTags } from "@/lib/task-tags";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-// When a recurring task is completed, create its next occurrence (a fresh "todo")
-// with an advanced due date. Best-effort — a failure here won't fail completion.
-async function spawnNextOccurrence(task: {
-  title: string;
-  description: string | null;
-  category: string;
-  priority: string;
-  assigneeId: string | null;
-  recurrence: string | null;
-  artistIds: string[];
-  releaseIds: string[];
-  dueAt: Date | null;
-  notes: string | null;
-}) {
-  if (!isRecurrence(task.recurrence)) return;
-  try {
-    const dueAt = nextDueDate(task.recurrence, task.dueAt, new Date());
-    await prisma.outreachTask.create({
-      data: {
-        title: task.title,
-        description: task.description,
-        category: task.category,
-        priority: task.priority,
-        status: "todo",
-        assigneeId: task.assigneeId,
-        recurrence: task.recurrence,
-        artistIds: task.artistIds,
-        releaseIds: task.releaseIds,
-        dueAt,
-        notes: task.notes,
-        isTemplate: false,
-      },
-    });
-  } catch (e) {
-    console.error("spawnNextOccurrence failed:", e);
-  }
-}
 
 // GET /api/outreach/tasks/[taskId]
 export async function GET(
@@ -78,7 +39,7 @@ export async function PUT(
 
     const { taskId } = await params;
     const body = await request.json();
-    const { title, description, category, priority, status, assigneeId, recurrence, checklist, tags, artistIds, releaseIds, dueAt, notes } = body;
+    const { title, description, category, priority, status, assigneeId, checklist, tags, artistIds, releaseIds, dueAt, notes } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -96,7 +57,8 @@ export async function PUT(
         priority: priority || "medium",
         status: status || "todo",
         assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
-        recurrence: isRecurrence(recurrence) ? recurrence : null,
+        // Recurrence retired: completing a task no longer spawns a duplicate "todo".
+        recurrence: null,
         checklist: normalizeChecklist(checklist) as unknown as Prisma.InputJsonValue,
         tags: normalizeTags(tags),
         artistIds: Array.isArray(artistIds) ? artistIds : [],
@@ -112,11 +74,6 @@ export async function PUT(
       resourceId: task.id,
       summary: `Updated task "${task.title}"`,
     });
-
-    // Completing a recurring task spawns its next occurrence.
-    if (existing.status !== "done" && task.status === "done") {
-      await spawnNextOccurrence(task);
-    }
 
     return NextResponse.json(task);
   } catch (error) {
@@ -158,9 +115,37 @@ export async function PATCH(
 
     const task = await prisma.outreachTask.update({ where: { id: taskId }, data });
 
-    // Completing a recurring task spawns its next occurrence.
-    if (data.status === "done" && existing.status !== "done") {
-      await spawnNextOccurrence(existing);
+    // Record the meaningful state changes so inline edits — completing a task via
+    // the checkbox, board drag-and-drop, reprioritising or reassigning on a row —
+    // land in the audit trail like the full-form PUT and DELETE already do. A
+    // checklist-only tick is intentionally skipped to keep the log from flooding.
+    const changes: string[] = [];
+    if (typeof data.status === "string" && data.status !== existing.status) {
+      changes.push(
+        data.status === "done"
+          ? "marked done"
+          : existing.status === "done"
+            ? "reopened"
+            : `status → ${data.status}`
+      );
+    }
+    if (typeof data.priority === "string" && data.priority !== existing.priority) {
+      changes.push(`priority → ${data.priority}`);
+    }
+    if ("assigneeId" in data && (data.assigneeId ?? null) !== (existing.assigneeId ?? null)) {
+      changes.push(data.assigneeId ? "reassigned" : "unassigned");
+    }
+    if (changes.length) {
+      await recordAudit(request, guard.token, {
+        action: "update",
+        resource: "task",
+        resourceId: task.id,
+        summary: `Task "${task.title}" — ${changes.join(", ")}`,
+        metadata: {
+          before: { status: existing.status, priority: existing.priority, assigneeId: existing.assigneeId },
+          after: { status: task.status, priority: task.priority, assigneeId: task.assigneeId },
+        },
+      });
     }
 
     return NextResponse.json(task);

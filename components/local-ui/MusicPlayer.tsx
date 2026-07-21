@@ -95,7 +95,7 @@ export function MusicPlayer() {
                   <ExplicitBadge size="md" className="flex-shrink-0" />
                 ) : null}
               </div>
-              <p className="text-gray-500 text-xs truncate leading-tight mt-0.5">{currentSong.artist}</p>
+              <p className="text-gray-400 text-xs truncate leading-tight mt-0.5">{currentSong.artist}</p>
             </div>
           </div>
 
@@ -167,7 +167,7 @@ export function MusicPlayer() {
             </div>
 
             {/* Time Display - Refined typography */}
-            <div className="text-xs text-gray-600 w-full flex justify-between font-medium">
+            <div className="text-xs text-gray-400 w-full flex justify-between font-medium">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requirePagePermission } from "@/lib/page-guard";
 import { fileNameFromUrl, guessMimeFromUrl, isUsableFileUrl } from "@/lib/asset";
 import { isOwnBucketUrl } from "@/lib/s3";
 import AssetsClient, { type Asset, type Option } from "./AssetsClient";
@@ -28,6 +29,10 @@ type DerivedInput = {
 };
 
 export default async function AssetsPage() {
+  // Revocation-aware gate before reading the DAM (may include private masters/
+  // stems/contracts) — middleware is token-only. Matches the API's catalog:read.
+  await requirePagePermission("catalog:read");
+
   let assets: Asset[] = [];
   let releases: Option[] = [];
   let artists: Option[] = [];

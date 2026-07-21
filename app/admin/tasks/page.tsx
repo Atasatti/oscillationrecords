@@ -2,12 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
+  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, ListChecks, MessageSquare, Send, Paperclip, Upload,
   Bookmark, X, MoreHorizontal,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
@@ -32,7 +33,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { TASK_STATUSES } from "@/lib/task-status";
 import { type SavedViewConfig, SAVED_VIEW_NAME_MAX } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
@@ -459,7 +459,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string };
+type TaskComment = { id: string; authorId: string | null; authorEmail: string | null; body: string; createdAt: string; mine?: boolean };
 
 // Match @tokens in a comment body against staff → their User ids (mentioned).
 function extractMentionIds(body: string, staff: Assignee[]): string[] {
@@ -501,7 +501,7 @@ function mentionHandle(a: Assignee): string {
 // A comment thread for one task, shown in the edit dialog. Posts immediately
 // (independent of the task form's Save). Resolves author name/avatar from the
 // staff directory; you can delete your own comments.
-function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: Assignee[]; myId?: string }) {
+function TaskComments({ taskId, assignees }: { taskId: string; assignees: Assignee[] }) {
   const toast = useToast();
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -613,7 +613,7 @@ function TaskComments({ taskId, assignees, myId }: { taskId: string; assignees: 
           {comments.map((c) => {
             const author = c.authorId ? byId.get(c.authorId) ?? null : null;
             const name = author ? displayName(author) : c.authorEmail ?? "Unknown";
-            const mine = !!myId && c.authorId === myId;
+            const mine = c.mine === true;
             return (
               <li key={c.id} className="flex gap-2">
                 <AssigneeAvatar user={author} size={24} />
@@ -788,7 +788,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
   );
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -798,6 +798,12 @@ export default function TasksPage() {
   const toast = useToast();
   const { data: session } = useSession();
   const myId = session?.user?.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  // Task id we've already auto-opened from a ?task= deep-link, so closing the
+  // modal or a background list refresh can't reopen it (see the deep-link effect).
+  const openedTaskParamRef = useRef<string | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -925,7 +931,7 @@ export default function TasksPage() {
     const cached = getCached<{ releases: CatalogRef[]; artists: CatalogRef[] }>("task-catalog-refs");
     if (cached) { setReleaseRefs(cached.releases); setArtistRefs(cached.artists); }
     try {
-      const res = await fetch("/api/admin/site-content-refs");
+      const res = await fetch("/api/admin/catalog-refs");
       if (!res.ok) throw new Error();
       const data = await res.json();
       const refs = { releases: data.releases ?? [], artists: data.artists ?? [] };
@@ -1136,7 +1142,7 @@ export default function TasksPage() {
   const removeTag = (tag: string) => setForm((p) => ({ ...p, tags: p.tags.filter((x) => x !== tag) }));
 
   const openNew = () => { setEditingId(null); setForm({ ...EMPTY_FORM }); setDialogOpen(true); };
-  const openEdit = (t: Task) => {
+  const openEdit = useCallback((t: Task) => {
     setEditingId(t.id);
     setForm({
       title: t.title,
@@ -1145,7 +1151,6 @@ export default function TasksPage() {
       priority: t.priority,
       status: t.status,
       assigneeId: t.assigneeId ?? "",
-      recurrence: t.recurrence ?? "",
       checklist: t.checklist ?? [],
       tags: t.tags ?? [],
       releaseIds: t.releaseIds ?? [],
@@ -1153,7 +1158,24 @@ export default function TasksPage() {
       dueAt: t.dueAt ? t.dueAt.slice(0, 10) : "",
     });
     setDialogOpen(true);
-  };
+  }, []);
+
+  // Deep-link from a task notification: /admin/tasks?task=<id> opens that task's
+  // editor automatically. We wait until the task is actually in the loaded list —
+  // if it's there, open its modal and strip the param so a refresh or a background
+  // list refresh can't reopen it. If the id never resolves (e.g. the task was
+  // deleted), nothing opens and the admin just lands on the full Tasks page — the
+  // graceful fallback the notification would otherwise give.
+  useEffect(() => {
+    const wantId = searchParams.get("task");
+    if (!wantId || loading) return;
+    if (openedTaskParamRef.current === wantId) return;
+    const t = tasks.find((x) => x.id === wantId);
+    if (!t) return; // not loaded yet (or gone) — wait for the list before consuming
+    openedTaskParamRef.current = wantId;
+    openEdit(t);
+    router.replace(pathname, { scroll: false });
+  }, [searchParams, loading, tasks, openEdit, router, pathname]);
 
   const save = async () => {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
@@ -1211,6 +1233,7 @@ export default function TasksPage() {
 
   const updateStatus = async (id: string, status: string) => {
     setTasks((list) => list.map((t) => (t.id === id ? { ...t, status } : t)));
+    setCached("tasks-list", tasks.map((t) => (t.id === id ? { ...t, status } : t)));
     try {
       const res = await fetch(`/api/outreach/tasks/${id}`, {
         method: "PATCH",
@@ -1469,7 +1492,7 @@ export default function TasksPage() {
   const renderCard = (t: Task) => {
     const overdue = isOverdue(t);
     const assignee = assignees.find((a) => a.id === t.assigneeId) ?? null;
-    const chips = t.checklist?.length || t.commentCount || t.attachments?.length || isRecurrence(t.recurrence);
+    const chips = t.checklist?.length || t.commentCount || t.attachments?.length;
     return (
       <div
         key={t.id}
@@ -1520,9 +1543,6 @@ export default function TasksPage() {
             ) : null}
             {t.attachments?.length ? (
               <span className="inline-flex items-center gap-1"><Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}</span>
-            ) : null}
-            {isRecurrence(t.recurrence) ? (
-              <span className="inline-flex items-center gap-1"><Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}</span>
             ) : null}
           </div>
         ) : null}
@@ -1759,6 +1779,9 @@ export default function TasksPage() {
         <>
       {/* Tabs: Needs attention + status filters, then category */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
+        {/* The status filter is wider than a phone; let it scroll within its own
+            full-width row instead of pushing the whole page sideways. */}
+        <div className="w-full overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0">
         <div className="inline-flex items-center rounded-lg border border-border p-0.5">
           <button
             type="button"
@@ -1792,6 +1815,7 @@ export default function TasksPage() {
               <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{counts[key] ?? 0}</span>
             </button>
           ))}
+        </div>
         </div>
         {tab === "all" && (counts.done ?? 0) > 0 ? (
           <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -2029,14 +2053,6 @@ export default function TasksPage() {
                         <span className="text-border" aria-hidden>·</span>
                         <span className={overdue ? "font-medium text-amber-400" : ""}>
                           {overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}
-                        </span>
-                      </>
-                    )}
-                    {isRecurrence(t.recurrence) && (
-                      <>
-                        <span className="text-border" aria-hidden>·</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}
                         </span>
                       </>
                     )}
@@ -2308,17 +2324,6 @@ export default function TasksPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Repeat</label>
-                <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
-                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Doesn&apos;t repeat</option>
-                  {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                {form.recurrence ? (
-                  <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
-                ) : null}
-              </div>
               {editingId ? (
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Status</label>
@@ -2406,7 +2411,7 @@ export default function TasksPage() {
                   initial={tasks.find((t) => t.id === editingId)?.attachments ?? []}
                   onChange={(a) => applyAttachments(editingId, a)}
                 />
-                <TaskComments taskId={editingId} assignees={assignees} myId={myId} />
+                <TaskComments taskId={editingId} assignees={assignees} />
               </div>
             ) : null}
           </div>

@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { requirePagePermission } from "@/lib/page-guard";
 import { emailConfigured } from "@/lib/email";
 import NewsletterClient, { type Campaign } from "./NewsletterClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewsletterPage() {
+  // Revocation-aware gate before reading campaigns/subscriber counts. Matches the
+  // campaigns API's outreach:read.
+  await requirePagePermission("outreach:read");
+
   let campaigns: Campaign[] = [];
   let subscriberCount = 0;
   try {

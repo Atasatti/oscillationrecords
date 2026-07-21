@@ -25,7 +25,14 @@ export async function GET(request: NextRequest) {
   if (!guard.ok) return guard.response;
 
   const { searchParams } = new URL(request.url);
-  const q = (searchParams.get("q") || "").trim();
+  // Cap the length and escape regex metacharacters before using `contains`:
+  // Prisma's MongoDB connector compiles `contains` to an unanchored $regex and does
+  // NOT escape the input, so a raw value is run as a regular expression — a crafted
+  // pattern (e.g. "(a+)+$") is a catastrophic-backtracking ReDoS against the shared
+  // DB. Escaping turns it into a literal substring match; the 64-char cap bounds the
+  // work (mirrors the public search routes' .slice(0, 64)).
+  const rawQ = (searchParams.get("q") || "").trim().slice(0, 64);
+  const q = rawQ.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const where = q ? { email: { contains: q, mode: "insensitive" as const } } : {};
 
   if (searchParams.get("format") === "csv") {

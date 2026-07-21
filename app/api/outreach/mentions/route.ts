@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import { resolveUserId } from "@/lib/current-user";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 // GET /api/outreach/mentions — recent comments that @-mention the current user
 // (across all tasks), newest first, with the task title. Powers the reminders
@@ -14,12 +13,14 @@ export async function GET(request: NextRequest) {
   const guard = await requirePermission(request, "outreach:read");
   if (!guard.ok) return guard.response;
   try {
-    const sub = typeof guard.token.sub === "string" ? guard.token.sub : null;
-    if (!sub || !OBJECT_ID.test(sub)) return NextResponse.json({ mentions: [] });
+    // Comments store the mentioned/author user's real Mongo id (resolveUserId),
+    // NOT token.sub — resolve the same id here or the feed never matches.
+    const userId = await resolveUserId(guard.token);
+    if (!userId) return NextResponse.json({ mentions: [] });
 
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const rows = await prisma.taskComment.findMany({
-      where: { mentions: { has: sub }, createdAt: { gte: since }, NOT: { authorId: sub } },
+      where: { mentions: { has: userId }, createdAt: { gte: since }, NOT: { authorId: userId } },
       orderBy: { createdAt: "desc" },
       take: 30,
     });

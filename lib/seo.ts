@@ -13,6 +13,19 @@ export const SITE_URL = (
 
 export const SITE_NAME = "Oscillation Records";
 
+/**
+ * Default social-share image (1200×630). Spread into a page's `openGraph.images`
+ * whenever that page sets a partial `openGraph`: Next merges the object shallowly,
+ * so a page that overrides title/description but omits `images` silently drops the
+ * root layout's og:image. Keep this the single source for that fallback.
+ */
+export const OG_DEFAULT_IMAGE = {
+  url: "/og-default.png",
+  width: 1200,
+  height: 630,
+  alt: SITE_NAME,
+} as const;
+
 // --- Label entity facts -----------------------------------------------------
 // Single source of truth for the label-as-entity, shared by the Organization
 // JSON-LD AND the visible About/FAQ copy so the machine-readable entity and the

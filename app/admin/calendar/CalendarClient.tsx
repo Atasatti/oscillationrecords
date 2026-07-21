@@ -201,9 +201,13 @@ export default function CalendarClient({
   };
 
   const openNew = (date?: string) => {
+    // New posts can't be scheduled in the past — if a past day was clicked, start
+    // the form on today instead (the picker below also enforces this).
+    const t = todayKey || localDayKey(new Date());
+    const requested = date ?? t;
     setEditingId(null);
     setEditOriginal(null);
-    setForm(blankForm(date ?? (todayKey || localDayKey(new Date()))));
+    setForm(blankForm(requested < t ? t : requested));
     setEditorOpen(true);
   };
   const openEdit = (p: Post) => {
@@ -232,6 +236,11 @@ export default function CalendarClient({
     if (saving) return;
     if (!form.title.trim()) { toast.error("Title is required"); return; }
     if (!form.date) { toast.error("Pick a date"); return; }
+    // New posts can't use a past date (edits keep a historical post's own date).
+    if (!editingId && form.date < (todayKey || localDayKey(new Date()))) {
+      toast.error("Past dates are not allowed");
+      return;
+    }
     // On edit, send only changed fields (avoids clobbering a field another admin
     // touched). On create, send the whole form.
     let payload: Record<string, unknown>;
@@ -298,6 +307,11 @@ export default function CalendarClient({
   };
 
   const FILTERS = FILTER_KEYS.map((key) => ({ key, label: TYPE_LABELS[key] }));
+
+  // Earliest date a new post may use, and whether the current pick breaks it.
+  // Edits are exempt so a historical post keeps its own (past) date.
+  const minNewDate = todayKey || localDayKey(new Date());
+  const isPastNewDate = !editingId && !!form.date && form.date < minNewDate;
 
   return (
     <div>
@@ -453,7 +467,19 @@ export default function CalendarClient({
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Date <span className="text-destructive">*</span></label>
-                <input type="date" value={form.date} onChange={(e) => setField("date", e.target.value)} className={inputCls} />
+                {/* New posts: today or later only. Edits leave min unset so a
+                    historical post can keep its original (past) date. */}
+                <input
+                  type="date"
+                  value={form.date}
+                  min={editingId ? undefined : minNewDate}
+                  onChange={(e) => setField("date", e.target.value)}
+                  aria-invalid={isPastNewDate || undefined}
+                  className={inputCls}
+                />
+                {isPastNewDate ? (
+                  <span className="text-xs text-red-400">Past dates are not allowed</span>
+                ) : null}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Status</label>
@@ -470,7 +496,9 @@ export default function CalendarClient({
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Copy / caption</label>
-                <textarea value={form.copy} onChange={(e) => setField("copy", e.target.value)} rows={3} placeholder="Draft the caption…" className={`${inputCls} resize-none`} />
+                {/* Vertically resizable so a long caption can be dragged taller;
+                    the modal body scrolls, so the header/footer stay put. */}
+                <textarea value={form.copy} onChange={(e) => setField("copy", e.target.value)} rows={4} placeholder="Draft the caption…" className={`${inputCls} min-h-24 resize-y`} />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Asset link</label>
@@ -478,7 +506,7 @@ export default function CalendarClient({
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className="text-sm font-medium">Notes</label>
-                <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={2} className={`${inputCls} resize-none`} />
+                <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} rows={3} className={`${inputCls} min-h-16 resize-y`} />
               </div>
             </div>
           </div>
@@ -492,7 +520,7 @@ export default function CalendarClient({
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={save} disabled={saving || !form.title.trim()} className="bg-white text-black hover:bg-gray-200">
+              <Button onClick={save} disabled={saving || !form.title.trim() || isPastNewDate} className="bg-white text-black hover:bg-gray-200">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {editingId ? "Save changes" : "Add post"}
               </Button>
             </div>

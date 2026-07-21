@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isObjectId } from "@/lib/object-id";
 import { withWriteRetry } from "@/lib/db-retry";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
@@ -27,6 +28,10 @@ export async function GET(
 ) {
   try {
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
 
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
@@ -114,6 +119,10 @@ export async function GET(
     );
   }
 }
+
+// A 24-hex Mongo ObjectId — used to decide whether a client-supplied track id can
+// be trusted as an upsert key (#8).
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 function parseTrackInput(
   t: Record<string, unknown>,
@@ -212,6 +221,10 @@ export async function PATCH(
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const existing = await prisma.release.findUnique({
       where: { id: releaseId },
       include: { tracks: true },
@@ -400,9 +413,15 @@ export async function PATCH(
         // Per-track audio/artist are enforced only when the release is going fully
         // live (RELEASED); drafts and Coming-Soon save freely.
         const enforceTrackPublishRules = nextStatus === "RELEASED";
+        // A track is NEW when its id isn't already stored on this release. Clients
+        // now send a stable client-generated id for new tracks too (#8), so "new"
+        // can't be inferred from id-absence alone — check DB membership.
+        const existingTrackIdSet = new Set(existing.tracks.map((t) => String(t.id)));
+        const isNewTrack = (t: Record<string, unknown>) =>
+          !t.id || !existingTrackIdSet.has(String(t.id));
         try {
           parsedTracks = tracksRaw.map((t: Record<string, unknown>, i: number) =>
-            parseTrackInput(t, i, !t.id, enforceTrackPublishRules)
+            parseTrackInput(t, i, isNewTrack(t), enforceTrackPublishRules)
           );
         } catch (e) {
           return NextResponse.json(
@@ -590,38 +609,65 @@ export async function PATCH(
             })
           );
         }
-        return withWriteRetry(() =>
-          prisma.track.create({
-            data: {
-              releaseId,
-              name: t.name,
-              image: t.image,
-              audioFile: t.audioFile,
-              duration: t.duration,
-              releaseDate: t.releaseDate,
-              composer: t.composer,
-              lyricist: t.lyricist,
-              leadVocal: t.leadVocal,
-              lyrics: t.lyrics,
-              syncedLyrics: t.syncedLyrics,
-              stemsFile: t.stemsFile,
-              trackCredits: t.trackCredits,
-              isrcCode: t.isrcCode,
-              iswc: t.iswc,
-              isrcExplicit: t.isrcExplicit,
-              spotifyLink: t.spotifyLink,
-              appleMusicLink: t.appleMusicLink,
-              tidalLink: t.tidalLink,
-              amazonMusicLink: t.amazonMusicLink,
-              youtubeLink: t.youtubeLink,
-              soundcloudLink: t.soundcloudLink,
-              primaryArtistIds: t.primaryArtistIds,
-              featureArtistIds: t.featureArtistIds,
-              featureArtistNames: t.featureArtistNames,
-              sortOrder: t.sortOrder,
-            },
-          })
-        );
+        // NEW track. Build the create row once.
+        const data: Prisma.TrackUncheckedCreateInput = {
+          releaseId,
+          name: t.name,
+          image: t.image,
+          audioFile: t.audioFile,
+          duration: t.duration,
+          releaseDate: t.releaseDate,
+          composer: t.composer,
+          lyricist: t.lyricist,
+          leadVocal: t.leadVocal,
+          lyrics: t.lyrics,
+          syncedLyrics: t.syncedLyrics,
+          stemsFile: t.stemsFile,
+          trackCredits: t.trackCredits,
+          isrcCode: t.isrcCode,
+          iswc: t.iswc,
+          isrcExplicit: t.isrcExplicit,
+          spotifyLink: t.spotifyLink,
+          appleMusicLink: t.appleMusicLink,
+          tidalLink: t.tidalLink,
+          amazonMusicLink: t.amazonMusicLink,
+          youtubeLink: t.youtubeLink,
+          soundcloudLink: t.soundcloudLink,
+          primaryArtistIds: t.primaryArtistIds,
+          featureArtistIds: t.featureArtistIds,
+          featureArtistNames: t.featureArtistNames,
+          sortOrder: t.sortOrder,
+        };
+        const clientId = t.id;
+        if (clientId && OBJECT_ID.test(clientId)) {
+          // Idempotent create for a NEW track carrying a client-generated stable id
+          // (#8) — but SCOPED to this release. A bare upsert({ where:{ id } }) would
+          // let a caller pass ANOTHER release's track id (track ids are exposed by
+          // the public API) and hijack it, moving its releaseId (IDOR). So:
+          //   1. update-if-it's-ours (retry-safe): updateMany pinned to { id, releaseId },
+          //      never touching releaseId;
+          //   2. else, refuse an id that already belongs to a different release;
+          //   3. else create it under THIS release.
+          const updateData: Prisma.TrackUncheckedUpdateManyInput = {
+            name: data.name, image: data.image, audioFile: data.audioFile, duration: data.duration,
+            releaseDate: data.releaseDate, composer: data.composer, lyricist: data.lyricist,
+            leadVocal: data.leadVocal, lyrics: data.lyrics, syncedLyrics: data.syncedLyrics,
+            stemsFile: data.stemsFile, trackCredits: t.trackCredits,
+            isrcCode: data.isrcCode, iswc: data.iswc, isrcExplicit: data.isrcExplicit,
+            spotifyLink: data.spotifyLink, appleMusicLink: data.appleMusicLink, tidalLink: data.tidalLink,
+            amazonMusicLink: data.amazonMusicLink, youtubeLink: data.youtubeLink, soundcloudLink: data.soundcloudLink,
+            primaryArtistIds: data.primaryArtistIds, featureArtistIds: data.featureArtistIds,
+            featureArtistNames: data.featureArtistNames, sortOrder: data.sortOrder,
+          };
+          return withWriteRetry(async () => {
+            const res = await prisma.track.updateMany({ where: { id: clientId, releaseId }, data: updateData });
+            if (res.count > 0) return;
+            const clash = await prisma.track.findUnique({ where: { id: clientId }, select: { releaseId: true } });
+            if (clash) throw new Error(`Track id ${clientId} belongs to another release`);
+            await prisma.track.create({ data: { ...data, id: clientId } });
+          });
+        }
+        return withWriteRetry(() => prisma.track.create({ data }));
       });
       // Bounded concurrency: fast, but won't exhaust the DB connection pool.
       for (let i = 0; i < writes.length; i += 5) {
@@ -690,6 +736,10 @@ export async function DELETE(
     if (!guard.ok) return guard.response;
 
     const { releaseId } = await params;
+    // Malformed id → Prisma throws instead of returning null. 404, not a 500.
+    if (!isObjectId(releaseId)) {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
     const existing = await prisma.release.findUnique({ where: { id: releaseId } });
     if (!existing) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });

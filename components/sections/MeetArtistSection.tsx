@@ -12,6 +12,7 @@ import { RiTiktokFill } from "react-icons/ri";
 import { LuX } from "react-icons/lu";
 import { usePageMedia } from "@/hooks/use-page-media";
 import { slugify } from "@/lib/slug";
+import { trackLinkClick } from "@/lib/track-link-click";
 
 interface Artist {
   id: string;
@@ -153,13 +154,15 @@ const MeetArtistSection = ({
           below xl we keep the stacked layout with the prev/next row underneath. */}
       <div className="mt-6 sm:mt-8 flex flex-col xl:flex-row justify-between items-center gap-6 xl:gap-6">
         {/* Previous button - hidden on mobile, shown on desktop */}
-        <div 
-          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+        <button
+          type="button"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={handlePrevious}
+          aria-label="View previous artist"
         >
           <ArrowLeft className="w-4 h-4"/>
-          <p className="text-muted-foreground text-sm uppercase">View previous artist</p>
-        </div>
+          <span className="text-muted-foreground text-sm uppercase">View previous artist</span>
+        </button>
         
         {/* Main content - image + info side by side, centered as one group */}
         <div className="w-full xl:flex-1 flex flex-col xl:flex-row items-center justify-center gap-8 xl:gap-12">
@@ -172,30 +175,38 @@ const MeetArtistSection = ({
                 alt={currentArtist.name}
                 placeholder="blur"
                 blurDataURL={BLUR_DATA_URL}
+                // On /artists this spotlight is the first/LCP image — preload it
+                // instead of lazy-loading. On the homepage it sits below the hero,
+                // so only prioritise it for variant="artists".
+                priority={variant === "artists"}
                 className="rounded-[18px] object-cover w-full h-full"
               />
             </Link>
             <div className="flex justify-center items-center gap-5 sm:gap-7 mt-4 sm:mt-5">
               {[
-                { url: currentArtist.xLink, Icon: LuX, label: "X (Twitter)" },
-                { url: currentArtist.tiktokLink, Icon: RiTiktokFill, label: "TikTok" },
-                { url: currentArtist.youtubeLink, Icon: FaYoutube, label: "YouTube" },
-                { url: currentArtist.instagramLink, Icon: FaInstagram, label: "Instagram" },
-                { url: currentArtist.facebookLink, Icon: FaFacebookF, label: "Facebook" },
-                { url: currentArtist.spotifyLink, Icon: FaSpotify, label: "Spotify" },
-                { url: currentArtist.appleMusicLink, Icon: FaApple, label: "Apple Music" },
-                { url: currentArtist.tidalLink, Icon: SiTidal, label: "Tidal" },
-                { url: currentArtist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music" },
-                { url: currentArtist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud" },
+                { url: currentArtist.xLink, Icon: LuX, label: "X (Twitter)", type: "x" },
+                { url: currentArtist.tiktokLink, Icon: RiTiktokFill, label: "TikTok", type: "tiktok" },
+                { url: currentArtist.youtubeLink, Icon: FaYoutube, label: "YouTube", type: "youtube" },
+                { url: currentArtist.instagramLink, Icon: FaInstagram, label: "Instagram", type: "instagram" },
+                { url: currentArtist.facebookLink, Icon: FaFacebookF, label: "Facebook", type: "facebook" },
+                { url: currentArtist.spotifyLink, Icon: FaSpotify, label: "Spotify", type: "spotify" },
+                { url: currentArtist.appleMusicLink, Icon: FaApple, label: "Apple Music", type: "appleMusic" },
+                { url: currentArtist.tidalLink, Icon: SiTidal, label: "Tidal", type: "tidal" },
+                { url: currentArtist.amazonMusicLink, Icon: SiAmazonmusic, label: "Amazon Music", type: "amazonMusic" },
+                { url: currentArtist.soundcloudLink, Icon: FaSoundcloud, label: "SoundCloud", type: "soundcloud" },
               ]
                 .filter((s) => s.url)
-                .map(({ url, Icon, label }) => (
+                .map(({ url, Icon, label, type }) => (
                   <a
                     key={label}
                     href={url as string}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${currentArtist.name} on ${label}`}
+                    // Record the outbound click for click-through analytics (same as
+                    // release streaming links). Fire-and-forget beacon; default
+                    // navigation still opens the link in a new tab.
+                    onClick={() => trackLinkClick("artist", currentArtist.id, type, currentArtist.name)}
                   >
                     <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-white transition-colors cursor-pointer" aria-hidden />
                   </a>
@@ -224,31 +235,37 @@ const MeetArtistSection = ({
         </div>
 
         {/* Next button - hidden on mobile, shown on desktop */}
-        <div 
-          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0"
+        <button
+          type="button"
+          className="hidden xl:flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={handleNext}
+          aria-label="View next artist"
         >
-          <p className="text-muted-foreground text-sm uppercase">View next artist</p>
+          <span className="text-muted-foreground text-sm uppercase">View next artist</span>
           <ArrowRight className="w-4 h-4"/>
-        </div>
+        </button>
         
         {/* Prev/next row — shown below xl (mobile + tablet), where the layout is
             stacked; from xl up the side arrows take over. */}
         <div className="flex xl:hidden items-center justify-between w-full max-w-md mt-4">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+          <button
+            type="button"
+            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
             onClick={handlePrevious}
+            aria-label="Previous artist"
           >
             <ArrowLeft className="w-4 h-4"/>
-            <p className="text-muted-foreground text-xs sm:text-sm uppercase">Previous</p>
-          </div>
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+            <span className="text-muted-foreground text-xs sm:text-sm uppercase">Previous</span>
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
             onClick={handleNext}
+            aria-label="Next artist"
           >
-            <p className="text-muted-foreground text-xs sm:text-sm uppercase">Next</p>
+            <span className="text-muted-foreground text-xs sm:text-sm uppercase">Next</span>
             <ArrowRight className="w-4 h-4"/>
-          </div>
+          </button>
         </div>
       </div>
     </div>

@@ -23,8 +23,9 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
   truncateReleaseDescription,
+  formatDuration,
 } from "@/lib/release-format";
-import type { ReleaseDetailDTO, ReleaseDetailTrackDTO } from "@/lib/catalog-data";
+import type { ReleaseDetailDTO, ReleaseDetailTrackDTO, ReleaseCardDTO } from "@/lib/catalog-data";
 
 // Server-fetched, fully-typed release detail (see lib/catalog-data.ts). Tracks
 // use the public payload shape (no ISRC/ISWC/stems; lyrics included).
@@ -37,32 +38,22 @@ interface ParsedTrackCredit {
   role?: string;
 }
 
-interface OtherRelease {
-  id: string;
-  name: string;
-  thumbnail: string;
-  type: string;
-  artist: string;
-  primaryArtistName?: string;
-  featureArtistNames?: string[];
-  songCount?: number;
-  spotifyLink?: string | null;
-  appleMusicLink?: string | null;
-  tidalLink?: string | null;
-  amazonMusicLink?: string | null;
-  youtubeLink?: string | null;
-  soundcloudLink?: string | null;
-  isrcExplicit?: boolean;
-}
 
-export default function ReleaseDetailView({ release }: { release: Release }) {
+export default function ReleaseDetailView({
+  release,
+  moreByArtist,
+}: {
+  release: Release;
+  moreByArtist: ReleaseCardDTO[];
+}) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { playSong } = useMusic();
   const releaseId = release.id;
 
   const [selectedTrack, setSelectedTrack] = useState<TrackRow | null>(null);
-  const [otherReleases, setOtherReleases] = useState<OtherRelease[]>([]);
+  // Server-provided (scoped to the lead artist) — no client catalog download.
+  const otherReleases = moreByArtist;
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const moreScrollRef = useRef<HTMLDivElement>(null);
@@ -83,31 +74,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
     const delta = (first?.offsetWidth ?? 288) + 16;
     el.scrollBy({ left: dir === "next" ? delta : -delta, behavior: "smooth" });
   };
-
-  useEffect(() => {
-    if (!release) return;
-    (async () => {
-      try {
-        const res = await fetch("/api/releases");
-        if (!res.ok) return;
-        const all = await res.json() as Array<{
-          id: string;
-          name: string;
-          thumbnail: string;
-          type: string;
-          artist: string;
-          artistId: string;
-        }>;
-        const primaryIds = new Set(release.primaryArtistIds);
-        const filtered = all
-          .filter((r) => r.id !== release.id && primaryIds.has(r.artistId))
-          .slice(0, 6);
-        setOtherReleases(filtered);
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, [release]);
 
   useEffect(() => {
     const el = moreScrollRef.current;
@@ -158,12 +124,6 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
     } catch (error) {
       console.error("Error tracking release view:", error);
     }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const releasePrimaryNames = release
@@ -312,13 +272,12 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                           {releasePrimaryArtists.map((a, i) => (
                             <span key={a.id}>
                               {i > 0 ? ", " : ""}
-                              {a.isPublic ? (
-                                <Link href={`/artists/${slugify(a.name)}`} className="hover:underline">
-                                  {a.name}
-                                </Link>
-                              ) : (
-                                a.name
-                              )}
+                              {/* Every artist in release.artists is public (hidden/
+                                  draft are filtered out in getReleaseDetail), so the
+                                  name always links to a live artist page. */}
+                              <Link href={`/artists/${slugify(a.name)}`} className="hover:underline">
+                                {a.name}
+                              </Link>
                             </span>
                           ))}
                         </p>
@@ -345,6 +304,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                                 year: "numeric",
                                 month: "long",
                                 day: "numeric",
+                                timeZone: "UTC",
                               })}
                             </span>
                           ) : null}
@@ -396,6 +356,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
+                  timeZone: "UTC",
                 })}
               </p>
               {release.preSaveUrl ? (
@@ -439,7 +400,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                     className="border-b border-white/5 last:border-b-0"
                   >
                     <div className="grid grid-cols-[auto_auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] md:grid-cols-[auto_auto_1fr_auto_auto_auto] items-start gap-3 px-3 sm:px-4 py-2.5">
-                      <span className="w-5 text-xs text-gray-500 text-right">{index + 1}</span>
+                      <span className="w-5 text-xs text-gray-400 text-right">{index + 1}</span>
                       <button
                         type="button"
                         onClick={() => playTrackFromArtwork(song)}
@@ -487,7 +448,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                           contextName={song.name}
                         />
                       </div>
-                      <span className="hidden sm:block text-xs text-gray-500 tabular-nums">
+                      <span className="hidden sm:block text-xs text-gray-400 tabular-nums">
                         {formatDuration(song.duration)}
                       </span>
                       <button
@@ -531,7 +492,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                 <button
                   type="button"
                   onClick={() => router.push("/releases")}
-                  className="text-xs text-gray-500 hover:text-white transition-colors shrink-0 ml-4"
+                  className="text-xs text-gray-400 hover:text-white transition-colors shrink-0 ml-4"
                 >
                   View all →
                 </button>
@@ -627,23 +588,23 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                 ) : null}
               </div>
               <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(6rem,auto)_1fr]">
-                <dt className="text-gray-500">Duration</dt>
+                <dt className="text-gray-400">Duration</dt>
                 <dd className="text-gray-200">{formatDuration(selectedTrack.duration)}</dd>
                 {selectedTrack.composer ? (
                   <>
-                    <dt className="text-gray-500">Composer</dt>
+                    <dt className="text-gray-400">Composer</dt>
                     <dd className="text-gray-200">{selectedTrack.composer}</dd>
                   </>
                 ) : null}
                 {selectedTrack.lyricist ? (
                   <>
-                    <dt className="text-gray-500">Lyricist</dt>
+                    <dt className="text-gray-400">Lyricist</dt>
                     <dd className="text-gray-200">{selectedTrack.lyricist}</dd>
                   </>
                 ) : null}
                 {selectedTrack.leadVocal ? (
                   <>
-                    <dt className="text-gray-500">Lead vocal</dt>
+                    <dt className="text-gray-400">Lead vocal</dt>
                     <dd className="text-gray-200">{selectedTrack.leadVocal}</dd>
                   </>
                 ) : null}
@@ -657,7 +618,7 @@ export default function ReleaseDetailView({ release }: { release: Release }) {
                         key={`${credit.name}-${credit.role ?? "role"}-${idx}`}
                         className="grid gap-x-3 gap-y-1 sm:grid-cols-[minmax(8rem,auto)_1fr]"
                       >
-                        <p className="text-gray-500">{formatCreditCategory(credit.category)}</p>
+                        <p className="text-gray-400">{formatCreditCategory(credit.category)}</p>
                         <p className="text-gray-200">
                           {credit.name}
                           {credit.role ? (
