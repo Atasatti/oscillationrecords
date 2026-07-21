@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import {
   Plus, Loader2, Trash2, ChevronDown, ChevronUp, Sparkles,
   AlertCircle, Music2, Radio, CheckCircle2, ExternalLink, Pencil, Check,
-  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, Repeat, ListChecks, MessageSquare, Send, Paperclip, Upload,
+  List, CalendarDays, Columns3, ChevronLeft, ChevronRight, UserRound, ListChecks, MessageSquare, Send, Paperclip, Upload,
   Bookmark, X, MoreHorizontal,
 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
@@ -33,7 +33,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { RECURRENCE_OPTIONS, RECURRENCE_LABEL, isRecurrence } from "@/lib/task-recurrence";
 import { TASK_STATUSES } from "@/lib/task-status";
 import { type SavedViewConfig, SAVED_VIEW_NAME_MAX } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
@@ -789,7 +788,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
   );
 }
 
-const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", recurrence: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
+const EMPTY_FORM = { title: "", description: "", category: "pitching", priority: "medium", status: "todo", assigneeId: "", checklist: [] as ChecklistItem[], tags: [] as string[], releaseIds: [] as string[], artistIds: [] as string[], dueAt: "" };
 
 // ---------------------------------------------------------------------------
 // Component
@@ -1152,7 +1151,6 @@ export default function TasksPage() {
       priority: t.priority,
       status: t.status,
       assigneeId: t.assigneeId ?? "",
-      recurrence: t.recurrence ?? "",
       checklist: t.checklist ?? [],
       tags: t.tags ?? [],
       releaseIds: t.releaseIds ?? [],
@@ -1234,7 +1232,6 @@ export default function TasksPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    const prev = tasks.find((t) => t.id === id);
     setTasks((list) => list.map((t) => (t.id === id ? { ...t, status } : t)));
     setCached("tasks-list", tasks.map((t) => (t.id === id ? { ...t, status } : t)));
     try {
@@ -1244,12 +1241,6 @@ export default function TasksPage() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error();
-      // Completing a recurring task spawns its next occurrence server-side; refetch
-      // so that new 'todo' row appears instead of silently vanishing until an
-      // unrelated refresh (which made admins think it was lost and re-create it).
-      if (status === "done" && prev?.status !== "done" && isRecurrence(prev?.recurrence ?? null)) {
-        loadTasks();
-      }
     } catch {
       toast.error("Failed to update task");
       loadTasks();
@@ -1501,7 +1492,7 @@ export default function TasksPage() {
   const renderCard = (t: Task) => {
     const overdue = isOverdue(t);
     const assignee = assignees.find((a) => a.id === t.assigneeId) ?? null;
-    const chips = t.checklist?.length || t.commentCount || t.attachments?.length || isRecurrence(t.recurrence);
+    const chips = t.checklist?.length || t.commentCount || t.attachments?.length;
     return (
       <div
         key={t.id}
@@ -1552,9 +1543,6 @@ export default function TasksPage() {
             ) : null}
             {t.attachments?.length ? (
               <span className="inline-flex items-center gap-1"><Paperclip className="h-3 w-3" aria-hidden /> {t.attachments.length}</span>
-            ) : null}
-            {isRecurrence(t.recurrence) ? (
-              <span className="inline-flex items-center gap-1"><Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}</span>
             ) : null}
           </div>
         ) : null}
@@ -2068,14 +2056,6 @@ export default function TasksPage() {
                         </span>
                       </>
                     )}
-                    {isRecurrence(t.recurrence) && (
-                      <>
-                        <span className="text-border" aria-hidden>·</span>
-                        <span className="inline-flex items-center gap-1">
-                          <Repeat className="h-3 w-3" aria-hidden /> {RECURRENCE_LABEL[t.recurrence]}
-                        </span>
-                      </>
-                    )}
                     {t.checklist?.length ? (
                       <>
                         <span className="text-border" aria-hidden>·</span>
@@ -2343,17 +2323,6 @@ export default function TasksPage() {
                     <option key={a.id} value={a.id}>{displayName(a)}{a.id === myId ? " (me)" : ""}</option>
                   ))}
                 </select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium">Repeat</label>
-                <select value={form.recurrence} onChange={(e) => setField("recurrence", e.target.value)}
-                  className="rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Doesn&apos;t repeat</option>
-                  {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                {form.recurrence ? (
-                  <p className="text-xs text-muted-foreground">On completion, the next occurrence is created automatically.</p>
-                ) : null}
               </div>
               {editingId ? (
                 <div className="flex flex-col gap-1.5">

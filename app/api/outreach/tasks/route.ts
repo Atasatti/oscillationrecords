@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
-import { isRecurrence } from "@/lib/task-recurrence";
 import { normalizeChecklist } from "@/lib/task-checklist";
 import { normalizeTags } from "@/lib/task-tags";
 
@@ -67,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
-    const { title, description, category, priority, status, assigneeId, recurrence, checklist, tags, artistIds, releaseIds, dueAt, notes, isTemplate } = body;
+    const { title, description, category, priority, status, assigneeId, checklist, tags, artistIds, releaseIds, dueAt, notes, isTemplate } = body;
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
@@ -81,7 +80,8 @@ export async function POST(request: NextRequest) {
         priority: priority || "medium",
         status: status || "todo",
         assigneeId: typeof assigneeId === "string" && assigneeId.trim() ? assigneeId.trim() : null,
-        recurrence: isRecurrence(recurrence) ? recurrence : null,
+        // Recurrence retired: tasks no longer auto-spawn a duplicate on completion.
+        recurrence: null,
         checklist: normalizeChecklist(checklist) as unknown as Prisma.InputJsonValue,
         tags: normalizeTags(tags),
         artistIds: Array.isArray(artistIds) ? artistIds : [],
