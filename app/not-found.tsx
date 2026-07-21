@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SITE_NAME } from "@/lib/seo";
+import RecoverMalformedAdminRoute from "@/components/RecoverMalformedAdminRoute";
 
 // Root 404 — the global fallback for any unmatched route outside the (main) group
 // (which has its own not-found). Self-contained so it doesn't depend on the public
@@ -22,6 +23,8 @@ const LINKS = [
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center text-foreground">
+      {/* Bounce a malformed admin URL (…/null, …/undefined) to the dashboard. */}
+      <RecoverMalformedAdminRoute />
       <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">404</p>
       <h1 className="mt-3 text-3xl font-light tracking-tighter sm:text-4xl">
         We couldn&rsquo;t find that page
