@@ -61,7 +61,9 @@ Reference docs: `README.md`, `SECURITY_AUDIT.md`, `PERFORMANCE.md`, `BRAND.md`, 
 
 - Type-checks clean (`npx tsc --noEmit`) and lints clean (`npm run lint`).
 - New/changed behaviour is exercised — drive the actual flow, don't just assert it compiles.
-- **Never `git add -A`.** Stage explicit paths (`git add --literal-pathspecs <path> ...`).
+- **Never `git add -A`.** Stage explicit paths. `--literal-pathspecs` is a top-level git option,
+  so it goes BEFORE the subcommand: `git --literal-pathspecs add <path> ...` (putting it after
+  `add` fails with "unknown option"). Needed for paths with `[id]`-style brackets.
 - **Do not push or deploy without explicit approval.** Pushing the feature branch redeploys the
   Vercel preview; production deploys are a separate, gated step (`DEPLOY.md`).
 
