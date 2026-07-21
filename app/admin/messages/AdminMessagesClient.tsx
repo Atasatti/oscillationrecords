@@ -2,7 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send, UserPlus } from "lucide-react";
+import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send, UserPlus, Paperclip } from "lucide-react";
+import { formatBytes } from "@/lib/asset";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,9 @@ import AddContactFromMessageDialog from "@/components/admin/AddContactFromMessag
 
 export type StaffOption = { id: string; name: string | null; nickname: string | null; email: string };
 
+/** A public-form attachment, as stored on the ContactMessage (S3 url + metadata). */
+export type ContactAttachmentDTO = { name: string; url: string; size: number; type: string };
+
 export type ContactMessageDTO = {
   id: string;
   name: string;
@@ -39,6 +43,7 @@ export type ContactMessageDTO = {
   assigneeId: string | null;
   priority: TicketPriority;
   createdAt: string;
+  attachments: ContactAttachmentDTO[];
 };
 
 const fmt = (iso: string) =>
@@ -371,6 +376,25 @@ export default function AdminMessagesClient({
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-300">
                       {m.message}
                     </p>
+                    {m.attachments.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {m.attachments.map((a, i) => (
+                          <a
+                            key={`${a.url}-${i}`}
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={a.name}
+                            title={`${a.name} (${formatBytes(a.size)}) — open / download`}
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground transition-colors hover:border-white/20 hover:bg-white/5"
+                          >
+                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{a.name}</span>
+                            <span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(a.size)}</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <Button asChild variant="ghost" size="icon" className="h-8 w-8" title="Reply by email">
