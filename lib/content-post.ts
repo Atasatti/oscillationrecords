@@ -84,6 +84,23 @@ export function dayKeyUtc(iso: string | Date): string {
   return `${y}-${mo}-${day}`;
 }
 
+/** UTC midnight of the current day. */
+function utcTodayStart(): Date {
+  const n = new Date();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+}
+
+/** Is `day` (a UTC-midnight calendar day) in the past — i.e. too old to be a
+ *  "today" in ANY timezone? New posts may only be scheduled for today or later.
+ *  The picker + client enforce the exact local-day rule; this is the server-side
+ *  tamper guard, so it allows one day of slack to never reject a legitimate
+ *  "today" for a client that's behind UTC (whose local today can map to the
+ *  previous UTC day). Anything two+ days behind UTC is unambiguously past. */
+export function isPastContentDay(day: Date): boolean {
+  const earliest = utcTodayStart().getTime() - 24 * 60 * 60 * 1000;
+  return day.getTime() < earliest;
+}
+
 export type ContentPostInput = {
   releaseId: string | null;
   title: string;
