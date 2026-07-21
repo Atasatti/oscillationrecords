@@ -444,31 +444,6 @@ export default function AdminArtistsClient({
       return next;
     });
 
-  // Adopt the server's authoritative flags for one row from a PATCH response, so
-  // the on-screen row can never drift from what was actually persisted. This is
-  // what keeps Featured honest through hide/unhide: the server drops Featured when
-  // an artist is hidden and does NOT restore it on unhide, and reading that back
-  // here stops the stale "Featured" badge that otherwise lingered until a refresh.
-  const applyServerRow = (
-    id: string,
-    updated: { showOnWebsite?: unknown; featuredOnHome?: unknown; homeOrder?: unknown } | null
-  ) => {
-    if (!updated || typeof updated.featuredOnHome !== "boolean") return;
-    setItems((list) =>
-      list.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              showOnWebsite:
-                typeof updated.showOnWebsite === "boolean" ? updated.showOnWebsite : a.showOnWebsite,
-              featuredOnHome: updated.featuredOnHome as boolean,
-              homeOrder: typeof updated.homeOrder === "number" ? updated.homeOrder : a.homeOrder,
-            }
-          : a
-      )
-    );
-  };
-
   const setVisibility = async (id: string, showOnWebsite: boolean) => {
     const prev = itemsRef.current;
     // Mirror the server rule locally and immediately: hiding an artist also drops
@@ -483,6 +458,12 @@ export default function AdminArtistsClient({
       )
     );
     mutationGen.current++; // stale in-flight loads must not revert this row
+    // Clear cached views UP-FRONT (not after the round-trip): a revalidation that
+    // races the PATCH would otherwise repaint this row from the pre-toggle cache —
+    // the flicker where the toggle briefly reverts, then settles. The optimistic
+    // row above already mirrors the server rule (hiding drops Featured), so — like
+    // the Press page — we trust it and only roll back if the PATCH fails.
+    clearCached();
     try {
       const res = await fetch(`/api/artists/${id}`, {
         method: "PATCH",
@@ -490,8 +471,6 @@ export default function AdminArtistsClient({
         body: JSON.stringify({ showOnWebsite }),
       });
       if (!res.ok) throw new Error();
-      applyServerRow(id, await res.json().catch(() => null));
-      clearCached(); // persisted change — keep cached views honest on revisit
     } catch {
       setItems(prev);
       toast.error("Failed to update visibility");
@@ -503,6 +482,9 @@ export default function AdminArtistsClient({
     const row = itemsRef.current.find((a) => a.id === id);
     setItems((list) => list.map((a) => (a.id === id ? { ...a, featuredOnHome } : a)));
     mutationGen.current++; // stale in-flight loads must not revert this row
+    // Clear cached views up-front (same reason as setVisibility): a revalidation
+    // racing the PATCH must not repaint the pre-toggle row from the cache.
+    clearCached();
     try {
       // When featuring a row the admin sees as visible, assert showOnWebsite in the
       // same request. The server's "only visible artists can be Featured" guard reads
@@ -521,14 +503,9 @@ export default function AdminArtistsClient({
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.error || "Failed to update featured");
       }
-      // Optimistic-only, mirroring the Press page's toggle: the row already shows the
-      // new state from the setItems above. Re-reading the server's row here (as
-      // setVisibility does, where hiding also drops Featured) forced a SECOND
-      // full-table re-render after the network round-trip — the "changes, then updates
-      // again after a delay" lag. Featuring only flips one boolean, so the optimistic
-      // value is authoritative; just drop the cached views so a later revisit
-      // re-fetches the server's order.
-      clearCached();
+      // Optimistic-only, mirroring the smooth Press-page toggle: the row already
+      // shows the new state, so we don't re-read (that second render was the
+      // "updates again after a delay" lag) — just leave the optimistic value.
     } catch (e) {
       setItems(prev);
       toast.error(e instanceof Error ? e.message : "Failed to update featured");
