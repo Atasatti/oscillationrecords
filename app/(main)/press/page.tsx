@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Star } from "lucide-react";
 import ScrollReveal3D from "@/components/local-ui/ScrollReveal3D";
 import PressCard from "@/components/local-ui/PressCard";
+import PressFeaturedCarousel from "@/components/local-ui/PressFeaturedCarousel";
 import { getAllPress, getFeaturedPress } from "@/lib/catalog-data";
 import { buildPressListJsonLd, jsonLdScript, SITE_NAME, OG_DEFAULT_IMAGE } from "@/lib/seo";
 
@@ -36,9 +37,9 @@ export default async function PressPage() {
   const featuredIds = new Set(featured.map((p) => p.id));
   const rest = all.filter((p) => !featuredIds.has(p.id));
   const jsonLd = all.length ? buildPressListJsonLd(all) : null;
-  // On phones only the TOP featured item is a hero card; any other featured items
-  // join the rest as compact rows so the page doesn't open with 5 full-size cards.
-  const mobileMore = [...featured.slice(1), ...rest];
+  // On phones the featured items are a swipeable carousel (see below), so only the
+  // non-featured items fall through to the compact "More coverage" rows.
+  const mobileMore = rest;
 
   return (
     <div>
@@ -73,12 +74,11 @@ export default async function PressPage() {
                       <PressCard key={item.id} item={item} priority={i === 0} />
                     ))}
                   </div>
-                  {/* Mobile: just the top featured item as a hero card (LCP). */}
-                  {featured[0] ? (
-                    <div className="sm:hidden">
-                      <PressCard item={featured[0]} priority />
-                    </div>
-                  ) : null}
+                  {/* Mobile: the featured items as a one-per-view swipe carousel
+                      with side arrows (the first card is the LCP image). */}
+                  <div className="sm:hidden">
+                    <PressFeaturedCarousel items={featured} />
+                  </div>
                 </div>
               ) : null}
 
