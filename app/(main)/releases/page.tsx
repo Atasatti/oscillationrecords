@@ -8,12 +8,12 @@ import type { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Music",
+  title: "Releases",
   description:
     "Stream the full catalogue from Oscillation Records, an independent Manchester record label — every single, EP and album of electronic music we've released.",
   alternates: { canonical: "/releases" },
   openGraph: {
-    title: "Music | Oscillation Records",
+    title: "Releases | Oscillation Records",
     description: "New music and the full release catalogue from Oscillation Records.",
     url: "/releases",
     images: [OG_DEFAULT_IMAGE],
