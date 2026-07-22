@@ -60,9 +60,10 @@ export default function DigestClient({
 
       {!emailConfigured ? (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-200/90">
-          Email sending isn&apos;t configured yet. This preview is live — sending unlocks once an email provider
-          (<span className="font-mono text-xs">RESEND_API_KEY</span> + <span className="font-mono text-xs">EMAIL_FROM</span>) is
-          added. For a scheduled daily send, point a cron at <span className="font-mono text-xs">POST /api/admin/digest</span> with
+          Email sending isn&apos;t configured yet. This preview is live — sending unlocks once an email provider is
+          added: <span className="font-mono text-xs">SENDGRID_API_KEY</span> or{" "}
+          <span className="font-mono text-xs">RESEND_API_KEY</span>, plus{" "}
+          <span className="font-mono text-xs">EMAIL_FROM</span>. For a scheduled daily send, point a cron at <span className="font-mono text-xs">POST /api/admin/digest</span> with
           the <span className="font-mono text-xs">CRON_SECRET</span> header.
         </div>
       ) : null}

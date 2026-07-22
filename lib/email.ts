@@ -1,13 +1,47 @@
-// Provider-agnostic transactional email. Sends via Resend's REST API using plain
-// fetch — no SDK dependency. Everything degrades gracefully when unconfigured:
-// emailConfigured() is false and sendEmail() returns { ok:false, reason:"not_configured" },
-// so the newsletter composer and the digest preview work with no provider set;
-// only the actual send is disabled until RESEND_API_KEY + EMAIL_FROM are added.
+// Provider-agnostic transactional email over plain fetch — no SDK dependency.
+// Two interchangeable delivery providers: Twilio SendGrid (SENDGRID_API_KEY) and
+// Resend (RESEND_API_KEY); set whichever key you have, plus EMAIL_FROM (a sender
+// verified with that provider). If both keys are present, EMAIL_PROVIDER
+// ("sendgrid" | "resend") picks. Use a RESTRICTED key — SendGrid: a key scoped
+// to "Mail Send" only; Resend: a sending-only key — never a full-access one; the
+// key lives server-side only (no NEXT_PUBLIC_*).
+//
+// The provider is delivery ONLY. Campaigns, scheduling, the subscriber list,
+// open tracking and unsubscribe are all in-house (lib/newsletter*.ts) with the
+// site database as the single source of truth — deliberately NOT synced into a
+// provider's contact/marketing suite (see docs/DATA-RETENTION.md: account
+// deletion erases a subscriber in one place, and a second copy in a provider
+// would break that).
+//
+// Everything degrades gracefully when unconfigured: emailConfigured() is false
+// and sendEmail() returns { ok:false, reason:"not_configured" }, so the
+// newsletter composer and the digest preview work with no provider set; only
+// the actual send is disabled until a key + EMAIL_FROM are added.
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+export type EmailProvider = "sendgrid" | "resend";
+
+const PROVIDER_ENDPOINTS: Record<EmailProvider, string> = {
+  sendgrid: "https://api.sendgrid.com/v3/mail/send",
+  resend: "https://api.resend.com/emails",
+};
+
+/**
+ * Which delivery provider is usable: an explicit EMAIL_PROVIDER wins but only
+ * when its key is actually present (naming a provider whose key is missing is a
+ * misconfiguration — stay off rather than silently sending via the other one);
+ * otherwise whichever single key is set.
+ */
+export function emailProvider(): EmailProvider | null {
+  const forced = (process.env.EMAIL_PROVIDER || "").trim().toLowerCase();
+  if (forced === "sendgrid") return process.env.SENDGRID_API_KEY ? "sendgrid" : null;
+  if (forced === "resend") return process.env.RESEND_API_KEY ? "resend" : null;
+  if (process.env.SENDGRID_API_KEY) return "sendgrid";
+  if (process.env.RESEND_API_KEY) return "resend";
+  return null;
+}
 
 export function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return Boolean(emailProvider() && process.env.EMAIL_FROM);
 }
 
 export function emailFrom(): string {
@@ -55,36 +89,69 @@ export type SendResult =
   | { ok: true; id: string | null }
   | { ok: false; reason: "not_configured" | "error"; error?: string };
 
-/** Send one email via Resend. Returns not_configured (never throws) when the
- *  provider env is absent, so callers can treat "no provider" as a normal state. */
-export async function sendEmail(msg: {
+export interface SendMessage {
   to: string | string[];
   subject: string;
   html: string;
   fromName?: string;
   replyTo?: string;
-}): Promise<SendResult> {
-  if (!emailConfigured()) return { ok: false, reason: "not_configured" };
-  const from = msg.fromName ? `${msg.fromName} <${emailFrom()}>` : emailFrom();
+}
+
+/**
+ * The provider-specific request body for one message. Pure and exported so the
+ * two payload shapes are unit-testable without a network — they're the part
+ * that silently breaks when a provider is swapped.
+ */
+export function buildSendBody(
+  provider: EmailProvider,
+  msg: SendMessage,
+  fromEmail: string
+): Record<string, unknown> {
+  const to = Array.isArray(msg.to) ? msg.to : [msg.to];
+  if (provider === "sendgrid") {
+    return {
+      personalizations: [{ to: to.map((email) => ({ email })) }],
+      from: { email: fromEmail, ...(msg.fromName ? { name: msg.fromName } : {}) },
+      subject: msg.subject,
+      content: [{ type: "text/html", value: msg.html }],
+      ...(msg.replyTo ? { reply_to: { email: msg.replyTo } } : {}),
+    };
+  }
+  return {
+    from: msg.fromName ? `${msg.fromName} <${fromEmail}>` : fromEmail,
+    to,
+    subject: msg.subject,
+    html: msg.html,
+    ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+  };
+}
+
+/** Send one email via the configured provider. Returns not_configured (never
+ *  throws) when the provider env is absent, so callers can treat "no provider"
+ *  as a normal state. `id` is the provider's message id (SendGrid returns it in
+ *  the X-Message-Id header; Resend in the JSON body), or null if not exposed. */
+export async function sendEmail(msg: SendMessage): Promise<SendResult> {
+  const provider = emailProvider();
+  if (!provider || !emailConfigured()) return { ok: false, reason: "not_configured" };
+  const apiKey =
+    provider === "sendgrid" ? process.env.SENDGRID_API_KEY : process.env.RESEND_API_KEY;
   try {
-    const res = await fetch(RESEND_ENDPOINT, {
+    const res = await fetch(PROVIDER_ENDPOINTS[provider], {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from,
-        to: Array.isArray(msg.to) ? msg.to : [msg.to],
-        subject: msg.subject,
-        html: msg.html,
-        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
-      }),
+      body: JSON.stringify(buildSendBody(provider, msg, emailFrom())),
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       return { ok: false, reason: "error", error: `${res.status} ${text.slice(0, 200)}` };
+    }
+    if (provider === "sendgrid") {
+      // Success is 202 with an empty body; the message id travels in a header.
+      return { ok: true, id: res.headers.get("x-message-id") };
     }
     const j = await res.json().catch(() => ({}));
     return { ok: true, id: typeof j?.id === "string" ? j.id : null };
