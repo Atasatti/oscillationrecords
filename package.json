@@ -10,6 +10,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:deploy": "node scripts/deploy-db.mjs",
+    "db:check-indexes": "node --env-file=.env --use-system-ca scripts/check-index-drift.mjs",
+    "db:dedupe-errors": "node --env-file=.env --use-system-ca scripts/dedupe-error-log.mjs",
     "indexnow": "node scripts/indexnow-submit.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
