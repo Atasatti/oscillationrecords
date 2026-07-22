@@ -19,6 +19,7 @@ import {
   Send,
   EyeOff,
 } from "lucide-react";
+import { releaseEditHref } from "@/lib/release-workflow";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
@@ -643,7 +644,11 @@ function ReleasesPageInner({
                   <TableCell className="hidden @4xl:table-cell">
                     {r.lyricsCoverage && r.lyricsCoverage.total > 0 ? (
                       <Link
-                        href={`/admin/releases/${r.id}/tracks`}
+                        // Straight into this release's editor at Step 2 (Tracks),
+                        // with the lyrics fields already open on the tracks that
+                        // are missing them — not the standalone tracklist page,
+                        // which drops the admin out of the release they were in.
+                        href={releaseEditHref(r.id, "tracks", "lyrics")}
                         title={
                           r.lyricsCoverage.withLyrics === r.lyricsCoverage.total
                             ? "All tracks have lyrics"

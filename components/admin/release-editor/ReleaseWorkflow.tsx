@@ -53,6 +53,10 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
+  // ?focus=<what> says which part of the target step to unfold on arrival. Read
+  // once on mount: it describes how you got here, so switching steps by hand
+  // afterwards shouldn't keep re-applying it.
+  const [focusParam] = useState(() => searchParams.get("focus"));
 
   // The active step is driven by ?step=<slug> so a deep link (e.g. the Budget list
   // → ?step=budget) opens the right step and a refresh keeps it. Initialised from
@@ -164,7 +168,9 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
         </div>
       </div>
       <div className={active === 2 ? "" : "hidden"}>
-        {tracksMounted ? <ReleaseTracksStep releaseId={releaseId} /> : null}
+        {tracksMounted ? (
+          <ReleaseTracksStep releaseId={releaseId} focusLyrics={focusParam === "lyrics"} />
+        ) : null}
       </div>
       <div className={active === 3 ? "" : "hidden"}>
         <ReleaseBudgetPanel releaseId={releaseId} />

@@ -73,6 +73,7 @@ export default function TrackRow({
   onToggleExpand,
   onCopyCreditsToAll,
   highlight = false,
+  focusLyrics = false,
 }: {
   track: EditorTrack;
   index: number;
@@ -91,6 +92,9 @@ export default function TrackRow({
   /** Flag this row (deep-link from Needs-Attention, e.g. a duplicate ISRC): a
    * coloured ring + auto-scroll into view so the clashing tracks are obvious. */
   highlight?: boolean;
+  /** Deep-link from the Releases list's lyrics badge: open this row's lyrics
+   * section on mount. Set only on tracks that are actually missing lyrics. */
+  focusLyrics?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: track.rowId });
@@ -125,6 +129,9 @@ export default function TrackRow({
     // missing required ISRC, or a Needs-Attention deep-link (e.g. a duplicate ISRC,
     // where the offending code is present so isrcMissing is false).
     ids: (requireIsrc && !track.isrcCode.trim()) || highlight,
+    // Same idea for lyrics: the Releases list's lyrics badge deep-links here, and
+    // it set this only on the tracks that are actually missing them.
+    lyrics: focusLyrics,
   }));
   const toggleSec = (k: string) => setOpenSecs((s) => ({ ...s, [k]: !s[k] }));
 
