@@ -1,53 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
+import { AUDIT_RETENTION_MONTHS } from "@/lib/personal-data";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // GET /api/account/export — GDPR data portability: returns everything we hold
-// about the signed-in user as a downloadable JSON file. OAuth tokens are
-// deliberately excluded (data minimisation — they aren't useful to the user and
-// would be sensitive if the export leaked).
+// about the signed-in user as a downloadable JSON file.
+//
+// Every collection listed as `exported` in lib/personal-data.ts must appear here;
+// lib/personal-data.test.ts fails the build if one is missing. This used to cover
+// four collections while ten held user-linked rows — page views, contact
+// messages, comments, uploads, campaigns and audit entries were all absent.
+//
+// OAuth tokens (Account) and server session rows are deliberately excluded — data
+// minimisation: useless to the user, sensitive if an export leaked.
 export async function GET(request: NextRequest) {
   const guard = await requireUser(request);
   if (!guard.ok) return guard.response;
 
-  // token.sub is the OAuth (Google) subject, NOT our Mongo user id — resolve the
-  // account by email (the unique login key), then read everything by that id.
-  // (Using token.sub directly threw "Malformed ObjectID" on every export.)
+  // token.sub is the OAuth (Google) subject, NOT our Mongo user id — requireUser
+  // has already resolved the account by email (the unique login key).
   const email = guard.token.email ?? null;
   if (!email) {
     return NextResponse.json({ error: "No account email on session" }, { status: 400 });
   }
+  const userId = guard.userId;
 
   try {
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, name: true, email: true, image: true, emailVerified: true },
+      select: { id: true, name: true, email: true, image: true, emailVerified: true, role: true },
     });
     if (!user) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
-    const userId = user.id;
 
-    const [profile, playEvents, remixEntry, newsletter] = await Promise.all([
+    const byNewest = { orderBy: { createdAt: "desc" } } as const;
+    const [
+      profile,
+      playEvents,
+      pageViews,
+      remixEntry,
+      newsletter,
+      savedViews,
+      contactMessages,
+      messageReplies,
+      taskComments,
+      assignedTasks,
+      assets,
+      campaigns,
+      errorLogs,
+      auditLog,
+    ] = await Promise.all([
       prisma.userProfile.findUnique({ where: { userId } }),
-      prisma.playEvent.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      }),
+      prisma.playEvent.findMany({ where: { userId }, ...byNewest }),
+      prisma.pageView.findMany({ where: { userId }, ...byNewest }),
       prisma.benertRemixEntry.findUnique({ where: { userId } }),
       prisma.newsletterSubscriber.findUnique({ where: { email } }),
+      prisma.savedView.findMany({ where: { userId }, ...byNewest }),
+      // Both sides of a ticket: ones they sent, and ones assigned to them as staff.
+      prisma.contactMessage.findMany({
+        where: { OR: [{ userId }, { assigneeId: userId }] },
+        ...byNewest,
+      }),
+      prisma.messageReply.findMany({
+        where: { OR: [{ authorId: userId }, { authorEmail: email }] },
+        ...byNewest,
+      }),
+      prisma.taskComment.findMany({
+        where: { OR: [{ authorId: userId }, { authorEmail: email }, { mentions: { has: userId } }] },
+        ...byNewest,
+      }),
+      prisma.outreachTask.findMany({ where: { assigneeId: userId }, ...byNewest }),
+      prisma.asset.findMany({ where: { uploadedById: userId }, ...byNewest }),
+      prisma.campaign.findMany({ where: { createdById: userId }, ...byNewest }),
+      prisma.errorLog.findMany({ where: { userEmail: email }, orderBy: { lastSeen: "desc" } }),
+      // Included so the one retention exception is transparent: these entries
+      // survive account deletion, and the user can see exactly which they are.
+      prisma.auditLog.findMany({
+        where: { OR: [{ actorId: userId }, { actorEmail: email }] },
+        orderBy: { at: "desc" },
+      }),
     ]);
 
     const payload = {
       exportedAt: new Date().toISOString(),
+      // Machine-readable summary of what survives deletion, so the export itself
+      // documents the retention exception rather than burying it in a policy page.
+      retention: {
+        note: "Everything below is deleted or anonymised when you delete your account, EXCEPT auditLog. See docs/DATA-RETENTION.md.",
+        auditLogRetainedMonths: AUDIT_RETENTION_MONTHS,
+      },
       account: user,
       profile,
       listeningHistory: playEvents,
+      pageViews,
       competitionEntry: remixEntry,
       newsletter,
+      savedViews,
+      contactMessages,
+      messageReplies,
+      taskComments,
+      assignedTasks,
+      uploadedAssets: assets,
+      newsletterCampaigns: campaigns,
+      errorLogs,
+      auditLog,
     };
 
     return new NextResponse(JSON.stringify(payload, null, 2), {
