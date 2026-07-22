@@ -13,6 +13,8 @@ import {
   type PageImageKey,
 } from "@/lib/page-media-defaults";
 
+const MAX_PAGE_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
+
 async function uploadImage(file: File): Promise<string> {
   const timestamp = Date.now();
   const name = `site/page-media/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
@@ -90,6 +92,13 @@ export default function PageImagesPanel({
   const handlePick = async (key: PageImageKey, file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) {
       toast.error("Please choose an image file.");
+      return;
+    }
+    // These render as page decoration/branding — a multi-MB original would slow
+    // every public page view. (The server separately rejects non-raster types
+    // like SVG at presign time.)
+    if (file.size > MAX_PAGE_IMAGE_BYTES) {
+      toast.error("That image is larger than 8 MB — please use a smaller file.");
       return;
     }
     setBusyFor(key, true);

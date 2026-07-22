@@ -9,6 +9,7 @@ export interface PageMedia {
   // Home page
   homeNoProfit: string;
   // About page
+  aboutHeadingLogo: string;
   aboutHero: string;
   aboutMain: string;
   aboutSide1: string;
@@ -29,6 +30,7 @@ export type PageImageKey = Exclude<PageMediaKey, "contactArtworks">;
 
 export const DEFAULT_PAGE_MEDIA: PageMedia = {
   homeNoProfit: "/profit-img.svg",
+  aboutHeadingLogo: "/logo-icon.svg",
   aboutHero: "/about-hero-img.svg",
   aboutMain: "/about-section2-img.svg",
   aboutSide1: "/about-section2-side1.svg",
@@ -68,6 +70,13 @@ export const PAGE_IMAGE_FIELDS: PageImageFieldDef[] = [
     label: "“Not Profit” image",
     description: "The floating image in the home page’s “Built for Artists, Not Profit” section.",
     group: "home",
+  },
+  {
+    key: "aboutHeadingLogo",
+    label: "Heading logo",
+    description:
+      "The brand logo inside the About heading (“Artists, ◈ Not Profit.”). Shown in a small square, so any aspect ratio fits; a transparent PNG or WebP looks best.",
+    group: "about",
   },
   {
     key: "aboutHero",
