@@ -11,6 +11,11 @@ import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
+  resultingTracklist,
+  TracklistError,
+  validateResultingTracklist,
+} from "@/lib/release-tracks";
+import {
   normalizeFeatureArtistNamesInput,
   prismaKindToApi,
   serializeTrack,
@@ -447,25 +452,51 @@ export async function PATCH(
       }
     }
 
-    // Going fully live (RELEASED) requires a playable tracklist: at least one track,
-    // all with audio. Drafts and Coming-Soon may be audio-less. Also catches a
-    // status-only publish (the tracklist "Publish" panel sends no tracks) by
-    // checking what's already stored; for a publish that also sends tracks, a track
-    // keeping its stored audio (empty audio + existing id) still counts.
-    if (nextStatus === "RELEASED") {
-      const storedAudio = new Map(existing.tracks.map((t) => [String(t.id), t.audioFile]));
-      const effectiveAudio = parsedTracks
-        ? parsedTracks.map((t) => t.audioFile ?? (t.id ? storedAudio.get(t.id) ?? null : null))
-        : existing.tracks.map((t) => t.audioFile);
-      if (effectiveAudio.length === 0 || effectiveAudio.some((a) => !a)) {
-        return NextResponse.json(
-          { error: "Every track needs audio before this release can go live." },
-          { status: 400 }
-        );
-      }
+    // What the tracklist will look like AFTER this write. `submittedTracks` is
+    // undefined when the request omits `tracks` (list untouched) and [] when it
+    // asks to clear them — the empty case is why this has to be computed rather
+    // than read off `existing`: validating the stored list let `{ tracks: [] }`
+    // pass on the very tracks it was about to delete.
+    const submittedTracks = clearAllTracks ? [] : parsedTracks;
+
+    // Fail fast on the state we've already read, so an obviously bad edit 400s
+    // without opening a transaction. The authoritative check re-runs inside the
+    // transaction against freshly-read tracks (below).
+    const tracklistProblem = validateResultingTracklist({
+      stored: existing.tracks,
+      resulting: resultingTracklist(existing.tracks, submittedTracks),
+      nextStatus,
+      nextIsLive,
+    });
+    if (tracklistProblem) {
+      return NextResponse.json({ error: tracklistProblem }, { status: 400 });
     }
 
+    // ONE transaction for the whole edit: the release row, track deletions, track
+    // updates and track creations. These used to be split — the release update and
+    // deletions inside a transaction, creates/updates after it — which meant a
+    // failure partway through the track writes left the release updated and its
+    // old tracks already deleted, with only some of the replacements written. It
+    // also made retrying unsafe, since a re-run could duplicate tracks that had
+    // already been created. Now nothing commits unless everything does, and
+    // withWriteRetry can re-run the whole thing from a clean slate.
     await withWriteRetry(() => prisma.$transaction(async (tx) => {
+      // Re-read the tracklist inside the transaction: `existing` was read before
+      // this request did any other awaits, so a concurrent editor save could have
+      // changed it. Validating (and diffing) against the rows we're actually
+      // mutating is what makes a retry correct rather than merely repeated.
+      const current = await tx.track.findMany({
+        where: { releaseId },
+        select: { id: true, audioFile: true, duration: true },
+      });
+      const problem = validateResultingTracklist({
+        stored: current,
+        resulting: resultingTracklist(current, submittedTracks),
+        nextStatus,
+        nextIsLive,
+      });
+      if (problem) throw new TracklistError(problem);
+
       // "Latest Release" supports MULTIPLE releases — no single-select clearing.
       await tx.release.update({
         where: { id: releaseId },
@@ -543,7 +574,7 @@ export async function PATCH(
       if (clearAllTracks) {
         await tx.track.deleteMany({ where: { releaseId } });
       } else if (parsedTracks) {
-        const existingIds = new Set(existing.tracks.map((t) => String(t.id)));
+        const existingIds = new Set(current.map((t) => String(t.id)));
         const keepIds = new Set(
           parsedTracks.filter((t) => t.id).map((t) => String(t.id))
         );
@@ -553,61 +584,53 @@ export async function PATCH(
             where: { id: { in: toRemove }, releaseId },
           });
         }
-
       }
-    }, {
-      // The default 5s interactive-transaction timeout was occasionally blown by
-      // remote-DB latency (P2028 "5239ms passed"). The body is small (one update
-      // + a deleteMany), so give it real headroom; withWriteRetry re-runs if it
-      // still times out or hits a write conflict.
-      timeout: 20_000,
-      maxWait: 10_000,
-    }));
 
-    // Track create/updates run OUTSIDE the interactive transaction, in small
-    // concurrent batches. Many sequential track writes inside one transaction
-    // blew Prisma's 5s interactive-transaction timeout (P2028) on larger albums.
-    // Each write is its own retryable op on a distinct row, so they don't
-    // conflict with one another or hold a transaction open.
-    if (parsedTracks && !clearAllTracks) {
-      const existingById = new Map(existing.tracks.map((t) => [String(t.id), t]));
-      const writes = parsedTracks.map((t) => () => {
+      if (!parsedTracks || clearAllTracks) return;
+
+      // Track writes run sequentially on the transaction's connection (Prisma
+      // interactive transactions don't support concurrent operations on one tx
+      // client). That's slower than the old batched-concurrent version, but a
+      // 30-track album is ~30 round trips — comfortably inside the timeout below.
+      const existingById = new Map(current.map((t) => [String(t.id), t]));
+      for (const t of parsedTracks) {
         const prev = t.id ? existingById.get(String(t.id)) : undefined;
         if (t.id && prev) {
+          // An omitted/blank audioFile KEEPS the stored file — an edit that
+          // doesn't re-send the audio must never blank a released track.
           const nextAudio = t.audioFile || prev.audioFile;
           const nextDuration = t.audioFile ? t.duration : prev.duration;
-          return withWriteRetry(() =>
-            prisma.track.update({
-              where: { id: t.id },
-              data: {
-                name: t.name,
-                image: t.image,
-                audioFile: nextAudio,
-                duration: nextDuration,
-                releaseDate: t.releaseDate,
-                composer: t.composer,
-                lyricist: t.lyricist,
-                leadVocal: t.leadVocal,
-                lyrics: t.lyrics,
-                syncedLyrics: t.syncedLyrics,
-                stemsFile: t.stemsFile,
-                trackCredits: t.trackCredits,
-                isrcCode: t.isrcCode,
-                iswc: t.iswc,
-                isrcExplicit: t.isrcExplicit,
-                spotifyLink: t.spotifyLink,
-                appleMusicLink: t.appleMusicLink,
-                tidalLink: t.tidalLink,
-                amazonMusicLink: t.amazonMusicLink,
-                youtubeLink: t.youtubeLink,
-                soundcloudLink: t.soundcloudLink,
-                primaryArtistIds: t.primaryArtistIds,
-                featureArtistIds: t.featureArtistIds,
-                featureArtistNames: t.featureArtistNames,
-                sortOrder: t.sortOrder,
-              },
-            })
-          );
+          await tx.track.update({
+            where: { id: t.id },
+            data: {
+              name: t.name,
+              image: t.image,
+              audioFile: nextAudio,
+              duration: nextDuration,
+              releaseDate: t.releaseDate,
+              composer: t.composer,
+              lyricist: t.lyricist,
+              leadVocal: t.leadVocal,
+              lyrics: t.lyrics,
+              syncedLyrics: t.syncedLyrics,
+              stemsFile: t.stemsFile,
+              trackCredits: t.trackCredits,
+              isrcCode: t.isrcCode,
+              iswc: t.iswc,
+              isrcExplicit: t.isrcExplicit,
+              spotifyLink: t.spotifyLink,
+              appleMusicLink: t.appleMusicLink,
+              tidalLink: t.tidalLink,
+              amazonMusicLink: t.amazonMusicLink,
+              youtubeLink: t.youtubeLink,
+              soundcloudLink: t.soundcloudLink,
+              primaryArtistIds: t.primaryArtistIds,
+              featureArtistIds: t.featureArtistIds,
+              featureArtistNames: t.featureArtistNames,
+              sortOrder: t.sortOrder,
+            },
+          });
+          continue;
         }
         // NEW track. Build the create row once.
         const data: Prisma.TrackUncheckedCreateInput = {
@@ -659,21 +682,25 @@ export async function PATCH(
             primaryArtistIds: data.primaryArtistIds, featureArtistIds: data.featureArtistIds,
             featureArtistNames: data.featureArtistNames, sortOrder: data.sortOrder,
           };
-          return withWriteRetry(async () => {
-            const res = await prisma.track.updateMany({ where: { id: clientId, releaseId }, data: updateData });
-            if (res.count > 0) return;
-            const clash = await prisma.track.findUnique({ where: { id: clientId }, select: { releaseId: true } });
+          const res = await tx.track.updateMany({ where: { id: clientId, releaseId }, data: updateData });
+          if (res.count === 0) {
+            const clash = await tx.track.findUnique({ where: { id: clientId }, select: { releaseId: true } });
             if (clash) throw new Error(`Track id ${clientId} belongs to another release`);
-            await prisma.track.create({ data: { ...data, id: clientId } });
-          });
+            await tx.track.create({ data: { ...data, id: clientId } });
+          }
+          continue;
         }
-        return withWriteRetry(() => prisma.track.create({ data }));
-      });
-      // Bounded concurrency: fast, but won't exhaust the DB connection pool.
-      for (let i = 0; i < writes.length; i += 5) {
-        await Promise.all(writes.slice(i, i + 5).map((run) => run()));
+        await tx.track.create({ data });
       }
-    }
+    }, {
+      // Headroom for a long album: the body is one release update, a deleteMany
+      // and one round trip per track, run sequentially at remote-DB latency. Well
+      // under MongoDB's 60s transactionLifetimeLimitSeconds; withWriteRetry
+      // re-runs the whole transaction on a timeout or write conflict, which is
+      // safe precisely because a failed transaction commits nothing.
+      timeout: 30_000,
+      maxWait: 15_000,
+    }));
 
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
@@ -721,6 +748,12 @@ export async function PATCH(
       artists,
     });
   } catch (error) {
+    // The tracklist rules re-run inside the transaction against freshly-read
+    // rows, so losing a race to a concurrent editor surfaces here. It's a
+    // rejected edit, not a server fault — and nothing was written.
+    if (error instanceof TracklistError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Error updating release:", error);
     return NextResponse.json({ error: "Failed to update release" }, { status: 500 });
   }
