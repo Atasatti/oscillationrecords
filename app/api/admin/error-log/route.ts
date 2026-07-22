@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { canReadAnalyticsPii, logAnalyticsPiiAccess } from "@/lib/analytics-privacy";
 import { liveCutoff } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,15 @@ export async function GET(request: NextRequest) {
       prisma.errorLog.count({ where: logWhere }),
     ]);
 
-    return NextResponse.json({ items, total, unresolved, resolvedCount, page, pageSize });
+    // ErrorLog rows carry the email of whoever hit the error. That's useful when
+    // chasing "this user can't check out", but it's identifiable activity — a
+    // named person, a route and a timestamp — so it needs analytics:pii. The
+    // error itself (message, stack, path, counts) is unchanged for every role.
+    const showPii = await canReadAnalyticsPii(request);
+    if (showPii) await logAnalyticsPiiAccess(request, guard.token, "error-log");
+    const rows = showPii ? items : items.map((e) => ({ ...e, userEmail: null }));
+
+    return NextResponse.json({ items: rows, total, unresolved, resolvedCount, page, pageSize });
   } catch (e) {
     console.error("error-log GET error:", e);
     return NextResponse.json({ error: "Failed to load errors" }, { status: 500 });
