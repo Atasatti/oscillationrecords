@@ -163,8 +163,27 @@ export async function requirePermission(req: NextRequest, permission: Permission
   return forbidden();
 }
 
-/** Require any authenticated user. Returns the token, or a ready-to-return error response. */
-export async function requireUser(req: NextRequest): Promise<Guard> {
+export type UserGuard =
+  | { ok: true; token: JWT; userId: string }
+  | { ok: false; response: NextResponse };
+
+/**
+ * Require an authenticated user who STILL EXISTS in the database.
+ *
+ * Sessions are stateless 30-day JWTs, so deleting an account can't invalidate
+ * the tokens already issued for it — the same person's other browsers and
+ * devices keep holding a perfectly well-signed token. Checking the token alone
+ * therefore let a deleted account go on using authenticated endpoints for up to
+ * a month. Confirming the user row exists is what makes erasure take effect on
+ * the very next request, everywhere, without a session store.
+ *
+ * Also returns the caller's real Mongo `User.id` (token.sub is the Google OAuth
+ * subject), since the lookup has already been done — callers shouldn't re-query
+ * via resolveUserId().
+ *
+ * Fails closed: a missing user is 401, an unreadable database is 503.
+ */
+export async function requireUser(req: NextRequest): Promise<UserGuard> {
   const resolved = await resolveToken(req);
   if ("response" in resolved) return { ok: false, response: resolved.response };
   const token = resolved.token;
@@ -172,7 +191,28 @@ export async function requireUser(req: NextRequest): Promise<Guard> {
   if (!token?.sub || !token?.email) {
     return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return { ok: true, token };
+
+  let user: { id: string } | null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email: token.email as string },
+      select: { id: true },
+    });
+  } catch (e) {
+    console.error("requireUser: account lookup failed", e);
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
+    };
+  }
+  if (!user) {
+    // The account was deleted (or never synced) while this token stayed valid.
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Account no longer exists" }, { status: 401 }),
+    };
+  }
+  return { ok: true, token, userId: user.id };
 }
 
 /**

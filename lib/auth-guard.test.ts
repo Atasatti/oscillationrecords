@@ -14,9 +14,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { user: { findUnique: (...a: unknown[]) => findUnique(...a) } },
 }));
 
-const { isAdminRequest, requireAdmin, requireStaff, requirePermission } = await import(
-  "./auth-guard"
-);
+const { isAdminRequest, requireAdmin, requireStaff, requirePermission, requireUser } =
+  await import("./auth-guard");
 
 // A bootstrap-allowlisted owner (lib/auth-session.ts ADMIN_EMAILS) — always an
 // owner by email, never DB-dependent.
@@ -106,6 +105,66 @@ describe("a current owner still has access", () => {
     session(undefined, "admin");
     expect(await isAdminRequest(req)).toBe(false);
     expect(findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("a deleted account loses access immediately", () => {
+  // Sessions are stateless 30-day JWTs, so deleting the User row can't invalidate
+  // the tokens already issued for it. Requiring the row to exist is what makes
+  // erasure effective on the next request rather than in up to a month.
+  const deletedSession = () => {
+    getToken.mockResolvedValue({ email: "gone@example.com", sub: "google-sub" });
+    findUnique.mockResolvedValue(null);
+  };
+
+  it("requireUser 401s when the user row is gone", async () => {
+    deletedSession();
+    const guard = await requireUser(req);
+    expect(guard.ok).toBe(false);
+    if (!guard.ok) expect(guard.response.status).toBe(401);
+  });
+
+  it("rejects the same deleted account on every device independently", async () => {
+    // The point of the DB check: two other browsers each holding their own valid
+    // token are both turned away, with no session store to propagate to.
+    for (const device of ["laptop", "phone", "tablet"]) {
+      getToken.mockResolvedValue({ email: "gone@example.com", sub: `sub-${device}` });
+      findUnique.mockResolvedValue(null);
+      const guard = await requireUser(req);
+      expect(guard.ok, device).toBe(false);
+    }
+  });
+
+  it("a deleted account that was an owner also loses admin access", async () => {
+    getToken.mockResolvedValue({ email: "gone@example.com", sub: "s", role: "admin" });
+    findUnique.mockResolvedValue(null);
+    expect(await isAdminRequest(req)).toBe(false);
+    expect((await requireAdmin(req)).ok).toBe(false);
+  });
+
+  it("still admits a live account, and hands back its real Mongo id", async () => {
+    getToken.mockResolvedValue({ email: "live@example.com", sub: "google-sub" });
+    findUnique.mockResolvedValue({ id: "507f1f77bcf86cd799439011" });
+    const guard = await requireUser(req);
+    expect(guard.ok).toBe(true);
+    // token.sub is the Google subject, never the Mongo id — callers need this one.
+    if (guard.ok) expect(guard.userId).toBe("507f1f77bcf86cd799439011");
+  });
+
+  it("401s an unauthenticated request without touching the database", async () => {
+    getToken.mockResolvedValue(null);
+    const guard = await requireUser(req);
+    expect(guard.ok).toBe(false);
+    if (!guard.ok) expect(guard.response.status).toBe(401);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("503s rather than admitting anyone when the database is unreadable", async () => {
+    getToken.mockResolvedValue({ email: "live@example.com", sub: "s" });
+    findUnique.mockRejectedValue(new Error("db down"));
+    const guard = await requireUser(req);
+    expect(guard.ok).toBe(false);
+    if (!guard.ok) expect(guard.response.status).toBe(503);
   });
 });
 

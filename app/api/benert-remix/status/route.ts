@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -8,32 +8,13 @@ export const runtime = "nodejs";
 // GET /api/benert-remix/status - Get current user's submission status (auth required)
 export async function GET(request: NextRequest) {
   try {
-    if (!process.env.NEXTAUTH_SECRET) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-
-    if (!token?.sub || !token?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: token.email as string },
-    });
-
-    if (!user) {
-      return NextResponse.json({ hasUploaded: false });
-    }
+    // A live account is required — a stale token from a deleted account used to
+    // get a cheerful `hasUploaded: false` here instead of being turned away.
+    const guard = await requireUser(request);
+    if (!guard.ok) return guard.response;
 
     const entry = await prisma.benertRemixEntry.findUnique({
-      where: { userId: user.id },
+      where: { userId: guard.userId },
     });
 
     // Only the boolean — the entry's object URL is never handed back to the
