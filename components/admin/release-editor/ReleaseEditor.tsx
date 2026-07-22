@@ -21,6 +21,7 @@ import {
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
 import { isUsableFileUrl } from "@/lib/asset";
+import { releaseEditHref } from "@/lib/release-workflow";
 import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import ReleaseDetailsPanel, {
@@ -423,10 +424,12 @@ export default function ReleaseEditor({
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
-        // Flag the new-release flow (?new=1) so the tracklist breadcrumb reads
-        // "Releases › New › Tracks", not "… › Edit › Tracks" (see Breadcrumbs) —
-        // the admin is still creating, not editing an existing release.
-        else router.replace(`/admin/releases/${created.id}/tracks?new=1`);
+        // Straight into the edit WORKFLOW at step 2 (Tracks) — the same stepper
+        // surface the admin will use from here on — rather than the standalone
+        // tracklist page. The old detour (/tracks?new=1) had no step navigation
+        // and its breadcrumb morphed from "New" to "Edit" when clicked, making
+        // creation feel like a different flow that unexpectedly became editing.
+        else router.replace(releaseEditHref(created.id, "tracks"));
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",
