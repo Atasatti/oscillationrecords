@@ -20,6 +20,7 @@ import {
   RELEASE_DESCRIPTION_MAX,
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
+import { isUsableFileUrl } from "@/lib/asset";
 import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import ReleaseDetailsPanel, {
@@ -182,8 +183,14 @@ export default function ReleaseEditor({
           pLine: data.pLine || "",
           cLine: data.cLine || "",
         });
-        setCoverUrl(data.coverImage || null);
-        setImagePreview(data.coverImage || null);
+        // Not `|| null`: a row written before the API fix holds the literal
+        // string "null", which is truthy and renders as <img src="null"> — a
+        // relative URL the browser resolves against the current page, 404ing at
+        // /admin/releases/<id>/null. isUsableFileUrl is the repo's existing
+        // guard for exactly this dirty-catalog case.
+        const cover = isUsableFileUrl(data.coverImage) ? data.coverImage : null;
+        setCoverUrl(cover);
+        setImagePreview(cover);
         setTrackCount(Array.isArray(data.tracks) ? data.tracks.length : 0);
         setLyricsCov(lyricsCoverage(Array.isArray(data.tracks) ? data.tracks : []));
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);

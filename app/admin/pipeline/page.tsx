@@ -7,6 +7,7 @@ import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/local-ui/Toast";
 import { getCached, setCached } from "@/lib/admin-cache";
+import { isUsableFileUrl } from "@/lib/asset";
 import { CalendarClock, FileEdit, Disc3 } from "lucide-react";
 import type { PipelineItem } from "@/app/api/releases/pipeline/route";
 
@@ -36,7 +37,9 @@ function PipelineCard({ item }: { item: PipelineItem }) {
       href={`/admin/releases/${item.id}/edit`}
       className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
     >
-      {item.coverImage ? (
+      {/* isUsableFileUrl, not truthiness: a stored "null"/"undefined" string is
+          truthy and next/image rejects it as an unparseable src. */}
+      {isUsableFileUrl(item.coverImage) ? (
         <Image src={item.coverImage} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded object-cover" />
       ) : (
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-white/5 text-muted-foreground">

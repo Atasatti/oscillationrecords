@@ -6,6 +6,7 @@ import Image from "next/image";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCached, setCached } from "@/lib/admin-cache";
+import { isUsableFileUrl } from "@/lib/asset";
 
 type Item = {
   id: string;
@@ -115,7 +116,8 @@ export default function TimelinePage() {
                     href={`/admin/releases/${it.id}/edit`}
                     className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-white/20 hover:bg-white/[0.02]"
                   >
-                    {it.coverImage ? (
+                    {/* isUsableFileUrl, not truthiness — see pipeline/page.tsx. */}
+                    {isUsableFileUrl(it.coverImage) ? (
                       <Image src={it.coverImage} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-md border border-border object-cover" />
                     ) : (
                       <div className="h-10 w-10 shrink-0 rounded-md border border-border bg-black/20" />

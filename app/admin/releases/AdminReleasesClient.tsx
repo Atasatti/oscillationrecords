@@ -20,6 +20,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { releaseEditHref } from "@/lib/release-workflow";
+import { isUsableFileUrl } from "@/lib/asset";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import NewReleaseDialog from "@/components/admin/NewReleaseDialog";
 import ManualOrderPanel from "@/components/admin/ManualOrderPanel";
@@ -562,7 +563,10 @@ function ReleasesPageInner({
                     <Link href={`/admin/releases/${r.id}/edit`} className="flex min-w-0 items-center gap-3 group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={r.thumbnail || "/new-music-img1.svg"}
+                        // Not `|| fallback`: a stored "null"/"undefined" string is
+                        // truthy, so it reaches the browser as a RELATIVE src and
+                        // gets resolved against this page — the /admin/null 404.
+                        src={isUsableFileUrl(r.thumbnail) ? r.thumbnail : "/new-music-img1.svg"}
                         alt=""
                         className="h-11 w-11 shrink-0 rounded-lg object-cover sm:h-12 sm:w-12"
                       />

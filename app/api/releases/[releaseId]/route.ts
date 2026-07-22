@@ -6,6 +6,7 @@ import { withWriteRetry } from "@/lib/db-retry";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { isReleasePublic } from "@/lib/catalog-data";
+import { isUsableFileUrl } from "@/lib/asset";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
@@ -299,7 +300,10 @@ export async function PATCH(
     const publishing = status === "RELEASED" || status === "SCHEDULED";
     if (publishing) {
       const effectiveCover = coverImage !== undefined ? coverImage : existing.coverImage;
-      if (!effectiveCover) {
+      // isUsableFileUrl, not a truthiness check: rows written before the fix
+      // above hold the literal string "null", which is truthy and would let a
+      // coverless release publish.
+      if (!isUsableFileUrl(effectiveCover)) {
         return NextResponse.json(
           { error: "A cover image is required to publish or schedule a release" },
           { status: 400 }
@@ -502,7 +506,15 @@ export async function PATCH(
         where: { id: releaseId },
         data: {
           ...(name !== undefined && { name: String(name) }),
-          ...(coverImage !== undefined && { coverImage: String(coverImage) }),
+          // Removing the cover sends coverImage: null, and String(null) is the
+          // literal "null" — which then renders as <img src="null">, a RELATIVE
+          // URL the browser resolves against the current page (hence the
+          // /admin/releases/<id>/null and /admin/null 404s). coverImage is a
+          // required column, so "" is the empty value, exactly as POST /releases
+          // already stores it.
+          ...(coverImage !== undefined && {
+            coverImage: coverImage ? String(coverImage) : "",
+          }),
           ...(releaseDate !== undefined && {
             releaseDate: releaseDate ? new Date(releaseDate) : null,
           }),
