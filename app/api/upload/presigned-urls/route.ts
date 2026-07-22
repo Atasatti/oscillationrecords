@@ -5,6 +5,7 @@ import { requireUser, requirePermission } from "@/lib/auth-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  benertUserKeyPrefix,
   CATALOG_AUDIO_PREFIXES,
   CATALOG_IMAGE_PREFIXES,
   isAudioContentType,
@@ -20,8 +21,8 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Non-admin uploads (the public Benert Remix competition) are confined to this prefix.
-const PUBLIC_UPLOAD_PREFIX = "benert-remix/";
+// Non-admin uploads (the public Benert Remix competition) are confined to the
+// entrant's own `benert-remix/<sub>/` prefix — see benertUserKeyPrefix().
 // Hard size cap for a competition upload, matched to upload-complete's MAX_AUDIO_BYTES.
 // Signed into the presign as an exact Content-Length so an entrant can neither
 // declare nor PUT more than this (#6).
@@ -102,11 +103,11 @@ export async function POST(request: NextRequest) {
       }
       audioContentLength = declaredSize;
       const base = sanitizeKey(sanitizedAudio.split("/").pop() || "");
-      const safeSub = String(guard.token.sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
-      if (!base || !safeSub) {
+      const ownPrefix = benertUserKeyPrefix(guard.token.sub);
+      if (!base || !ownPrefix) {
         return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
       }
-      audioKey = `${PUBLIC_UPLOAD_PREFIX}${safeSub}/${base}`;
+      audioKey = `${ownPrefix}${base}`;
     } else if (!keyHasPrefix(audioKey, CATALOG_AUDIO_PREFIXES)) {
       // Admin audio keys are client-supplied — confine them to the tracks/ namespace
       // so a catalog session can't sign a PUT to an arbitrary key (#26). Non-admin

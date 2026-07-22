@@ -29,20 +29,17 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({
-        hasUploaded: false,
-        fileUrl: null,
-      });
+      return NextResponse.json({ hasUploaded: false });
     }
 
     const entry = await prisma.benertRemixEntry.findUnique({
       where: { userId: user.id },
     });
 
-    return NextResponse.json({
-      hasUploaded: !!entry?.uploadedFileUrl,
-      fileUrl: entry?.uploadedFileUrl ?? null,
-    });
+    // Only the boolean — the entry's object URL is never handed back to the
+    // client (audit #1). The file is private; an entrant who needs it goes
+    // through /api/assets/download, which re-checks ownership.
+    return NextResponse.json({ hasUploaded: !!entry?.uploadedFileUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Benert remix status error:", message);

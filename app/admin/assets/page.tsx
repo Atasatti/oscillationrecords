@@ -1,17 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { requirePagePermission } from "@/lib/page-guard";
 import { fileNameFromUrl, guessMimeFromUrl, isUsableFileUrl } from "@/lib/asset";
-import { isOwnBucketUrl } from "@/lib/s3";
+import { assetDownloadHref, assetViewHref, isOwnBucketUrl } from "@/lib/s3";
 import AssetsClient, { type Asset, type Option } from "./AssetsClient";
 
 // The Download action routes through our same-origin shim (which forces a real
 // file download via a presigned S3 Content-Disposition) for files WE host; an
-// external URL keeps its direct link. fileUrl stays the open/preview target.
+// external URL keeps its direct link.
 function downloadHrefFor(url: string, name: string): string {
-  return isOwnBucketUrl(url)
-    ? `/api/assets/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`
-    : url;
+  return isOwnBucketUrl(url) ? assetDownloadHref(url, name) : url;
 }
+// `viewHref` (below) is the open/preview target: public media keeps its direct
+// (CDN-cacheable, next/image-optimizable) bucket URL, while a private object —
+// DAM masters, stems, EPKs, documents — gets the authorization-gated shim, so
+// its raw URL never reaches the page (audit #1).
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +68,7 @@ export default async function AssetsPage() {
     const damAssets: Asset[] = rows.map((a) => ({
       id: a.id, category: a.category, title: a.title, fileName: a.fileName, fileUrl: a.fileUrl,
       downloadHref: downloadHrefFor(a.fileUrl, a.fileName),
+      viewHref: assetViewHref(a.fileUrl, a.fileName),
       mimeType: a.mimeType, size: a.size, releaseId: a.releaseId, artistId: a.artistId, notes: a.notes,
       createdAt: a.createdAt.toISOString(), uploader: a.uploadedById ? uploaderName.get(a.uploadedById) ?? null : null,
       source: "upload", readOnly: false, parentHref: null, parentLabel: null,
@@ -86,6 +89,7 @@ export default async function AssetsPage() {
       derived.push({
         id: d.id, category: d.category, title: d.title, fileName, fileUrl: d.url,
         downloadHref: downloadHrefFor(d.url, fileName),
+        viewHref: assetViewHref(d.url, fileName),
         mimeType: guessMimeFromUrl(d.url), size: 0, releaseId: d.releaseId ?? null, artistId: d.artistId ?? null,
         notes: null, createdAt: d.createdAt, uploader: null, source: d.source, readOnly: true,
         parentHref: d.parentHref, parentLabel: d.parentLabel,

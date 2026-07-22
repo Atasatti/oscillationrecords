@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { deleteS3Object, keyFromOwnBucketUrl } from "@/lib/s3";
 import {
   isTicketStatus,
   isTicketPriority,
@@ -12,6 +13,14 @@ import {
 export const runtime = "nodejs";
 
 const isObjectId = (v: string) => /^[a-f\d]{24}$/i.test(v);
+
+/** The `url` of every well-formed entry in a stored `attachments` JSON value. */
+function attachmentUrls(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((a) => (a && typeof a === "object" ? (a as Record<string, unknown>).url : null))
+    .filter((u): u is string => typeof u === "string" && u !== "");
+}
 
 // PATCH /api/contact/[id] — outreach: triage a contact message. Accepts any of
 // { status, assigneeId, priority, handled }. `handled` is kept in sync with
@@ -90,10 +99,19 @@ export async function DELETE(
 
     const existing = await prisma.contactMessage.findUnique({
       where: { id },
-      select: { name: true, email: true },
+      select: { name: true, email: true, attachments: true },
     });
 
     await prisma.contactMessage.delete({ where: { id } });
+
+    // Sweep the ticket's uploaded files too. A private object that outlives its
+    // record is unreachable through the app but still billable and still
+    // restorable by anyone holding a leaked key, so deleting the row has to
+    // delete the file (audit #1). Best-effort: deleteS3Object never throws.
+    for (const url of attachmentUrls(existing?.attachments)) {
+      const key = keyFromOwnBucketUrl(url);
+      if (key?.startsWith("contact/")) await deleteS3Object(key);
+    }
     await recordAudit(request, guard.token, {
       action: "delete",
       resource: "message",

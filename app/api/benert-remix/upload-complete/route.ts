@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  benertUserKeyPrefix,
   deleteS3Object,
   isAudioContentType,
   isOwnBucketUrl,
@@ -15,7 +16,6 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const PUBLIC_UPLOAD_PREFIX = "benert-remix/";
 // Generous cap for a single audio remix (a long lossless WAV can be large).
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 
@@ -72,9 +72,9 @@ export async function POST(request: NextRequest) {
     // Confine the URL to THIS user's own upload prefix (presign issues
     // `benert-remix/<userId>/…`). Without this, an entrant could submit a link to
     // any object in the bucket (an admin catalog track, another user's file).
-    const safeSub = String(token.sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
+    const ownPrefix = benertUserKeyPrefix(token.sub);
     const objectKey = decodeURIComponent(new URL(fileURL).pathname.replace(/^\/+/, ""));
-    if (!safeSub || !objectKey.startsWith(`${PUBLIC_UPLOAD_PREFIX}${safeSub}/`)) {
+    if (!ownPrefix || !objectKey.startsWith(ownPrefix)) {
       return NextResponse.json({ error: "Invalid fileURL" }, { status: 400 });
     }
 

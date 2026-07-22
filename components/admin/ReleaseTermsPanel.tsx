@@ -15,6 +15,7 @@ import {
   type AgreementDocument,
 } from "@/lib/release-terms";
 import { formatBytes } from "@/lib/asset";
+import { assetDownloadHref, assetViewHref } from "@/lib/s3-url";
 
 /**
  * Licensing / deal terms for a release — type, territory, rights, term dates and
@@ -242,11 +243,11 @@ export default function ReleaseTermsPanel({ releaseId }: { releaseId: string }) 
                 <FileText className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
                 <span className="min-w-0 flex-1 truncate text-white" title={d.name}>{d.name}</span>
                 <span className="shrink-0 text-xs tabular-nums text-gray-500">{formatBytes(d.size)}</span>
-                <a href={d.url} target="_blank" rel="noopener noreferrer" title="Open" aria-label={`Open ${d.name}`}
+                <a href={assetViewHref(d.url, d.name)} target="_blank" rel="noopener noreferrer" title="Open" aria-label={`Open ${d.name}`}
                   className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
                   <ExternalLink className="h-3.5 w-3.5" />
                 </a>
-                <a href={`/api/assets/download?url=${encodeURIComponent(d.url)}&name=${encodeURIComponent(d.name)}`} download={d.name} title="Download" aria-label={`Download ${d.name}`}
+                <a href={assetDownloadHref(d.url, d.name)} download={d.name} title="Download" aria-label={`Download ${d.name}`}
                   className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-white/5 hover:text-white">
                   <Download className="h-3.5 w-3.5" />
                 </a>

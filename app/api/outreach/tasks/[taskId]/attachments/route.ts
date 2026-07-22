@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
-import { isOwnBucketUrl } from "@/lib/s3";
-import { isAllowedAttachmentType, type Attachment } from "@/lib/task-attachments";
+import { deleteS3Object, isOwnBucketUrl, keyFromOwnBucketUrl } from "@/lib/s3";
+import { isAllowedAttachmentType, normalizeAttachments, type Attachment } from "@/lib/task-attachments";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -74,7 +74,7 @@ export async function POST(
 }
 
 // DELETE /api/outreach/tasks/[taskId]/attachments?attachmentId=… — remove the
-// attachment record (the S3 object is left in place).
+// attachment record AND its S3 object.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
@@ -85,6 +85,16 @@ export async function DELETE(
     const { taskId } = await params;
     const attachmentId = new URL(request.url).searchParams.get("attachmentId") || "";
     if (!attachmentId) return NextResponse.json({ error: "attachmentId is required" }, { status: 400 });
+
+    // Read the object key BEFORE dropping the record — once the array entry is
+    // gone nothing points at the file, and an orphaned private object is still
+    // billable and still readable by anyone holding a leaked key (audit #1).
+    const existing = await prisma.outreachTask
+      .findUnique({ where: { id: taskId }, select: { attachments: true } })
+      .catch(() => null);
+    const doomedUrl = normalizeAttachments(existing?.attachments).find(
+      (a) => a.id === attachmentId
+    )?.url;
 
     // Remove atomically in a single document update (see POST) — a read-filter-write
     // has the same lost-update risk under a concurrent add/delete. $filter drops the
@@ -115,6 +125,11 @@ export async function DELETE(
 
     // n = documents matched; 0 means the task doesn't exist.
     if (!result?.n) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+    // Best-effort sweep (deleteS3Object never throws); confined to the prefix this
+    // route's uploads own, so a crafted record can't aim it at another object.
+    const key = doomedUrl ? keyFromOwnBucketUrl(doomedUrl) : null;
+    if (key?.startsWith("task-attachments/")) await deleteS3Object(key);
 
     return NextResponse.json({ ok: true });
   } catch (e) {

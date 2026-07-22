@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
+import { assetDownloadHref } from "@/lib/s3-url";
+import { fileNameFromUrl } from "@/lib/asset";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,7 +28,11 @@ export async function GET(request: NextRequest) {
       name: entry.user.name ?? "—",
       email: entry.user.email ?? "—",
       releaseName: entry.releaseName ?? "—",
-      musicFileUrl: entry.uploadedFileUrl,
+      // Never the raw bucket URL: entries are private (audit #1), so the admin
+      // gets a same-origin shim href that re-authorizes and presigns on click.
+      musicFileUrl: entry.uploadedFileUrl
+        ? assetDownloadHref(entry.uploadedFileUrl, fileNameFromUrl(entry.uploadedFileUrl))
+        : null,
     }));
 
     return NextResponse.json(rows);

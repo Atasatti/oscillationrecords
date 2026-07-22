@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2, Mail, Trash2, MessageSquare, ChevronDown, ChevronUp, Send, UserPlus, Paperclip } from "lucide-react";
 import { formatBytes } from "@/lib/asset";
+import { assetViewHref } from "@/lib/s3-url";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -381,7 +382,7 @@ export default function AdminMessagesClient({
                         {m.attachments.map((a, i) => (
                           <a
                             key={`${a.url}-${i}`}
-                            href={a.url}
+                            href={assetViewHref(a.url, a.name)}
                             target="_blank"
                             rel="noopener noreferrer"
                             download={a.name}

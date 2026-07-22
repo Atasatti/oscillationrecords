@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { requirePermission } from "@/lib/auth-guard";
+import { authorizeAssetKey } from "@/lib/s3-access";
 import { S3_BUCKET, s3Client, s3Configured, keyFromOwnBucketUrl } from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
@@ -26,16 +26,18 @@ function contentDisposition(name: string, disposition: "attachment" | "inline"):
 
 // GET /api/assets/download?url=<own-bucket S3 url>&name=<filename>[&disposition=inline]
 //
-// Same-origin download shim for asset files. Presigns a GET for one of OUR S3
-// objects with a Content-Disposition so the browser SAVES the file (with a real
-// filename) instead of navigating to the raw S3 URL and rendering it inline.
+// Same-origin access shim for files on our bucket. Presigns a short-lived GET for
+// one of OUR S3 objects with a Content-Disposition, so the browser saves the file
+// with a real filename (or renders it inline) without ever seeing a durable link.
 // Only ever redirects to our own bucket (keyFromOwnBucketUrl returns null
-// otherwise), so it can't be turned into an open redirect or SSRF. Catalog-gated,
-// mirroring the assets page that links here.
+// otherwise), so it can't be turned into an open redirect or SSRF.
+//
+// This is also the ACCESS-CONTROL point for every private prefix (audit #1):
+// contracts, DAM masters/stems, contact + task attachments and competition
+// entries are not anonymously readable in the bucket, so the only way to them is
+// here — behind authorizeAssetKey(), which requires the permission that owns the
+// object's prefix (or entry ownership for a competition upload).
 export async function GET(request: NextRequest) {
-  const guard = await requirePermission(request, "catalog:read");
-  if (!guard.ok) return guard.response;
-
   if (!s3Configured() || !s3Client) {
     return NextResponse.json({ error: "File storage is not configured" }, { status: 500 });
   }
@@ -50,6 +52,11 @@ export async function GET(request: NextRequest) {
   if (!key) {
     return NextResponse.json({ error: "Unsupported file location" }, { status: 400 });
   }
+
+  // Authorize the specific object, not the route: a contact attachment needs
+  // outreach:read, a contract needs catalog:read, an entry needs its owner/admin.
+  const guard = await authorizeAssetKey(request, key);
+  if (!guard.ok) return guard.response;
 
   try {
     const signed = await getSignedUrl(

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { isOwnBucketUrl } from "@/lib/s3-url";
+import { assetDownloadHref, assetViewHref, isOwnBucketUrl } from "@/lib/s3-url";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
@@ -38,6 +38,10 @@ export type Asset = {
    *  Disposition) for our own files; falls back to fileUrl for external URLs.
    *  Use this for the Download action — fileUrl is for open/preview only. */
   downloadHref: string;
+  /** Href to OPEN/preview the file: the direct bucket URL for public media, and
+   *  the authorization-gated shim for a private object (masters, stems, EPKs,
+   *  documents — audit #1). Never render `fileUrl` directly; it's identity only. */
+  viewHref: string;
   mimeType: string;
   size: number;
   releaseId: string | null;
@@ -85,7 +89,9 @@ function AssetGlyph({ mime, className }: { mime: string; className?: string }) {
 /** Image-asset thumbnail. Serves a resized WebP via next/image for objects on our
  *  own S3 (allow-listed for the optimizer) instead of downloading the full-res
  *  original into a small box (#24); an external/unknown host falls back to a raw
- *  <img> (not optimizable). */
+ *  <img> (not optimizable). A PRIVATE object arrives here as the same-origin
+ *  `/api/assets/download` shim path, which also takes the raw-<img> branch — the
+ *  optimizer fetches by URL and can't read an object the bucket won't serve. */
 function AssetThumb({ url, className }: { url: string; className: string }) {
   if (isOwnBucketUrl(url)) {
     return <Image src={url} alt="" width={256} height={256} className={className} />;
@@ -276,7 +282,7 @@ export default function AssetsClient({
   const bulkDownload = () => {
     for (const a of selectedAssets()) {
       const el = document.createElement("a");
-      el.href = a.fileUrl; el.download = a.fileName; el.target = "_blank"; el.rel = "noopener noreferrer";
+      el.href = a.downloadHref; el.download = a.fileName; el.target = "_blank"; el.rel = "noopener noreferrer";
       document.body.appendChild(el); el.click(); el.remove();
     }
   };
@@ -396,7 +402,8 @@ export default function AssetsClient({
           readOnly: false,
           parentHref: null,
           parentLabel: null,
-          downloadHref: `/api/assets/download?url=${encodeURIComponent(asset.fileUrl)}&name=${encodeURIComponent(asset.fileName)}`,
+          downloadHref: assetDownloadHref(asset.fileUrl, asset.fileName),
+          viewHref: assetViewHref(asset.fileUrl, asset.fileName),
         });
         setRow(i, { status: "done", pct: 100 });
       } catch (e) {
@@ -489,7 +496,7 @@ export default function AssetsClient({
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
     const thumbInner = isImg ? (
-      <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+      <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
     ) : (
       <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
     );
@@ -500,7 +507,7 @@ export default function AssetsClient({
       // consistent with the task board's separated cards.
       <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-white/[0.04] shadow-sm transition-colors hover:border-white/20 hover:bg-white/[0.06]">
         {hasFile ? (
-          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={thumbClass}>
+          <a href={a.viewHref} target="_blank" rel="noopener noreferrer" className={thumbClass}>
             {thumbInner}
           </a>
         ) : (
@@ -536,7 +543,7 @@ export default function AssetsClient({
             <div className="flex shrink-0 items-center gap-0.5">
               {hasFile ? (
                 <>
-                  <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                  <a href={a.viewHref} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
                     className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
                     <Eye className="h-3.5 w-3.5" />
                   </a>
@@ -604,7 +611,7 @@ export default function AssetsClient({
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
-                <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+                <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
               ) : (
                 <AssetGlyph mime={a.mimeType} className="h-4 w-4 text-muted-foreground" />
               )}
@@ -631,7 +638,7 @@ export default function AssetsClient({
           <div className="flex justify-end gap-0.5">
             {hasFile ? (
               <>
-                <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                <a href={a.viewHref} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
                   className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
                   <Eye className="h-3.5 w-3.5" />
                 </a>
@@ -733,12 +740,12 @@ export default function AssetsClient({
         {(() => {
           const previewClass = "grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30";
           const inner = isImg ? (
-            <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+            <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
           ) : (
             <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
           );
           return hasFile ? (
-            <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={previewClass}>{inner}</a>
+            <a href={a.viewHref} target="_blank" rel="noopener noreferrer" className={previewClass}>{inner}</a>
           ) : (
             <div className={previewClass}>{inner}</div>
           );
@@ -756,7 +763,7 @@ export default function AssetsClient({
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-gray-200">
                 <Download className="h-3.5 w-3.5" /> Download
               </a>
-              <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
+              <a href={a.viewHref} target="_blank" rel="noopener noreferrer"
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium hover:bg-white/5">
                 <Eye className="h-3.5 w-3.5" /> Open
               </a>
