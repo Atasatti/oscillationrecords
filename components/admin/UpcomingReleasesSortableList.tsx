@@ -18,6 +18,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Image from "next/image";
+import { isUsableFileUrl } from "@/lib/asset";
 import { GripVertical, Pencil, Trash2, CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -78,9 +80,16 @@ function SortableRow({
         >
           <GripVertical className="h-5 w-5" aria-hidden />
         </button>
-        <img
-          src={release.image}
+        {/* Fixed 56px (w-14/h-14) thumbnail, so next/image gets exact intrinsic
+            dimensions and the sortable row keeps its layout. isUsableFileUrl
+            rather than truthiness: next/image throws on an unparseable src, and
+            `image` is a required column that can hold "" for an artwork-less
+            release — fall back to the shared placeholder. */}
+        <Image
+          src={isUsableFileUrl(release.image) ? release.image : "/new-music-img1.svg"}
           alt=""
+          width={56}
+          height={56}
           className="w-14 h-14 rounded-lg object-cover shrink-0"
         />
         <div className="min-w-0">

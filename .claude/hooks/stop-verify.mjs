@@ -11,7 +11,6 @@
  * git is often not on PATH on this machine, so fall back to known install paths
  * and use `-c safe.directory` for the repo.
  */
-import { readFileSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
