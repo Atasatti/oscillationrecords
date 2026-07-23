@@ -2,6 +2,9 @@
   "name": "oscillation-records",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "sharp": "^0.35.3"
+  },
   "scripts": {
     "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev --turbopack",
     "build": "prisma generate && next build",
