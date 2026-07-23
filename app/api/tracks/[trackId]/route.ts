@@ -6,6 +6,7 @@ import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInp
 import { normalizeSplits } from "@/lib/release-splits";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { recordAudit } from "@/lib/audit";
+import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
@@ -197,6 +198,11 @@ export async function DELETE(
 
     await prisma.track.delete({ where: { id: trackId } });
     revalidateAdminCatalog();
+
+    // Sweep the track's S3 objects now that nothing references them — deleting
+    // the row used to leave audio/stems/art in the bucket, publicly readable
+    // forever. Best-effort; shared files survive the sweep's reference re-check.
+    await sweepCatalogObjects([existing.audioFile, existing.stemsFile, existing.image]);
 
     await recordAudit(request, guard.token, {
       action: "delete",

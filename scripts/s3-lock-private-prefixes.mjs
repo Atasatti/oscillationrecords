@@ -42,6 +42,7 @@ const PRIVATE_PREFIXES = [
   "benert-remix/",
   "contact/",
   "documents/",
+  "quarantine/",
   "releases/agreements/",
   "task-attachments/",
   "tracks/stems/",

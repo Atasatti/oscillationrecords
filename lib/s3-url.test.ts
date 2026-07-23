@@ -19,6 +19,7 @@ describe("isPrivateAssetKey", () => {
       "benert-remix/user123/remix.wav",
       "contact/uuid/demo.mp3",
       "documents/deal.pdf",
+      "quarantine/tracks/audio/1700-orphan.wav",
       "releases/agreements/abc123/uuid/contract.pdf",
       "task-attachments/uuid/notes.docx",
       "tracks/stems/1700-stems.zip",

@@ -144,9 +144,16 @@ the public site's media offline.
 - **`(root)`** holds one 906 MB object and `test-folder/` holds three; both are
   currently public and unclassified. Worth identifying and either deleting or
   classifying.
-- **Historical orphans.** The lifecycle deletes above only cover new deletions;
-  objects orphaned by past deletions are still in the bucket. A lifecycle
-  reaper is tracked separately under audit #6.
+- **Historical orphans — RESOLVED 2026-07-23 (audit #6).** 132 orphaned audio
+  files (4.66 GB — 99 under `tracks/audio/`, 33 under legacy prefixes) were
+  moved to `quarantine/` (now in the deny-list, so anonymous reads 403) by
+  `scripts/cleanup-orphaned-audio.mjs`; an S3 lifecycle rule
+  (`expire-quarantine`) deletes quarantined objects after 30 days. The local
+  `orphaned-audio-manifest-*.json` records every moved key for restores.
+  Going forward, `lib/s3-sweep.ts` deletes catalog objects at the source when a
+  release/track is deleted or a file replaced (with a remaining-reference
+  re-check, so shared files survive); the cleanup script remains the
+  re-runnable backstop.
 - **Streaming.** Public released audio deliberately stays on the public prefix so
   the player and CDN are unaffected. Pre-release audio uploaded under
   `tracks/audio/` is NOT covered by this split; if unreleased masters need to be

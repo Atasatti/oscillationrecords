@@ -7,6 +7,7 @@ import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { isUsableFileUrl } from "@/lib/asset";
+import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
@@ -476,6 +477,12 @@ export async function PATCH(
       return NextResponse.json({ error: tracklistProblem }, { status: 400 });
     }
 
+    // Files this edit stops referencing (removed tracks' audio/stems/art, and
+    // the OLD file wherever one was replaced). Collected inside the transaction
+    // — reset on every attempt so a retry can't double-collect — and swept only
+    // AFTER the commit; a rolled-back edit must never delete objects.
+    const sweepUrls: Array<string | null> = [];
+
     // ONE transaction for the whole edit: the release row, track deletions, track
     // updates and track creations. These used to be split — the release update and
     // deletions inside a transaction, creates/updates after it — which meant a
@@ -485,13 +492,14 @@ export async function PATCH(
     // already been created. Now nothing commits unless everything does, and
     // withWriteRetry can re-run the whole thing from a clean slate.
     await withWriteRetry(() => prisma.$transaction(async (tx) => {
+      sweepUrls.length = 0;
       // Re-read the tracklist inside the transaction: `existing` was read before
       // this request did any other awaits, so a concurrent editor save could have
       // changed it. Validating (and diffing) against the rows we're actually
       // mutating is what makes a retry correct rather than merely repeated.
       const current = await tx.track.findMany({
         where: { releaseId },
-        select: { id: true, audioFile: true, duration: true },
+        select: { id: true, audioFile: true, stemsFile: true, image: true, duration: true },
       });
       const problem = validateResultingTracklist({
         stored: current,
@@ -584,6 +592,7 @@ export async function PATCH(
       });
 
       if (clearAllTracks) {
+        for (const t of current) sweepUrls.push(t.audioFile, t.stemsFile, t.image);
         await tx.track.deleteMany({ where: { releaseId } });
       } else if (parsedTracks) {
         const existingIds = new Set(current.map((t) => String(t.id)));
@@ -592,6 +601,10 @@ export async function PATCH(
         );
         const toRemove = [...existingIds].filter((id) => !keepIds.has(id));
         if (toRemove.length) {
+          const removeSet = new Set(toRemove);
+          for (const t of current) {
+            if (removeSet.has(String(t.id))) sweepUrls.push(t.audioFile, t.stemsFile, t.image);
+          }
           await tx.track.deleteMany({
             where: { id: { in: toRemove }, releaseId },
           });
@@ -612,6 +625,12 @@ export async function PATCH(
           // doesn't re-send the audio must never blank a released track.
           const nextAudio = t.audioFile || prev.audioFile;
           const nextDuration = t.audioFile ? t.duration : prev.duration;
+          // Replacements strand the OLD object — queue it for the post-commit
+          // sweep (audio only counts when a new file was actually sent; stems
+          // and art are direct overwrites, so any change strands the old one).
+          if (prev.audioFile && t.audioFile && t.audioFile !== prev.audioFile) sweepUrls.push(prev.audioFile);
+          if (prev.stemsFile && prev.stemsFile !== t.stemsFile) sweepUrls.push(prev.stemsFile);
+          if (prev.image && prev.image !== t.image) sweepUrls.push(prev.image);
           await tx.track.update({
             where: { id: t.id },
             data: {
@@ -714,6 +733,10 @@ export async function PATCH(
       maxWait: 15_000,
     }));
 
+    // Post-commit, best-effort: delete the objects this edit stopped
+    // referencing (never throws; shared files survive its reference re-check).
+    await sweepCatalogObjects(sweepUrls);
+
     const release = await prisma.release.findUnique({
       where: { id: releaseId },
       include: { tracks: { orderBy: { sortOrder: "asc" } } },
@@ -785,12 +808,24 @@ export async function DELETE(
     if (!isObjectId(releaseId)) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
-    const existing = await prisma.release.findUnique({ where: { id: releaseId } });
+    // Include the tracks so their S3 objects can be swept after the cascade
+    // removes the rows — the delete used to leave every audio/stems/image file
+    // (and the cover) in the bucket forever, publicly downloadable.
+    const existing = await prisma.release.findUnique({
+      where: { id: releaseId },
+      include: { tracks: { select: { audioFile: true, stemsFile: true, image: true } } },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
     await prisma.release.delete({ where: { id: releaseId } });
     revalidateAdminCatalog();
+    // Best-effort, after the delete commits; never throws. Files still
+    // referenced elsewhere (a shared cover, a duplicated test release) survive.
+    await sweepCatalogObjects([
+      existing.coverImage,
+      ...existing.tracks.flatMap((t) => [t.audioFile, t.stemsFile, t.image]),
+    ]);
     await recordAudit(request, guard.token, {
       action: "delete",
       resource: "release",

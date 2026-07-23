@@ -68,6 +68,7 @@ export const PRIVATE_KEY_PREFIXES = [
   "benert-remix/", // competition entries (entrant's own audio)
   "contact/", // contact-form attachments (public submitters' files)
   "documents/",
+  "quarantine/", // orphan-sweep holding area (scripts/cleanup-orphaned-audio.mjs)
   "releases/agreements/", // signed contracts / licence scans
   "task-attachments/", // internal task files
   "tracks/stems/",
