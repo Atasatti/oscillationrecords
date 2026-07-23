@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isObjectId } from "@/lib/object-id";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
-import { normalizeSplits, summarizeSplits, type Split } from "@/lib/release-splits";
+import { normalizeSplits, splitsProblem, summarizeSplits, type Split } from "@/lib/release-splits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -72,6 +72,30 @@ export async function PUT(
     }
     const body = await request.json().catch(() => ({}));
     const splits = normalizeSplits(body?.splits);
+
+    // Hard gate: a non-empty split must allocate exactly 100%. This is a
+    // dedicated Save (no autosave), so rejecting an unbalanced allocation is
+    // safe UX — and a partial total stored as final is how royalty accounting
+    // goes wrong.
+    const problem = splitsProblem(splits);
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+
+    // Every linked artistId must be a real roster artist — a split referencing
+    // a deleted/typo'd id would silently detach from the profile it claims to
+    // pay. (Manual, unlinked rows are legitimate and skip this.)
+    const linkedIdSet = [...new Set(splits.map((s) => s.artistId).filter((x): x is string => !!x))];
+    if (linkedIdSet.some((id) => !isObjectId(id))) {
+      return NextResponse.json({ error: "A split references an invalid artist id" }, { status: 400 });
+    }
+    if (linkedIdSet.length) {
+      const found = await prisma.artist.count({ where: { id: { in: linkedIdSet } } });
+      if (found !== linkedIdSet.length) {
+        return NextResponse.json(
+          { error: "A split references an artist that doesn't exist" },
+          { status: 400 }
+        );
+      }
+    }
 
     const existing = await prisma.release.findUnique({
       where: { id: releaseId },

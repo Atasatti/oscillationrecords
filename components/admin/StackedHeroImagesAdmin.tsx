@@ -70,6 +70,7 @@ export default function StackedHeroImagesAdmin() {
       body: JSON.stringify({
         imageFileName,
         imageFileType: imageFile.type,
+        size: imageFile.size,
       }),
     });
     if (!response.ok) {

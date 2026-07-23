@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   S3_BUCKET,
+  benertUserKeyPrefix,
   deleteS3Object,
   isAudioContentType,
   isOwnBucketUrl,
@@ -15,40 +16,23 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const PUBLIC_UPLOAD_PREFIX = "benert-remix/";
 // Generous cap for a single audio remix (a long lossless WAV can be large).
 const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 
 // POST /api/benert-remix/upload-complete - Save uploaded file URL
 export async function POST(request: NextRequest) {
   try {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
+    // Requires a live account: this used to CREATE the user row when none was
+    // found, so a stale token from a deleted account would resurrect it — and
+    // register a competition entry against the resurrected row.
+    const guard = await requireUser(request);
+    if (!guard.ok) return guard.response;
+    const token = guard.token;
 
-    if (!token?.sub || !token?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Rate-limit per user: this route does S3 HEAD + several DB ops and can
-    // auto-create a User, so it must not be replayable unthrottled.
+    // Rate-limit per user: this route does an S3 HEAD plus several DB ops, so it
+    // must not be replayable unthrottled.
     const rl = rateLimit(`benertupload:${token.sub}`, 10, 60_000);
     if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-
-    let user = await prisma.user.findUnique({
-      where: { email: token.email as string },
-    });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: token.email as string,
-          name: (token.name as string) ?? null,
-          image: (token.picture as string) ?? null,
-        },
-      });
-    }
 
     const body = await request.json();
     const { fileURL, releaseName } = body;
@@ -72,9 +56,9 @@ export async function POST(request: NextRequest) {
     // Confine the URL to THIS user's own upload prefix (presign issues
     // `benert-remix/<userId>/…`). Without this, an entrant could submit a link to
     // any object in the bucket (an admin catalog track, another user's file).
-    const safeSub = String(token.sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
+    const ownPrefix = benertUserKeyPrefix(token.sub);
     const objectKey = decodeURIComponent(new URL(fileURL).pathname.replace(/^\/+/, ""));
-    if (!safeSub || !objectKey.startsWith(`${PUBLIC_UPLOAD_PREFIX}${safeSub}/`)) {
+    if (!ownPrefix || !objectKey.startsWith(ownPrefix)) {
       return NextResponse.json({ error: "Invalid fileURL" }, { status: 400 });
     }
 
@@ -120,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     const entry = await prisma.benertRemixEntry.findUnique({
-      where: { userId: user.id },
+      where: { userId: guard.userId },
     });
 
     if (entry?.uploadedFileUrl) {
@@ -143,9 +127,9 @@ export async function POST(request: NextRequest) {
     }
 
     await prisma.benertRemixEntry.upsert({
-      where: { userId: user.id },
+      where: { userId: guard.userId },
       create: {
-        userId: user.id,
+        userId: guard.userId,
         releaseName: trimmedReleaseName,
         uploadedFileUrl: fileURL,
       },

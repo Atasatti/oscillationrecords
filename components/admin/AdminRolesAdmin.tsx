@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import { Loader2, Plus, Shield, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import StaffAvatar from "@/components/admin/StaffAvatar";
 import { useToast } from "@/components/local-ui/Toast";
 import { STAFF_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type StaffRole } from "@/lib/permissions";
 
@@ -188,13 +188,7 @@ export default function AdminRolesAdmin() {
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
           {members.map((m) => (
             <li key={m.email} className="flex items-center gap-3 px-4 py-3">
-              {m.image ? (
-                <Image src={m.image} alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover" />
-              ) : (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs text-muted-foreground">
-                  {(m.name || m.email).charAt(0).toUpperCase()}
-                </span>
-              )}
+              <StaffAvatar name={m.name} email={m.email} image={m.image} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-foreground">
                   {m.nickname || m.name || m.email}

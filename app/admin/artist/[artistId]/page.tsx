@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
+import { isUsableFileUrl } from "@/lib/asset";
 import ReleaseCardSm from "@/components/local-ui/ReleaseCardSm";
 import LinkedTasksPanel from "@/components/admin/LinkedTasksPanel";
 import LinkedPitchesPanel from "@/components/admin/LinkedPitchesPanel";
@@ -177,10 +179,15 @@ export default function AdminArtistDetail() {
       <div className="max-w-6xl xl:max-w-7xl mx-auto">
 
         <div className="flex flex-col md:flex-row gap-8 mb-12">
-          {artist.profilePicture ? (
-            <img
+          {/* isUsableFileUrl, not truthiness: next/image THROWS on an unparseable
+              src, so a stored "null"/"undefined" string would break the page
+              rather than just 404 a request (see the release cover fix). */}
+          {isUsableFileUrl(artist.profilePicture) ? (
+            <Image
               src={artist.profilePicture}
               alt={artist.name}
+              width={192}
+              height={192}
               className="w-48 h-48 rounded-2xl object-cover"
             />
           ) : null}

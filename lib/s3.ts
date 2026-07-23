@@ -1,4 +1,10 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 import {
@@ -55,6 +61,39 @@ export async function deleteS3Object(key: string): Promise<boolean> {
     return true;
   } catch (e) {
     console.error(`Failed to delete S3 object ${key}:`, e);
+    return false;
+  }
+}
+
+/**
+ * Move an object into the quarantine/ holding area (private by bucket policy,
+ * auto-expired after 30 days by the "expire-quarantine" lifecycle rule) instead
+ * of destroying it. Copy → size-verify → delete-original, so a failed copy
+ * leaves the original untouched (the periodic orphan scan is the retry path).
+ * Best-effort: returns false, never throws.
+ */
+export async function quarantineS3Object(key: string): Promise<boolean> {
+  if (!s3Configured() || !s3Client) return false;
+  const dest = `quarantine/${key}`;
+  try {
+    const src = await s3Client.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    await s3Client.send(
+      new CopyObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: dest,
+        // CopySource is a URL path — encode each segment, keep the slashes.
+        CopySource: `/${S3_BUCKET}/${encodeURIComponent(key).replace(/%2F/g, "/")}`,
+      })
+    );
+    const copy = await s3Client.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: dest }));
+    if (copy.ContentLength !== src.ContentLength) {
+      console.error(`quarantineS3Object: size mismatch for ${key} — original kept`);
+      return false;
+    }
+    await s3Client.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    return true;
+  } catch (e) {
+    console.error(`Failed to quarantine S3 object ${key}:`, e);
     return false;
   }
 }

@@ -10,7 +10,15 @@ import TracklistEditor from "@/components/admin/release-editor/TracklistEditor";
  * inline via the shared TracklistEditor. The standalone /tracks page uses the same
  * component for deep-links.
  */
-export default function ReleaseTracksStep({ releaseId }: { releaseId: string }) {
+export default function ReleaseTracksStep({
+  releaseId,
+  focusLyrics = false,
+}: {
+  releaseId: string;
+  /** Arrived from the Releases list's lyrics badge (?focus=lyrics): open the
+   *  lyrics editor on every track that hasn't got any. */
+  focusLyrics?: boolean;
+}) {
   return (
     <section className="mb-12">
       <div className="mb-4">
@@ -21,7 +29,7 @@ export default function ReleaseTracksStep({ releaseId }: { releaseId: string }) 
           Add, reorder and edit each track — audio, per-track artists, features, credits, ISRCs, lyrics and stems. Changes save automatically.
         </p>
       </div>
-      <TracklistEditor releaseId={releaseId} />
+      <TracklistEditor releaseId={releaseId} focusLyrics={focusLyrics} />
     </section>
   );
 }

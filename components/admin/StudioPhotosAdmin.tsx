@@ -44,7 +44,7 @@ export default function StudioPhotosAdmin() {
     const response = await fetch("/api/upload/presigned-url-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageFileName, imageFileType: imageFile.type }),
+      body: JSON.stringify({ imageFileName, imageFileType: imageFile.type, size: imageFile.size }),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));

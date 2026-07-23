@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import {
+  canReadAnalyticsPii,
+  logAnalyticsPiiAccess,
+  pseudonymize,
+} from "@/lib/analytics-privacy";
 import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
@@ -18,6 +23,11 @@ export async function GET(
   try {
     const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
+
+    // Identifiable rows below (who listened, their email, their demographics) are
+    // owner-only; every other role gets the same rows with a stable pseudonym.
+    const showPii = await canReadAnalyticsPii(request);
+    if (showPii) await logAnalyticsPiiAccess(request, guard.token, "content-detail");
 
     // Safely await params - handle build-time scenarios
     let contentId: string;
@@ -160,18 +170,26 @@ export async function GET(
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // User engagement details
+    // Per-play rows — the most identifying thing this endpoint returns: who
+    // listened, their email, their demographics, and the city they did it from.
+    // Without analytics:pii the identity becomes a stable pseudonym, the email
+    // and per-row demographics are dropped, and city is withheld (city + a
+    // timestamp + a repeat pseudonym re-identifies someone in a small dataset;
+    // the aggregate cityStats below are unaffected and still show reach).
     const userEngagement = playEvents.map(event => {
       const u = userOf(event.userId);
       const profile = profileOf(event.userId);
+      const identity = event.userId ?? (event.visitorId ? `v:${event.visitorId}` : null);
       return {
-        userId: event.userId,
-        userName: u?.name || u?.email || "Anonymous visitor",
-        userEmail: u?.email || "",
-        gender: profile?.gender || null,
-        ageRange: profile?.ageRange || null,
+        userId: showPii ? event.userId : null,
+        userName: showPii
+          ? u?.name || u?.email || "Anonymous visitor"
+          : pseudonymize(identity),
+        userEmail: showPii ? u?.email || "" : "",
+        gender: showPii ? profile?.gender || null : null,
+        ageRange: showPii ? profile?.ageRange || null : null,
         country: event.country || profile?.country || null,
-        city: event.city || profile?.city || null,
+        city: showPii ? event.city || profile?.city || null : null,
         playDuration: event.playDuration,
         completed: event.completed,
         createdAt: event.createdAt,
@@ -190,11 +208,16 @@ export async function GET(
       .map(([id, count]) => {
         const userEvent = playEvents.find(e => idOf(e) === id);
         const u = userOf(userEvent?.userId ?? null);
+        // "Top listeners" is a per-person ranking, so it's identifiable by
+        // construction — pseudonymized (and stripped of the attached profile)
+        // for anyone without analytics:pii. The ranking itself still works.
         return {
-          userId: id,
-          userName: u?.name || u?.email || "Anonymous visitor",
+          userId: showPii ? id : pseudonymize(id),
+          userName: showPii
+            ? u?.name || u?.email || "Anonymous visitor"
+            : pseudonymize(id),
           playCount: count,
-          profile: profileOf(userEvent?.userId ?? null) ?? undefined,
+          profile: showPii ? profileOf(userEvent?.userId ?? null) ?? undefined : undefined,
         };
       })
       .sort((a, b) => b.playCount - a.playCount)

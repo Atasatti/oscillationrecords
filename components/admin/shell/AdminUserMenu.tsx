@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { LogOut, User, ExternalLink } from "lucide-react";
+import { LogOut, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -11,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import StaffAvatar from "@/components/admin/StaffAvatar";
 import { signOutCompletely } from "@/lib/sign-out-client";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
@@ -36,21 +36,10 @@ export default function AdminUserMenu() {
           aria-label="Account menu"
           className="shrink-0 overflow-hidden rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          {user.image ? (
-            <Image
-              src={user.image}
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-full object-cover"
-              referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <User size={16} />
-            </div>
-          )}
+          {/* StaffAvatar carries the no-referrer + onError-fallback treatment for
+              Google avatar URLs (and skips the image optimizer, whose
+              server-side fetch is what Google rate-limits in production). */}
+          <StaffAvatar name={user.name} email={user.email} image={user.image} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

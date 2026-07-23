@@ -170,9 +170,21 @@ export default function PrivacyPolicy() {
         <section className="space-y-3">
           <h2 className="text-xl font-medium text-white">How long we keep it</h2>
           <p>
-            We keep account data until you delete your account and newsletter data until
-            you unsubscribe. Analytics data is retained for a limited period appropriate
-            to the purpose — [set your analytics retention period].
+            We keep account data until you delete your account, and newsletter data
+            until you unsubscribe. Deleting your account removes your profile, listening
+            and browsing history, competition entry and newsletter signup, and strips
+            your name and email from messages you sent us and from anything you recorded
+            in our admin.
+          </p>
+          <p>
+            Two things outlive that. Analytics events that were never linked to an
+            account — activity tied only to a first-party cookie — stay as anonymous
+            statistics. And our security audit log keeps a record of administrative
+            actions, including who performed them, for <strong>24 months</strong> from
+            the action, so that the trail cannot be erased by deleting an account. We
+            rely on our legitimate interest in the security and integrity of the service
+            for this, we use those records only to investigate what happened, and your
+            data export includes them in full.
           </p>
         </section>
 

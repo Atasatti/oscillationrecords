@@ -2,6 +2,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ReleaseEditor, { type ReleaseKind } from "@/components/admin/release-editor/ReleaseEditor";
+import { ReleaseStepNav } from "@/components/admin/release-editor/ReleaseWorkflow";
 
 function toKind(value: string | null): ReleaseKind {
   const v = (value || "").toLowerCase();
@@ -30,12 +31,19 @@ function toArtistIds(params: URLSearchParams): string[] | undefined {
 function NewReleaseInner() {
   const params = useSearchParams();
   return (
-    <ReleaseEditor
-      mode="create"
-      releaseKind={toKind(params.get("kind"))}
-      initialArtistIds={toArtistIds(new URLSearchParams(params.toString()))}
-      initialStatus={toStatus(params.get("status"))}
-    />
+    <>
+      {/* The same 5-step strip as the edit workflow, so creating reads as step 1
+          of ONE flow rather than a separate page that later morphs into "Edit".
+          Steps 2–5 are disabled (there's no release id until "Next" creates the
+          draft); the editor then lands in the real workflow at step 2. */}
+      <ReleaseStepNav active={1} />
+      <ReleaseEditor
+        mode="create"
+        releaseKind={toKind(params.get("kind"))}
+        initialArtistIds={toArtistIds(new URLSearchParams(params.toString()))}
+        initialStatus={toStatus(params.get("status"))}
+      />
+    </>
   );
 }
 

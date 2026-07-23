@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import TrackCardSm from "@/components/local-ui/TrackCardSm";
 import ExplicitBadge from "@/components/local-ui/ExplicitBadge";
@@ -263,16 +263,12 @@ export default function AdminReleaseDetail() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  useEffect(() => {
-    fetchData();
-  }, [releaseId]);
-
-  // Keep the local drag order in sync whenever the release (re)loads.
-  useEffect(() => {
-    setOrderedTracks(release?.tracks ?? []);
-  }, [release]);
-
-  const fetchData = async () => {
+  // useCallback + defined ABOVE the effect that depends on it: a dependency array
+  // is evaluated during render, so referencing a `const` declared further down
+  // would hit the temporal dead zone. It closes over `releaseId` and state
+  // setters only — setters are stable, so the identity changes just once per
+  // release, and the effect below can't loop.
+  const fetchData = useCallback(async () => {
     try {
       const response = await fetch(`/api/releases/${releaseId}`);
       if (response.ok) {
@@ -314,7 +310,16 @@ export default function AdminReleaseDetail() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [releaseId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Keep the local drag order in sync whenever the release (re)loads.
+  useEffect(() => {
+    setOrderedTracks(release?.tracks ?? []);
+  }, [release]);
 
   const getArtistNames = (ids: string[] = []) =>
     ids

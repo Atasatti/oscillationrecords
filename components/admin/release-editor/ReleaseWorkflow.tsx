@@ -41,6 +41,68 @@ function stepFromParam(slug: string | null): number {
 const EMPTY_STATUSES: Record<number, StepStatus> = { 1: "empty", 2: "empty", 3: "empty", 4: "empty", 5: "empty" };
 
 /**
+ * The 5-step navigation strip, shared between the edit workflow (interactive)
+ * and the CREATE page (static). On create there is no release id yet, so steps
+ * 2–5 have nothing to open — omit `onSelect` and they render disabled with an
+ * explanatory tooltip. Rendering the same strip in both places is what makes
+ * "New" read as step 1 of the workflow instead of a separate flow.
+ */
+export function ReleaseStepNav({
+  active,
+  statuses = EMPTY_STATUSES,
+  onSelect,
+}: {
+  active: number;
+  statuses?: Record<number, StepStatus>;
+  /** Step click handler. Omitted → steps other than `active` are disabled. */
+  onSelect?: (n: number) => void;
+}) {
+  return (
+    <nav
+      aria-label="Release sections"
+      className="sticky top-0 z-20 -mx-4 mb-8 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8"
+    >
+      <ol className="flex flex-wrap gap-1.5">
+        {STEPS.map((s) => {
+          const st = statuses[s.n] ?? "empty";
+          const isActive = active === s.n;
+          const disabled = !onSelect && !isActive;
+          return (
+            <li key={s.n} className="shrink-0">
+              <button
+                type="button"
+                onClick={onSelect ? () => onSelect(s.n) : undefined}
+                disabled={disabled}
+                title={disabled ? "Available once the release is created" : undefined}
+                aria-current={isActive ? "step" : undefined}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  isActive
+                    ? "border-white/25 bg-white/10 text-white"
+                    : disabled
+                      ? "cursor-not-allowed border-transparent text-muted-foreground/50"
+                      : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                }`}
+              >
+                <span
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${
+                    isActive ? "bg-white text-black" : "bg-white/10 text-gray-300"
+                  }`}
+                >
+                  {s.n}
+                </span>
+                <span className="whitespace-nowrap font-medium">{s.label}</span>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${STEP_STATUS_DOT[st]}`} aria-hidden />
+                <span className="sr-only">— {STEP_STATUS_LABEL[st]}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+/**
  * Step-based release edit workflow. Splits the (formerly one long page) release
  * editor into 5 navigable steps with per-section save and a readiness indicator on
  * each step (grey / red / amber / green). Every step's panel stays mounted (hidden
@@ -53,6 +115,10 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
+  // ?focus=<what> says which part of the target step to unfold on arrival. Read
+  // once on mount: it describes how you got here, so switching steps by hand
+  // afterwards shouldn't keep re-applying it.
+  const [focusParam] = useState(() => searchParams.get("focus"));
 
   // The active step is driven by ?step=<slug> so a deep link (e.g. the Budget list
   // → ?step=budget) opens the right step and a refresh keeps it. Initialised from
@@ -119,42 +185,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
 
   return (
     <div>
-      <nav
-        aria-label="Release sections"
-        className="sticky top-0 z-20 -mx-4 mb-8 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8"
-      >
-        <ol className="flex flex-wrap gap-1.5">
-          {STEPS.map((s) => {
-            const st = statuses[s.n] ?? "empty";
-            const isActive = active === s.n;
-            return (
-              <li key={s.n} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => selectStep(s.n)}
-                  aria-current={isActive ? "step" : undefined}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    isActive
-                      ? "border-white/25 bg-white/10 text-white"
-                      : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                  }`}
-                >
-                  <span
-                    className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${
-                      isActive ? "bg-white text-black" : "bg-white/10 text-gray-300"
-                    }`}
-                  >
-                    {s.n}
-                  </span>
-                  <span className="whitespace-nowrap font-medium">{s.label}</span>
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${STEP_STATUS_DOT[st]}`} aria-hidden />
-                  <span className="sr-only">— {STEP_STATUS_LABEL[st]}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      <ReleaseStepNav active={active} statuses={statuses} onSelect={selectStep} />
 
       <div className={active === 1 ? "" : "hidden"}>
         <ReleaseEditor mode="edit" releaseKind="SINGLE" releaseId={releaseId} inStepper />
@@ -164,7 +195,9 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
         </div>
       </div>
       <div className={active === 2 ? "" : "hidden"}>
-        {tracksMounted ? <ReleaseTracksStep releaseId={releaseId} /> : null}
+        {tracksMounted ? (
+          <ReleaseTracksStep releaseId={releaseId} focusLyrics={focusParam === "lyrics"} />
+        ) : null}
       </div>
       <div className={active === 3 ? "" : "hidden"}>
         <ReleaseBudgetPanel releaseId={releaseId} />

@@ -20,6 +20,8 @@ import {
   RELEASE_DESCRIPTION_MAX,
 } from "@/lib/release-format";
 import { readError } from "@/lib/release-editor";
+import { isUsableFileUrl } from "@/lib/asset";
+import { releaseEditHref } from "@/lib/release-workflow";
 import { lyricsCoverage } from "@/lib/lyrics-coverage";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes";
 import ReleaseDetailsPanel, {
@@ -182,8 +184,14 @@ export default function ReleaseEditor({
           pLine: data.pLine || "",
           cLine: data.cLine || "",
         });
-        setCoverUrl(data.coverImage || null);
-        setImagePreview(data.coverImage || null);
+        // Not `|| null`: a row written before the API fix holds the literal
+        // string "null", which is truthy and renders as <img src="null"> — a
+        // relative URL the browser resolves against the current page, 404ing at
+        // /admin/releases/<id>/null. isUsableFileUrl is the repo's existing
+        // guard for exactly this dirty-catalog case.
+        const cover = isUsableFileUrl(data.coverImage) ? data.coverImage : null;
+        setCoverUrl(cover);
+        setImagePreview(cover);
         setTrackCount(Array.isArray(data.tracks) ? data.tracks.length : 0);
         setLyricsCov(lyricsCoverage(Array.isArray(data.tracks) ? data.tracks : []));
         if (data.kind) setLoadedKind(data.kind as ReleaseKind);
@@ -271,7 +279,7 @@ export default function ReleaseEditor({
     const response = await fetch("/api/upload/presigned-url-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageFileName, imageFileType: file.type }),
+      body: JSON.stringify({ imageFileName, imageFileType: file.type, size: file.size }),
     });
     if (!response.ok) {
       throw new Error(await readError(response, "Failed to get cover upload URL"));
@@ -416,10 +424,12 @@ export default function ReleaseEditor({
           redirectTo ? "Draft saved" : "Release created — add the tracklist next."
         );
         if (redirectTo) router.push(redirectTo);
-        // Flag the new-release flow (?new=1) so the tracklist breadcrumb reads
-        // "Releases › New › Tracks", not "… › Edit › Tracks" (see Breadcrumbs) —
-        // the admin is still creating, not editing an existing release.
-        else router.replace(`/admin/releases/${created.id}/tracks?new=1`);
+        // Straight into the edit WORKFLOW at step 2 (Tracks) — the same stepper
+        // surface the admin will use from here on — rather than the standalone
+        // tracklist page. The old detour (/tracks?new=1) had no step navigation
+        // and its breadcrumb morphed from "New" to "Edit" when clicked, making
+        // creation feel like a different flow that unexpectedly became editing.
+        else router.replace(releaseEditHref(created.id, "tracks"));
       } else {
         const res = await fetch(`/api/releases/${releaseId}`, {
           method: "PATCH",

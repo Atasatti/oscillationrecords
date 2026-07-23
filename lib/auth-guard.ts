@@ -43,12 +43,44 @@ async function readToken(req: NextRequest): Promise<JWT | null> {
 }
 
 /**
- * True when the request is admin (bootstrap email OR JWT role==="admin").
- * Token-level only (no DB) — used for read-gating (e.g. revealing private fields).
+ * Authoritative owner check for a decoded token. Bootstrap-allowlisted emails are
+ * always owners (no DB dependency). A token whose `role` claim says "admin" is
+ * re-verified against the CURRENT database role, because the role is written into
+ * the JWT at sign-in and never refreshed — a 30-day session keeps asserting
+ * "admin" long after the account was demoted. Fails closed if the DB can't be
+ * read. The single definition behind requireAdmin and isAdminRequest.
+ */
+async function tokenIsOwner(token: JWT | null): Promise<boolean> {
+  if (!token?.email) return false;
+  if (isAdminEmail(token.email)) return true;
+  // Only a token *claiming* admin costs a lookup — anonymous and ordinary
+  // visitors (the overwhelming majority of catalog GETs) never touch the DB.
+  if (!isAdminToken(token)) return false;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: token.email as string },
+      select: { role: true },
+    });
+    return user?.role === "admin";
+  } catch (e) {
+    console.error("tokenIsOwner: role lookup failed", e);
+    return false;
+  }
+}
+
+/**
+ * True when the request is currently an owner. Read-gate for private catalogue
+ * fields — draft/unreleased records, UPC / catalogue number / P-line / C-line,
+ * and the internal track fields (ISRC, ISWC, stems, splits, synced lyrics).
+ *
+ * Revocation-aware: this used to answer from the JWT alone, so a demoted owner
+ * kept reading private catalogue data through GET endpoints until their 30-day
+ * token expired, even though every mutation was already refused. It now re-reads
+ * the role, on the same terms as requireAdmin — the read side and the write side
+ * can no longer disagree about who is an admin.
  */
 export async function isAdminRequest(req: NextRequest): Promise<boolean> {
-  const token = await readToken(req);
-  return isAdminToken(token);
+  return tokenIsOwner(await readToken(req));
 }
 
 /**
@@ -62,24 +94,7 @@ export async function requireAdmin(req: NextRequest): Promise<Guard> {
   if ("response" in resolved) return { ok: false, response: resolved.response };
   const token = resolved.token;
   if (!token?.email) return forbidden();
-
-  // Bootstrap admins: always allowed, no DB hit.
-  if (isAdminEmail(token.email)) return { ok: true, token };
-
-  // Role-granted admins: confirm the current DB role (revocation-aware). Fail
-  // closed if the DB can't be read.
-  if (token.role === "admin") {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { email: token.email as string },
-        select: { role: true },
-      });
-      if (user?.role === "admin") return { ok: true, token };
-    } catch (e) {
-      console.error("requireAdmin: role lookup failed", e);
-    }
-  }
-  return forbidden();
+  return (await tokenIsOwner(token)) ? { ok: true, token } : forbidden();
 }
 
 /**
@@ -148,8 +163,27 @@ export async function requirePermission(req: NextRequest, permission: Permission
   return forbidden();
 }
 
-/** Require any authenticated user. Returns the token, or a ready-to-return error response. */
-export async function requireUser(req: NextRequest): Promise<Guard> {
+export type UserGuard =
+  | { ok: true; token: JWT; userId: string }
+  | { ok: false; response: NextResponse };
+
+/**
+ * Require an authenticated user who STILL EXISTS in the database.
+ *
+ * Sessions are stateless 30-day JWTs, so deleting an account can't invalidate
+ * the tokens already issued for it — the same person's other browsers and
+ * devices keep holding a perfectly well-signed token. Checking the token alone
+ * therefore let a deleted account go on using authenticated endpoints for up to
+ * a month. Confirming the user row exists is what makes erasure take effect on
+ * the very next request, everywhere, without a session store.
+ *
+ * Also returns the caller's real Mongo `User.id` (token.sub is the Google OAuth
+ * subject), since the lookup has already been done — callers shouldn't re-query
+ * via resolveUserId().
+ *
+ * Fails closed: a missing user is 401, an unreadable database is 503.
+ */
+export async function requireUser(req: NextRequest): Promise<UserGuard> {
   const resolved = await resolveToken(req);
   if ("response" in resolved) return { ok: false, response: resolved.response };
   const token = resolved.token;
@@ -157,7 +191,28 @@ export async function requireUser(req: NextRequest): Promise<Guard> {
   if (!token?.sub || !token?.email) {
     return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return { ok: true, token };
+
+  let user: { id: string } | null;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email: token.email as string },
+      select: { id: true },
+    });
+  } catch (e) {
+    console.error("requireUser: account lookup failed", e);
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Service unavailable" }, { status: 503 }),
+    };
+  }
+  if (!user) {
+    // The account was deleted (or never synced) while this token stayed valid.
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Account no longer exists" }, { status: 401 }),
+    };
+  }
+  return { ok: true, token, userId: user.id };
 }
 
 /**

@@ -3,9 +3,9 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
-import { rateLimit } from "@/lib/rate-limit";
-import { S3_BUCKET, s3Client, s3Configured, sanitizeKey, publicFileUrl } from "@/lib/s3";
-import { isAllowedAgreementDocType } from "@/lib/release-terms";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
+import { S3_BUCKET, parseUploadSize, s3Client, s3Configured, sanitizeKey, publicFileUrl } from "@/lib/s3";
+import { isAllowedAgreementDocType, MAX_AGREEMENT_DOC_BYTES } from "@/lib/release-terms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ export async function POST(
     return NextResponse.json({ error: "File storage is not configured" }, { status: 500 });
   }
 
-  const rl = rateLimit(`agreement-upload:${guard.token.sub}`, 60, 60_000);
+  const rl = await rateLimitShared(`agreement-upload:${guard.token.sub}`, 60, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const { releaseId } = await params;
@@ -45,10 +45,16 @@ export async function POST(
     if (!base) return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
     const key = `releases/agreements/${releaseId}/${crypto.randomUUID()}/${base}`;
 
+    // Sign-time size binding (50 MB): S3 rejects a mismatched Content-Length.
+    const size = parseUploadSize(body.size, MAX_AGREEMENT_DOC_BYTES);
+    if (size === null) {
+      return NextResponse.json({ error: "size (bytes, up to 50 MB) is required" }, { status: 400 });
+    }
+
     const uploadURL = await getSignedUrl(
       s3Client,
-      new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: fileType }),
-      { expiresIn: 3600 }
+      new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: fileType, ContentLength: size }),
+      { expiresIn: 900 }
     );
 
     return NextResponse.json({ uploadURL, fileURL: publicFileUrl(key) });

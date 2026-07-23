@@ -66,3 +66,4 @@ lyrics-review.json
 
 # Genius manual-add paste-pack helper (generated locally for copy/paste ingest)
 genius-add-pack.html
+orphaned-audio-manifest-*.json

@@ -7,6 +7,7 @@ import SplitEditor from "@/components/admin/SplitEditor";
 import {
   splitsToRows,
   rowsToSplits,
+  splitsProblem,
   type SplitRow,
   type Split,
 } from "@/lib/release-splits";
@@ -49,19 +50,33 @@ export default function ReleaseSplitsPanel({ releaseId }: { releaseId: string })
   };
 
   const save = async () => {
+    // Instant feedback before the round-trip: the server enforces the same rule
+    // (empty, or exactly 100%), so this only changes WHEN the admin hears it.
+    const splits = rowsToSplits(rows);
+    const problem = splitsProblem(splits);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/releases/${releaseId}/splits`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ splits: rowsToSplits(rows) }),
+        body: JSON.stringify({ splits }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Surface the server's actual reason (unbalanced total, unknown artist,
+        // permission) — the old blanket "you may not have permission" hid real
+        // validation failures behind the wrong explanation.
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Couldn't save the split.");
+      }
       toast.success("Split saved");
       setDirty(false);
       load();
-    } catch {
-      toast.error("Couldn't save — you may not have permission.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the split.");
     } finally {
       setSaving(false);
     }

@@ -118,7 +118,7 @@ const ContactFormSection = () => {
           presign = await fetch("/api/contact/attachment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileName: file.name, fileType: type }),
+            body: JSON.stringify({ fileName: file.name, fileType: type, size: file.size }),
           });
         } catch {
           throw new Error(`Couldn't reach the server to upload "${file.name}". Check your connection and try again.`);

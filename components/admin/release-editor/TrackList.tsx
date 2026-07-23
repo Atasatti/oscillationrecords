@@ -64,6 +64,7 @@ export default function TrackList({
   releaseIsLive,
   initialTracks,
   highlightIsrc,
+  focusLyrics = false,
   onActivityChange,
   onUnsavedChange,
   onValidityChange,
@@ -82,6 +83,9 @@ export default function TrackList({
   /** Deep-link highlight from Needs-Attention: an ISRC to flag (tracks sharing it),
    * or "none" to flag tracks with no ISRC yet. */
   highlightIsrc?: string | null;
+  /** Deep-link from the Releases list's lyrics badge: start with every track that
+   *  has no lyrics already expanded and scrolled to, its lyrics editor open. */
+  focusLyrics?: boolean;
   /** Reports whether uploads/saves are in flight (used to gate publishing). */
   onActivityChange?: (active: boolean) => void;
   /** Reports whether leaving now would lose track work — an in-flight
@@ -92,9 +96,15 @@ export default function TrackList({
   onValidityChange?: (info: { trackCount: number; issueCount: number }) => void;
 }) {
   const toast = useToast();
-  const [tracks, setTracks] = useState<EditorTrack[]>(() =>
-    initialTracks.map((t) => editorTrackFromSerialized(t, artists))
-  );
+  const [tracks, setTracks] = useState<EditorTrack[]>(() => {
+    const rows = initialTracks.map((t) => editorTrackFromSerialized(t, artists));
+    // Arriving from the lyrics badge: unfold exactly the tracks the badge was
+    // counting as missing, so the work is in front of you instead of behind a
+    // row of collapsed accordions. If every track already has lyrics there is
+    // nothing to unfold, and the list stays collapsed as normal.
+    if (!focusLyrics) return rows;
+    return rows.map((r) => (r.lyrics.trim() ? r : { ...r, expanded: true }));
+  });
   const tracksRef = useRef(tracks);
   useEffect(() => {
     tracksRef.current = tracks;
@@ -631,6 +641,7 @@ export default function TrackList({
                       ? !track.isrcCode.trim()
                       : !!highlightIsrc && canonIsrc(track.isrcCode) === canonIsrc(highlightIsrc)
                   }
+                  focusLyrics={focusLyrics && !track.lyrics.trim()}
                   onChange={(patch) => updateRow(track.rowId, patch)}
                   onRemove={() => removeRow(track.rowId)}
                   onReplaceAudio={(file) => replaceAudio(track.rowId, file)}

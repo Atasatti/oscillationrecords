@@ -60,6 +60,25 @@ export function summarizeSplits(splits: Split[]): SplitsSummary {
   return { splits, total, balanced: total === 100 };
 }
 
+/**
+ * Server-side gate for a DEDICATED split save (the release Splits panel, the
+ * per-track edit dialog): null when acceptable, else the rejection reason.
+ * An empty list is fine — it means "no split agreement recorded" — but a
+ * non-empty one must allocate exactly 100.00%: a partial allocation stored as
+ * final is precisely how royalty accounting goes wrong. (The autosaving
+ * tracklist editor deliberately does NOT hard-gate on this — autosave fires
+ * mid-typing — it validates artist references and shows the live balance
+ * instead.)
+ */
+export function splitsProblem(splits: Split[]): string | null {
+  if (splits.length === 0) return null;
+  const { total } = summarizeSplits(splits);
+  if (total !== 100) {
+    return `Royalty splits must total exactly 100% — currently ${total}%.`;
+  }
+  return null;
+}
+
 // --- Editing helpers -------------------------------------------------------
 // A SplitRow is a Split with `percent` kept as a string while being edited in a
 // form. Shared by the release Splits panel, the per-track editor, and the split

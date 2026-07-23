@@ -1,182 +1,161 @@
 # S3 private-asset hardening (#1) — Design
 
-**Date:** 2026-07-16
-**Status:** Draft — needs an AWS bucket-policy change (owner) before the code cutover
-**Audit finding:** #1 (HIGH) — the S3 bucket is public-read; sensitive DAM assets
-(unreleased masters, stems, EPKs, legal contracts) have no server-side
-authorization — only the object-key UUID protects them. Any leaked URL (a DB
-dump, a log line, a copied "Open" link, browser history, a shared file) is
-permanently world-readable with no revocation short of deleting/re-keying.
+**Date:** 2026-07-16 (revised 2026-07-22)
+**Status:** Code landed. The bucket policy change is the remaining step — it
+touches LIVE production storage and must be applied AFTER the code deploys.
+**Audit finding:** #1 (HIGH) — the S3 bucket is public-read, so sensitive uploads
+(signed agreements, contact-form attachments, task attachments, competition
+entries, DAM masters/stems/EPKs) have no server-side authorization — only the
+object key protects them. Any leaked URL (a DB dump, a log line, a copied "Open"
+link, browser history, a forwarded message) is permanently world-readable, with
+no revocation short of deleting or re-keying the object.
 
-## Current state
+## Measured current state (2026-07-22)
 
-- **Bucket:** `osrecord`, region `us-east-1`, **public-read** (objects served
-  directly at `https://osrecord.s3.us-east-1.amazonaws.com/<key>`).
-- **URL helper:** `publicFileUrl(key)` (`lib/s3.ts`) builds that direct URL; it's
-  stored on records (`Asset.fileUrl`, `Release.coverImage`, `Track.audioFile`,
-  `Track.stemsFile`, agreement docs, …) and rendered/linked directly.
-- **A presigned-GET path already exists:** `GET /api/assets/download?url=…`
-  (`catalog:read`-gated) presigns a short-lived GET for one of our own objects and
-  302-redirects to it (`keyFromOwnBucketUrl` refuses any foreign host). The release
-  **agreement** flow (`/api/releases/[releaseId]/agreement/presign`) is the same
-  idea. So the infrastructure to serve a file behind per-request authorization is
-  already here — today it's used only for the *download disposition*, not for
-  *access control*.
+Read straight off the live bucket (`scripts/s3-verify-private-prefixes.mjs`,
+read-only):
 
-The gap: **nothing stops a direct public GET** of a private object, because the
-bucket allows public reads on every key.
+- **Bucket:** `osrecord`, `us-east-1`, 591 objects, ~11 GB.
+- **Block Public Access:** all four settings OFF.
+- **Bucket policy:** one statement — `Allow` `s3:GetObject` to `Principal: "*"`
+  on `arn:aws:s3:::osrecord/*`. Everything is anonymously readable.
+- **Confirmed exposed** (anonymous `GET` → 206): `contact/` (33 submitter
+  uploads), `releases/agreements/` (signed contracts), `task-attachments/`,
+  `benert-remix/` (22 competition entries, 222 MB).
+- `assets/`, `tracks/stems/` and `documents/` are currently empty — the DAM
+  prefixes are classified private up-front so the first upload is already safe.
 
 ## Key classification
 
-Split keys into **public** (must stay world-readable — they're on the public site
-and behind the CDN) and **private** (authorization required):
-
 | Prefix | Class | Why |
 |---|---|---|
-| `releases/images/`, `artists/images/`, `press/images/`, `site/` | **public** | Cover art, artist photos, press images, site imagery — rendered on public pages / in `next/image` / the sitemap. |
-| `tracks/audio/` **of a RELEASED track** | **public** | Streamed by the public player. |
-| `tracks/audio/` **of a DRAFT/SCHEDULED track** | **private** | Unreleased audio / masters must not leak pre-release. |
+| `albums/`, `artists/`, `eps/`, `press/images/`, `releases/images/`, `singles/`, `site/`, `song-images/`, `tracks/audio/`, `tracks/images/`, `upcoming-releases/images/` | **public** | Cover art, artist/press photos, site imagery and released audio — rendered on public pages, optimized by `next/image`, listed in the image sitemap. |
+| `assets/` | **private** | DAM uploads: masters, stems, EPKs, internal documents. |
+| `benert-remix/` | **private** | Entrants' unreleased audio. Readable by the entrant who uploaded it, or an admin reviewing entries. |
+| `contact/` | **private** | Files the public attaches to a contact ticket — demos and personal material. |
+| `documents/` | **private** | Internal documents. |
+| `releases/agreements/` | **private** | Signed contracts / licence scans. |
+| `task-attachments/` | **private** | Internal task files. |
 | `tracks/stems/` | **private** | Stems are DAM, never public. |
-| `benert-remix/` | **public** (competition entries) | Already server-owned per-user; entrants share links. Keep as-is. |
-| `task-attachments/`, agreement/contract docs, EPKs, any `documents/` | **private** | Internal / legal. |
 
-> The awkward case is `tracks/audio/`: public once RELEASED, private before. Two
-> ways to handle it (pick one in review):
-> 1. **Prefix by lifecycle** — upload pre-release audio under a private prefix
->    (e.g. `tracks/audio-private/`) and **copy/move** it to the public
->    `tracks/audio/` on publish. Clean rule (prefix = class), but adds a move step
->    to the publish path.
-> 2. **Always-private audio + presigned playback** — serve ALL audio via
->    short-lived presigned GETs (even public tracks). Simplest rule, but every
->    play needs a presign and CDN caching of audio is lost. Not recommended for a
->    streaming site.
->
-> **Recommendation:** option 1 (lifecycle prefix) for audio; everything else is a
-> static public-vs-private prefix split.
+The single source of truth is `PRIVATE_KEY_PREFIXES` in `lib/s3-url.ts`; both
+scripts carry a copy that must be kept in sync with it.
+
+Note `releases/` splits: `releases/images/` is public, `releases/agreements/` is
+private. Classification is by longest matching prefix, so the split is exact.
 
 ## Approach
 
-1. **Bucket policy** blocks public reads on the private prefixes; public prefixes
-   stay world-readable (served by the CDN as today).
-2. **App serves private objects via presigned GETs** — the existing download-shim
-   pattern, generalized from "download disposition" to "access control".
-3. **Uploads to a private prefix** return a *key* (or a `/api/assets/download`
-   URL), not a raw public URL, so nothing stores a directly-fetchable link.
-4. **No public URL is ever emitted for a private key** — a `assetHref()` helper
-   routes public keys → `publicFileUrl`, private keys → the presigned-GET route.
+1. **Bucket policy** adds an explicit `Deny` on the private prefixes for
+   *anonymous* callers only, leaving the existing public `Allow` untouched.
+2. **The app serves private objects via presigned GETs** through the existing
+   download shim, `GET /api/assets/download` — generalized from "force a download
+   disposition" to "the access-control point".
+3. **No raw private URL is ever emitted** — every render site routes through
+   `assetViewHref()` / `assetDownloadHref()`.
 
-## Code changes (draft — land WITH the AWS policy, not before)
+### Why Deny-anonymous rather than an enumerated public Allow
 
-Add to `lib/s3.ts`:
+The bucket has 20+ live public prefixes accumulated over time (`albums/`,
+`eps/`, `singles/`, `song-images/`, `upcoming-releases/`, per-artist-id folders…).
+An allow-list that misses one silently 404s part of the live site. A deny-list
+that misses a private prefix leaves it exactly as exposed as it is today — a
+strictly smaller failure. The Deny carries
+`Condition: { "Null": { "aws:PrincipalArn": "true" } }`, which is true only when
+the request has no principal — i.e. anonymous. Signed requests, including every
+presigned URL the app mints, are unaffected.
 
-```ts
-// Prefixes whose objects must NOT be publicly readable (served via presigned GET).
-export const PRIVATE_KEY_PREFIXES = ["tracks/stems/", "tracks/audio-private/", "documents/"] as const;
+## Code (landed)
 
-export function isPrivateAssetKey(key: string): boolean {
-  return PRIVATE_KEY_PREFIXES.some((p) => key.startsWith(p));
-}
+`lib/s3-url.ts` (pure, client-safe):
 
-/** Access URL for a stored key: direct public URL for public keys, the
- *  authorization-gated presigned-GET shim for private ones. */
-export function assetHref(key: string): string {
-  if (isPrivateAssetKey(key)) {
-    return `/api/assets/download?url=${encodeURIComponent(publicFileUrl(key))}&disposition=inline`;
-  }
-  return publicFileUrl(key);
-}
+- `PRIVATE_KEY_PREFIXES`, `isPrivateAssetKey(key)`, `isPrivateAssetUrl(url)`
+- `assetViewHref(url, name?)` — direct bucket URL for public media, the
+  authorization-gated shim (inline disposition) for a private object
+- `assetDownloadHref(url, name?, disposition?)` — the shim, attachment by default
+- `benertUserKeyPrefix(sub)` — the `benert-remix/<sub>/` prefix one entrant owns;
+  now the single definition used by presign, upload-complete and the shim
+
+`lib/s3-access.ts` (server): `authorizeAssetKey(request, key)` maps a key to the
+permission that owns it —
+
+| Prefix | Requires |
+|---|---|
+| `releases/agreements/`, `tracks/stems/`, `assets/`, `documents/` | `catalog:read` |
+| `contact/`, `task-attachments/` | `outreach:read` |
+| `benert-remix/` | the entry's owner, or an admin |
+| anything else (public media) | `catalog:read`, as before |
+
+`GET /api/assets/download` now resolves the key first and authorizes *that
+object* instead of gating the whole route on `catalog:read`.
+
+Render sites routed through the helpers: the admin DAM (`app/admin/assets`, via a
+new `viewHref` on the row — `fileUrl` is identity only now), contact-ticket
+attachments, task attachments, agreement documents, and the Benert admin list
+(the API returns a shim href, never the bucket URL). `GET /api/benert-remix/status`
+no longer returns the entrant's file URL at all — just `hasUploaded`.
+
+**Object lifecycle:** deleting a contact ticket, removing a task attachment, or
+dropping an agreement document from a release's terms now also deletes the S3
+object (best-effort, confined to that feature's own prefix). An orphaned private
+object is unreachable through the app but still billable and still readable by
+anyone holding a leaked key.
+
+**On storing keys vs URLs:** records keep storing the full bucket URL. Once the
+policy lands, that URL is not fetchable without a signature, so it is an
+identifier rather than an access token — re-keying every stored value across
+`Asset`, `Release.terms`, `ContactMessage.attachments`, `OutreachTask.attachments`
+and `BenertRemixEntry` would be a large migration for no additional access
+control.
+
+## Applying the policy
+
+```bash
+# dry run — prints current + proposed policy, writes nothing
+node --env-file=.env --use-system-ca scripts/s3-lock-private-prefixes.mjs
+# apply
+node --env-file=.env --use-system-ca scripts/s3-lock-private-prefixes.mjs --apply
+# roll back (drops the Deny statement, restoring today's behaviour)
+node --env-file=.env --use-system-ca scripts/s3-lock-private-prefixes.mjs --revert
 ```
 
-Then, at each site that today emits a private object's URL, route it through
-`assetHref()` (or the download shim) instead of `publicFileUrl`. Concretely:
+The script refuses to write a policy with no `Allow` statement, so it cannot take
+the public site's media offline.
 
-- **Stems** (`Track.stemsFile`) — admin-only display/download → already goes
-  through `downloadHrefFor` on the assets page; confirm every render uses the shim,
-  none the raw URL.
-- **Agreements/contracts** — already presigned; verify no raw URL is stored/leaked.
-- **Pre-release audio** (option 1) — upload under `tracks/audio-private/`; on
-  publish, `CopyObject` → `tracks/audio/` (public) and update `Track.audioFile`.
-  The admin editor's pre-release preview plays via `assetHref()`.
-- **Presign-GET route** — `/api/assets/download` already gates on `catalog:read`;
-  for finer control, gate stems/documents on the appropriate permission.
+## Rollout order
 
-Uploads: the presign-PUT routes (already prefix-confined per #26) keep writing
-private objects under the private prefixes; they just shouldn't return a
-public-render URL for those — return the key + let the client fetch via the shim.
+1. **Deploy the code first.** Until production renders private files through the
+   shim, denying anonymous reads would break the admin's contract and attachment
+   links. The code is a no-op while the bucket is still public.
+2. **Apply the policy** (`--apply` above).
+3. **Verify:** `node --env-file=.env --use-system-ca scripts/s3-verify-private-prefixes.mjs`
+   — samples a real object under every prefix in the bucket and asserts public
+   prefixes still return 200/206 while every private one returns 403. Exit code 1
+   on any mismatch.
+4. **Smoke-test the app:** admin DAM preview/download, open a contract, open a
+   contact attachment, download a competition entry, public player + public
+   images.
 
-## Exact AWS steps (owner applies)
+## Residual risk / follow-ups
 
-1. **Confirm/keep Block Public Access OFF only for the public prefixes.** The
-   cleanest split is *two paths in one bucket* with a policy that grants public
-   read ONLY to the public prefixes and denies it elsewhere.
-
-2. **Bucket policy** (S3 → `osrecord` → Permissions → Bucket policy). Grant public
-   `s3:GetObject` on the public prefixes; nothing else is public:
-
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Sid": "PublicReadPublicPrefixes",
-         "Effect": "Allow",
-         "Principal": "*",
-         "Action": "s3:GetObject",
-         "Resource": [
-           "arn:aws:s3:::osrecord/releases/images/*",
-           "arn:aws:s3:::osrecord/artists/images/*",
-           "arn:aws:s3:::osrecord/press/images/*",
-           "arn:aws:s3:::osrecord/site/*",
-           "arn:aws:s3:::osrecord/tracks/audio/*",
-           "arn:aws:s3:::osrecord/benert-remix/*"
-         ]
-       }
-     ]
-   }
-   ```
-
-   With no `Allow` for the private prefixes (`tracks/stems/*`,
-   `tracks/audio-private/*`, `documents/*`, `task-attachments/*`), a public GET of
-   those returns **403**. The app's IAM user (its access key) still reads them via
-   the SDK for presigning — presigned GETs are signed with those credentials, so
-   they keep working.
-
-3. **If Block Public Access is currently ON** and objects are served some other
-   way, adapt: the goal is only public prefixes are anonymously GET-able.
-
-4. **Verify:**
-   - Anonymous `curl https://osrecord.s3.us-east-1.amazonaws.com/tracks/stems/<known-key>` → **403**.
-   - Anonymous `curl …/releases/images/<known-cover>` → **200**.
-   - App: a presigned GET of a stems key (via `/api/assets/download`) → **200**.
-
-## Migration / rollout order (avoid breaking live assets)
-
-1. **Land the code first, inert** — `isPrivateAssetKey` / `assetHref` added and
-   used at private-asset render sites, but with all current objects still under
-   public prefixes it's a no-op (public URLs unchanged). Deploy + verify nothing
-   regresses.
-2. **Move existing private objects** into the private prefixes (`tracks/stems/`
-   already private-classed; if masters/pre-release audio live under `tracks/audio/`
-   today, decide per the audio note above). Update any stored `stemsFile` /
-   document URLs to the new keys.
-3. **Apply the bucket policy** (step above). Now public reads of the private
-   prefixes 403; the app serves them via presigned GETs.
-4. **Smoke-test** the admin DAM (download stems, open a contract), the public
-   player (released audio still streams), and public images (still load).
-
-## Non-goals / residual
-
-- **No CDN/signed-cookie scheme** for private audio streaming (option 2) — out of
-  scope; option 1 keeps public audio on the CDN.
-- **Lifecycle reaper** for orphaned uploads (part of #6) is a separate S3
-  lifecycle rule.
-- Existing **leaked** public URLs (if any already circulated) are only revoked by
-  re-keying those specific objects — note for the owner.
-
-## Verification checklist (post-cutover)
-
-- [ ] Anonymous GET of a `tracks/stems/*` key → 403; of a cover → 200.
-- [ ] Admin can still download stems + open contracts (presigned).
-- [ ] Public player streams RELEASED audio; pre-release audio is not anonymously fetchable.
-- [ ] `next/image` covers + sitemap images still resolve.
-- [ ] No raw private URL appears in any API response or page source.
+- **Already-leaked URLs.** Anything that circulated before the cutover stops
+  working the moment the Deny lands — that is the point — but if a specific
+  object is known to have leaked, re-key it as well.
+- **`(root)`** holds one 906 MB object and `test-folder/` holds three; both are
+  currently public and unclassified. Worth identifying and either deleting or
+  classifying.
+- **Historical orphans — RESOLVED 2026-07-23 (audit #6).** 132 orphaned audio
+  files (4.66 GB — 99 under `tracks/audio/`, 33 under legacy prefixes) were
+  moved to `quarantine/` (now in the deny-list, so anonymous reads 403) by
+  `scripts/cleanup-orphaned-audio.mjs`; an S3 lifecycle rule
+  (`expire-quarantine`) deletes quarantined objects after 30 days. The local
+  `orphaned-audio-manifest-*.json` records every moved key for restores.
+  Going forward, `lib/s3-sweep.ts` deletes catalog objects at the source when a
+  release/track is deleted or a file replaced (with a remaining-reference
+  re-check, so shared files survive); the cleanup script remains the
+  re-runnable backstop.
+- **Streaming.** Public released audio deliberately stays on the public prefix so
+  the player and CDN are unaffected. Pre-release audio uploaded under
+  `tracks/audio/` is NOT covered by this split; if unreleased masters need to be
+  private before release, upload them under `assets/` (private) and move them on
+  publish.

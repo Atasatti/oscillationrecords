@@ -8,8 +8,19 @@ interface ExtendedToken extends JWT {
   role?: string;
   /** Our Mongo User.id — NOT token.sub (which is the Google OAuth subject). */
   uid?: string;
+  /** epoch ms of the last time `role` was re-read from the database. */
+  roleCheckedAt?: number;
   [key: string]: unknown;
 }
+
+// How long the JWT's cached `role` may go without being re-read. The role used to
+// be written once at sign-in and never refreshed, so a 30-day session kept
+// asserting "admin" for a month after the account was demoted. Authorization
+// itself doesn't depend on this — lib/auth-guard.ts and lib/page-guard.ts re-read
+// the role from the database on every sensitive read, write and page render — but
+// a stale claim still drove the middleware's page gating and the client's admin
+// nav, so bound it to minutes instead of a month.
+const ROLE_REFRESH_MS = 5 * 60 * 1000;
 
 export const authOptions: AuthOptions = {
   // adapter: PrismaAdapter(prisma), // Temporarily disabled to fix session issues
@@ -72,6 +83,7 @@ export const authOptions: AuthOptions = {
             },
           });
           extendedToken.role = dbUser.role ?? undefined;
+          extendedToken.roleCheckedAt = Date.now();
           // Persist OUR Mongo user id on the token so session.user.id and every
           // identity/ownership check use it (token.sub is the Google OAuth subject).
           extendedToken.uid = dbUser.id;
@@ -99,18 +111,28 @@ export const authOptions: AuthOptions = {
         }
       }
 
-      // Backfill uid for tokens minted before we started storing it (existing
-      // 30-day sessions). One DB lookup per stale token, then it's cached on the
-      // token; fresh sign-ins already set uid above.
-      if (!extendedToken.uid && typeof extendedToken.email === "string") {
+      // Re-read the role when it's gone stale, and backfill uid for tokens minted
+      // before we started storing it (existing 30-day sessions). Both are the same
+      // single-document lookup, so they share one query. A failed read leaves the
+      // cached values in place — this callback must never break sign-in, and the
+      // authorization guards do their own fail-closed DB check regardless.
+      const email = typeof extendedToken.email === "string" ? extendedToken.email : null;
+      const roleStale =
+        typeof extendedToken.roleCheckedAt !== "number" ||
+        Date.now() - extendedToken.roleCheckedAt > ROLE_REFRESH_MS;
+      if (email && (roleStale || !extendedToken.uid)) {
         try {
           const u = await prisma.user.findUnique({
-            where: { email: extendedToken.email },
-            select: { id: true },
+            where: { email },
+            select: { id: true, role: true },
           });
-          if (u) extendedToken.uid = u.id;
+          if (u) {
+            extendedToken.uid = u.id;
+            extendedToken.role = u.role ?? undefined;
+            extendedToken.roleCheckedAt = Date.now();
+          }
         } catch (e) {
-          console.error("Auth: failed to backfill user id", e);
+          console.error("Auth: failed to refresh user role / id", e);
         }
       }
 

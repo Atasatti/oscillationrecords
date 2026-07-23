@@ -5,7 +5,7 @@ import { isObjectId } from "@/lib/object-id";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
 import { normalizeTerms, isTermsEmpty, AGREEMENT_TYPE_LABELS } from "@/lib/release-terms";
-import { isOwnBucketUrl } from "@/lib/s3";
+import { deleteS3Object, isOwnBucketUrl, keyFromOwnBucketUrl } from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,7 +52,7 @@ export async function PATCH(
     // drop anything else so a crafted PATCH can't attach an external link.
     terms.documents = terms.documents.filter((d) => isOwnBucketUrl(d.url));
 
-    const release = await prisma.release.findUnique({ where: { id: releaseId }, select: { name: true } });
+    const release = await prisma.release.findUnique({ where: { id: releaseId }, select: { name: true, terms: true } });
     if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
 
     const empty = isTermsEmpty(terms);
@@ -60,6 +60,17 @@ export async function PATCH(
       where: { id: releaseId },
       data: { terms: empty ? null : (terms as unknown as Prisma.InputJsonValue) },
     });
+
+    // Any contract dropped by this save loses its last reference, so delete the
+    // object too — an orphaned agreement scan sitting in the bucket is exactly
+    // the un-revocable copy audit #1 is about. Best-effort, and confined to the
+    // agreements prefix so a crafted PATCH can't aim it at another object.
+    const kept = new Set(terms.documents.map((d) => d.url));
+    for (const doc of normalizeTerms(release.terms).documents) {
+      if (kept.has(doc.url)) continue;
+      const key = keyFromOwnBucketUrl(doc.url);
+      if (key?.startsWith("releases/agreements/")) await deleteS3Object(key);
+    }
 
     await recordAudit(request, guard.token, {
       action: "update",

@@ -69,19 +69,16 @@ export async function POST(request: NextRequest) {
     const country = shortTextOrUndefined(body.country);
     const city = shortTextOrUndefined(body.city);
 
-    // Find or create user by email
-    let user = await prisma.user.findUnique({
+    // The account must still exist. This used to CREATE the user row when none
+    // was found, so a demographics beacon from a deleted account's still-valid
+    // token resurrected it — and then wrote a fresh profile of exactly the
+    // personal data the deletion was meant to erase. Skip instead.
+    const user = await prisma.user.findUnique({
       where: { email: token.email as string },
+      select: { id: true },
     });
-
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: token.email as string,
-          name: token.name as string,
-          image: token.picture as string,
-        },
-      });
+      return NextResponse.json({ success: false, skipped: true });
     }
 
     // Upsert user profile

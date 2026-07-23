@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { isAdminRequest, requirePermission } from "@/lib/auth-guard";
 import { Prisma } from "@prisma/client";
 import { serializeTrack, serializeTrackForPublic, normalizeFeatureArtistNamesInput } from "@/lib/release-format";
-import { normalizeSplits } from "@/lib/release-splits";
+import { normalizeSplits, splitsProblem } from "@/lib/release-splits";
 import { isReleasePublic } from "@/lib/catalog-data";
 import { recordAudit } from "@/lib/audit";
+import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 
 export const dynamic = "force-dynamic";
@@ -126,6 +127,27 @@ export async function PATCH(
       }
     }
 
+    // Royalty splits, when sent from this explicit-save dialog, must be either
+    // empty or an exact 100% allocation, and any linked artist must exist —
+    // a partial total or dangling artistId stored here feeds royalty accounting
+    // bad data with a "Saved" toast on top.
+    let splitsPatch: ReturnType<typeof normalizeSplits> | undefined;
+    if (splits !== undefined) {
+      splitsPatch = normalizeSplits(splits);
+      const problem = splitsProblem(splitsPatch);
+      if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+      const linked = [...new Set(splitsPatch.map((s) => s.artistId).filter((x): x is string => !!x))];
+      if (linked.length) {
+        const found = await prisma.artist.count({ where: { id: { in: linked } } });
+        if (found !== linked.length) {
+          return NextResponse.json(
+            { error: "A split references an artist that doesn't exist" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const track = await prisma.track.update({
       where: { id: trackId },
       data: {
@@ -146,7 +168,7 @@ export async function PATCH(
         ...(syncedLyrics !== undefined && { syncedLyrics: syncedLyrics ? String(syncedLyrics) : null }),
         ...(stemsFile !== undefined && { stemsFile: stemsFile ? String(stemsFile) : null }),
         ...(trackCredits !== undefined && { trackCredits: trackCredits ?? null }),
-        ...(splits !== undefined && { splits: normalizeSplits(splits) as unknown as Prisma.InputJsonValue }),
+        ...(splitsPatch !== undefined && { splits: splitsPatch as unknown as Prisma.InputJsonValue }),
         ...(isrcCode !== undefined && { isrcCode: isrcCode ? String(isrcCode) : null }),
         ...(iswc !== undefined && { iswc: iswc ? String(iswc).trim() : null }),
         ...(isrcExplicit !== undefined && { isrcExplicit: Boolean(isrcExplicit) }),
@@ -197,6 +219,11 @@ export async function DELETE(
 
     await prisma.track.delete({ where: { id: trackId } });
     revalidateAdminCatalog();
+
+    // Sweep the track's S3 objects now that nothing references them — deleting
+    // the row used to leave audio/stems/art in the bucket, publicly readable
+    // forever. Best-effort; shared files survive the sweep's reference re-check.
+    await sweepCatalogObjects([existing.audioFile, existing.stemsFile, existing.image]);
 
     await recordAudit(request, guard.token, {
       action: "delete",

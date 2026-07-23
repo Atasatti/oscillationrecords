@@ -37,6 +37,7 @@ import { TASK_STATUSES } from "@/lib/task-status";
 import { type SavedViewConfig, SAVED_VIEW_NAME_MAX } from "@/lib/saved-view";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
+import { assetViewHref } from "@/lib/s3-url";
 import { useToast } from "@/components/local-ui/Toast";
 import type { AttentionItem } from "@/app/api/tasks/needs-attention/route";
 import type { CatalogRef } from "@/lib/catalog-refs";
@@ -732,7 +733,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
     if (file.size > MAX_ATTACHMENT_BYTES) { toast.error("File too large (max 25MB)"); return; }
     setUploading(true);
     try {
-      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type }) });
+      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type, size: file.size }) });
       if (!p.ok) { const d = await p.json().catch(() => ({})); throw new Error(d.error || "Upload not allowed"); }
       const { uploadURL, fileURL } = await p.json();
       const put = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": type }, body: file });
@@ -766,7 +767,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
           {items.map((a) => (
             <li key={a.id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
               <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">{a.name}</a>
+              <a href={assetViewHref(a.url, a.name)} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">{a.name}</a>
               <span className="shrink-0 text-[10px] text-muted-foreground">{fmtBytes(a.size)}</span>
               <button type="button" onClick={() => remove(a.id)} aria-label="Remove attachment" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-950/20 hover:text-red-400">
                 <Trash2 className="h-3.5 w-3.5" />

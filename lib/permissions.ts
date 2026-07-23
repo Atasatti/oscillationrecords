@@ -14,6 +14,11 @@ export type Permission =
   | "outreach:read"
   | "outreach:write"
   | "analytics:read"
+  /** Identifiable analytics — listener names/emails, per-person listening rows,
+   *  live sessions labelled with who is browsing, newest signups. Deliberately
+   *  held by NO scoped role: owners get it through "*", everyone else sees the
+   *  same figures with identities pseudonymized. See lib/analytics-privacy.ts. */
+  | "analytics:pii"
   | "analytics:write"
   | "settings:write"
   | "users:write";
@@ -24,6 +29,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "outreach:read",
   "outreach:write",
   "analytics:read",
+  "analytics:pii",
   "analytics:write",
   "settings:write",
   "users:write",
@@ -60,11 +66,17 @@ export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   admin: "Full access to everything, including user management, roles and settings.",
   catalog: "Manage releases, artists, press, tracks and site content. Read analytics.",
   promotion: "Manage contacts, pitches, tasks, messages and subscribers. Read analytics.",
-  analytics: "View live data and error logs. Cannot change anything.",
+  analytics: "View live data and error logs (identities pseudonymized). Cannot change anything.",
   viewer: "View the whole admin — catalog, outreach and analytics. Change nothing.",
 };
 
 // "*" = every permission (owner). Scoped roles list their explicit grants.
+//
+// NOTE "analytics:pii" appears in NO scoped role, on purpose. Every role here
+// previously got the identifiable analytics view along with the aggregate one;
+// least privilege says a catalogue editor tracking play counts, or a read-only
+// viewer, has no business seeing which named member played what and from where.
+// Owners still see everything (their "*" covers it), and their access is audited.
 const ROLE_PERMISSIONS: Record<StaffRole, readonly (Permission | "*")[]> = {
   admin: ["*"],
   catalog: ["catalog:read", "catalog:write", "analytics:read"],

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { isOwnBucketUrl } from "@/lib/s3-url";
+import { assetDownloadHref, assetViewHref, isOwnBucketUrl } from "@/lib/s3-url";
 import { useSession } from "next-auth/react";
 import {
   Upload, Trash2, Pencil, Loader2, Download, Music, FileText, FileArchive, Film, File as FileIcon,
@@ -38,6 +38,10 @@ export type Asset = {
    *  Disposition) for our own files; falls back to fileUrl for external URLs.
    *  Use this for the Download action — fileUrl is for open/preview only. */
   downloadHref: string;
+  /** Href to OPEN/preview the file: the direct bucket URL for public media, and
+   *  the authorization-gated shim for a private object (masters, stems, EPKs,
+   *  documents — audit #1). Never render `fileUrl` directly; it's identity only. */
+  viewHref: string;
   mimeType: string;
   size: number;
   releaseId: string | null;
@@ -85,7 +89,9 @@ function AssetGlyph({ mime, className }: { mime: string; className?: string }) {
 /** Image-asset thumbnail. Serves a resized WebP via next/image for objects on our
  *  own S3 (allow-listed for the optimizer) instead of downloading the full-res
  *  original into a small box (#24); an external/unknown host falls back to a raw
- *  <img> (not optimizable). */
+ *  <img> (not optimizable). A PRIVATE object arrives here as the same-origin
+ *  `/api/assets/download` shim path, which also takes the raw-<img> branch — the
+ *  optimizer fetches by URL and can't read an object the bucket won't serve. */
 function AssetThumb({ url, className }: { url: string; className: string }) {
   if (isOwnBucketUrl(url)) {
     return <Image src={url} alt="" width={256} height={256} className={className} />;
@@ -276,7 +282,7 @@ export default function AssetsClient({
   const bulkDownload = () => {
     for (const a of selectedAssets()) {
       const el = document.createElement("a");
-      el.href = a.fileUrl; el.download = a.fileName; el.target = "_blank"; el.rel = "noopener noreferrer";
+      el.href = a.downloadHref; el.download = a.fileName; el.target = "_blank"; el.rel = "noopener noreferrer";
       document.body.appendChild(el); el.click(); el.remove();
     }
   };
@@ -363,7 +369,7 @@ export default function AssetsClient({
         const pres = await fetch("/api/assets/presign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: file.name, fileType: file.type || "application/octet-stream", category: uploadCategory }),
+          body: JSON.stringify({ fileName: file.name, fileType: file.type || "application/octet-stream", category: uploadCategory, size: file.size }),
         });
         if (!pres.ok) {
           const j = await pres.json().catch(() => ({}));
@@ -396,7 +402,8 @@ export default function AssetsClient({
           readOnly: false,
           parentHref: null,
           parentLabel: null,
-          downloadHref: `/api/assets/download?url=${encodeURIComponent(asset.fileUrl)}&name=${encodeURIComponent(asset.fileName)}`,
+          downloadHref: assetDownloadHref(asset.fileUrl, asset.fileName),
+          viewHref: assetViewHref(asset.fileUrl, asset.fileName),
         });
         setRow(i, { status: "done", pct: 100 });
       } catch (e) {
@@ -489,7 +496,7 @@ export default function AssetsClient({
     const isImg = hasFile && /^image\//.test(a.mimeType);
     const thumbClass = "flex h-32 items-center justify-center overflow-hidden border-b border-border bg-black/20";
     const thumbInner = isImg ? (
-      <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+      <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
     ) : (
       <AssetGlyph mime={a.mimeType} className="h-10 w-10 text-muted-foreground" />
     );
@@ -500,7 +507,7 @@ export default function AssetsClient({
       // consistent with the task board's separated cards.
       <div key={a.id} data-asset-item className="flex flex-col overflow-hidden rounded-xl border border-border bg-white/[0.04] shadow-sm transition-colors hover:border-white/20 hover:bg-white/[0.06]">
         {hasFile ? (
-          <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={thumbClass}>
+          <a href={a.viewHref} target="_blank" rel="noopener noreferrer" className={thumbClass}>
             {thumbInner}
           </a>
         ) : (
@@ -536,7 +543,7 @@ export default function AssetsClient({
             <div className="flex shrink-0 items-center gap-0.5">
               {hasFile ? (
                 <>
-                  <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                  <a href={a.viewHref} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
                     className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
                     <Eye className="h-3.5 w-3.5" />
                   </a>
@@ -596,15 +603,20 @@ export default function AssetsClient({
         onClick={() => setActiveId((p) => (p === a.id ? null : a.id))}
         className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
       >
-        <td className="w-9 py-3 pl-4 pr-2" onClick={(e) => e.stopPropagation()}>
+        {/* w-10 = pl-3 (12) + 16px box + pr-3 (12) exactly — table-fixed honors the
+            declared width, so the old w-9/pl-4/pr-2 combo (40px of content in a
+            36px column) collapsed the right gap to ~4px vs 16px on the left. Equal
+            px-3 also puts this column on the same 24px content rhythm as every
+            other column boundary. Keep in sync with the header cell. */}
+        <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={on} onChange={() => toggleSelect(a.id)} aria-label={`Select ${a.title}`}
-            className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+            className="block h-4 w-4 rounded border-gray-600 bg-black accent-white" />
         </td>
-        <td className="py-3 pr-4">
+        <td className="py-3 pl-3 pr-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
-                <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+                <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
               ) : (
                 <AssetGlyph mime={a.mimeType} className="h-4 w-4 text-muted-foreground" />
               )}
@@ -631,7 +643,7 @@ export default function AssetsClient({
           <div className="flex justify-end gap-0.5">
             {hasFile ? (
               <>
-                <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
+                <a href={a.viewHref} target="_blank" rel="noopener noreferrer" title="Open (preview)" aria-label="Open (preview)"
                   className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground">
                   <Eye className="h-3.5 w-3.5" />
                 </a>
@@ -673,7 +685,7 @@ export default function AssetsClient({
 
   // Left browse rail: pick a dimension, then a folder narrows the centre pane.
   const renderRail = () => (
-    <aside className="hidden w-56 shrink-0 flex-col gap-1 border-r border-border p-3 md:flex">
+    <aside className="scroll-themed hidden max-h-[calc(100dvh-59px)] w-56 shrink-0 flex-col gap-1 self-start overflow-y-auto border-r border-border p-3 md:sticky md:top-[59px] md:flex">
       <div className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/70">Browse by</div>
       <div className="mb-2 grid grid-cols-4 gap-0.5 rounded-lg border border-border bg-background/40 p-0.5">
         {BROWSE_OPTIONS.map((o) => (
@@ -717,7 +729,7 @@ export default function AssetsClient({
       ["By", a.uploader ?? (a.readOnly ? "Catalog" : "—")],
     ];
     return (
-      <aside ref={detailRef} className="scroll-themed hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
+      <aside ref={detailRef} className="scroll-themed hidden max-h-[calc(100dvh-59px)] w-72 shrink-0 flex-col gap-4 self-start overflow-y-auto border-l border-border p-5 xl:sticky xl:top-[59px] xl:flex">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Details</span>
           <button
@@ -733,12 +745,12 @@ export default function AssetsClient({
         {(() => {
           const previewClass = "grid aspect-square place-items-center overflow-hidden rounded-xl border border-border bg-black/30";
           const inner = isImg ? (
-            <AssetThumb url={a.fileUrl} className="h-full w-full object-cover" />
+            <AssetThumb url={a.viewHref} className="h-full w-full object-cover" />
           ) : (
             <AssetGlyph mime={a.mimeType} className="h-12 w-12 text-muted-foreground" />
           );
           return hasFile ? (
-            <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" className={previewClass}>{inner}</a>
+            <a href={a.viewHref} target="_blank" rel="noopener noreferrer" className={previewClass}>{inner}</a>
           ) : (
             <div className={previewClass}>{inner}</div>
           );
@@ -756,7 +768,7 @@ export default function AssetsClient({
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-white text-xs font-medium text-black hover:bg-gray-200">
                 <Download className="h-3.5 w-3.5" /> Download
               </a>
-              <a href={a.fileUrl} target="_blank" rel="noopener noreferrer"
+              <a href={a.viewHref} target="_blank" rel="noopener noreferrer"
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium hover:bg-white/5">
                 <Eye className="h-3.5 w-3.5" /> Open
               </a>
@@ -792,10 +804,11 @@ export default function AssetsClient({
   };
 
   return (
-    // Keep the file-manager panel full-height, but drop the horizontal breakout
-    // so it sits inside the admin content padding like every other page (was
-    // -mx-4/-mx-8, which pushed the card flush to the screen edges).
-    <div className="flex h-[calc(100dvh-6rem)] flex-col -mb-6 md:-mb-8">
+    // Natural page flow — the PAGE scrolls (scrollbar on the black background,
+    // like Releases/Artists/Tasks), not the grey card. The old viewport-fixed
+    // frame (h-[calc(100dvh-6rem)] + inner overflow-y-auto) put the scrollbar
+    // INSIDE the card and out of step with every other admin section.
+    <div className="flex flex-col">
       <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -832,7 +845,7 @@ export default function AssetsClient({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex rounded-xl border border-border bg-card">
         {renderRail()}
         <main className="flex min-w-0 flex-1 flex-col">
           {selected.size > 0 ? (
@@ -845,7 +858,7 @@ export default function AssetsClient({
               <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
           ) : null}
-          <div className="scroll-themed min-h-0 flex-1 overflow-y-auto">
+          <div className="min-w-0 flex-1">
             {rows.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
                 {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
@@ -856,11 +869,15 @@ export default function AssetsClient({
               </div>
             ) : (
               <table className="w-full table-fixed border-collapse text-sm">
-                <thead className="sticky top-0 z-[1] bg-card">
+                {/* top-[59px] = the admin topbar (sticky, z-30) height, so the
+                    header pins just beneath it while the PAGE scrolls. */}
+                <thead className="sticky top-[59px] z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-9 py-2.5 pl-4 pr-2">
+                    {/* Same w-10/px-3 geometry as the row cells (see renderRow) so the
+                        select-all box sits in exactly the same column as every row box. */}
+                    <th className="w-10 px-3 py-2.5">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
-                        className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+                        className="block h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
                     {/* Progressive columns: on phones only Name (+ actions) show; size/date
                         appear at sm, Type at md, Release/Artist at lg. `hideable` columns

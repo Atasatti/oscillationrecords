@@ -32,6 +32,30 @@ function ingestTarget(): { url: string; secret?: string } | null {
   };
 }
 
+/**
+ * True for the "the client went away" family of errors — a browser navigating,
+ * closing a tab, or cancelling a fetch while a request is still in flight.
+ *
+ * Node raises these on the server, and a long-lived Next server (dev, or a local
+ * `next build && next start`) surfaces them as `uncaughtException`, which it logs
+ * through console.error — so without this filter the patch below records them as
+ * server errors. They aren't: nothing in the app failed, and the request was
+ * already answered or abandoned by the only party that cared. Left in, one of
+ * them sits permanently "Live" on the Errors page with a rising count, which is
+ * exactly the noise this module exists to keep out.
+ *
+ * Deliberately narrow. A bare `Error: aborted` carrying ECONNRESET is Node's
+ * request-teardown signature; an ECONNRESET while *we* call an upstream API
+ * reads differently ("fetch failed", "socket hang up") and is still reported.
+ */
+export function isClientDisconnect(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === "ECONNRESET" && err.message === "aborted") return true;
+  if (code === "ERR_STREAM_PREMATURE_CLOSE") return true;
+  return false;
+}
+
 function report(payload: {
   message: string;
   stack?: string | null;
@@ -72,6 +96,9 @@ export async function register(): Promise<void> {
       const err = args.find((a): a is Error => a instanceof Error);
       if (!err) return;
 
+      // A client that navigated away mid-request is not an application error.
+      if (isClientDisconnect(err)) return;
+
       const prefix = args.filter((a): a is string => typeof a === "string").join(" ");
       const message = (prefix ? `${prefix} ` : "") + err.message;
 
@@ -111,6 +138,8 @@ export async function onRequestError(
     if (path.startsWith("/api/error-log") || path.startsWith("/api/admin/error-log")) {
       return;
     }
+    // Same reasoning as the console patch: a cancelled request isn't a fault.
+    if (isClientDisconnect(err)) return;
     const e = (err ?? {}) as { message?: string; stack?: string; digest?: string };
     report({
       message: e.message || "Server error",

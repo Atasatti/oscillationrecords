@@ -96,19 +96,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve the listener: a logged-in user, else the first-party visitor cookie.
+    // Attribute to the account only if it still exists. This used to CREATE the
+    // user row when none was found, so a play beacon from a deleted account's
+    // still-valid token silently resurrected it. A token with no account now
+    // falls through to the anonymous visitor cookie, exactly like a logged-out
+    // listener — a beacon must never be an account-creation path.
     let userId: string | null = null;
     if (token?.email) {
-      let user = await prisma.user.findUnique({ where: { email: token.email as string } });
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email: token.email as string,
-            name: token.name as string,
-            image: token.picture as string,
-          },
-        });
-      }
-      userId = user.id;
+      const user = await prisma.user.findUnique({
+        where: { email: token.email as string },
+        select: { id: true },
+      });
+      userId = user?.id ?? null;
     }
 
     // Consented, but nothing to attribute the event to (no logged-in user and no

@@ -121,8 +121,10 @@ export default function AccountPage() {
           <div className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-lg font-medium text-white">Download your data</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Get a JSON copy of your account, profile, listening history, and any
-              competition entry or newsletter signup.
+              Get a JSON copy of everything we hold about you — your account and
+              profile, listening and browsing history, any competition entry or
+              newsletter signup, messages you&rsquo;ve sent us, and anything
+              recorded against you in the admin.
             </p>
             <Button asChild variant="outline" className="mt-4">
               <a href="/api/account/export">
@@ -135,9 +137,17 @@ export default function AccountPage() {
           <div className="rounded-xl border border-red-500/30 bg-red-500/[0.03] p-6">
             <h2 className="text-lg font-medium text-white">Delete your account</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Permanently delete your account and all associated data — profile,
-              listening history, competition entry, and newsletter signup. This
+              Permanently deletes your account, profile, listening and browsing
+              history, competition entry (including any audio you uploaded) and
+              newsletter signup. Messages you sent us and anything you wrote in the
+              admin are kept, with your name and email removed from them. This
               cannot be undone.
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              One exception: our security audit log keeps a record of admin actions
+              — including who performed them — for 24 months, so the trail can&rsquo;t
+              be erased by deleting an account. Download your data first if you want
+              a copy; the export includes those entries.
             </p>
             <Button
               variant="destructive"
@@ -156,8 +166,10 @@ export default function AccountPage() {
           <DialogHeader>
             <DialogTitle>Delete your account?</DialogTitle>
             <DialogDescription>
-              This permanently deletes your account and all data we hold about you.
-              This cannot be undone.
+              This permanently deletes your account, profile, history, competition
+              entry and newsletter signup. Messages and admin activity are kept
+              with your name and email removed; security audit entries are kept for
+              24 months. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

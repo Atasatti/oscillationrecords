@@ -4,11 +4,18 @@ import Image from "next/image";
 import React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { usePageMedia } from "@/hooks/use-page-media";
+import { DEFAULT_PAGE_MEDIA } from "@/lib/page-media-defaults";
 
 const AboutHeroSection = () => {
-  const { aboutHero, bgHero } = usePageMedia();
+  const { aboutHeadingLogo, aboutHero, bgHero } = usePageMedia();
   // Reduced-motion users get the static composition (no infinite spin/float).
   const reduced = useReducedMotion();
+  // If an admin-uploaded logo can no longer load (object deleted from S3, bad
+  // URL), fall back to the built-in brand mark instead of a broken image in the
+  // middle of the heading. Reset when the configured logo changes.
+  const [logoBroken, setLogoBroken] = React.useState(false);
+  React.useEffect(() => setLogoBroken(false), [aboutHeadingLogo]);
+  const logoSrc = logoBroken ? DEFAULT_PAGE_MEDIA.aboutHeadingLogo : aboutHeadingLogo;
   return (
     <div
       className="bg-background bg-center bg-no-repeat px-[10%] w-full mx-auto py-14"
@@ -34,11 +41,17 @@ const AboutHeroSection = () => {
               animate={reduced ? undefined : { y: [0, -8, 0, 8, 0] }}
               transition={reduced ? undefined : { duration: 4, repeat: Infinity, ease: "easeInOut" }}
             >
+              {/* object-contain in a fixed square keeps any logo shape aligned
+                  with the heading text; the optimizer preserves PNG/WebP alpha,
+                  and the built-in /public default is served as-is (same pattern
+                  as aboutHero below). */}
               <Image
-                src="/logo-icon.svg"
+                src={logoSrc}
                 alt="Oscillation Records logo"
                 fill
                 className="object-contain"
+                unoptimized={logoSrc.startsWith("/")}
+                onError={() => setLogoBroken(true)}
               />
             </motion.div>
           </div>

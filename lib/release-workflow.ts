@@ -42,10 +42,24 @@ export const RELEASE_STEP_SLUG_BY_N: Record<number, ReleaseStepSlug> = {
   5: "money",
 };
 
-/** Deep link to a release editor step, e.g. releaseEditHref(id, "budget"). */
-export function releaseEditHref(releaseId: string, step?: ReleaseStepSlug): string {
+/**
+ * What a deep link into a step should open once it gets there. The step alone
+ * lands you on the right screen; `focus` says which part of it to unfold — e.g.
+ * the Releases list's lyrics badge wants step 2 with the lyrics fields already
+ * open on the tracks that are missing them.
+ */
+export type ReleaseStepFocus = "lyrics";
+
+/** Deep link to a release editor step, e.g. releaseEditHref(id, "budget") or
+ *  releaseEditHref(id, "tracks", "lyrics"). */
+export function releaseEditHref(
+  releaseId: string,
+  step?: ReleaseStepSlug,
+  focus?: ReleaseStepFocus
+): string {
   const base = `/admin/releases/${releaseId}/edit`;
-  return step ? `${base}?step=${step}` : base;
+  if (!step) return base;
+  return focus ? `${base}?step=${step}&focus=${focus}` : `${base}?step=${step}`;
 }
 
 export type WorkflowRelease = {

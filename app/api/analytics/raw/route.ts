@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import {
+  canReadAnalyticsPii,
+  logAnalyticsPiiAccess,
+  pseudonymize,
+} from "@/lib/analytics-privacy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +24,14 @@ export async function GET(request: NextRequest) {
   try {
     const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
+
+    // This endpoint is the "everything we store" inspector, so it's where the
+    // identifiable/aggregate split matters most: live sessions labelled with who
+    // is browsing, the newest signups with their emails, and the newest
+    // newsletter subscribers. Owner-only; everyone else gets pseudonyms and no
+    // signup/subscriber lists at all.
+    const showPii = await canReadAnalyticsPii(request);
+    if (showPii) await logAnalyticsPiiAccess(request, guard.token, "raw-inspector");
 
     const now = new Date();
     const liveSince = new Date(now.getTime() - 5 * 60 * 1000);
@@ -151,8 +164,20 @@ export async function GET(request: NextRequest) {
       ? await prisma.user.findMany({ where: { id: { in: Array.from(userIds) } }, select: { id: true, name: true, email: true } })
       : [];
     const userMap = new Map(userRecords.map((u) => [u.id, u.name || u.email || "Member"]));
-    const who = (r: { userId: string | null; visitorId: string | null }) =>
-      r.userId ? userMap.get(r.userId) || "Member" : r.visitorId ? "Anonymous" : "Unknown";
+    // Who is on the site right now. With analytics:pii that's a real name or
+    // email; without it, a stable pseudonym — the live/visit lists still show
+    // distinct people and returning visitors, just not which people.
+    const who = (r: { userId: string | null; visitorId: string | null }) => {
+      if (showPii) {
+        return r.userId ? userMap.get(r.userId) || "Member" : r.visitorId ? "Anonymous" : "Unknown";
+      }
+      if (r.userId) return pseudonymize(r.userId, "Member");
+      return r.visitorId ? pseudonymize(r.visitorId, "Visitor") : "Unknown";
+    };
+    // City pinpoints a named-or-pseudonymous person in real time, so it is
+    // owner-only here. Country stays for everyone (coarse, and the aggregate
+    // country/city breakdowns on the dashboard are untouched).
+    const place = (city: string | null) => (showPii ? city : null);
 
     // Live presence: group recent (≤5 min) activity by session (or visitor/user).
     type Live = { key: string; who: string; lastPath: string | null; country: string | null; city: string | null; when: Date };
@@ -165,7 +190,7 @@ export async function GET(request: NextRequest) {
       if (!key) return;
       const existing = liveMap.get(key);
       if (!existing || r.createdAt > existing.when) {
-        liveMap.set(key, { key: short(key)!, who: who(r), lastPath: path ?? existing?.lastPath ?? null, country: r.country, city: r.city, when: r.createdAt });
+        liveMap.set(key, { key: short(key)!, who: who(r), lastPath: path ?? existing?.lastPath ?? null, country: r.country, city: place(r.city), when: r.createdAt });
       }
     };
     livePageViews.forEach((r) => consider(r, r.path));
@@ -190,7 +215,7 @@ export async function GET(request: NextRequest) {
       if (!existing) {
         visitMap.set(key, {
           key: short(key)!, who: who(r), lastPath: r.path, pages: 1,
-          country: r.country, city: r.city, lastAt: r.createdAt,
+          country: r.country, city: place(r.city), lastAt: r.createdAt,
         });
       } else {
         existing.pages += 1;
@@ -211,21 +236,27 @@ export async function GET(request: NextRequest) {
       recentVisits,
       recentPlays: recentPlays.map((r) => ({
         id: r.id, contentType: r.contentType, contentName: r.contentName, artistName: r.artistName,
-        completed: r.completed, country: r.country, city: r.city, session: short(r.sessionId),
+        completed: r.completed, country: r.country, city: place(r.city), session: short(r.sessionId),
         who: who(r), createdAt: r.createdAt,
       })),
       recentClicks: recentClicks.map((r) => ({
         id: r.id, context: r.context, contextName: r.contextName, linkType: r.linkType,
         session: short(r.sessionId), visitor: short(r.visitorId), createdAt: r.createdAt,
       })),
+      // Newest signups and newsletter subscribers are nothing BUT identity —
+      // there is no useful pseudonymized version of "here are ten people's email
+      // addresses" — so they're omitted entirely without analytics:pii. The
+      // counts above (users, subscribers) still convey the growth signal.
       // User has no createdAt column — derive it from the Mongo ObjectId timestamp.
-      recentSignups: recentSignups.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        createdAt: new Date(parseInt(u.id.slice(0, 8), 16) * 1000).toISOString(),
-      })),
-      recentSubscribers,
+      recentSignups: showPii
+        ? recentSignups.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            createdAt: new Date(parseInt(u.id.slice(0, 8), 16) * 1000).toISOString(),
+          }))
+        : [],
+      recentSubscribers: showPii ? recentSubscribers : [],
     });
   } catch (error) {
     console.error("Error fetching raw data:", error);

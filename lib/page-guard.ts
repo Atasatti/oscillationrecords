@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/auth-session";
-import { roleCan, type Permission } from "@/lib/permissions";
+import { isStaffRole, roleCan, type Permission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -37,4 +37,30 @@ export async function requirePagePermission(permission: Permission): Promise<voi
     console.error("requirePagePermission: role lookup failed", e);
   }
   redirect("/admin");
+}
+
+/**
+ * Revocation-aware "is this account still staff?" for admin pages that middleware
+ * admits on staff-membership alone (no specific permission). Same reasoning as
+ * requirePagePermission: middleware reads the 30-day JWT's cached role, so
+ * without this a demoted account gets one last server render of internal data.
+ *
+ * Use for pages with no narrower permission of their own; anything mapped to a
+ * Permission in middleware.ts should use requirePagePermission with that
+ * permission instead, so the page and its API agree. Fails closed.
+ */
+export async function requirePageStaff(): Promise<void> {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) redirect("/login");
+
+  if (isAdminEmail(email)) return;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+    if (isStaffRole(user?.role)) return;
+  } catch (e) {
+    console.error("requirePageStaff: role lookup failed", e);
+  }
+  redirect("/");
 }

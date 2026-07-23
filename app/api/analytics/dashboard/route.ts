@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
+import {
+  canReadAnalyticsPii,
+  logAnalyticsPiiAccess,
+  pseudonymize,
+} from "@/lib/analytics-privacy";
 import { canonicalCountry } from "@/lib/country";
 
 // Force dynamic rendering - prevent static generation
@@ -17,6 +22,9 @@ export async function GET(request: NextRequest) {
   try {
     const guard = await requirePermission(request, "analytics:read");
     if (!guard.ok) return guard.response;
+
+    const showPii = await canReadAnalyticsPii(request);
+    if (showPii) await logAnalyticsPiiAccess(request, guard.token, "dashboard");
 
     const { searchParams } = new URL(request.url);
     const daysRaw = parseInt(searchParams.get("days") || "30", 10);
@@ -322,11 +330,17 @@ export async function GET(request: NextRequest) {
       campaigns,
       demographics: { gender, ageRange },
       geography: { topCountries: topList(countryMap, 50), topCities: topList(cityMap, 50) },
+      // The only identifiable part of this response: a feed of "who played what,
+      // when". Everything above it — totals, trends, top content, demographic
+      // COUNTS, country/city counts — is already aggregate and unchanged for
+      // every role. Without analytics:pii the listener becomes a stable pseudonym.
       recentPlays: events.slice(0, 60).map((e) => {
         const u = e.userId ? userMap.get(e.userId) : null;
         return {
         id: e.id,
-        userName: u?.name || u?.email || "Anonymous visitor",
+        userName: showPii
+          ? u?.name || u?.email || "Anonymous visitor"
+          : pseudonymize(e.userId || (e.visitorId ? `v:${e.visitorId}` : null)),
         anonymous: !e.userId,
         contentType: e.contentType,
         contentName: e.contentName,

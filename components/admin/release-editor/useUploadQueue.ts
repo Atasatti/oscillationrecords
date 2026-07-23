@@ -76,6 +76,7 @@ export function useUploadQueue(onComplete: (c: UploadComplete) => void) {
           body: JSON.stringify({
             audioFileName: objectKey,
             audioFileType: file.type || "application/octet-stream",
+            size: file.size,
           }),
         });
         if (!res.ok) throw new Error(await readError(res, "Couldn't start the upload"));

@@ -39,11 +39,14 @@ interface LoadedRelease {
 export default function TracklistEditor({
   releaseId,
   highlightIsrc = null,
+  focusLyrics = false,
   showPublishPanel = false,
 }: {
   releaseId: string;
   /** Deep-link: highlight tracks sharing this ISRC ("none" = tracks with no ISRC). */
   highlightIsrc?: string | null;
+  /** Deep-link: expand every track missing lyrics with its lyrics editor open. */
+  focusLyrics?: boolean;
   /** Show the publish/schedule panel below the list (the standalone page does). */
   showPublishPanel?: boolean;
 }) {
@@ -126,6 +129,7 @@ export default function TracklistEditor({
           releaseIsLive={release.releaseIsLive}
           initialTracks={release.initialTracks}
           highlightIsrc={highlightIsrc}
+          focusLyrics={focusLyrics}
           onUnsavedChange={setTracksUnsaved}
           onActivityChange={setTracksBusy}
           onValidityChange={setValidity}

@@ -48,6 +48,90 @@ export function keyHasPrefix(key: string, prefixes: readonly string[]): boolean 
   return prefixes.some((p) => key.startsWith(p));
 }
 
+// ---------------------------------------------------------------------------
+// Public vs PRIVATE object classification (audit #1).
+//
+// The bucket serves public site media (cover art, artist/press images, released
+// audio) anonymously, but everything below is sensitive — legal contracts, DAM
+// masters/stems/EPKs, contact-form attachments, internal task attachments and
+// competition entries. Those prefixes are NOT anonymously readable (see the
+// bucket policy in docs/superpowers/specs/2026-07-16-s3-private-assets-design.md);
+// they're only reachable through GET /api/assets/download, which authorizes the
+// caller per prefix and then 302s to a 5-minute presigned GET.
+//
+// Anything emitting a link to a stored file must go through assetViewHref() /
+// assetDownloadHref() below rather than publicFileUrl(), so a private object's
+// raw bucket URL never reaches a page, an API response or a log.
+// ---------------------------------------------------------------------------
+export const PRIVATE_KEY_PREFIXES = [
+  "assets/", // DAM uploads: masters, stems, EPKs, documents
+  "benert-remix/", // competition entries (entrant's own audio)
+  "contact/", // contact-form attachments (public submitters' files)
+  "documents/",
+  "quarantine/", // orphan-sweep holding area (scripts/cleanup-orphaned-audio.mjs)
+  "releases/agreements/", // signed contracts / licence scans
+  "task-attachments/", // internal task files
+  "tracks/stems/",
+] as const;
+
+/** True when `key` must never be anonymously readable. */
+export function isPrivateAssetKey(key: string): boolean {
+  return PRIVATE_KEY_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/** True for one of OUR bucket URLs that points at a private object. */
+export function isPrivateAssetUrl(url: unknown): boolean {
+  const key = keyFromOwnBucketUrl(url);
+  return key !== null && isPrivateAssetKey(key);
+}
+
+/** The competition-entry key prefix owned by one user (`sub` = JWT subject).
+ *  Presign, upload-complete and the download shim all derive ownership from it,
+ *  so it lives here as the single definition. */
+export function benertUserKeyPrefix(sub: unknown): string | null {
+  const safeSub = String(sub || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 64);
+  return safeSub ? `benert-remix/${safeSub}/` : null;
+}
+
+/** Same-origin shim href that authorizes the caller and then presigns a GET. */
+export function assetDownloadHref(
+  url: string,
+  name?: string | null,
+  disposition: "attachment" | "inline" = "attachment"
+): string {
+  const q = new URLSearchParams({ url });
+  if (name) q.set("name", name);
+  if (disposition === "inline") q.set("disposition", "inline");
+  return `/api/assets/download?${q.toString()}`;
+}
+
+/**
+ * The href to OPEN or render a stored file: the direct bucket URL for public
+ * media (CDN-cacheable, `next/image`-optimizable), and the authorization-gated
+ * shim for a private object. Use this everywhere a stored URL is rendered.
+ */
+export function assetViewHref(url: string, name?: string | null): string {
+  return isPrivateAssetUrl(url) ? assetDownloadHref(url, name, "inline") : url;
+}
+
+// ---------------------------------------------------------------------------
+// Upload size caps, signed into every presigned PUT (#6 hardening, extended).
+// The presign binds ContentLength, so S3 itself rejects a PUT whose body size
+// differs from what was declared — a client can no longer strip the browser-side
+// check and upload an arbitrarily large object with a valid signature. Domain
+// caps (task attachments 25MB, agreements 50MB, contact 100MB, DAM 1GB) live
+// with their features; these two cover the catalog media routes.
+// ---------------------------------------------------------------------------
+export const MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024; // covers / press / site imagery
+export const MAX_CATALOG_AUDIO_BYTES = 1024 * 1024 * 1024; // masters & stems (1 GB)
+
+/** Parse a client-declared upload size: a positive integer ≤ max, else null. */
+export function parseUploadSize(v: unknown, max: number): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  if (!Number.isInteger(n) || n <= 0 || n > max) return null;
+  return n;
+}
+
 export function isAudioContentType(t: unknown): boolean {
   return typeof t === "string" && /^audio\//i.test(t);
 }
