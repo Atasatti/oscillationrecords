@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { S3_BUCKET, s3Client, s3Configured, sanitizeKey, publicFileUrl } from "@/lib/s3";
-import { isAllowedContactAttachmentType } from "@/lib/contact-input";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
+import { S3_BUCKET, parseUploadSize, s3Client, s3Configured, sanitizeKey, publicFileUrl } from "@/lib/s3";
+import { isAllowedContactAttachmentType, MAX_CONTACT_ATTACHMENT_BYTES } from "@/lib/contact-input";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,7 +15,9 @@ export const runtime = "nodejs";
 // client can't dictate the path). The TRUE size + type are enforced later,
 // server-side, by HEAD-validation in POST /api/contact — this only gates the type.
 export async function POST(request: NextRequest) {
-  const rl = rateLimit(`contact-upload:${clientIp(request)}`, 20, 60_000);
+  // ANONYMOUS endpoint — the one where cross-instance limiting matters most,
+  // so it uses the shared (DB-backed) limiter rather than the per-process one.
+  const rl = await rateLimitShared(`contact-upload:${clientIp(request)}`, 20, 60_000);
   if (!rl.ok) {
     return NextResponse.json(
       { error: "Too many uploads. Please try again shortly." },
@@ -40,10 +43,20 @@ export async function POST(request: NextRequest) {
     if (!base) return NextResponse.json({ error: "Invalid file name" }, { status: 400 });
     const key = `contact/${crypto.randomUUID()}/${base}`;
 
+    // Sign-time size binding (100 MB, matching the submit-time HEAD check): an
+    // anonymous caller can no longer PUT an arbitrarily large object.
+    const size = parseUploadSize(body.size, MAX_CONTACT_ATTACHMENT_BYTES);
+    if (size === null) {
+      return NextResponse.json(
+        { error: "size (bytes, up to 100 MB) is required" },
+        { status: 400 }
+      );
+    }
+
     const uploadURL = await getSignedUrl(
       s3Client,
-      new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: fileType }),
-      { expiresIn: 3600 }
+      new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: fileType, ContentLength: size }),
+      { expiresIn: 900 }
     );
 
     return NextResponse.json({ uploadURL, fileURL: publicFileUrl(key) });

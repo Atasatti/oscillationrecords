@@ -279,7 +279,7 @@ export default function ReleaseEditor({
     const response = await fetch("/api/upload/presigned-url-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageFileName, imageFileType: file.type }),
+      body: JSON.stringify({ imageFileName, imageFileType: file.type, size: file.size }),
     });
     if (!response.ok) {
       throw new Error(await readError(response, "Failed to get cover upload URL"));

@@ -21,7 +21,7 @@ async function uploadImage(file: File): Promise<string> {
   const presign = await fetch("/api/upload/presigned-url-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageFileName: name, imageFileType: file.type }),
+    body: JSON.stringify({ imageFileName: name, imageFileType: file.type, size: file.size }),
   });
   if (!presign.ok) {
     const err = await presign.json().catch(() => ({}));

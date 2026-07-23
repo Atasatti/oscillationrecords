@@ -369,7 +369,7 @@ export default function AssetsClient({
         const pres = await fetch("/api/assets/presign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: file.name, fileType: file.type || "application/octet-stream", category: uploadCategory }),
+          body: JSON.stringify({ fileName: file.name, fileType: file.type || "application/octet-stream", category: uploadCategory, size: file.size }),
         });
         if (!pres.ok) {
           const j = await pres.json().catch(() => ({}));

@@ -733,7 +733,7 @@ function TaskAttachments({ taskId, initial, onChange }: { taskId: string; initia
     if (file.size > MAX_ATTACHMENT_BYTES) { toast.error("File too large (max 25MB)"); return; }
     setUploading(true);
     try {
-      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type }) });
+      const p = await fetch("/api/upload/task-attachment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileType: type, size: file.size }) });
       if (!p.ok) { const d = await p.json().catch(() => ({})); throw new Error(d.error || "Upload not allowed"); }
       const { uploadURL, fileURL } = await p.json();
       const put = await fetch(uploadURL, { method: "PUT", headers: { "Content-Type": type }, body: file });

@@ -114,6 +114,24 @@ export function assetViewHref(url: string, name?: string | null): string {
   return isPrivateAssetUrl(url) ? assetDownloadHref(url, name, "inline") : url;
 }
 
+// ---------------------------------------------------------------------------
+// Upload size caps, signed into every presigned PUT (#6 hardening, extended).
+// The presign binds ContentLength, so S3 itself rejects a PUT whose body size
+// differs from what was declared — a client can no longer strip the browser-side
+// check and upload an arbitrarily large object with a valid signature. Domain
+// caps (task attachments 25MB, agreements 50MB, contact 100MB, DAM 1GB) live
+// with their features; these two cover the catalog media routes.
+// ---------------------------------------------------------------------------
+export const MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024; // covers / press / site imagery
+export const MAX_CATALOG_AUDIO_BYTES = 1024 * 1024 * 1024; // masters & stems (1 GB)
+
+/** Parse a client-declared upload size: a positive integer ≤ max, else null. */
+export function parseUploadSize(v: unknown, max: number): number | null {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  if (!Number.isInteger(n) || n <= 0 || n > max) return null;
+  return n;
+}
+
 export function isAudioContentType(t: unknown): boolean {
   return typeof t === "string" && /^audio\//i.test(t);
 }

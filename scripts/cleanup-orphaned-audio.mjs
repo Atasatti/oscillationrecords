@@ -40,16 +40,27 @@ import {
 
 const APPLY = process.argv.includes("--apply");
 
-// Every prefix that holds catalog audio, including the legacy pre-unification
-// upload paths. Stems are under tracks/stems/ (already private) — included so
-// orphaned stems get swept too.
+// Every prefix where a presigned upload can land and later be abandoned —
+// catalog audio (incl. legacy pre-unification paths) plus the attachment/DAM
+// namespaces. An "abandoned" upload here = presigned PUT completed but the
+// form/record step never did, so nothing references the object.
 const AUDIO_PREFIXES = [
   "tracks/audio/",
   "tracks/stems/",
   "singles/audio/",
   "eps/audio/",
   "albums/audio/",
+  "assets/", // DAM presign whose register step never ran
+  "contact/", // contact-form attachments never submitted
+  "task-attachments/", // uploaded but never attached to a task
+  "releases/agreements/", // uploaded but never saved into terms
+  "site/page-media/", // uploaded but never saved to page media
 ];
+
+// Never touch objects younger than this: a presigned upload legitimately sits
+// unreferenced between the PUT and the form/record submit. Two days is far
+// beyond any real form session while still sweeping genuinely abandoned files.
+const MIN_AGE_MS = 48 * 60 * 60 * 1000;
 
 const QUARANTINE_PREFIX = "quarantine/";
 const QUARANTINE_EXPIRY_DAYS = 30;
@@ -130,6 +141,8 @@ async function main() {
       const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix, ContinuationToken: token }));
       for (const o of r.Contents ?? []) {
         if (referenced.has(o.Key)) live += 1;
+        // Age guard: an upload mid-form is unreferenced but NOT abandoned.
+        else if (o.LastModified && Date.now() - o.LastModified.getTime() < MIN_AGE_MS) live += 1;
         else orphans.push({ key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified });
       }
       token = r.NextContinuationToken;

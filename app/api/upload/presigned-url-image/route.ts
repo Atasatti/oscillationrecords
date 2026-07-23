@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requirePermission } from "@/lib/auth-guard";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
 import {
   S3_BUCKET,
   CATALOG_IMAGE_PREFIXES,
   isImageContentType,
   keyHasPrefix,
+  MAX_IMAGE_UPLOAD_BYTES,
+  parseUploadSize,
   publicFileUrl,
   s3Client,
   s3Configured,
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Per-user presign rate-limit (curbs storage/cost abuse from a compromised
     // catalog session), matching the sibling presigned-urls / task-attachment routes.
-    const rl = rateLimit(`presign-img:${guard.token.sub}`, 60, 60_000);
+    const rl = await rateLimitShared(`presign-img:${guard.token.sub}`, 60, 60_000);
     if (!rl.ok) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -66,14 +68,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sign-time size binding: S3 rejects a PUT whose Content-Length differs
+    // from the declared size, so the cap cannot be stripped client-side.
+    const size = parseUploadSize(body.size, MAX_IMAGE_UPLOAD_BYTES);
+    if (size === null) {
+      return NextResponse.json(
+        { error: "size (bytes, up to 25 MB) is required" },
+        { status: 400 }
+      );
+    }
+
     const uploadURL = await getSignedUrl(
       s3Client,
       new PutObjectCommand({
         Bucket: S3_BUCKET,
         Key: key,
         ContentType: imageFileType,
+        ContentLength: size,
       }),
-      { expiresIn: 3600 }
+      { expiresIn: 900 }
     );
 
     return NextResponse.json({

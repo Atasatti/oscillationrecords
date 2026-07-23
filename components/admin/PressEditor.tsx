@@ -228,7 +228,7 @@ export default function PressEditor({
     const presign = await fetch("/api/upload/presigned-url-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageFileName, imageFileType: file.type }),
+      body: JSON.stringify({ imageFileName, imageFileType: file.type, size: file.size }),
     });
     if (!presign.ok) throw new Error("Failed to get upload URL");
     const { uploadURL, fileURL } = await presign.json();

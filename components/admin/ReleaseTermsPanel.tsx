@@ -125,7 +125,7 @@ export default function ReleaseTermsPanel({ releaseId }: { releaseId: string }) 
           pres = await fetch(`/api/releases/${releaseId}/agreement/presign`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileName: file.name, fileType: type }),
+            body: JSON.stringify({ fileName: file.name, fileType: type, size: file.size }),
           });
         } catch {
           toast.error(`Couldn't reach the server to upload "${file.name}".`);

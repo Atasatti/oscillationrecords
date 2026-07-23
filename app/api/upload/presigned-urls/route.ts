@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireUser, requirePermission } from "@/lib/auth-guard";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitShared } from "@/lib/rate-limit-shared";
 import {
   S3_BUCKET,
   benertUserKeyPrefix,
@@ -11,11 +11,19 @@ import {
   isAudioContentType,
   isImageContentType,
   keyHasPrefix,
+  MAX_CATALOG_AUDIO_BYTES,
+  MAX_IMAGE_UPLOAD_BYTES,
+  parseUploadSize,
   publicFileUrl,
   s3Client,
   s3Configured,
   sanitizeKey,
 } from "@/lib/s3";
+
+// Presigned PUTs are minted moments before the browser starts uploading, so a
+// short validity window costs nothing and shrinks how long a leaked URL works.
+// (The upload only has to START before expiry; an in-flight PUT completes.)
+const PRESIGN_EXPIRY_S = 900;
 
 // Force dynamic rendering - prevent static generation
 export const dynamic = "force-dynamic";
@@ -50,8 +58,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate-limit presign issuance per user for EVERY caller (admin included) to
-    // curb storage/cost abuse from a compromised session.
-    const rl = rateLimit(`presign:${guard.token.sub}`, isAdmin ? 60 : 20, 60_000);
+    // curb storage/cost abuse from a compromised session. Shared (DB-backed)
+    // so the limit holds across serverless instances and deploys.
+    const rl = await rateLimitShared(`presign:${guard.token.sub}`, isAdmin ? 60 : 20, 60_000);
     if (!rl.ok) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -85,10 +94,11 @@ export async function POST(request: NextRequest) {
     }
 
     let audioKey = sanitizedAudio;
-    // When set, the presign is bound to this exact Content-Length so the browser's
-    // PUT can't exceed it. Enforced for the untrusted competition path; admin
-    // catalog uploads (trusted, rate-limited) keep the current unbound behaviour.
-    let audioContentLength: number | undefined;
+    // The presign is bound to this exact Content-Length so the PUT can't exceed
+    // it — for EVERY caller now, not just competition entrants: an unbound
+    // signature let anyone with a session upload arbitrarily large objects by
+    // skipping the client-side check.
+    let audioContentLength: number;
 
     // Untrusted (non-admin) users may only upload audio, and the SERVER owns the
     // key: we discard the client's path and force `benert-remix/<userId>/<name>`.
@@ -108,11 +118,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
       }
       audioKey = `${ownPrefix}${base}`;
-    } else if (!keyHasPrefix(audioKey, CATALOG_AUDIO_PREFIXES)) {
-      // Admin audio keys are client-supplied — confine them to the tracks/ namespace
-      // so a catalog session can't sign a PUT to an arbitrary key (#26). Non-admin
-      // keys are already server-forced to the competition prefix above.
-      return NextResponse.json({ error: "audioFileName must be under an allowed path" }, { status: 400 });
+    } else {
+      if (!keyHasPrefix(audioKey, CATALOG_AUDIO_PREFIXES)) {
+        // Admin audio keys are client-supplied — confine them to the tracks/ namespace
+        // so a catalog session can't sign a PUT to an arbitrary key (#26). Non-admin
+        // keys are already server-forced to the competition prefix above.
+        return NextResponse.json({ error: "audioFileName must be under an allowed path" }, { status: 400 });
+      }
+      // Catalog uploads get the same sign-time size binding as the competition
+      // path, with a cap sized for lossless masters/stems.
+      const size = parseUploadSize(declaredSize, MAX_CATALOG_AUDIO_BYTES);
+      if (size === null) {
+        return NextResponse.json(
+          { error: "size (bytes, up to 1 GB) is required" },
+          { status: 400 }
+        );
+      }
+      audioContentLength = size;
     }
 
     const results: {
@@ -128,9 +150,9 @@ export async function POST(request: NextRequest) {
         Bucket: S3_BUCKET,
         Key: audioKey,
         ContentType: audioFileType,
-        ...(audioContentLength !== undefined ? { ContentLength: audioContentLength } : {}),
+        ContentLength: audioContentLength,
       }),
-      { expiresIn: 3600 }
+      { expiresIn: PRESIGN_EXPIRY_S }
     );
 
     results.audio = {
@@ -155,14 +177,22 @@ export async function POST(request: NextRequest) {
       if (!keyHasPrefix(imageKey, CATALOG_IMAGE_PREFIXES)) {
         return NextResponse.json({ error: "imageFileName must be under an allowed path" }, { status: 400 });
       }
+      const imageSize = parseUploadSize(body.imageSize, MAX_IMAGE_UPLOAD_BYTES);
+      if (imageSize === null) {
+        return NextResponse.json(
+          { error: "imageSize (bytes, up to 25 MB) is required" },
+          { status: 400 }
+        );
+      }
       const imageUploadURL = await getSignedUrl(
         s3Client,
         new PutObjectCommand({
           Bucket: S3_BUCKET,
           Key: imageKey,
           ContentType: imageFileType,
+          ContentLength: imageSize,
         }),
-        { expiresIn: 3600 }
+        { expiresIn: PRESIGN_EXPIRY_S }
       );
       results.image = {
         uploadURL: imageUploadURL,

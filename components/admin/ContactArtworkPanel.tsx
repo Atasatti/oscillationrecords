@@ -48,7 +48,7 @@ export default function ContactArtworkPanel() {
     const res = await fetch("/api/upload/presigned-url-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageFileName: name, imageFileType: file.type }),
+      body: JSON.stringify({ imageFileName: name, imageFileType: file.type, size: file.size }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
