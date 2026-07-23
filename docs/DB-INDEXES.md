@@ -28,7 +28,18 @@ The parser behind it is pinned by `lib/schema-indexes.test.ts` — including a t
 that it finds a non-trivial number of indexes, because a parser that silently
 matched nothing would report "no drift" forever and be worse than no check.
 
-## Measured state (2026-07-22)
+## Measured state
+
+**2026-07-23: DEPLOYED — zero drift.** The guarded deploy ran (after the
+ErrorLog dedupe and an owner-confirmed Atlas snapshot): all 33 missing indexes
+built and the 6 empty collections created, `db:check-indexes` exits 0.
+Spot-checks confirm `Release.primaryArtistIds` and `ErrorLog.fingerprint`
+queries now IXSCAN, and both behavioral unique constraints
+(`ErrorLog_fingerprint_key`, `AutomationFire_ruleKey_entityType_entityId_key`)
+report `unique: true` — error dedup and automation idempotency are enforced at
+the database level from here on. The section below is the pre-deploy record.
+
+## Pre-deploy state (2026-07-22, historical)
 
 83 indexes declared; **39 discrepancies**.
 
