@@ -11,6 +11,7 @@ import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
+import { normalizeSplits } from "@/lib/release-splits";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
   resultingTracklist,
@@ -150,6 +151,7 @@ function parseTrackInput(
   syncedLyrics: string | null;
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
+  splits: ReturnType<typeof normalizeSplits>;
   isrcCode: string | null;
   iswc: string | null;
   isrcExplicit: boolean;
@@ -200,6 +202,10 @@ function parseTrackInput(
       t.trackCredits !== undefined && t.trackCredits !== null
         ? (t.trackCredits as Prisma.InputJsonValue)
         : null,
+    // The editor SENDS splits with every save, but this parser used to drop
+    // them — the save 200'd, the toast said saved, and the split was gone on
+    // reload. Normalized here, persisted in the update/create below.
+    splits: normalizeSplits(t.splits),
     isrcCode: t.isrcCode ? String(t.isrcCode) : null,
     iswc: t.iswc ? String(t.iswc).trim() : null,
     isrcExplicit: Boolean(t.isrcExplicit),
@@ -444,6 +450,9 @@ export async function PATCH(
         parsedTracks.forEach((t) => {
           t.primaryArtistIds.forEach((id) => allTrackArtistIds.add(id));
           t.featureArtistIds.forEach((id) => allTrackArtistIds.add(id));
+          // Royalty-split rows linked to a roster artist must reference a real
+          // one — same check, same failure, as the track's own artists.
+          t.splits.forEach((sp) => { if (sp.artistId) allTrackArtistIds.add(sp.artistId); });
         });
         const trackArtists = await prisma.artist.findMany({
           where: { id: { in: Array.from(allTrackArtistIds) } },
@@ -646,6 +655,7 @@ export async function PATCH(
               syncedLyrics: t.syncedLyrics,
               stemsFile: t.stemsFile,
               trackCredits: t.trackCredits,
+              splits: t.splits as unknown as Prisma.InputJsonValue,
               isrcCode: t.isrcCode,
               iswc: t.iswc,
               isrcExplicit: t.isrcExplicit,
@@ -678,6 +688,7 @@ export async function PATCH(
           syncedLyrics: t.syncedLyrics,
           stemsFile: t.stemsFile,
           trackCredits: t.trackCredits,
+          splits: t.splits as unknown as Prisma.InputJsonValue,
           isrcCode: t.isrcCode,
           iswc: t.iswc,
           isrcExplicit: t.isrcExplicit,
@@ -707,6 +718,7 @@ export async function PATCH(
             releaseDate: data.releaseDate, composer: data.composer, lyricist: data.lyricist,
             leadVocal: data.leadVocal, lyrics: data.lyrics, syncedLyrics: data.syncedLyrics,
             stemsFile: data.stemsFile, trackCredits: t.trackCredits,
+            splits: t.splits as unknown as Prisma.InputJsonValue,
             isrcCode: data.isrcCode, iswc: data.iswc, isrcExplicit: data.isrcExplicit,
             spotifyLink: data.spotifyLink, appleMusicLink: data.appleMusicLink, tidalLink: data.tidalLink,
             amazonMusicLink: data.amazonMusicLink, youtubeLink: data.youtubeLink, soundcloudLink: data.soundcloudLink,
