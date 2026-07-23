@@ -5,15 +5,23 @@
 //   node --env-file=.env --use-system-ca scripts/check-index-drift.mjs
 //   node --env-file=.env --use-system-ca scripts/check-index-drift.mjs --json
 //
-// Exit code 0 when the database matches the schema, 1 when it drifts — so this
-// can gate a deploy or run as a monitor. `prisma db push` is the only thing that
-// creates these indexes, and it's a manual step here (npm run db:deploy), so
-// drift is the normal state between a schema change and a deploy, not an anomaly.
+// EXIT CODES — deploy-db.mjs gates on these, so they must stay unambiguous:
+//   0  the check RAN and the database matches the schema
+//   1  the check RAN and found drift (the normal state before a deploy)
+//   2  the check COULD NOT RUN (missing driver, no DATABASE_URL, unreachable
+//      DB, crash) — a deploy must treat this as "safety checks broken" and
+//      abort BEFORE touching production, never as mere drift.
+// That is why the mongodb driver is loaded dynamically inside main(): a
+// top-level `import` that fails kills the process with Node's generic exit 1,
+// which is indistinguishable from "drift found".
+//
+// `prisma db push` is the only thing that creates these indexes, and it's a
+// manual step here (npm run db:deploy), so drift is the normal state between a
+// schema change and a deploy, not an anomaly.
 //
 // Documented, intentional omissions live in INTENTIONALLY_UNINDEXED below.
 
 import { readFileSync } from "node:fs";
-import { MongoClient } from "mongodb";
 
 const JSON_OUT = process.argv.includes("--json");
 
@@ -88,6 +96,18 @@ function isIntentional(model, fields) {
 }
 
 async function main() {
+  // Loaded here, not at top level, so a missing/broken driver is a clean
+  // exit 2 ("check could not run") instead of Node's generic exit 1.
+  let MongoClient;
+  try {
+    ({ MongoClient } = await import("mongodb"));
+  } catch (e) {
+    console.error(
+      "check-index-drift: cannot load the 'mongodb' driver — run `npm install` " +
+        `(it is a declared devDependency). ${e.message}`
+    );
+    process.exit(2);
+  }
   const url = resolveDbUrl();
   if (!url) {
     console.error("DATABASE_URL not found (env or .env).");

@@ -14,8 +14,11 @@ npm run db:check-indexes -- --json
 ```
 
 Read-only — creates nothing, drops nothing, safe against production at any time.
-Exits **0** when the database matches the schema and **1** when it drifts, so it
-can gate a deploy or run as a monitor.
+Exit codes are load-bearing (the deploy gates on them): **0** = the check ran,
+no drift; **1** = the check ran, drift found; **2** = the check **could not
+run** (missing driver, no `DATABASE_URL`, unreachable DB). The deploy aborts
+before `prisma db push` on anything other than 0/1 — a broken safety check must
+never be mistaken for ordinary drift and skipped.
 
 `npm run db:deploy` now runs it twice: once before the push (so you see what's
 about to change) and once after (the deploy **fails** if the database still
@@ -103,6 +106,7 @@ into the survivor.
    remains. `npm run db:check-indexes` should exit 0.
 5. **Spot-check a query plan** for the indexes that matter most — the artist-array
    multikey indexes drive the public artist pages:
+
    ```js
    db.Release.find({ primaryArtistIds: ObjectId("…") }).explain("executionStats")
    // want: IXSCAN, not COLLSCAN

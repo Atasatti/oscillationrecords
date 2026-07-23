@@ -84,14 +84,28 @@ function run(label, cmd, { allowFailure = false } = {}) {
     console.error(`\nx ${label} failed (exit ${r.status ?? "?"}). Aborting.`);
     process.exit(r.status || 1);
   }
-  return r.status ?? 1;
+  // A killed/failed-to-spawn child has status null — report it as 2 ("could not
+  // run"), never as 1, which the drift gate below reads as ordinary drift.
+  return r.status ?? 2;
 }
 
 const DRIFT_CMD = "node --use-system-ca scripts/check-index-drift.mjs";
 
-// Step 0 — show what's about to change. Exit 1 just means "drift exists", which
-// is the normal reason to be running a deploy, so it must not abort.
-run("Index drift BEFORE", DRIFT_CMD, { allowFailure: true });
+// Step 0 — the pre-push safety check. Drift-check exit codes: 0 = clean,
+// 1 = drift exists (the NORMAL reason to be deploying — proceed), anything
+// else = the check itself could not run (missing dep, unreachable DB, crash).
+// A broken safety check must abort HERE, before prisma db push touches
+// production — swallowing it and failing on the post-check would leave prod
+// modified under a deploy that then reports failure.
+const driftBefore = run("Index drift BEFORE", DRIFT_CMD, { allowFailure: true });
+if (driftBefore !== 0 && driftBefore !== 1) {
+  console.error(
+    `\nx The drift check itself failed (exit ${driftBefore}) — the safety checks` +
+      "\n  cannot run, so this deploy is aborting BEFORE any production change." +
+      "\n  Fix the checker first (usually: npm install, or DATABASE_URL/network)."
+  );
+  process.exit(driftBefore);
+}
 
 // `prisma db push` creates the declared indexes. A UNIQUE index cannot be built
 // over duplicate values, so if ErrorLog.fingerprint still has duplicates this
@@ -106,12 +120,19 @@ run(
 // Step 3 — the deploy only counts as done if the database now matches the
 // schema. A silent partial index build is exactly the drift this is here to stop.
 const driftAfter = run("Index drift AFTER", DRIFT_CMD, { allowFailure: true });
-if (driftAfter !== 0) {
+if (driftAfter === 1) {
   console.error(
     "\nx Indexes still drift from the schema after the push. Investigate before\n" +
       "  treating this deploy as complete (see docs/DB-INDEXES.md)."
   );
   process.exit(1);
+} else if (driftAfter !== 0) {
+  console.error(
+    `\nx The post-push drift check could not run (exit ${driftAfter}). The push` +
+      "\n  itself completed, but the database state is UNVERIFIED — fix the checker" +
+      "\n  and run `npm run db:check-indexes` before treating this deploy as done."
+  );
+  process.exit(driftAfter);
 }
 
 console.log("\nDB deploy complete — schema and indexes match.");
