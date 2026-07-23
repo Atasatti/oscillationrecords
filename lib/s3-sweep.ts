@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { deleteS3Object, keyFromOwnBucketUrl } from "@/lib/s3";
+import { keyFromOwnBucketUrl, quarantineS3Object } from "@/lib/s3";
 
 /**
  * Best-effort S3 cleanup when catalog records stop referencing a file — the
@@ -16,9 +16,15 @@ import { deleteS3Object, keyFromOwnBucketUrl } from "@/lib/s3";
  *  - Re-checks the database for any REMAINING reference to the same URL before
  *    deleting, so a file shared between two tracks/releases (duplicated test
  *    releases do this) survives until the last reference goes.
- *  - Best-effort by design: deleteS3Object never throws, and neither does this —
- *    a failed sweep must never fail the mutation that already committed.
- *    Anything missed is picked up by scripts/cleanup-orphaned-audio.mjs.
+ *  - NOT a hard delete: swept files are MOVED to quarantine/ (private by bucket
+ *    policy, auto-expired after 30 days by the "expire-quarantine" lifecycle
+ *    rule), so a fat-fingered release deletion is recoverable for a month while
+ *    public access still dies immediately.
+ *  - Best-effort by design: quarantineS3Object never throws, and neither does
+ *    this — a failed sweep must never fail the mutation that already committed.
+ *    A failed copy leaves the original in place, where the periodic orphan scan
+ *    (GET /api/admin/s3-orphans, scripts/cleanup-orphaned-audio.mjs) is the
+ *    retry path.
  */
 const SWEEPABLE_PREFIXES = [
   "tracks/audio/",
@@ -66,7 +72,7 @@ export async function sweepCatalogObjects(
       const key = sweepableKey(url);
       if (!key) continue;
       if (await stillReferenced(url)) continue;
-      await deleteS3Object(key);
+      await quarantineS3Object(key);
     } catch (e) {
       // Never let cleanup break the request; the orphan script is the backstop.
       console.error("sweepCatalogObjects: failed for", url, e);
