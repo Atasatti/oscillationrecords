@@ -603,11 +603,16 @@ export default function AssetsClient({
         onClick={() => setActiveId((p) => (p === a.id ? null : a.id))}
         className={`cursor-pointer border-b border-border transition-colors ${activeId === a.id ? "bg-white/[0.06]" : on ? "bg-white/[0.035]" : "hover:bg-white/[0.025]"}`}
       >
-        <td className="w-9 py-3 pl-4 pr-2" onClick={(e) => e.stopPropagation()}>
+        {/* w-10 = pl-3 (12) + 16px box + pr-3 (12) exactly — table-fixed honors the
+            declared width, so the old w-9/pl-4/pr-2 combo (40px of content in a
+            36px column) collapsed the right gap to ~4px vs 16px on the left. Equal
+            px-3 also puts this column on the same 24px content rhythm as every
+            other column boundary. Keep in sync with the header cell. */}
+        <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={on} onChange={() => toggleSelect(a.id)} aria-label={`Select ${a.title}`}
-            className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+            className="block h-4 w-4 rounded border-gray-600 bg-black accent-white" />
         </td>
-        <td className="py-3 pr-4">
+        <td className="py-3 pl-3 pr-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-black/30">
               {isImg ? (
@@ -865,9 +870,11 @@ export default function AssetsClient({
               <table className="w-full table-fixed border-collapse text-sm">
                 <thead className="sticky top-0 z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="w-9 py-2.5 pl-4 pr-2">
+                    {/* Same w-10/px-3 geometry as the row cells (see renderRow) so the
+                        select-all box sits in exactly the same column as every row box. */}
+                    <th className="w-10 px-3 py-2.5">
                       <input type="checkbox" checked={allRowsSelected} onChange={toggleSelectAll} aria-label="Select all"
-                        className="h-4 w-4 rounded border-gray-600 bg-black accent-white" />
+                        className="block h-4 w-4 rounded border-gray-600 bg-black accent-white" />
                     </th>
                     {/* Progressive columns: on phones only Name (+ actions) show; size/date
                         appear at sm, Type at md, Release/Artist at lg. `hideable` columns
