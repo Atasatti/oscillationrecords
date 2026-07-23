@@ -685,7 +685,7 @@ export default function AssetsClient({
 
   // Left browse rail: pick a dimension, then a folder narrows the centre pane.
   const renderRail = () => (
-    <aside className="hidden w-56 shrink-0 flex-col gap-1 border-r border-border p-3 md:flex">
+    <aside className="scroll-themed hidden max-h-[calc(100dvh-59px)] w-56 shrink-0 flex-col gap-1 self-start overflow-y-auto border-r border-border p-3 md:sticky md:top-[59px] md:flex">
       <div className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/70">Browse by</div>
       <div className="mb-2 grid grid-cols-4 gap-0.5 rounded-lg border border-border bg-background/40 p-0.5">
         {BROWSE_OPTIONS.map((o) => (
@@ -729,7 +729,7 @@ export default function AssetsClient({
       ["By", a.uploader ?? (a.readOnly ? "Catalog" : "—")],
     ];
     return (
-      <aside ref={detailRef} className="scroll-themed hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-5 xl:flex">
+      <aside ref={detailRef} className="scroll-themed hidden max-h-[calc(100dvh-59px)] w-72 shrink-0 flex-col gap-4 self-start overflow-y-auto border-l border-border p-5 xl:sticky xl:top-[59px] xl:flex">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Details</span>
           <button
@@ -804,10 +804,11 @@ export default function AssetsClient({
   };
 
   return (
-    // Keep the file-manager panel full-height, but drop the horizontal breakout
-    // so it sits inside the admin content padding like every other page (was
-    // -mx-4/-mx-8, which pushed the card flush to the screen edges).
-    <div className="flex h-[calc(100dvh-6rem)] flex-col -mb-6 md:-mb-8">
+    // Natural page flow — the PAGE scrolls (scrollbar on the black background,
+    // like Releases/Artists/Tasks), not the grey card. The old viewport-fixed
+    // frame (h-[calc(100dvh-6rem)] + inner overflow-y-auto) put the scrollbar
+    // INSIDE the card and out of step with every other admin section.
+    <div className="flex flex-col">
       <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -844,7 +845,7 @@ export default function AssetsClient({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex rounded-xl border border-border bg-card">
         {renderRail()}
         <main className="flex min-w-0 flex-1 flex-col">
           {selected.size > 0 ? (
@@ -857,7 +858,7 @@ export default function AssetsClient({
               <button type="button" onClick={() => setSelected(new Set())} aria-label="Clear selection" className="rounded p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
           ) : null}
-          <div className="scroll-themed min-h-0 flex-1 overflow-y-auto">
+          <div className="min-w-0 flex-1">
             {rows.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
                 {assets.length === 0 ? "No assets yet. Upload masters, artwork, stems or press photos." : "No assets match."}
@@ -868,7 +869,9 @@ export default function AssetsClient({
               </div>
             ) : (
               <table className="w-full table-fixed border-collapse text-sm">
-                <thead className="sticky top-0 z-[1] bg-card">
+                {/* top-[59px] = the admin topbar (sticky, z-30) height, so the
+                    header pins just beneath it while the PAGE scrolls. */}
+                <thead className="sticky top-[59px] z-[1] bg-card">
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                     {/* Same w-10/px-3 geometry as the row cells (see renderRow) so the
                         select-all box sits in exactly the same column as every row box. */}
