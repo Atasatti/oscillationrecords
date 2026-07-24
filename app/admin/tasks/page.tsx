@@ -1595,7 +1595,7 @@ export default function TasksPage() {
                 setDraggingId(null);
                 setDragOverCol(null);
               }}
-              className={`flex w-72 shrink-0 flex-col rounded-xl border transition-colors ${active ? "border-primary/60 bg-primary/[0.04]" : "border-border bg-white/[0.02]"}`}
+              className={`flex min-w-72 max-w-2xl flex-1 flex-col rounded-xl border transition-colors ${active ? "border-primary/60 bg-primary/[0.04]" : "border-border bg-white/[0.02]"}`}
             >
               <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COL_DOT[col] ?? "bg-zinc-500"}`} />
