@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { isClearlyPastDue, PAST_DUE_ERROR } from "@/lib/task-due-date";
 import { normalizeChecklist } from "@/lib/task-checklist";
 import { normalizeTags } from "@/lib/task-tags";
 
@@ -47,6 +48,18 @@ export async function PUT(
 
     const existing = await prisma.outreachTask.findUnique({ where: { id: taskId } });
     if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+    // Rescheduling to the past is rejected — but ONLY when the date actually
+    // changes. An overdue task must stay editable (title, status, notes…) while
+    // keeping its original, already-past due date; clearing the date is fine too.
+    const sameDay =
+      Boolean(dueAt) &&
+      Boolean(existing.dueAt) &&
+      new Date(String(dueAt)).toISOString().slice(0, 10) ===
+        existing.dueAt!.toISOString().slice(0, 10);
+    if (dueAt && !sameDay && isClearlyPastDue(dueAt)) {
+      return NextResponse.json({ error: PAST_DUE_ERROR }, { status: 400 });
+    }
 
     const task = await prisma.outreachTask.update({
       where: { id: taskId },

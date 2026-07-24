@@ -35,6 +35,7 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { TASK_STATUSES } from "@/lib/task-status";
 import { type SavedViewConfig, SAVED_VIEW_NAME_MAX } from "@/lib/saved-view";
+import { isPastDueDate, localTodayStr, PAST_DUE_ERROR } from "@/lib/task-due-date";
 import { type ChecklistItem, checklistProgress } from "@/lib/task-checklist";
 import { type Attachment, ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES, isAllowedAttachmentType } from "@/lib/task-attachments";
 import { assetViewHref } from "@/lib/s3-url";
@@ -1180,6 +1181,13 @@ export default function TasksPage() {
 
   const save = async () => {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
+    // Past due dates are rejected for a NEW task or a CHANGED date — an overdue
+    // task keeping its original date stays fully editable. Exact check in the
+    // admin's local timezone; the API enforces the same rule as a backstop.
+    if (form.dueAt && isPastDueDate(form.dueAt, localTodayStr())) {
+      const original = editingId ? tasks.find((t) => t.id === editingId)?.dueAt?.slice(0, 10) ?? "" : "";
+      if (form.dueAt !== original) { toast.error(PAST_DUE_ERROR); return; }
+    }
     setSaving(true);
     try {
       const body = { ...form, dueAt: form.dueAt || null, isTemplate: false };
@@ -1194,7 +1202,10 @@ export default function TasksPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "");
+      }
       const wasNew = !editingId;
       toast.success(wasNew ? "Task added" : "Task updated");
       setDialogOpen(false);
@@ -1209,8 +1220,9 @@ export default function TasksPage() {
       if (wasNew) setTab("todo");
       else if (tab !== "all" && tab !== "attention" && tab !== form.status) setTab(form.status as Tab);
       loadTasks();
-    } catch {
-      toast.error(editingId ? "Failed to update task" : "Failed to add task");
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : null;
+      toast.error(msg ?? (editingId ? "Failed to update task" : "Failed to add task"));
     } finally {
       setSaving(false);
     }
@@ -2336,7 +2348,7 @@ export default function TasksPage() {
               ) : null}
               <div className={`flex flex-col gap-1.5 ${editingId ? "" : "sm:col-span-2"}`}>
                 <label className="text-sm font-medium">Due date <span className="font-normal text-muted-foreground">(optional)</span></label>
-                <input type="date" value={form.dueAt} onChange={(e) => setField("dueAt", e.target.value)}
+                <input type="date" value={form.dueAt} min={localTodayStr()} onChange={(e) => setField("dueAt", e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
