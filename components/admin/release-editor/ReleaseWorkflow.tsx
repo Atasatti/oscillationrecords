@@ -206,7 +206,7 @@ export default function ReleaseWorkflow({ releaseId }: { releaseId: string }) {
         <ReleaseTermsPanel releaseId={releaseId} />
       </div>
       <div className={active === 5 ? "" : "hidden"}>
-        <ReleaseSplitsPanel releaseId={releaseId} />
+        <ReleaseSplitsPanel releaseId={releaseId} active={active === 5} />
         <LinkedPitchesPanel releaseId={releaseId} />
         <LinkedPressPanel releaseId={releaseId} />
       </div>
