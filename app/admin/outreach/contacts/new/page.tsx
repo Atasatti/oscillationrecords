@@ -61,7 +61,8 @@ export default function NewContactPage() {
         description="Add a PR contact to your outreach database."
       />
 
-      <div className="max-w-xl space-y-5">
+      {/* Matches the Pitch pages (max-w-4xl) — see the edit page. */}
+      <div className="max-w-4xl space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>

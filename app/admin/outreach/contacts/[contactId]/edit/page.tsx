@@ -80,7 +80,7 @@ export default function EditContactPage() {
     return (
       <div>
         <PageHeader title="Edit contact" description="" />
-        <div className="max-w-xl space-y-4">
+        <div className="max-w-4xl space-y-4">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
         </div>
       </div>
@@ -96,7 +96,9 @@ export default function EditContactPage() {
         description="Update contact details and relationship status."
       />
 
-      <div className="max-w-xl space-y-5">
+      {/* max-w-4xl + space-y-6: the same container the Pitch edit/new pages use,
+          so the two Outreach forms share one width, rhythm and right margin. */}
+      <div className="max-w-4xl space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>
