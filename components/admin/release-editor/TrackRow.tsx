@@ -27,6 +27,7 @@ import type { UploadItem } from "./useUploadQueue";
 import UploadStatusChip from "./UploadStatusChip";
 import TrackCreditsInline from "./TrackCreditsInline";
 import SplitEditor from "@/components/admin/SplitEditor";
+import { rowsToSplits, splitsProblem } from "@/lib/release-splits";
 
 type ArtistOpt = { id: string; name: string };
 
@@ -463,6 +464,15 @@ export default function TrackRow({
                   collaborator. Leave empty to use the release-level split.
                 </p>
                 <SplitEditor value={track.splits} onChange={(splits) => onChange({ splits })} />
+                {(() => {
+                  const s = rowsToSplits(track.splits);
+                  const problem = s.length > 0 ? splitsProblem(s) : null;
+                  return problem ? (
+                    <p className="mt-2 text-xs text-amber-400/90">
+                      {problem} Changes to this split aren&apos;t saved until it&apos;s valid.
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
           </CollapsibleCard>

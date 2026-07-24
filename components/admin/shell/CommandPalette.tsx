@@ -193,11 +193,11 @@ export default function CommandPalette() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Search (${shortcutAria})`}
-        className="inline-flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+        className="inline-flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground lg:w-44"
       >
         <Search className="h-4 w-4" />
         <span className="hidden lg:inline">Search</span>
-        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:inline">{shortcutHint}</kbd>
+        <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground/80 lg:ml-auto lg:inline">{shortcutHint}</kbd>
       </button>
 
       {/* Portal to <body>: the admin topbar (this component's parent) uses

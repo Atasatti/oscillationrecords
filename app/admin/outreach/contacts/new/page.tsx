@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/local-ui/Toast";
@@ -54,19 +54,15 @@ export default function NewContactPage() {
 
   return (
     <div>
+      {/* No Back action: the breadcrumb (Admin › Outreach › Contacts › New)
+          is the navigation, matching every other admin edit page. */}
       <PageHeader
         title="New contact"
         description="Add a PR contact to your outreach database."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/admin/outreach/contacts">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-          </Button>
-        }
       />
 
-      <div className="max-w-xl space-y-5">
+      {/* Matches the Pitch pages (max-w-4xl) — see the edit page. */}
+      <div className="max-w-4xl space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>

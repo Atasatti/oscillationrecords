@@ -11,7 +11,7 @@ import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { submitToIndexNow } from "@/lib/indexnow";
 import { slugify } from "@/lib/slug";
 import { normalizeCredits } from "@/lib/credits";
-import { normalizeSplits } from "@/lib/release-splits";
+import { normalizeSplits, splitsProblem } from "@/lib/release-splits";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
   resultingTracklist,
@@ -132,6 +132,17 @@ export async function GET(
 // be trusted as an upsert key (#8).
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
+function parseSplits(
+  raw: unknown,
+  index: number
+): ReturnType<typeof normalizeSplits> | undefined {
+  if (raw === undefined) return undefined;
+  const splits = normalizeSplits(raw);
+  const problem = splitsProblem(splits);
+  if (problem) throw new Error(`Track ${index + 1}: ${problem}`);
+  return splits;
+}
+
 function parseTrackInput(
   t: Record<string, unknown>,
   index: number,
@@ -151,7 +162,7 @@ function parseTrackInput(
   syncedLyrics: string | null;
   stemsFile: string | null;
   trackCredits: Prisma.InputJsonValue | null;
-  splits: ReturnType<typeof normalizeSplits>;
+  splits: ReturnType<typeof normalizeSplits> | undefined;
   isrcCode: string | null;
   iswc: string | null;
   isrcExplicit: boolean;
@@ -204,8 +215,10 @@ function parseTrackInput(
         : null,
     // The editor SENDS splits with every save, but this parser used to drop
     // them — the save 200'd, the toast said saved, and the split was gone on
-    // reload. Normalized here, persisted in the update/create below.
-    splits: normalizeSplits(t.splits),
+    // reload. Absent field = leave the stored value (the client withholds
+    // invalid mid-edit states); when present it must be empty or a valid 100%
+    // no-duplicate allocation — an over-100% split must never persist.
+    splits: parseSplits(t.splits, index),
     isrcCode: t.isrcCode ? String(t.isrcCode) : null,
     iswc: t.iswc ? String(t.iswc).trim() : null,
     isrcExplicit: Boolean(t.isrcExplicit),
@@ -452,7 +465,7 @@ export async function PATCH(
           t.featureArtistIds.forEach((id) => allTrackArtistIds.add(id));
           // Royalty-split rows linked to a roster artist must reference a real
           // one — same check, same failure, as the track's own artists.
-          t.splits.forEach((sp) => { if (sp.artistId) allTrackArtistIds.add(sp.artistId); });
+          t.splits?.forEach((sp) => { if (sp.artistId) allTrackArtistIds.add(sp.artistId); });
         });
         const trackArtists = await prisma.artist.findMany({
           where: { id: { in: Array.from(allTrackArtistIds) } },
@@ -655,7 +668,7 @@ export async function PATCH(
               syncedLyrics: t.syncedLyrics,
               stemsFile: t.stemsFile,
               trackCredits: t.trackCredits,
-              splits: t.splits as unknown as Prisma.InputJsonValue,
+              ...(t.splits !== undefined && { splits: t.splits as unknown as Prisma.InputJsonValue }),
               isrcCode: t.isrcCode,
               iswc: t.iswc,
               isrcExplicit: t.isrcExplicit,
@@ -688,7 +701,7 @@ export async function PATCH(
           syncedLyrics: t.syncedLyrics,
           stemsFile: t.stemsFile,
           trackCredits: t.trackCredits,
-          splits: t.splits as unknown as Prisma.InputJsonValue,
+          splits: (t.splits ?? []) as unknown as Prisma.InputJsonValue,
           isrcCode: t.isrcCode,
           iswc: t.iswc,
           isrcExplicit: t.isrcExplicit,
@@ -718,7 +731,7 @@ export async function PATCH(
             releaseDate: data.releaseDate, composer: data.composer, lyricist: data.lyricist,
             leadVocal: data.leadVocal, lyrics: data.lyrics, syncedLyrics: data.syncedLyrics,
             stemsFile: data.stemsFile, trackCredits: t.trackCredits,
-            splits: t.splits as unknown as Prisma.InputJsonValue,
+            ...(t.splits !== undefined && { splits: t.splits as unknown as Prisma.InputJsonValue }),
             isrcCode: data.isrcCode, iswc: data.iswc, isrcExplicit: data.isrcExplicit,
             spotifyLink: data.spotifyLink, appleMusicLink: data.appleMusicLink, tidalLink: data.tidalLink,
             amazonMusicLink: data.amazonMusicLink, youtubeLink: data.youtubeLink, soundcloudLink: data.soundcloudLink,

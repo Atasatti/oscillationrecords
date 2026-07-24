@@ -4,6 +4,7 @@ import {
   splitsToRows,
   rowsToSplits,
   normalizeSplits,
+  splitsProblem,
   type SplitRow,
 } from "@/lib/release-splits";
 
@@ -466,7 +467,15 @@ export function buildTrackPayload(
     syncedLyrics: row.syncedLyrics.trim() || null,
     stemsFile: row.stemsFile || null,
     trackCredits: creditPayload(row.credits),
-    splits: rowsToSplits(row.splits),
+    // Send splits only when save-worthy: empty (an explicit clear) or a valid
+    // 100% allocation with no duplicates. A mid-edit invalid state is WITHHELD
+    // (undefined -> the server keeps the last saved value), so the autosaving
+    // tracklist can never persist an over-100% / duplicate split — the row
+    // shows a "not saved until balanced" note meanwhile (TrackRow).
+    splits: (() => {
+      const s = rowsToSplits(row.splits);
+      return s.length === 0 || splitsProblem(s) === null ? s : undefined;
+    })(),
     isrcCode: row.isrcCode.trim() || null,
     iswc: row.iswc.trim() || null,
     isrcExplicit: row.isrcExplicit,

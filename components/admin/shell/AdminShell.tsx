@@ -126,7 +126,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Suspense fallback={null}>
             <Breadcrumbs />
           </Suspense>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 md:gap-4">
             <CommandPalette />
             <AdminReminders />
             <AdminUserMenu />

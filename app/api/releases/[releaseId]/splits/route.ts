@@ -41,13 +41,28 @@ export async function GET(
     if (!isObjectId(releaseId)) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
-    const release = await prisma.release.findUnique({
-      where: { id: releaseId },
-      select: { splits: true },
-    });
+    const [release, trackRows] = await Promise.all([
+      prisma.release.findUnique({
+        where: { id: releaseId },
+        select: { splits: true },
+      }),
+      prisma.track.findMany({
+        where: { releaseId },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, splits: true },
+      }),
+    ]);
     if (!release) return NextResponse.json({ error: "Release not found" }, { status: 404 });
     const splits = await resolveSplitsFromProfiles(normalizeSplits(release.splits));
-    return NextResponse.json(summarizeSplits(splits), {
+    // Per-track splits ride along so the Money & outreach step can SHOW them —
+    // a split saved on a track in Step 2 must never leave Step 5 claiming
+    // "No split yet" as if the data were lost (splits live on two tiers:
+    // Release.splits as the release-wide agreement, Track.splits as per-track
+    // overrides).
+    const trackSplits = trackRows
+      .map((t) => ({ trackId: t.id, trackName: t.name, ...summarizeSplits(normalizeSplits(t.splits)) }))
+      .filter((t) => t.splits.length > 0);
+    return NextResponse.json({ ...summarizeSplits(splits), trackSplits }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {

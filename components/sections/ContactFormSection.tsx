@@ -249,8 +249,8 @@ const ContactFormSection = () => {
           aria-required="true"
           aria-invalid={status.kind === "error" && !message.trim() ? true : undefined}
           aria-describedby={describedBy}
-          className="placeholder:font-light min-h-[120px] max-h-[200px] resize-none no-scrollbar rounded-3xl !py-5"
-          rows={5}
+          className="placeholder:font-light min-h-[160px] max-h-[240px] resize-none no-scrollbar rounded-3xl !py-5"
+          rows={6}
         />
         <p className="-mt-3 text-right text-xs font-light text-muted-foreground">
           {message.length.toLocaleString()}/{CONTACT_MESSAGE_MAX.toLocaleString()}

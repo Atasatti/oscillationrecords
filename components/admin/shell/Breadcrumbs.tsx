@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 
 // Friendly labels for known admin path segments. Mongo ObjectId segments (24 hex
@@ -49,6 +49,43 @@ const SUBVIEW_TRAIL: Record<string, { parentLabel: string; parentHref: string; l
 
 const isId = (seg: string) => /^[0-9a-f]{24}$/i.test(seg);
 
+// Resolved entity names for id-bearing trails, kept for the session so a name
+// is fetched once per release/artist, not on every navigation.
+const entityNameCache = new Map<string, string>();
+
+/**
+ * The display name of the release/artist an admin path points at, so its crumb
+ * can read "Admin › Releases › Solar Flares" instead of a generic "Edit". This
+ * matters most mid-creation: the New page hands off to the draft's edit URL
+ * after step 1, and a crumb that flips from "New" to "Edit" reads as the flow
+ * unexpectedly changing mode — the release's own name reads as a progression.
+ * Returns null until resolved (callers fall back to "Edit").
+ */
+function useEntityName(kind: "releases" | "artists" | null, id: string | null): string | null {
+  const cached = id ? entityNameCache.get(id) ?? null : null;
+  const [, setResolved] = useState(0);
+  useEffect(() => {
+    if (!kind || !id || entityNameCache.has(id)) return;
+    let alive = true;
+    fetch(`/api/${kind}/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const name = typeof d?.name === "string" ? d.name.trim() : "";
+        if (alive && name) {
+          entityNameCache.set(id, name);
+          setResolved((n) => n + 1);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [kind, id]);
+  if (!cached) return null;
+  // Crumbs sit in the topbar — keep a runaway release title from eating it.
+  return cached.length > 32 ? `${cached.slice(0, 31)}…` : cached;
+}
+
 function labelFor(seg: string) {
   if (SEGMENT_LABELS[seg]) return SEGMENT_LABELS[seg];
   if (isId(seg)) return "Details";
@@ -68,9 +105,6 @@ export default function Breadcrumbs() {
     if (guard && !guard.confirmNavigation()) e.preventDefault();
   };
   const raw = pathname.split("/").filter(Boolean); // e.g. ["admin","releases"]
-  if (raw.length === 0) return null;
-
-  let crumbs: Crumb[];
 
   // Special case: the ISNI guide (/admin/guides/isni). It's reached from the
   // artist editor's "Claim ISNI" links, which pass ?artist=<id> to keep context.
@@ -79,6 +113,28 @@ export default function Breadcrumbs() {
   // "Admin › Artists › Edit › ISNI" — with Edit linking back to that artist's
   // editor (dropped when there's no artist context, e.g. from the create form).
   const isIsniGuide = pathname === "/admin/guides/isni";
+
+  // The one release/artist id this trail points at (admin paths carry at most
+  // one), so its crumb can be labelled with the entity's name.
+  let entityKind: "releases" | "artists" | null = null;
+  let entityId: string | null = null;
+  for (let i = 1; i < raw.length; i++) {
+    const seg = raw[i] ?? "";
+    if (!isId(seg)) continue;
+    const prev = raw[i - 1];
+    if (prev === "releases" || prev === "release") { entityKind = "releases"; entityId = seg; }
+    else if (prev === "artists" || prev === "artist") { entityKind = "artists"; entityId = seg; }
+    break;
+  }
+  if (!entityId && isIsniGuide) {
+    const a = searchParams.get("artist");
+    if (a && isId(a)) { entityKind = "artists"; entityId = a; }
+  }
+  const entityName = useEntityName(entityKind, entityId);
+
+  if (raw.length === 0) return null;
+
+  let crumbs: Crumb[];
 
   // Special case: the singular detail/VIEW page — /admin/{release|artist}/<id>
   // (e.g. the "View release" button from the editor). Its path has no "edit"
@@ -106,7 +162,7 @@ export default function Breadcrumbs() {
       { label: "Admin", href: "/admin", isLast: false },
       { label: "Artists", href: "/admin/artists", isLast: false },
       ...(artistId && isId(artistId)
-        ? [{ label: "Edit", href: `/admin/artists/${artistId}/edit`, isLast: false }]
+        ? [{ label: entityName ?? "Edit", href: `/admin/artists/${artistId}/edit`, isLast: false }]
         : []),
       { label: "ISNI", href: pathname, isLast: true },
     ];
@@ -117,7 +173,7 @@ export default function Breadcrumbs() {
     crumbs = [
       { label: "Admin", href: "/admin", isLast: false },
       { label: kind === "release" ? "Releases" : "Artists", href: `/admin/${plural}`, isLast: false },
-      { label: "Edit", href: `/admin/${plural}/${id}/edit`, isLast: false },
+      { label: entityName ?? "Edit", href: `/admin/${plural}/${id}/edit`, isLast: false },
       { label: "View", href: pathname, isLast: true },
     ];
   } else {
@@ -138,16 +194,20 @@ export default function Breadcrumbs() {
       // that have no index page of their own (→ their plural list route).
       let href = SEGMENT_HREF_OVERRIDES[seg] ?? "/" + raw.slice(0, i + 1).join("/");
       // An id directly under the plural list (e.g. /admin/releases/<id>/tracks): the
-      // bare-id route only redirects to the editor, so label it "Edit" and link
-      // straight there — clearer than "Details", and consistent with the editor
-      // being where you return for that release.
+      // bare-id route only redirects to the editor, so label it with the entity's
+      // NAME (fallback "Edit" until it resolves) and link straight there — clearer
+      // than "Details", and consistent with the editor being where you return.
       if (isId(seg) && (raw[i - 1] === "releases" || raw[i - 1] === "artists")) {
-        // (The old ?new=1 special-case is gone: creation now lands directly in
-        // the edit workflow — /admin/releases/<id>/edit?step=tracks — so the
-        // crumb no longer needs to masquerade as "New" and then flip to "Edit"
-        // when clicked. One surface, one label.)
-        label = "Edit";
+        label = entityName ?? "Edit";
         href = "/" + raw.slice(0, i + 1).join("/") + "/edit";
+      }
+      // The editor leaf itself (/admin/releases/<id>/edit — its id segment was
+      // dropped above): name it after the entity too. This is what keeps the
+      // create flow coherent — the New page hands off to the draft's edit URL
+      // after step 1, and "Admin › Releases › <the name you just typed>" reads
+      // as the same flow continuing, where a sudden "Edit" read as a mode change.
+      if (seg === "edit" && isId(raw[i - 1] ?? "") && (raw[i - 2] === "releases" || raw[i - 2] === "artists")) {
+        label = entityName ?? "Edit";
       }
       return { label, href, isLast: idx === kept.length - 1 };
     });

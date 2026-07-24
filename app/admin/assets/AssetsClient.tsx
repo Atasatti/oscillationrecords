@@ -55,6 +55,11 @@ export type Asset = {
   readOnly: boolean;
   parentHref: string | null;
   parentLabel: string | null;
+  /** Track-derived media: the TRACK's credited artist ids (primary + feature,
+   *  metadata order) and any unlinked featured names. Take precedence over the
+   *  release-primaries fallback in artistFor. */
+  trackArtistIds?: string[];
+  trackFeatureNames?: string[];
 };
 
 export type Option = { id: string; name: string };
@@ -115,13 +120,15 @@ function putWithProgress(url: string, file: File, onPct: (n: number) => void): P
 }
 
 export default function AssetsClient({
-  initial, releases, artists, releaseLyrics = {}, releaseArtistId = {},
+  initial, releases, artists, releaseLyrics = {}, releaseArtistId = {}, releaseArtistIds = {},
 }: {
   initial: Asset[];
   releases: Option[];
   artists: Option[];
   releaseLyrics?: Record<string, { txt: boolean; lrc: boolean }>;
   releaseArtistId?: Record<string, string>;
+  /** release id → ALL primary artist ids (the single-id map above stays for grouping). */
+  releaseArtistIds?: Record<string, string[]>;
 }) {
   const toast = useToast();
   const { data: session } = useSession();
@@ -134,6 +141,9 @@ export default function AssetsClient({
   const [view, setView] = useState<"table" | "grid">("table");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Artist cell tapped/clicked → that row shows its full artist list wrapped in
+  // place (the touch substitute for the hover tooltip).
+  const [expandedArtistRow, setExpandedArtistRow] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"name" | "type" | "release" | "artist" | "size" | "date">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [reassignOpen, setReassignOpen] = useState(false);
@@ -169,18 +179,38 @@ export default function AssetsClient({
     return m;
   }, [releases, artists]);
 
-  // The artist to show for a row. Uploaded/artist assets carry their own artistId;
-  // release- and track-derived media (a master, stems, a cover) carry only a
-  // releaseId, so fall back to that release's primary artist — otherwise a master
-  // audio row would show no artist at all. `viaRelease` flags the inferred case.
+  // The artist(s) to show for a row. Uploaded/artist assets carry their own
+  // artistId; release- and track-derived media (a master, stems, a cover) carry
+  // only a releaseId, so fall back to that release's PRIMARY ARTISTS — all of
+  // them, so a two-artist release reads "BSK, BigHeck" instead of silently
+  // dropping the co-artist. `viaRelease` flags the inferred case.
   const artistFor = useCallback(
-    (a: Asset): { name: string | null; viaRelease: boolean } => {
-      if (a.artistId) return { name: nameOf.get(a.artistId) ?? null, viaRelease: false };
-      const rid = a.releaseId ? releaseArtistId[a.releaseId] : undefined;
-      if (rid) return { name: nameOf.get(rid) ?? null, viaRelease: true };
-      return { name: null, viaRelease: false };
+    (a: Asset): { name: string | null; names: string[]; viaRelease: boolean } => {
+      // Track-derived rows carry the track's OWN credit list — primary +
+      // featured, in the order the track metadata defines. This is the truth
+      // for a master/stems/art file; the release fallback below often
+      // under-credits (a compilation credited to one artist whose tracks are
+      // collaborations).
+      const trackNames = [
+        ...(a.trackArtistIds ?? []).map((id) => nameOf.get(id)).filter((n): n is string => !!n),
+        ...(a.trackFeatureNames ?? []),
+      ];
+      if (trackNames.length) {
+        return { name: trackNames.join(", "), names: trackNames, viaRelease: false };
+      }
+      if (a.artistId) {
+        const n = nameOf.get(a.artistId) ?? null;
+        return { name: n, names: n ? [n] : [], viaRelease: false };
+      }
+      if (a.releaseId) {
+        const single = releaseArtistId[a.releaseId];
+        const ids = releaseArtistIds[a.releaseId] ?? (single ? [single] : []);
+        const names = ids.map((id) => nameOf.get(id)).filter((n): n is string => !!n);
+        if (names.length) return { name: names.join(", "), names, viaRelease: true };
+      }
+      return { name: null, names: [], viaRelease: false };
     },
-    [nameOf, releaseArtistId]
+    [nameOf, releaseArtistId, releaseArtistIds]
   );
 
   const counts = useMemo(() => {
@@ -636,7 +666,19 @@ export default function AssetsClient({
             artist can be inferred from the release (masters etc.) — flag that in
             the tooltip so it's clear it's the release's primary artist. */}
         <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={rel ?? undefined}>{rel ?? <span className="text-muted-foreground/40">—</span>}</td>
-        <td className={`hidden truncate px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol}`} title={art ? (artInfo.viaRelease ? `${art} — from linked release` : art) : undefined}>{art ?? <span className="text-muted-foreground/40">—</span>}</td>
+        {/* Hover: native title shows every credited artist (a browser-level
+            tooltip can't be clipped by the table). Tap/click: toggles the cell
+            into a wrapped, untruncated list in place — the touch equivalent,
+            since hover tooltips don't exist there. */}
+        <td
+          className={`hidden max-w-0 px-3 py-3 text-sm text-muted-foreground lg:table-cell ${hideCol} ${expandedArtistRow === a.id ? "whitespace-normal break-words" : "truncate"}`}
+          title={art ? (artInfo.viaRelease ? `${art} — from linked release` : art) : undefined}
+          onClick={(e) => {
+            if (!art) return;
+            e.stopPropagation();
+            setExpandedArtistRow((p) => (p === a.id ? null : a.id));
+          }}
+        >{art ?? <span className="text-muted-foreground/40">—</span>}</td>
         <td className="hidden whitespace-nowrap px-3 py-3 text-right text-sm tabular-nums text-muted-foreground sm:table-cell">{a.size ? formatBytes(a.size) : "—"}</td>
         <td className="hidden whitespace-nowrap px-3 py-3 text-sm tabular-nums text-muted-foreground sm:table-cell">{fmtDate(a.createdAt)}</td>
         <td className="py-3 pl-2 pr-4" onClick={(e) => e.stopPropagation()}>
@@ -794,7 +836,7 @@ export default function AssetsClient({
           {meta.map(([k, v]) => (
             <div key={k} className="flex justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0">
               <span className="text-muted-foreground">{k}</span>
-              <span className="truncate text-right">{v}</span>
+              <span className="min-w-0 break-words text-right">{v}</span>
             </div>
           ))}
         </div>
@@ -809,15 +851,19 @@ export default function AssetsClient({
     // frame (h-[calc(100dvh-6rem)] + inner overflow-y-auto) put the scrollbar
     // INSIDE the card and out of step with every other admin section.
     <div className="flex flex-col">
-      <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="relative w-full sm:w-72">
+      {/* gap-y-3 + md breakpoints: below md the search bar and the category
+          count strip each own a full row with clear vertical separation — at
+          sm they used to sit flush against each other and read as one squeezed
+          control. */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-3 md:gap-3">
+        <div className="relative w-full md:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search assets…"
             className={`${inputCls} w-full pl-9`} />
         </div>
-        {/* On phones the 8-way filter can't fit — let it scroll inside its own
+        {/* Below md the 8-way filter can't fit — let it scroll inside its own
             track instead of stretching the whole toolbar past the screen edge. */}
-        <div className="-mx-1 w-full overflow-x-auto px-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
+        <div className="-mx-1 w-full overflow-x-auto px-1 md:mx-0 md:w-auto md:overflow-visible md:px-0">
           <Segmented
             ariaLabel="Filter assets by category"
             value={filter}
@@ -825,7 +871,7 @@ export default function AssetsClient({
             options={FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] ?? 0 }))}
           />
         </div>
-        <span className="hidden flex-1 sm:block" />
+        <span className="hidden flex-1 md:block" />
         <Button onClick={openUpload} className="h-9 gap-1.5 bg-white text-black hover:bg-gray-200">
           <Upload className="h-4 w-4" /> Upload
         </Button>
@@ -883,15 +929,17 @@ export default function AssetsClient({
                         appear at sm, Type at md, Release/Artist at lg. `hideable` columns
                         also collapse (xl only) while the detail panel is open, so the
                         narrower table stays readable. */}
-                    {([["name", "Name", "w-[28%]", false, ""], ["type", "Type", "w-[11%]", true, "hidden md:table-cell"], ["release", "Release", "w-[17%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[16%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[8%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[11%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
+                    {([["name", "Name", "sm:w-[28%]", false, ""], ["type", "Type", "w-[11%]", true, "hidden md:table-cell"], ["release", "Release", "w-[17%]", true, "hidden lg:table-cell"], ["artist", "Artist", "w-[16%]", true, "hidden lg:table-cell"], ["size", "Size", "w-[8%]", false, "hidden sm:table-cell"], ["date", "Added", "w-[11%]", false, "hidden sm:table-cell"]] as const).map(([col, label, w, hideable, resp]) => (
                       <th key={col} className={`px-3 py-2.5 font-medium ${w} ${resp} ${col === "size" ? "text-right" : ""} ${hideable && activeId ? "xl:hidden" : ""}`}>
                         <button type="button" onClick={() => sortByCol(col)} className="inline-flex items-center gap-1 hover:text-foreground">
                           {label}{sortBy === col ? <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
                         </button>
                       </th>
                     ))}
-                    {/* Fixed width so the 3–4 action icons always fit and never overlap the date. */}
-                    <th className="w-36 py-2.5 pl-2 pr-4" />
+                    {/* Fixed width so the 3–4 action icons always fit and never overlap
+                        the date — but narrower on phones, where the old 144px was
+                        starving the Name column into "C…". */}
+                    <th className="w-28 py-2.5 pl-2 pr-4 sm:w-36" />
                   </tr>
                 </thead>
                 <tbody>{rows.map(renderRow)}</tbody>

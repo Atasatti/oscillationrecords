@@ -28,6 +28,11 @@ type DerivedInput = {
   createdAt: string;
   releaseId?: string;
   artistId?: string;
+  /** Track-derived media: the TRACK's own credited artists, in metadata order
+   *  (primary ids, then feature ids). Overrides the release fallback. */
+  trackArtistIds?: string[];
+  /** Unlinked featured-artist names (plain text on the track). */
+  trackFeatureNames?: string[];
 };
 
 export default async function AssetsPage() {
@@ -42,13 +47,16 @@ export default async function AssetsPage() {
   // release id → its first primary artist id, so "Group by artist" can also file a
   // release's assets (covers/masters/stems) under that release's artist.
   let releaseArtistId: Record<string, string> = {};
+  // release id → ALL primary artist ids, so the Artist column can show every
+  // credited artist ("BSK, BigHeck") instead of silently dropping co-artists.
+  let releaseArtistIds: Record<string, string[]> = {};
   try {
     const [rows, rels, arts, press] = await Promise.all([
       prisma.asset.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.release.findMany({
         select: {
           id: true, name: true, coverImage: true, createdAt: true, primaryArtistIds: true,
-          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true, lyrics: true, syncedLyrics: true } },
+          tracks: { select: { id: true, name: true, audioFile: true, stemsFile: true, image: true, lyrics: true, syncedLyrics: true, primaryArtistIds: true, featureArtistIds: true, featureArtistNames: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -93,6 +101,7 @@ export default async function AssetsPage() {
         mimeType: guessMimeFromUrl(d.url), size: 0, releaseId: d.releaseId ?? null, artistId: d.artistId ?? null,
         notes: null, createdAt: d.createdAt, uploader: null, source: d.source, readOnly: true,
         parentHref: d.parentHref, parentLabel: d.parentLabel,
+        trackArtistIds: d.trackArtistIds, trackFeatureNames: d.trackFeatureNames,
       });
     };
 
@@ -101,9 +110,14 @@ export default async function AssetsPage() {
       const parentHref = `/admin/releases/${r.id}/edit`;
       add({ id: `rel-cover-${r.id}`, category: "artwork", title: `${r.name} — cover`, url: r.coverImage, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id });
       for (const t of r.tracks) {
-        add({ id: `trk-aud-${t.id}`, category: "master", title: `${t.name} — master`, url: t.audioFile, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id });
-        add({ id: `trk-stm-${t.id}`, category: "stems", title: `${t.name} — stems`, url: t.stemsFile, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id });
-        add({ id: `trk-img-${t.id}`, category: "artwork", title: `${t.name} — art`, url: t.image, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id });
+        // The TRACK's complete artist list (primary + feature, metadata order) —
+        // a track often credits collaborators the release row doesn't (e.g. a
+        // remix compilation credited to one artist whose tracks are duos).
+        const trackArtistIds = [...t.primaryArtistIds, ...t.featureArtistIds];
+        const trackFeatureNames = t.featureArtistNames ?? [];
+        add({ id: `trk-aud-${t.id}`, category: "master", title: `${t.name} — master`, url: t.audioFile, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id, trackArtistIds, trackFeatureNames });
+        add({ id: `trk-stm-${t.id}`, category: "stems", title: `${t.name} — stems`, url: t.stemsFile, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id, trackArtistIds, trackFeatureNames });
+        add({ id: `trk-img-${t.id}`, category: "artwork", title: `${t.name} — art`, url: t.image, source: "release", parentHref, parentLabel: r.name, createdAt, releaseId: r.id, trackArtistIds, trackFeatureNames });
       }
     }
     for (const a of arts) {
@@ -119,12 +133,14 @@ export default async function AssetsPage() {
 
     releaseLyrics = {};
     releaseArtistId = {};
+    releaseArtistIds = {};
     for (const r of rels) {
       const txt = r.tracks.some((t) => (t.lyrics ?? "").trim() !== "");
       const lrc = r.tracks.some((t) => (t.syncedLyrics ?? "").trim() !== "");
       if (txt || lrc) releaseLyrics[r.id] = { txt, lrc };
       const firstArtist = r.primaryArtistIds[0];
       if (firstArtist) releaseArtistId[r.id] = firstArtist;
+      if (r.primaryArtistIds.length) releaseArtistIds[r.id] = r.primaryArtistIds;
     }
   } catch {
     // Empty library on a transient DB error.
@@ -136,6 +152,7 @@ export default async function AssetsPage() {
       artists={artists}
       releaseLyrics={releaseLyrics}
       releaseArtistId={releaseArtistId}
+      releaseArtistIds={releaseArtistIds}
     />
   );
 }

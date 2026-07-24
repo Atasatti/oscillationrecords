@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -80,7 +80,7 @@ export default function EditContactPage() {
     return (
       <div>
         <PageHeader title="Edit contact" description="" />
-        <div className="max-w-xl space-y-4">
+        <div className="max-w-4xl space-y-4">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
         </div>
       </div>
@@ -89,17 +89,16 @@ export default function EditContactPage() {
 
   return (
     <div>
+      {/* No Back action: the breadcrumb (Admin › Outreach › Contacts › Edit)
+          is the navigation, matching every other admin edit page. */}
       <PageHeader
         title={`Edit: ${form.name || "Contact"}`}
         description="Update contact details and relationship status."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/admin/outreach/contacts"><ArrowLeft className="h-4 w-4" /> Back</Link>
-          </Button>
-        }
       />
 
-      <div className="max-w-xl space-y-5">
+      {/* max-w-4xl + space-y-6: the same container the Pitch edit/new pages use,
+          so the two Outreach forms share one width, rhythm and right margin. */}
+      <div className="max-w-4xl space-y-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>

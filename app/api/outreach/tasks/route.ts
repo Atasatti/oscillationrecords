@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth-guard";
 import { recordAudit } from "@/lib/audit";
+import { isClearlyPastDue, PAST_DUE_ERROR } from "@/lib/task-due-date";
 import { normalizeChecklist } from "@/lib/task-checklist";
 import { normalizeTags } from "@/lib/task-tags";
 import { isObjectId } from "@/lib/object-id";
@@ -85,6 +86,12 @@ export async function POST(request: NextRequest) {
 
     if (!title?.trim() || !category?.trim()) {
       return NextResponse.json({ error: "title and category are required" }, { status: 400 });
+    }
+
+    // A new task must not be born overdue. The client enforces the exact local
+    // day; this is the API backstop with a timezone grace (see lib/task-due-date).
+    if (isClearlyPastDue(dueAt)) {
+      return NextResponse.json({ error: PAST_DUE_ERROR }, { status: 400 });
     }
 
     const task = await prisma.outreachTask.create({
