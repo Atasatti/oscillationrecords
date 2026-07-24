@@ -46,6 +46,27 @@ describe("splitsProblem", () => {
   });
 });
 
+describe("splitsProblem — duplicates", () => {
+  const A = "507f1f77bcf86cd799439011";
+  it("rejects the same linked artist twice", () => {
+    expect(splitsProblem([split("BSK", 50, A), split("BSK (again)", 50, A)])).toContain(
+      "more than once"
+    );
+  });
+  it("rejects the same manual name twice, case-insensitively", () => {
+    expect(splitsProblem([split("Producer X", 50), split("producer x", 50)])).toContain(
+      "more than once"
+    );
+  });
+  it("reports the duplicate before the total, so the clearer error wins", () => {
+    // Also unbalanced (120%), but the duplicate is the root cause shown.
+    expect(splitsProblem([split("A", 60, A), split("B", 60, A)])).toContain("more than once");
+  });
+  it("allows distinct artists and names", () => {
+    expect(splitsProblem([split("BSK", 50, A), split("Producer X", 50)])).toBeNull();
+  });
+});
+
 describe("normalizeSplits (the shape every save runs through)", () => {
   it("drops nameless rows and clamps percents into 0–100", () => {
     const out = normalizeSplits([

@@ -49,6 +49,10 @@ export default function ReleaseSplitsPanel({ releaseId }: { releaseId: string })
     setDirty(true);
   };
 
+  // Live validity — drives the inline message and disables Save while the
+  // allocation is invalid (over/under 100%, duplicate artists).
+  const liveProblem = rows.length > 0 ? splitsProblem(rowsToSplits(rows)) : null;
+
   const save = async () => {
     // Instant feedback before the round-trip: the server enforces the same rule
     // (empty, or exactly 100%), so this only changes WHEN the admin hears it.
@@ -96,11 +100,16 @@ export default function ReleaseSplitsPanel({ releaseId }: { releaseId: string })
 
       <SplitEditor value={rows} onChange={onChange} disabled={saving} linkWriteBack />
 
+      {liveProblem ? (
+        <p className="mt-2 text-sm text-amber-400/90">{liveProblem}</p>
+      ) : null}
+
       <div className="mt-4">
         <button
           type="button"
           onClick={save}
-          disabled={saving || !dirty}
+          title={liveProblem ?? undefined}
+          disabled={saving || !dirty || !!liveProblem}
           className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-gray-200 disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save split

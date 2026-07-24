@@ -61,17 +61,30 @@ export function summarizeSplits(splits: Split[]): SplitsSummary {
 }
 
 /**
- * Server-side gate for a DEDICATED split save (the release Splits panel, the
- * per-track edit dialog): null when acceptable, else the rejection reason.
- * An empty list is fine — it means "no split agreement recorded" — but a
- * non-empty one must allocate exactly 100.00%: a partial allocation stored as
- * final is precisely how royalty accounting goes wrong. (The autosaving
- * tracklist editor deliberately does NOT hard-gate on this — autosave fires
- * mid-typing — it validates artist references and shows the live balance
- * instead.)
+ * The save gate, applied by EVERY route that accepts splits (release panel
+ * PUT, per-track dialog PATCH, and the tracklist PATCH whenever splits are
+ * present in the payload): null when acceptable, else the rejection reason.
+ * Empty is fine — "no split agreement recorded" — but a non-empty split must
+ * name each contributor once and allocate exactly 100.00%. The autosaving
+ * tracklist editor stays usable because its client WITHHOLDS an invalid
+ * mid-edit split (the field is omitted, so the stored value is kept) and
+ * shows an inline "not saved until valid" note instead.
  */
 export function splitsProblem(splits: Split[]): string | null {
   if (splits.length === 0) return null;
+  // Duplicates first — "the same artist twice" is a clearer error than a total
+  // that also happens to be off because of the duplication.
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+  for (const s of splits) {
+    if (s.artistId) {
+      if (seenIds.has(s.artistId)) return `"${s.name}" appears more than once in the split.`;
+      seenIds.add(s.artistId);
+    }
+    const nameKey = s.name.toLowerCase();
+    if (seenNames.has(nameKey)) return `"${s.name}" appears more than once in the split.`;
+    seenNames.add(nameKey);
+  }
   const { total } = summarizeSplits(splits);
   if (total !== 100) {
     return `Royalty splits must total exactly 100% — currently ${total}%.`;
