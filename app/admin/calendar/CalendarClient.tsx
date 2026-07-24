@@ -179,12 +179,16 @@ export default function CalendarClient({
     return c;
   }, [posts, events, view]);
 
-  // 6-week grid (42 cells) for the month in view, built in UTC so posts pin to
-  // the intended day for every viewer. Date.UTC handles month/year rollover.
+  // Week grid for the month in view, built in UTC so posts pin to the intended
+  // day for every viewer. Date.UTC handles month/year rollover. Only as many
+  // weeks as the month spans (5 for most months, 6 when needed) — a permanent
+  // 6th row of out-of-month days is dead height on laptop displays.
   const cells = useMemo(() => {
     const weekday = new Date(Date.UTC(view.y, view.m, 1)).getUTCDay(); // 0=Sun
     const lead = (weekday + 6) % 7; // shift to Monday-first
-    return Array.from({ length: 42 }, (_, i) => {
+    const daysInMonth = new Date(Date.UTC(view.y, view.m + 1, 0)).getUTCDate();
+    const weeks = lead + daysInMonth > 35 ? 6 : 5;
+    return Array.from({ length: weeks * 7 }, (_, i) => {
       const d = new Date(Date.UTC(view.y, view.m, 1 - lead + i));
       return { key: dayKeyUtc(d), day: d.getUTCDate(), inMonth: d.getUTCMonth() === view.m };
     });
@@ -313,8 +317,15 @@ export default function CalendarClient({
   const minNewDate = todayKey || localDayKey(new Date());
   const isPastNewDate = !editingId && !!form.date && form.date < minNewDate;
 
+  // Viewport-fit mode (the arbitrary variant below): on a desktop screen tall
+  // enough to be useful the page pins to the viewport — 100dvh minus the sticky
+  // admin topbar (59px) and the shell's md main padding (2rem top + bottom) —
+  // and the grid flexes to fill whatever height the header/nav/filter rows
+  // leave, so the calendar never forces page scrolling. A day too busy for its
+  // cell scrolls internally. On mobile or very short windows the layout stays
+  // in normal flow (cells keep a fixed min-height and the page scrolls).
   return (
-    <div>
+    <div className="flex flex-col [@media(min-width:768px)_and_(min-height:640px)]:h-[calc(100dvh-123px)]">
       <PageHeader
         title="Calendar"
         description="Everything dated across the label — posts, releases, task due dates, press, newsletters and placements. Click a day to plan a post; the rest link to where they're managed."
@@ -373,15 +384,21 @@ export default function CalendarClient({
       </div>
 
       {/* Calendar grid */}
-      <div className="overflow-hidden rounded-xl border border-border">
-        <div className="grid grid-cols-7 border-b border-border bg-white/[0.02]">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border [@media(min-width:768px)_and_(min-height:640px)]:min-h-0 [@media(min-width:768px)_and_(min-height:640px)]:flex-1">
+        <div className="grid shrink-0 grid-cols-7 border-b border-border bg-white/[0.02]">
           {WEEKDAYS.map((w) => (
             <div key={w} className="px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {w}
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
+        <div
+          className={`grid grid-cols-7 [@media(min-width:768px)_and_(min-height:640px)]:min-h-0 [@media(min-width:768px)_and_(min-height:640px)]:flex-1 ${
+            cells.length === 42
+              ? "[@media(min-width:768px)_and_(min-height:640px)]:grid-rows-6"
+              : "[@media(min-width:768px)_and_(min-height:640px)]:grid-rows-5"
+          }`}
+        >
           {cells.map((cell, i) => {
             const dayPosts = postsByDay.get(cell.key) ?? [];
             const dayEvents = eventsByDay.get(cell.key) ?? [];
@@ -394,11 +411,11 @@ export default function CalendarClient({
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter") openNew(cell.key); }}
                 aria-label={`Add post on ${cell.key}`}
-                className={`min-h-[6.5rem] cursor-pointer border-border p-1.5 transition-colors hover:bg-white/[0.03] ${
+                className={`flex min-h-[6.5rem] cursor-pointer flex-col border-border p-1.5 transition-colors hover:bg-white/[0.03] [@media(min-width:768px)_and_(min-height:640px)]:min-h-0 [@media(min-width:768px)_and_(min-height:640px)]:overflow-hidden ${
                   i % 7 !== 6 ? "border-r" : ""
-                } ${i < 35 ? "border-b" : ""} ${cell.inMonth ? "" : "bg-black/20"}`}
+                } ${i < cells.length - 7 ? "border-b" : ""} ${cell.inMonth ? "" : "bg-black/20"}`}
               >
-                <div className="mb-1 flex justify-end">
+                <div className="mb-1 flex shrink-0 justify-end">
                   <span
                     className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] tabular-nums ${
                       isToday
@@ -411,14 +428,14 @@ export default function CalendarClient({
                     {cell.day}
                   </span>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 [@media(min-width:768px)_and_(min-height:640px)]:min-h-0 [@media(min-width:768px)_and_(min-height:640px)]:flex-1 [@media(min-width:768px)_and_(min-height:640px)]:overflow-y-auto">
                   {dayPosts.map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openEdit(p); }}
                       title={`${p.title} — ${CONTENT_STATUS_LABELS[p.status as ContentStatus] ?? p.status}`}
-                      className={`w-full truncate rounded border px-1.5 py-0.5 text-left text-[11px] transition-opacity hover:opacity-80 ${
+                      className={`w-full shrink-0 truncate rounded border px-1.5 py-0.5 text-left text-[11px] transition-opacity hover:opacity-80 ${
                         PLATFORM_PILL[p.platform] ?? PLATFORM_PILL.other
                       } ${p.status === "published" ? "line-through opacity-60" : ""}`}
                     >
@@ -431,7 +448,7 @@ export default function CalendarClient({
                       href={ev.href}
                       onClick={(e) => e.stopPropagation()}
                       title={`${ev.title} · ${TYPE_LABELS[ev.type]}`}
-                      className={`block w-full truncate rounded border px-1.5 py-0.5 text-left text-[11px] transition-opacity hover:opacity-80 ${TYPE_PILL[ev.type] ?? ""}`}
+                      className={`block w-full shrink-0 truncate rounded border px-1.5 py-0.5 text-left text-[11px] transition-opacity hover:opacity-80 ${TYPE_PILL[ev.type] ?? ""}`}
                     >
                       {ev.title}
                     </Link>
