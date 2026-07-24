@@ -2016,34 +2016,56 @@ export default function TasksPage() {
                     : ""
                 }`}
               >
-                {/* Bulk-select checkbox (appears on hover; stays when selected) */}
+                {/* Bulk-select checkbox — SQUARE, white/primary accent, so it
+                    reads as "selection" and can't be confused with the emerald
+                    completion circle beside it. Always visible: the old
+                    opacity-0-until-hover treatment was invisible on dark
+                    Retina panels and flatly unreachable on touch (no hover).
+                    28px hit target around an 18px box (negative margin keeps
+                    the row rhythm); border-2 white/40 clears WCAG 1.4.11's 3:1
+                    non-text contrast against the card. */}
                 <button
                   type="button"
                   onClick={() => toggleSelect(t.id)}
+                  title={selected.has(t.id) ? "Deselect task" : "Select task"}
                   aria-label={selected.has(t.id) ? "Deselect task" : "Select task"}
                   aria-pressed={selected.has(t.id)}
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
-                    selected.has(t.id)
-                      ? "border-primary bg-primary text-primary-foreground opacity-100"
-                      : "border-border opacity-0 group-hover:opacity-100"
-                  }`}
+                  className="group/sel -m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                 >
-                  {selected.has(t.id) ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+                  <span
+                    aria-hidden
+                    className={`flex h-[18px] w-[18px] items-center justify-center rounded border-2 transition-colors ${
+                      selected.has(t.id)
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-white/40 group-hover/sel:border-white/80"
+                    }`}
+                  >
+                    {selected.has(t.id) ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                  </span>
                 </button>
 
-                {/* Complete toggle */}
+                {/* Complete toggle — CIRCLE, emerald accent. Hover previews a
+                    ghost check so its purpose is obvious before clicking; done
+                    fills solid. Same 28px hit target and focus ring (emerald,
+                    to match its semantics) as the select box. */}
                 <button
                   type="button"
                   onClick={() => updateStatus(t.id, t.status === "done" ? "todo" : "done")}
                   title={t.status === "done" ? "Mark as to do" : "Mark as done"}
                   aria-label={t.status === "done" ? "Mark as to do" : "Mark as done"}
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                    t.status === "done"
-                      ? "border-emerald-500 bg-emerald-500 text-black"
-                      : "border-border hover:border-foreground/50"
-                  }`}
+                  aria-pressed={t.status === "done"}
+                  className="group/done -m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80"
                 >
-                  {t.status === "done" ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                  <span
+                    aria-hidden
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
+                      t.status === "done"
+                        ? "border-emerald-500 bg-emerald-500 text-black"
+                        : "border-white/40 text-transparent group-hover/done:border-emerald-400 group-hover/done:text-emerald-400/80"
+                    }`}
+                  >
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
                 </button>
 
                 <div className="min-w-0 flex-1">
