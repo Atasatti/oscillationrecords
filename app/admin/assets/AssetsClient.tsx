@@ -55,6 +55,11 @@ export type Asset = {
   readOnly: boolean;
   parentHref: string | null;
   parentLabel: string | null;
+  /** Track-derived media: the TRACK's credited artist ids (primary + feature,
+   *  metadata order) and any unlinked featured names. Take precedence over the
+   *  release-primaries fallback in artistFor. */
+  trackArtistIds?: string[];
+  trackFeatureNames?: string[];
 };
 
 export type Option = { id: string; name: string };
@@ -181,6 +186,18 @@ export default function AssetsClient({
   // dropping the co-artist. `viaRelease` flags the inferred case.
   const artistFor = useCallback(
     (a: Asset): { name: string | null; names: string[]; viaRelease: boolean } => {
+      // Track-derived rows carry the track's OWN credit list — primary +
+      // featured, in the order the track metadata defines. This is the truth
+      // for a master/stems/art file; the release fallback below often
+      // under-credits (a compilation credited to one artist whose tracks are
+      // collaborations).
+      const trackNames = [
+        ...(a.trackArtistIds ?? []).map((id) => nameOf.get(id)).filter((n): n is string => !!n),
+        ...(a.trackFeatureNames ?? []),
+      ];
+      if (trackNames.length) {
+        return { name: trackNames.join(", "), names: trackNames, viaRelease: false };
+      }
       if (a.artistId) {
         const n = nameOf.get(a.artistId) ?? null;
         return { name: n, names: n ? [n] : [], viaRelease: false };
