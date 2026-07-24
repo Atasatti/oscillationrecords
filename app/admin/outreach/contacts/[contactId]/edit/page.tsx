@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/admin/shell/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,14 +89,11 @@ export default function EditContactPage() {
 
   return (
     <div>
+      {/* No Back action: the breadcrumb (Admin › Outreach › Contacts › Edit)
+          is the navigation, matching every other admin edit page. */}
       <PageHeader
         title={`Edit: ${form.name || "Contact"}`}
         description="Update contact details and relationship status."
-        actions={
-          <Button asChild variant="ghost">
-            <Link href="/admin/outreach/contacts"><ArrowLeft className="h-4 w-4" /> Back</Link>
-          </Button>
-        }
       />
 
       <div className="max-w-xl space-y-5">
