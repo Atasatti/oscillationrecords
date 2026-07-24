@@ -42,6 +42,9 @@ export default async function AssetsPage() {
   // release id → its first primary artist id, so "Group by artist" can also file a
   // release's assets (covers/masters/stems) under that release's artist.
   let releaseArtistId: Record<string, string> = {};
+  // release id → ALL primary artist ids, so the Artist column can show every
+  // credited artist ("BSK, BigHeck") instead of silently dropping co-artists.
+  let releaseArtistIds: Record<string, string[]> = {};
   try {
     const [rows, rels, arts, press] = await Promise.all([
       prisma.asset.findMany({ orderBy: { createdAt: "desc" } }),
@@ -119,12 +122,14 @@ export default async function AssetsPage() {
 
     releaseLyrics = {};
     releaseArtistId = {};
+    releaseArtistIds = {};
     for (const r of rels) {
       const txt = r.tracks.some((t) => (t.lyrics ?? "").trim() !== "");
       const lrc = r.tracks.some((t) => (t.syncedLyrics ?? "").trim() !== "");
       if (txt || lrc) releaseLyrics[r.id] = { txt, lrc };
       const firstArtist = r.primaryArtistIds[0];
       if (firstArtist) releaseArtistId[r.id] = firstArtist;
+      if (r.primaryArtistIds.length) releaseArtistIds[r.id] = r.primaryArtistIds;
     }
   } catch {
     // Empty library on a transient DB error.
@@ -136,6 +141,7 @@ export default async function AssetsPage() {
       artists={artists}
       releaseLyrics={releaseLyrics}
       releaseArtistId={releaseArtistId}
+      releaseArtistIds={releaseArtistIds}
     />
   );
 }
