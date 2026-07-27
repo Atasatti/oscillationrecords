@@ -63,6 +63,7 @@ import {
   buildArtistMap,
   combinedFeatureDisplayNames,
 } from "@/lib/release-format";
+import { trackAudioHref } from "@/lib/s3-url";
 
 interface Track {
   id: string;
@@ -171,7 +172,10 @@ function SortableTrackCard({
           id: track.id,
           name: track.name,
           thumbnail: track.image || coverImage,
-          audio: track.audioFile,
+          // Gated playback route, not the raw bucket URL — tracks/audio/ is a
+          // private prefix now, and this admin session is what authorizes a
+          // draft's master to play here.
+          audio: track.audioFile ? trackAudioHref(track.id) : track.audioFile,
           primaryArtistName,
           featureArtistNames,
           spotifyLink: track.spotifyLink,

@@ -1,5 +1,25 @@
 # Security Audit — Oscillation Records
 
+> **Incident 2026-07-24 — unreleased masters anonymously downloadable (HIGH, resolved).**
+> The bucket policy's blanket `Allow s3:GetObject` on `osrecord/*` was carved down by a
+> Deny list of private prefixes (audit #1), but `tracks/audio/` was classified as public
+> ("released audio") — so the 12 existing masters of unreleased releases (10 Benert
+> Remixes masters + 2 test files) were downloadable, range requests included, by anyone
+> with the URL. **Containment (same day):** a temporary per-key Deny
+> (`DenyAnonymousReadUnreleasedAudio`, anonymous-only condition) — all 12 verified 403
+> anonymously, released playback unaffected. **Durable fix:** `tracks/audio/` added to
+> `PRIVATE_KEY_PREFIXES`; ALL playback (public + admin) now goes through
+> `GET /api/tracks/[trackId]/audio`, which authorizes by the owning release's public
+> visibility (`isReleasePublic`) or an admin session and 302s to a 5-minute presigned
+> GET; bucket-wide prefix deny ships via `scripts/s3-lock-private-prefixes.mjs` at the
+> next prod deploy (DEPLOY.md §4b — order matters). **Regression guard:**
+> `npm run check:s3-exposure` (scripts/check-s3-exposure.mjs) fails if any private-prefix
+> object or any unreleased-release audio object answers an anonymous GET.
+> **Forensics:** S3 server access logging and CloudTrail data events were never enabled,
+> so whether the files were downloaded by third parties is **indeterminate**; treat the
+> masters as potentially accessed. No CDN sits in front of the bucket (nothing to
+> invalidate); object ownership is already BucketOwnerEnforced (ACLs disabled).
+
 **Latest audit:** 2026-06-18 (branch `admin-redesign`)
 **Method:** Static review of the full Next.js 15 App Router app — all ~50 API route handlers, NextAuth config, middleware, Prisma schema, shared `lib/*` helpers, `next.config.ts`, dependencies (`npm audit`), and the server/client boundary. Framework anchored on the OWASP Top 10 (2021) + OWASP API Security Top 10, plus Next.js-specific risks (route-handler authz, server/client leakage, image-optimizer SSRF, CVE-2025-29927 middleware bypass). No dynamic/penetration testing (app not running); findings are code-verified with file:line.
 

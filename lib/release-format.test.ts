@@ -25,4 +25,16 @@ describe("serializeTrackForPublic", () => {
     expect(pub.stemsFile).toBeUndefined();
     expect(pub.splits).toBeUndefined();
   });
+
+  it("rewrites audioFile to the gated playback route, never the raw bucket URL", () => {
+    // tracks/audio/ is a private prefix (2026-07-24 incident) — a public payload
+    // carrying the raw URL would hand players a dead 403 link, and before the
+    // lockdown it was the leak itself.
+    expect(serializeTrackForPublic(track).audioFile).toBe("/api/tracks/t1/audio");
+  });
+
+  it("leaves a track without audio unplayable rather than minting a dead href", () => {
+    const silent = { ...track, audioFile: null } as typeof track;
+    expect(serializeTrackForPublic(silent).audioFile).toBeNull();
+  });
 });

@@ -12,6 +12,7 @@ import {
   serializeTrackForPublic,
 } from "@/lib/release-format";
 import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
+import { trackAudioHref } from "@/lib/s3-url";
 import { compareComingSoon } from "@/lib/coming-soon-order";
 import { slugify, OBJECT_ID_RE } from "@/lib/slug";
 
@@ -127,7 +128,7 @@ export const releaseCardListArgs = {
     tracks: {
       orderBy: { sortOrder: "asc" as const },
       take: 1,
-      select: { audioFile: true },
+      select: { id: true, audioFile: true },
     },
     _count: { select: { tracks: true } },
   },
@@ -177,7 +178,10 @@ export async function mapReleasesToCards(
     );
     const primaryName = primaryNamesFromIds(primaryIds, artistMap);
     const rd = getOptionalDate(r.releaseDate);
-    const firstAudio = r.tracks[0]?.audioFile ?? null;
+    // Gated playback href, not the raw bucket URL — tracks/audio/ is a private
+    // prefix since the 2026-07-24 lockdown, so the raw URL 403s for visitors.
+    const firstTrack = r.tracks[0];
+    const firstAudio = firstTrack?.audioFile ? trackAudioHref(firstTrack.id) : null;
 
     // SEO score is an admin-only metric; skip the work for public callers.
     const seo = isAdmin

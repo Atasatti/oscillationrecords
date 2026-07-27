@@ -20,6 +20,11 @@ import { benertUserKeyPrefix } from "@/lib/s3-url";
 const KEY_PERMISSIONS: readonly { prefix: string; permission: Permission }[] = [
   { prefix: "releases/agreements/", permission: "catalog:read" },
   { prefix: "task-attachments/", permission: "outreach:read" },
+  // Masters (tracks/audio/) are private since the 2026-07-24 exposure incident.
+  // This shim path serves ADMIN surfaces (assets page links); public playback of
+  // live releases goes through /api/tracks/[trackId]/audio, which gates on the
+  // release's status instead of a staff permission.
+  { prefix: "tracks/audio/", permission: "catalog:read" },
   { prefix: "tracks/stems/", permission: "catalog:read" },
   { prefix: "documents/", permission: "catalog:read" },
   { prefix: "assets/", permission: "catalog:read" },

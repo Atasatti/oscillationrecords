@@ -15,6 +15,7 @@
     "db:deploy": "node scripts/deploy-db.mjs",
     "db:check-indexes": "node --env-file=.env --use-system-ca scripts/check-index-drift.mjs",
     "db:dedupe-errors": "node --env-file=.env --use-system-ca scripts/dedupe-error-log.mjs",
+    "check:s3-exposure": "node --env-file=.env --use-system-ca scripts/check-s3-exposure.mjs",
     "indexnow": "node scripts/indexnow-submit.mjs",
     "test": "vitest run",
     "test:watch": "vitest"

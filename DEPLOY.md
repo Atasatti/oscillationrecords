@@ -82,6 +82,28 @@ field — the bootstrap allowlist in `lib/auth-session.ts`
 (`oscillationrecordz@gmail.com`, `tinyminer2015@gmail.com`) is always admin, so
 there is no lock-out risk after the push.
 
+## 4b. S3 policy flip — tracks/audio/ (2026-07-24 incident follow-up)
+
+Unreleased masters under `tracks/audio/` were anonymously downloadable; a
+**temporary** bucket-policy statement (`DenyAnonymousReadUnreleasedAudio`) now
+denies the 12 affected keys individually while production still renders raw
+bucket URLs in its players. The branch code serves all playback through the
+status-gated `/api/tracks/[trackId]/audio` instead.
+
+**Immediately after this branch reaches production**, extend the lockdown to
+the whole prefix (this also retires the temporary statement automatically):
+
+```bash
+node --env-file=.env --use-system-ca scripts/s3-lock-private-prefixes.mjs           # preview
+node --env-file=.env --use-system-ca scripts/s3-lock-private-prefixes.mjs --apply   # write
+npm run check:s3-exposure                                                           # verify
+```
+
+Order matters: applying the flip while prod still runs the OLD code silences
+all public playback (players would hold raw, now-denied URLs). Until the flip
+runs, any NEW draft uploaded from the old prod code is anonymously readable
+again — prefer merging promptly over uploading masters in the gap.
+
 ## 5. Post-deploy verification
 
 - [ ] Sign in with a bootstrap-allowlisted Google account; `/admin` loads.

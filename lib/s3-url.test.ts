@@ -22,6 +22,10 @@ describe("isPrivateAssetKey", () => {
       "quarantine/tracks/audio/1700-orphan.wav",
       "releases/agreements/abc123/uuid/contract.pdf",
       "task-attachments/uuid/notes.docx",
+      // ALL track audio since the 2026-07-24 incident (unreleased masters were
+      // anonymously downloadable) — playback goes through the status-gated
+      // /api/tracks/[trackId]/audio route, never the raw bucket URL.
+      "tracks/audio/1700-track.mp3",
       "tracks/stems/1700-stems.zip",
     ]) {
       expect(isPrivateAssetKey(key), key).toBe(true);
@@ -34,7 +38,6 @@ describe("isPrivateAssetKey", () => {
       "artists/images/photo.jpg",
       "press/images/shot.jpg",
       "site/hero.webp",
-      "tracks/audio/1700-track.mp3",
     ]) {
       expect(isPrivateAssetKey(key), key).toBe(false);
     }

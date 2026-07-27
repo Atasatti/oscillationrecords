@@ -71,8 +71,26 @@ export const PRIVATE_KEY_PREFIXES = [
   "quarantine/", // orphan-sweep holding area (scripts/cleanup-orphaned-audio.mjs)
   "releases/agreements/", // signed contracts / licence scans
   "task-attachments/", // internal task files
+  // ALL track audio, released included (2026-07-24 incident: unreleased masters
+  // sat anonymously readable under tracks/audio/ because only tracks/stems/ was
+  // private). Public playback goes through GET /api/tracks/[trackId]/audio,
+  // which serves a release-status-aware presigned redirect — so a master is
+  // private the moment it's uploaded, and BECOMING public is a data decision
+  // (release goes live), never a storage-prefix decision.
+  "tracks/audio/",
   "tracks/stems/",
 ] as const;
+
+/**
+ * The playback/download href for a catalog track's audio: a same-origin route
+ * that checks the owning release's public visibility (or an admin session) and
+ * 302s to a short-lived presigned GET. EVERY player — public pages and admin
+ * surfaces alike — must use this instead of Track.audioFile's raw bucket URL,
+ * which is no longer anonymously readable.
+ */
+export function trackAudioHref(trackId: string): string {
+  return `/api/tracks/${trackId}/audio`;
+}
 
 /** True when `key` must never be anonymously readable. */
 export function isPrivateAssetKey(key: string): boolean {
