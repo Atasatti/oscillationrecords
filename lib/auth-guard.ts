@@ -34,7 +34,19 @@ async function resolveToken(
   if (!secret) {
     return { response: NextResponse.json({ error: "Server configuration error" }, { status: 500 }) };
   }
-  return { token: await getToken({ req, secret }) };
+  // Fail CLOSED if decoding throws. next-auth's getToken inspects the request's
+  // Authorization header, and a malformed `Bearer` value made it throw an
+  // uncaught exception (GHSA advisory, patched in next-auth 4.24.15). A throw
+  // here must never surface as a 500 that leaks a stack or, worse, be mistaken
+  // for an authenticated path — treat any decode failure as "no token", which
+  // the callers below turn into a 401/403. Kept as defence-in-depth beyond the
+  // dependency patch: no attacker-supplied header can crash a guarded route.
+  try {
+    return { token: await getToken({ req, secret }) };
+  } catch (e) {
+    console.error("resolveToken: getToken threw; treating as unauthenticated", e);
+    return { token: null };
+  }
 }
 
 async function readToken(req: NextRequest): Promise<JWT | null> {

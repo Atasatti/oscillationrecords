@@ -1,5 +1,40 @@
 # Security Audit — Oscillation Records
 
+> **Review 2026-07-24 — NextAuth v4 OAuth advisories (assessed + patched; v5 migration NOT warranted).**
+> `npm audit` flagged `next-auth@4.24.14` **critical** for three Auth.js advisories, plus the v5
+> core `@auth/core` (same three titles), `uuid`, and `postcss`. Applicability was assessed per
+> advisory against the ACTUAL config (`lib/auth.ts`), not the aggregate rating:
+> - **OAuth state/nonce/PKCE cookies not bound to the issuing provider** — a cross-provider
+>   confusion attack that requires MULTIPLE OAuth providers. This app configures exactly ONE
+>   (Google) — verified live via `/api/auth/providers` → `["google"]`. **Not exploitable here.**
+> - **Email normalizer homoglyph `@` bypass** — affects the Email (magic-link) provider, which
+>   this app does not use. **Not in the code path.**
+> - **`getToken()` uncaught throw on a malformed `Authorization: Bearer` header** — the one that
+>   touched our code (`lib/auth-guard.ts` calls `getToken` on every guarded route). A DoS/500
+>   vector, not an auth bypass. **Applicable.**
+>
+> **The report's premise was factually wrong** on two points: (1) a patched v4 release DOES exist —
+> `next-auth@4.24.15` is published as `latest`, and the audit's vulnerable range is `<=4.24.14`;
+> (2) migrating to v5 would not help — v5 is still `5.0.0-beta.32` (a beta), and its `@auth/core`
+> carried the identical three advisory titles until `0.41.3`. A v4→v5 migration on a live,
+> single-admin auth system is a large, breaking change with no security upside here, so it was
+> **deliberately not done** (documented, not suppressed).
+>
+> **Remediation applied:** bumped `next-auth` → **4.24.15** (clears all three next-auth advisories;
+> also raises its bundled `uuid ^8.3.2 → ^11.1.1`, clearing the uuid advisory); **removed the unused
+> `@auth/prisma-adapter`** dependency (the PrismaAdapter was commented out in `lib/auth.ts` — JWT
+> strategy — and it was the sole reason the v5 `@auth/core` critical advisories were in the tree at
+> all); **hardened `resolveToken()`** to catch any `getToken` throw and fail CLOSED (401/403, never
+> 500 or an authenticated path) as defence-in-depth beyond the patch; **added a `postcss ^8.5.18`
+> override** (the flagged `<=8.5.17` paths — Next/Tailwind/Vite — are build-time CSS processing of
+> our OWN source, no runtime exposure to attacker CSS, but bumped anyway). **Verified:** `npm audit`
+> → 0 critical / 0 moderate (was 2 critical); live sign-in machinery intact (CSRF token issues,
+> valid admin session → 200); anonymous → 403; **malformed Bearer → 403, not 500**; tsc + lint +
+> 191 tests green. **Residual (out of the reported scope, not suppressed):** `next` itself is
+> flagged HIGH (runtime framework — a separate upgrade decision needing its own test pass);
+> `brace-expansion` + `js-yaml` are HIGH but **dev-only** (ESLint/build tooling, absent from the
+> production runtime).
+
 > **Incident 2026-07-24 — unreleased masters anonymously downloadable (HIGH, resolved).**
 > The bucket policy's blanket `Allow s3:GetObject` on `osrecord/*` was carved down by a
 > Deny list of private prefixes (audit #1), but `tracks/audio/` was classified as public

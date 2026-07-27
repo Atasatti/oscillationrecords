@@ -23,7 +23,11 @@ interface ExtendedToken extends JWT {
 const ROLE_REFRESH_MS = 5 * 60 * 1000;
 
 export const authOptions: AuthOptions = {
-  // adapter: PrismaAdapter(prisma), // Temporarily disabled to fix session issues
+  // No database adapter: sessions are stateless JWTs (see `session.strategy`
+  // below), and the jwt() callback upserts the user itself. The unused
+  // @auth/prisma-adapter dependency was removed 2026-07-24 — it dragged in
+  // @auth/core (NextAuth v5), whose critical OAuth advisories showed up in
+  // `npm audit` for a package this app never actually loaded.
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
