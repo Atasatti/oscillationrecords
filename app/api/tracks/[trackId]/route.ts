@@ -8,6 +8,12 @@ import { isReleasePublic } from "@/lib/catalog-data";
 import { recordAudit } from "@/lib/audit";
 import { sweepCatalogObjects } from "@/lib/s3-sweep";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
+import { withWriteRetry } from "@/lib/db-retry";
+import {
+  validateResultingTracklist,
+  tracklistAfterDelete,
+  TracklistError,
+} from "@/lib/release-tracks";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -209,20 +215,73 @@ export async function DELETE(
     if (!guard.ok) return guard.response;
 
     const { trackId } = await params;
+    // Read the track's own fields once, for the post-commit S3 sweep + audit.
+    // The last-track invariant is (re-)checked authoritatively inside the
+    // transaction below against freshly-read rows.
     const existing = await prisma.track.findUnique({
       where: { id: trackId },
-      include: { release: true },
+      select: { name: true, audioFile: true, stemsFile: true, image: true, releaseId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Track not found" }, { status: 404 });
     }
 
-    await prisma.track.delete({ where: { id: trackId } });
+    // The last track may NOT be pulled out from under a live release — doing so
+    // strands a published record with nothing to play (its public page/API 404s
+    // or renders empty while the release still reads as live). This is the SAME
+    // rule the tracklist editor's PATCH enforces (validateResultingTracklist);
+    // applying it here closes the gap where this standalone delete (used by the
+    // legacy release detail page) bypassed it. Drafts and future-dated
+    // Coming-Soon releases are exempt.
+    //
+    // Concurrency: the check re-reads the tracklist INSIDE the transaction, and
+    // the transaction also touches the release row. Two concurrent deletes of a
+    // live release's final two tracks would otherwise each see the other track
+    // still present in its own snapshot and both commit, emptying the release —
+    // the shared write to the release document makes MongoDB raise a write
+    // conflict, so withWriteRetry re-runs the loser, which then sees the shrunk
+    // list and rejects. `gone` covers the track being deleted concurrently
+    // between the read above and the transaction.
+    const gone = await withWriteRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const track = await tx.track.findUnique({
+          where: { id: trackId },
+          include: { release: { select: { status: true, releaseDate: true } } },
+        });
+        if (!track) return true;
+
+        const stored = await tx.track.findMany({
+          where: { releaseId: track.releaseId },
+          select: { id: true, audioFile: true },
+        });
+        const problem = validateResultingTracklist({
+          stored,
+          resulting: tracklistAfterDelete(stored, trackId),
+          nextStatus: track.release.status,
+          nextIsLive: isReleasePublic(track.release),
+        });
+        if (problem) throw new TracklistError(problem);
+
+        await tx.track.delete({ where: { id: trackId } });
+        // Serialize concurrent last-track deletes on this release (see note).
+        await tx.release.update({
+          where: { id: track.releaseId },
+          data: { updatedAt: new Date() },
+        });
+        return false;
+      })
+    );
+
+    if (gone) {
+      return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    }
+
     revalidateAdminCatalog();
 
     // Sweep the track's S3 objects now that nothing references them — deleting
-    // the row used to leave audio/stems/art in the bucket, publicly readable
-    // forever. Best-effort; shared files survive the sweep's reference re-check.
+    // the row used to leave audio/stems/art in the bucket forever. Best-effort;
+    // shared files survive the sweep's reference re-check. After the commit only,
+    // so a rolled-back (rejected) delete never removes objects.
     await sweepCatalogObjects([existing.audioFile, existing.stemsFile, existing.image]);
 
     await recordAudit(request, guard.token, {
@@ -234,6 +293,10 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Track deleted successfully" });
   } catch (error) {
+    // The last-track invariant failing is a client error (400), not a 500.
+    if (error instanceof TracklistError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error("Error deleting track:", error);
     return NextResponse.json(
       { error: "Failed to delete track" },
