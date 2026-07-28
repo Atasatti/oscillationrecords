@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import WeekGrid from "@/components/studio/WeekGrid";
-import { weekDays } from "@/lib/studio-view";
+import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
+import { weekDays, addDaysKey } from "@/lib/studio-view";
 import { formatStudioDate } from "@/lib/studio-schedule";
 
 export type Booking = {
@@ -22,6 +23,9 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [draft, setDraft] = useState<BookingForm | null>(null);
 
   const days = useMemo(() => weekDays(anchor), [anchor]);
   // weekDays() always returns exactly 7 entries (Monday..Sunday).
@@ -50,6 +54,33 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
 
   const shiftWeek = (delta: number) => setAnchor(new Date(anchor.getTime() + delta * 7 * 864e5));
 
+  const openCreate = (dateKey: string, hour: number) => {
+    const startTime = `${String(hour).padStart(2, "0")}:00`;
+    const endHour = (hour + 1) % 24;
+    const endDate = endHour === 0 ? addDaysKey(dateKey, 1) : dateKey;
+    const endTime = `${String(endHour).padStart(2, "0")}:00`;
+    setDraft({ startDate: dateKey, startTime, endDate, endTime, title: "", notes: "" });
+    setDialogOpen(true);
+  };
+
+  const submitCreate = async (values: BookingForm) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/studio/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error ?? "Couldn't book that slot."); return; }
+      toast.success("Booked.");
+      setDialogOpen(false);
+      await load();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <header className="mb-6 flex items-center justify-between">
@@ -70,10 +101,21 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
         <WeekGrid
           days={days}
           bookings={bookings}
-          onSelectSlot={(dateKey, hour) => { void dateKey; void hour; /* wired in Task 10 */ }}
+          onSelectSlot={openCreate}
           onSelectBooking={(b) => { void b; /* wired in Task 11 */ }}
         />
       )}
+
+      {draft ? (
+        <BookingDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          mode="create"
+          initial={draft}
+          submitting={submitting}
+          onSubmit={submitCreate}
+        />
+      ) : null}
     </div>
   );
 }
