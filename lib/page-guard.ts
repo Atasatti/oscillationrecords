@@ -64,3 +64,44 @@ export async function requirePageStaff(): Promise<void> {
   }
   redirect("/");
 }
+
+/**
+ * Owner-only page gate (bootstrap email or DB role "admin"). Redirects to /login
+ * when unauthenticated, or /admin when signed in but not an owner. Fails closed.
+ */
+export async function requirePageOwner(): Promise<void> {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) redirect("/login");
+  if (isAdminEmail(email)) return;
+  try {
+    const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
+    if (user?.role === "admin") return;
+  } catch (e) {
+    console.error("requirePageOwner: role lookup failed", e);
+  }
+  redirect("/admin");
+}
+
+/**
+ * Studio booker page access. Redirects unauthenticated visitors to the login
+ * page (returning to /studio). Returns "ok" for owners and allowlisted emails,
+ * "denied" otherwise — so the page can render a friendly access screen rather
+ * than redirect. Fails closed (a DB error → "denied").
+ */
+export async function studioPageAccess(): Promise<"ok" | "denied"> {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) redirect("/login?callbackUrl=/studio");
+  if (isAdminEmail(email)) return "ok";
+  try {
+    const [user, booker] = await Promise.all([
+      prisma.user.findUnique({ where: { email }, select: { role: true } }),
+      prisma.studioBooker.findUnique({ where: { email: email.toLowerCase() }, select: { id: true } }),
+    ]);
+    if (user?.role === "admin" || booker) return "ok";
+  } catch (e) {
+    console.error("studioPageAccess: lookup failed", e);
+  }
+  return "denied";
+}

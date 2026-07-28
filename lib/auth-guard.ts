@@ -228,6 +228,30 @@ export async function requireUser(req: NextRequest): Promise<UserGuard> {
 }
 
 /**
+ * Authoritative STUDIO-BOOKING access check. Owners (bootstrap email or DB role
+ * "admin") always pass. Everyone else must have their email on the StudioBooker
+ * allowlist — read fresh from the DB on every call, so adding/removing a booker
+ * takes effect on their next request. Fails closed if the DB can't be read.
+ */
+export async function requireStudioAccess(req: NextRequest): Promise<Guard> {
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  if (!token?.email) return forbidden();
+  if (await tokenIsOwner(token)) return { ok: true, token };
+  try {
+    const booker = await prisma.studioBooker.findUnique({
+      where: { email: (token.email as string).toLowerCase() },
+      select: { id: true },
+    });
+    if (booker) return { ok: true, token };
+  } catch (e) {
+    console.error("requireStudioAccess: allowlist lookup failed", e);
+  }
+  return forbidden();
+}
+
+/**
  * Defense-in-depth CSRF check for destructive, cookie-authenticated routes.
  * Same-origin browser requests always send an `Origin` header on state-changing
  * methods (POST/PUT/PATCH/DELETE), so a request whose `Origin` is present but
