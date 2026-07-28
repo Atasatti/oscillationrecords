@@ -72,13 +72,11 @@ Append to `prisma/schema.prisma`:
 /// logged in; access is checked by email at request time (revocation-aware).
 model StudioBooker {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  email     String   @unique // stored lowercased
+  email     String   @unique // stored lowercased (@unique already indexes it)
   name      String?
   note      String?
   addedById String?  @db.ObjectId
   createdAt DateTime @default(now())
-
-  @@index([email])
 }
 
 /// One booked studio session. `start`/`end` are absolute UTC instants; entered and
