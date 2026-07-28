@@ -5,8 +5,9 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import WeekGrid from "@/components/studio/WeekGrid";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
+import MyBookings from "@/components/studio/MyBookings";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
-import { formatStudioDate } from "@/lib/studio-schedule";
+import { formatStudioDate, studioParts } from "@/lib/studio-schedule";
 
 export type Booking = {
   id: string; start: string; end: string;
@@ -26,6 +27,7 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState<BookingForm | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const days = useMemo(() => weekDays(anchor), [anchor]);
   // weekDays() always returns exactly 7 entries (Monday..Sunday).
@@ -55,6 +57,7 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const shiftWeek = (delta: number) => setAnchor(new Date(anchor.getTime() + delta * 7 * 864e5));
 
   const openCreate = (dateKey: string, hour: number) => {
+    setEditId(null);
     const startTime = `${String(hour).padStart(2, "0")}:00`;
     const endHour = (hour + 1) % 24;
     const endDate = endHour === 0 ? addDaysKey(dateKey, 1) : dateKey;
@@ -83,6 +86,56 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
     }
   };
 
+  const openEdit = (b: Booking) => {
+    const s = studioParts(new Date(b.start));
+    const e = studioParts(new Date(b.end));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setEditId(b.id);
+    setDraft({
+      startDate: `${s.year}-${pad(s.month)}-${pad(s.day)}`,
+      startTime: `${pad(s.hour)}:${pad(s.minute)}`,
+      endDate: `${e.year}-${pad(e.month)}-${pad(e.day)}`,
+      endTime: `${pad(e.hour)}:${pad(e.minute)}`,
+      title: b.title ?? "",
+      notes: b.notes ?? "",
+    });
+    setDialogOpen(true);
+  };
+
+  const submitEdit = async (values: BookingForm) => {
+    if (!editId) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/studio/bookings/${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error ?? "Couldn't update the booking."); return; }
+      toast.success("Updated.");
+      setDialogOpen(false);
+      await load();
+    } catch {
+      toast.error("Couldn't update the booking.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const cancelBooking = async (b: Booking) => {
+    if (!confirm("Cancel this booking? The slot will be freed.")) return;
+    try {
+      const res = await fetch(`/api/studio/bookings/${b.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error ?? "Couldn't cancel."); return; }
+      toast.success("Cancelled.");
+      await load();
+    } catch {
+      toast.error("Couldn't cancel.");
+    }
+  };
+
   return (
     <div>
       <header className="mb-6 flex items-center justify-between">
@@ -104,18 +157,20 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
           days={days}
           bookings={bookings}
           onSelectSlot={openCreate}
-          onSelectBooking={(b) => { void b; /* wired in Task 11 */ }}
+          onSelectBooking={(b) => { if (b.mine) openEdit(b); }}
         />
       )}
+
+      <MyBookings bookings={bookings} onEdit={openEdit} onCancel={cancelBooking} />
 
       {draft ? (
         <BookingDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          mode="create"
+          mode={editId ? "edit" : "create"}
           initial={draft}
           submitting={submitting}
-          onSubmit={submitCreate}
+          onSubmit={editId ? submitEdit : submitCreate}
         />
       ) : null}
     </div>
