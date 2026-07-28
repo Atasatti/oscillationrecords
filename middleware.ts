@@ -10,6 +10,7 @@ import type { Permission } from "@/lib/permissions";
 function requiredForAdminPath(pathname: string): Permission | "owner" | null {
   if (pathname.startsWith("/admin/settings")) return "owner";
   if (pathname.startsWith("/admin/audit")) return "owner";
+  if (pathname.startsWith("/admin/studio")) return "owner";
   if (pathname.startsWith("/admin/data")) return "analytics:read";
   if (pathname.startsWith("/admin/errors")) return "analytics:read";
   // Catalog pages, now flattened to the top level ("catalog" kept so the old

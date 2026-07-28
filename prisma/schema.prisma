@@ -878,3 +878,36 @@ model AuditLog {
   @@index([resource, at])
   @@index([actorId, at])
 }
+
+/// Studio-booking allowlist. An email may be added before that person has ever
+/// logged in; access is checked by email at request time (revocation-aware).
+model StudioBooker {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique // stored lowercased
+  name      String?
+  note      String?
+  addedById String?  @db.ObjectId
+  createdAt DateTime @default(now())
+}
+
+/// One booked studio session. `start`/`end` are absolute UTC instants; entered and
+/// displayed in the studio timezone (Europe/London) and converted at the boundary.
+/// A confirmed booking may not overlap another confirmed booking.
+model StudioBooking {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String?  @db.ObjectId
+  bookerEmail String
+  bookerName  String?
+  start       DateTime
+  end         DateTime
+  title       String?
+  notes       String?
+  status      String   @default("confirmed") // "confirmed" | "cancelled"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([start])
+  @@index([start, end])
+  @@index([status, start])
+  @@index([userId])
+}
