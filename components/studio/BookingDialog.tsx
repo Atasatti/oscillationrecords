@@ -59,7 +59,7 @@ export default function BookingDialog({
           </label>
           <p className="text-xs text-muted-foreground">Times are UK time (Europe/London).</p>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : mode === "create" ? "Book" : "Save"}</Button>
           </DialogFooter>
         </form>

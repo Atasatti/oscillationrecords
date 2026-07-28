@@ -76,6 +76,8 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
       toast.success("Booked.");
       setDialogOpen(false);
       await load();
+    } catch {
+      toast.error("Couldn't book that slot.");
     } finally {
       setSubmitting(false);
     }
