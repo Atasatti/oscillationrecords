@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
+import WeekGrid from "@/components/studio/WeekGrid";
 import { weekDays } from "@/lib/studio-view";
-import { formatStudioDate, formatStudioTime } from "@/lib/studio-schedule";
+import { formatStudioDate } from "@/lib/studio-schedule";
 
 export type Booking = {
   id: string; start: string; end: string;
@@ -66,15 +67,12 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
       ) : (
-        <ul className="space-y-1 text-sm">
-          {bookings.length === 0 ? <li className="text-muted-foreground">No bookings this week.</li> : null}
-          {bookings.map((b) => (
-            <li key={b.id} className="rounded border border-white/10 px-3 py-2">
-              {formatStudioDate(new Date(b.start))} · {formatStudioTime(new Date(b.start))}–{formatStudioTime(new Date(b.end))}
-              {b.title ? ` — ${b.title}` : ""} {b.mine ? <span className="text-emerald-400">(you)</span> : b.bookerName ? `— ${b.bookerName}` : ""}
-            </li>
-          ))}
-        </ul>
+        <WeekGrid
+          days={days}
+          bookings={bookings}
+          onSelectSlot={(dateKey, hour) => { void dateKey; void hour; /* wired in Task 10 */ }}
+          onSelectBooking={(b) => { void b; /* wired in Task 11 */ }}
+        />
       )}
     </div>
   );
