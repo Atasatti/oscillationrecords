@@ -108,6 +108,24 @@ export const PERSONAL_DATA_INVENTORY: readonly PersonalDataEntry[] = [
     reason: "Their private admin view presets. Personal preference data, no shared value.",
   },
 
+  // --- Studio booking -----------------------------------------------------
+  {
+    model: "StudioBooking",
+    link: "userId (loose ObjectId) + bookerEmail / bookerName",
+    exported: true,
+    onDelete: "delete",
+    reason:
+      "Their studio session reservations. A personal booking with no label-side thread to preserve (unlike a support ticket), so it is deleted outright — which also frees any future slots they held. The loose userId means no cascade fires; matched on userId OR bookerEmail. Studio usage stays attributable via the retained AuditLog booking entries.",
+  },
+  {
+    model: "StudioBooker",
+    link: "email (allowlist key) + addedById (loose, the admin who added them)",
+    exported: true,
+    onDelete: "delete",
+    reason:
+      "Their entry on the studio-access allowlist, keyed by email — the same nature as NewsletterSubscriber, removed on erasure. Where they were instead the admin who ADDED someone, that addedById attribution is cleared rather than deleting the other person's access.",
+  },
+
   // --- Correspondence -----------------------------------------------------
   {
     model: "ContactMessage",

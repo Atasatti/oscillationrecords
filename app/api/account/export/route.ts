@@ -52,6 +52,8 @@ export async function GET(request: NextRequest) {
       assets,
       campaigns,
       errorLogs,
+      studioBookings,
+      studioAccess,
       auditLog,
     ] = await Promise.all([
       prisma.userProfile.findUnique({ where: { userId } }),
@@ -77,6 +79,8 @@ export async function GET(request: NextRequest) {
       prisma.asset.findMany({ where: { uploadedById: userId }, ...byNewest }),
       prisma.campaign.findMany({ where: { createdById: userId }, ...byNewest }),
       prisma.errorLog.findMany({ where: { userEmail: email }, orderBy: { lastSeen: "desc" } }),
+      prisma.studioBooking.findMany({ where: { OR: [{ userId }, { bookerEmail: email }] }, ...byNewest }),
+      prisma.studioBooker.findMany({ where: { email }, ...byNewest }),
       // Included so the one retention exception is transparent: these entries
       // survive account deletion, and the user can see exactly which they are.
       prisma.auditLog.findMany({
@@ -107,6 +111,8 @@ export async function GET(request: NextRequest) {
       uploadedAssets: assets,
       newsletterCampaigns: campaigns,
       errorLogs,
+      studioBookings,
+      studioAccess: studioAccess,
       auditLog,
     };
 

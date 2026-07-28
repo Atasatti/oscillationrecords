@@ -87,6 +87,15 @@ export async function DELETE(request: NextRequest) {
       // scripts/purge-audit-logs.mjs), and included in the user's export so the
       // exception is visible to them.
 
+      // DELETE — their studio session reservations (also frees future slots). Loose
+      // userId, so no cascade; match userId OR bookerEmail.
+      prisma.studioBooking.deleteMany({ where: { OR: [{ userId }, { bookerEmail: email }] } }),
+      // DELETE — their studio-access allowlist entry (email-keyed, like newsletter).
+      prisma.studioBooker.deleteMany({ where: { email } }),
+      // ANONYMIZE — where they were the admin who added someone, clear the attribution
+      // rather than removing that other person's access.
+      prisma.studioBooker.updateMany({ where: { addedById: userId }, data: { addedById: null } }),
+
       // Last: the account itself, cascading Account / Session / UserProfile /
       // PlayEvent / BenertRemixEntry / SavedView.
       prisma.user.delete({ where: { email } }),
