@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
       prisma.asset.findMany({ where: { uploadedById: userId }, ...byNewest }),
       prisma.campaign.findMany({ where: { createdById: userId }, ...byNewest }),
       prisma.errorLog.findMany({ where: { userEmail: email }, orderBy: { lastSeen: "desc" } }),
-      prisma.studioBooking.findMany({ where: { OR: [{ userId }, { bookerEmail: email }] }, ...byNewest }),
-      prisma.studioBooker.findMany({ where: { email }, ...byNewest }),
+      prisma.studioBooking.findMany({ where: { OR: [{ userId }, { bookerEmail: email.toLowerCase() }] }, ...byNewest }),
+      prisma.studioBooker.findMany({ where: { email: email.toLowerCase() }, ...byNewest }),
       // Included so the one retention exception is transparent: these entries
       // survive account deletion, and the user can see exactly which they are.
       prisma.auditLog.findMany({

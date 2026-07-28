@@ -89,9 +89,9 @@ export async function DELETE(request: NextRequest) {
 
       // DELETE — their studio session reservations (also frees future slots). Loose
       // userId, so no cascade; match userId OR bookerEmail.
-      prisma.studioBooking.deleteMany({ where: { OR: [{ userId }, { bookerEmail: email }] } }),
+      prisma.studioBooking.deleteMany({ where: { OR: [{ userId }, { bookerEmail: email.toLowerCase() }] } }),
       // DELETE — their studio-access allowlist entry (email-keyed, like newsletter).
-      prisma.studioBooker.deleteMany({ where: { email } }),
+      prisma.studioBooker.deleteMany({ where: { email: email.toLowerCase() } }),
       // ANONYMIZE — where they were the admin who added someone, clear the attribution
       // rather than removing that other person's access.
       prisma.studioBooker.updateMany({ where: { addedById: userId }, data: { addedById: null } }),
