@@ -69,7 +69,10 @@ export default function BookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      {/* Cap to the LIVE viewport (dvh tracks the real usable height as mobile
+          browser chrome shows/hides) and scroll inside, so the tall form can't
+          overflow behind an in-app browser's bars on a real phone. */}
+      <DialogContent className="max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Book the studio" : "Edit booking"}</DialogTitle>
           <DialogDescription>
