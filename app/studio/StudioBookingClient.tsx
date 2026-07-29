@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import WeekGrid from "@/components/studio/WeekGrid";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
 import MyBookings from "@/components/studio/MyBookings";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
-import { formatStudioDate, studioParts } from "@/lib/studio-schedule";
+import { formatStudioDate, studioDayStartUtc, studioParts } from "@/lib/studio-schedule";
 
 export type Booking = {
   id: string; start: string; end: string;
@@ -15,9 +15,7 @@ export type Booking = {
 };
 
 export default function StudioBookingClient({ viewerName }: { viewerName: string | null }) {
-  // Not rendered by this minimal shell yet — Tasks 9-11 use it (grid header,
-  // create-form default booker name). Referenced here so it stays part of the
-  // exported signature without tripping no-unused-vars.
+  // Reserved for later (greeting / prefilled booker). Kept on the signature.
   void viewerName;
 
   const toast = useToast();
@@ -32,29 +30,33 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const days = useMemo(() => weekDays(anchor), [anchor]);
   // weekDays() always returns exactly 7 entries (Monday..Sunday).
   const from = days[0]!.startUtc;
-  // Wrapped in its own useMemo (keyed on `days`, which is itself memoized on
-  // `anchor`) so `to` keeps a stable reference across re-renders — otherwise
-  // `new Date(...)` allocates a fresh object every render, `load`'s useCallback
-  // deps change every render, and the effect below refetches in a tight loop.
-  const to = useMemo(() => new Date(days[6]!.startUtc.getTime() + 864e5), [days]);
+  // DST-correct week end: the UTC instant of the day AFTER Sunday's local midnight
+  // (a fixed +24h would drift an hour on the two changeover Sundays, and could drop
+  // a booking in the final local hour of the week from the fetch window).
+  const to = useMemo(() => studioDayStartUtc(addDaysKey(days[6]!.dateKey, 1)), [days]);
 
+  // Monotonic request id: only the most recent fetch may write state, so quickly
+  // paging weeks can't let a slow earlier response clobber the current one.
+  const reqId = useRef(0);
   const load = useCallback(async () => {
+    const id = ++reqId.current;
     setLoading(true);
     try {
       const res = await fetch(`/api/studio/bookings?from=${from.toISOString()}&to=${to.toISOString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setBookings(data.bookings as Booking[]);
+      if (id === reqId.current) setBookings(data.bookings as Booking[]);
     } catch {
-      toast.error("Couldn't load bookings.");
+      if (id === reqId.current) toast.error("Couldn't load bookings.");
     } finally {
-      setLoading(false);
+      if (id === reqId.current) setLoading(false);
     }
   }, [from, to, toast]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const shiftWeek = (delta: number) => setAnchor(new Date(anchor.getTime() + delta * 7 * 864e5));
+  const shiftWeek = (delta: number) => setAnchor((a) => new Date(a.getTime() + delta * 7 * 864e5));
+  const goToday = () => setAnchor(new Date());
 
   const openCreate = (dateKey: string, hour: number) => {
     setEditId(null);
@@ -136,30 +138,37 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
     }
   };
 
+  const navBtn =
+    "rounded-lg border border-white/10 p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
+
   return (
     <div>
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-light tracking-tight">Studio booking</h1>
-          <p className="text-sm text-muted-foreground">All times shown in UK time (Europe/London).</p>
+          <h1 className="text-[length:var(--text-h2)] font-light leading-tight tracking-tighter">Studio booking</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Click any free slot to book. All times UK (Europe/London).</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => shiftWeek(-1)} aria-label="Previous week" className="rounded-lg border border-white/10 p-2 hover:bg-white/5"><ChevronLeft className="h-4 w-4" /></button>
-          <span className="text-sm text-muted-foreground">{formatStudioDate(days[0]!.startUtc)} – {formatStudioDate(days[6]!.startUtc)}</span>
-          <button onClick={() => shiftWeek(1)} aria-label="Next week" className="rounded-lg border border-white/10 p-2 hover:bg-white/5"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week" className={navBtn}><ChevronLeft className="h-4 w-4" /></button>
+          <span className="flex min-w-[172px] items-center justify-center gap-2 text-sm font-medium tabular-nums">
+            {formatStudioDate(from)} – {formatStudioDate(days[6]!.startUtc)}
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Updating" /> : null}
+          </span>
+          <button type="button" onClick={() => shiftWeek(1)} aria-label="Next week" className={navBtn}><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={goToday} className="ml-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">Today</button>
         </div>
       </header>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-      ) : (
-        <WeekGrid
-          days={days}
-          bookings={bookings}
-          onSelectSlot={openCreate}
-          onSelectBooking={(b) => { if (b.mine) openEdit(b); }}
-        />
-      )}
+      {!loading && bookings.length === 0 ? (
+        <p className="mb-3 text-sm text-muted-foreground">Nothing booked this week yet — click any time on the grid to make the first one.</p>
+      ) : null}
+
+      <WeekGrid
+        days={days}
+        bookings={bookings}
+        onSelectSlot={openCreate}
+        onSelectBooking={(b) => { if (b.mine) openEdit(b); }}
+      />
 
       <MyBookings bookings={bookings} onEdit={openEdit} onCancel={cancelBooking} />
 

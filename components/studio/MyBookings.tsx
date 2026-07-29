@@ -18,17 +18,19 @@ export default function MyBookings({
   if (mineUpcoming.length === 0) return null;
   return (
     <section className="mt-8">
-      <h2 className="mb-2 text-sm font-medium text-muted-foreground">Your upcoming bookings</h2>
+      {/* Scoped to the week in view — the grid's fetch window feeds this list. */}
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Your bookings this week</h2>
       <ul className="space-y-2">
         {mineUpcoming.map((b) => (
-          <li key={b.id} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-sm">
-            <span>
-              {formatStudioDate(new Date(b.start))} · {formatStudioTime(new Date(b.start))}–{formatStudioTime(new Date(b.end))}
-              {b.title ? ` — ${b.title}` : ""}
+          <li key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm">
+            <span className="min-w-0 truncate">
+              <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-400 align-middle" aria-hidden />
+              <span className="ml-2 tabular-nums">{formatStudioDate(new Date(b.start))} · {formatStudioTime(new Date(b.start))}–{formatStudioTime(new Date(b.end))}</span>
+              {b.title ? <span className="text-muted-foreground"> — {b.title}</span> : null}
             </span>
-            <span className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onEdit(b)}>Edit</Button>
-              <Button type="button" variant="outline" onClick={() => onCancel(b)}>Cancel</Button>
+            <span className="flex shrink-0 gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => onEdit(b)}>Edit</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => onCancel(b)}>Cancel</Button>
             </span>
           </li>
         ))}

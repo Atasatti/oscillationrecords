@@ -1,13 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 export type BookingForm = {
   startDate: string; startTime: string; endDate: string; endTime: string;
   title: string; notes: string;
 };
+
+/** Human duration between the two wall-clock fields, computed in the browser's
+ *  zone — the offset cancels out, so the minute count is the true length (bar a
+ *  once-a-year DST hour, immaterial for a hint). Feedback while you pick, and a
+ *  guard so an end-before-start never makes a doomed round-trip. */
+function describeDuration(form: BookingForm): { ok: boolean; text: string } | null {
+  const start = new Date(`${form.startDate}T${form.startTime}`);
+  const end = new Date(`${form.endDate}T${form.endTime}`);
+  const ms = end.getTime() - start.getTime();
+  if (Number.isNaN(ms)) return null;
+  if (ms <= 0) return { ok: false, text: "End must be after the start" };
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const length = [h ? `${h} hr` : null, m ? `${m} min` : null].filter(Boolean).join(" ") || "0 min";
+  const overnight = form.endDate !== form.startDate;
+  return { ok: true, text: `${length}${overnight ? " · ends next day" : ""}` };
+}
 
 export default function BookingDialog({
   open, onOpenChange, mode, initial, submitting, onSubmit,
@@ -25,42 +50,57 @@ export default function BookingDialog({
   const set = (k: keyof BookingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const field = "w-full rounded-md border border-white/10 bg-transparent px-3 py-2 text-sm";
+  const duration = useMemo(() => describeDuration(form), [form]);
+  const label = "block text-xs font-medium text-muted-foreground";
+  const field =
+    "mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-emerald-400/60 focus:outline-none focus:ring-1 focus:ring-emerald-400/30";
+  // [color-scheme:dark] makes the native date/time popovers + their icons render
+  // for a dark surface instead of the default light-on-dark washout.
+  const dtField = `${field} [color-scheme:dark]`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Book the studio" : "Edit booking"}</DialogTitle>
+          <DialogDescription>
+            All times are UK (Europe/London). Overlapping slots are blocked.
+          </DialogDescription>
         </DialogHeader>
-        <form
-          onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}
-          className="space-y-4"
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs text-muted-foreground">Start date
-              <input type="date" value={form.startDate} onChange={set("startDate")} className={field} required />
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4">
+          <fieldset className="grid grid-cols-2 gap-3">
+            <label className={label}>Start date
+              <input type="date" value={form.startDate} onChange={set("startDate")} className={dtField} required />
             </label>
-            <label className="text-xs text-muted-foreground">Start time
-              <input type="time" value={form.startTime} onChange={set("startTime")} className={field} required />
+            <label className={label}>Start time
+              <input type="time" value={form.startTime} onChange={set("startTime")} className={dtField} required />
             </label>
-            <label className="text-xs text-muted-foreground">End date
-              <input type="date" value={form.endDate} onChange={set("endDate")} className={field} required />
+            <label className={label}>End date
+              <input type="date" value={form.endDate} onChange={set("endDate")} className={dtField} required />
             </label>
-            <label className="text-xs text-muted-foreground">End time
-              <input type="time" value={form.endTime} onChange={set("endTime")} className={field} required />
+            <label className={label}>End time
+              <input type="time" value={form.endTime} onChange={set("endTime")} className={dtField} required />
             </label>
-          </div>
-          <label className="block text-xs text-muted-foreground">Session title (optional)
+          </fieldset>
+
+          {duration ? (
+            <p className={`text-xs ${duration.ok ? "text-emerald-400/90" : "text-rose-400"}`}>
+              {duration.ok ? `Duration: ${duration.text}` : duration.text}
+            </p>
+          ) : null}
+
+          <label className={label}>Session title <span className="text-white/30">(optional)</span>
             <input type="text" value={form.title} onChange={set("title")} placeholder="e.g. Vocal tracking" className={field} maxLength={200} />
           </label>
-          <label className="block text-xs text-muted-foreground">Private notes (only you &amp; the label)
-            <textarea value={form.notes} onChange={set("notes")} rows={2} className={field} maxLength={2000} />
+          <label className={label}>Private notes <span className="text-white/30">(only you &amp; the label)</span>
+            <textarea value={form.notes} onChange={set("notes")} rows={2} className={`${field} resize-y`} maxLength={2000} />
           </label>
-          <p className="text-xs text-muted-foreground">Times are UK time (Europe/London).</p>
+
           <DialogFooter>
             <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : mode === "create" ? "Book" : "Save"}</Button>
+            <Button type="submit" disabled={submitting || (duration ? !duration.ok : false)}>
+              {submitting ? "Saving…" : mode === "create" ? "Book session" : "Save changes"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
