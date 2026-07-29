@@ -7,7 +7,6 @@ import WeekGrid from "@/components/studio/WeekGrid";
 import DayView from "@/components/studio/DayView";
 import AgendaView from "@/components/studio/AgendaView";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
-import MyBookings from "@/components/studio/MyBookings";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
 import { formatStudioDate, studioDayStartUtc, studioParts } from "@/lib/studio-schedule";
 
@@ -146,13 +145,16 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
     }
   };
 
-  const cancelBooking = async (b: Booking) => {
+  // Cancel (delete) the booking currently open in the edit dialog.
+  const cancelEditing = async () => {
+    if (!editId) return;
     if (!confirm("Cancel this booking? The slot will be freed.")) return;
     try {
-      const res = await fetch(`/api/studio/bookings/${b.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/studio/bookings/${editId}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data.error ?? "Couldn't cancel."); return; }
       toast.success("Cancelled.");
+      setDialogOpen(false);
       await load();
     } catch {
       toast.error("Couldn't cancel.");
@@ -174,8 +176,8 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
   const navBtn = "rounded-lg border border-white/10 p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
 
   return (
-    <div>
-      <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="mb-3 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-[length:var(--text-h2)] font-light leading-tight tracking-tighter">Studio booking</h1>
           <p className="mt-1 text-sm text-muted-foreground">Click any free slot to book. All times UK (Europe/London).</p>
@@ -191,18 +193,14 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
         </div>
       </header>
 
-      {!loading && bookings.length === 0 ? (
-        <p className="mb-3 hidden text-sm text-muted-foreground lg:block">Nothing booked this week yet — click any time on the grid to make the first one.</p>
-      ) : null}
-
-      {/* Desktop: full week grid */}
-      <div className="hidden lg:block">
+      {/* Desktop: full week grid, fills the remaining height */}
+      <div className="hidden min-h-0 flex-1 lg:block">
         <WeekGrid days={days} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
       </div>
 
       {/* Mobile: agenda (default) with a switchable day calendar */}
-      <div className="lg:hidden">
-        <div className="mb-3 inline-flex rounded-lg border border-white/10 p-0.5 text-sm">
+      <div className="flex min-h-0 flex-1 flex-col lg:hidden">
+        <div className="mb-3 inline-flex shrink-0 self-start rounded-lg border border-white/10 p-0.5 text-sm">
           {(["agenda", "day"] as const).map((v) => (
             <button
               key={v}
@@ -214,14 +212,14 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
             </button>
           ))}
         </div>
-        {mobileView === "agenda" ? (
-          <AgendaView days={days} bookings={bookings} canEdit={canEdit} onSelectBooking={selectBooking} onBook={openCreateDefault} />
-        ) : (
-          <DayView days={days} selectedKey={effectiveDayKey} onSelectDay={setSelectedDayKey} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
-        )}
+        <div className="min-h-0 flex-1">
+          {mobileView === "agenda" ? (
+            <AgendaView days={days} bookings={bookings} canEdit={canEdit} onSelectBooking={selectBooking} onBook={openCreateDefault} />
+          ) : (
+            <DayView days={days} selectedKey={effectiveDayKey} onSelectDay={setSelectedDayKey} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
+          )}
+        </div>
       </div>
-
-      <MyBookings bookings={bookings} onEdit={openEdit} onCancel={cancelBooking} />
 
       {draft ? (
         <BookingDialog
@@ -231,6 +229,7 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
           initial={draft}
           submitting={submitting}
           dayIsFree={dayIsFree}
+          onCancel={editId ? cancelEditing : undefined}
           onSubmit={editId ? submitEdit : submitCreate}
         />
       ) : null}

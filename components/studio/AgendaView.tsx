@@ -20,12 +20,12 @@ export default function AgendaView({
   onBook: () => void;
 }) {
   return (
-    <div>
-      <Button type="button" onClick={onBook} className="mb-4 w-full">
+    <div className="flex h-full min-h-0 flex-col">
+      <Button type="button" onClick={onBook} className="mb-3 w-full shrink-0">
         <Plus className="h-4 w-4" aria-hidden /> Book a session
       </Button>
 
-      <ul className="space-y-4">
+      <ul className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {days.map((day) => {
           const nextStart = studioDayStartUtc(addDaysKey(day.dateKey, 1));
           const items = bookings

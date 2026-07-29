@@ -5,7 +5,9 @@ export const dynamic = "force-dynamic";
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
-      <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 text-white">{children}</main>
+      {/* Fixed-height app shell: the page itself never scrolls; the calendar fills
+          and compresses to fit, and any inner list (agenda) scrolls within. */}
+      <main className="mx-auto flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden px-4 py-4 text-white">{children}</main>
     </ToastProvider>
   );
 }

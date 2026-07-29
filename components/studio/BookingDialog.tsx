@@ -36,7 +36,7 @@ function describeDuration(form: BookingForm): { ok: boolean; text: string } | nu
 }
 
 export default function BookingDialog({
-  open, onOpenChange, mode, initial, submitting, dayIsFree, onSubmit,
+  open, onOpenChange, mode, initial, submitting, dayIsFree, onCancel, onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -45,6 +45,8 @@ export default function BookingDialog({
   submitting: boolean;
   /** Whether a day (YYYY-MM-DD) has no bookings — gates the "all day" shortcut. */
   dayIsFree?: (dateKey: string) => boolean;
+  /** Cancel (delete) this booking — edit mode only. */
+  onCancel?: () => void;
   onSubmit: (values: BookingForm) => void;
 }) {
   const [form, setForm] = useState<BookingForm>(initial);
@@ -120,7 +122,12 @@ export default function BookingDialog({
           </label>
 
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Cancel</Button>
+            {mode === "edit" && onCancel ? (
+              <Button type="button" variant="outline" disabled={submitting} onClick={onCancel} className="text-rose-400 hover:text-rose-300 sm:mr-auto">
+                Cancel booking
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>Close</Button>
             <Button type="submit" disabled={submitting || (duration ? !duration.ok : false)}>
               {submitting ? "Saving…" : mode === "create" ? "Book session" : "Save changes"}
             </Button>
