@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
+import { Button } from "@/components/ui/button";
 import WeekGrid from "@/components/studio/WeekGrid";
 import DayView from "@/components/studio/DayView";
 import AgendaView from "@/components/studio/AgendaView";
@@ -81,12 +82,18 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
     setDialogOpen(true);
   };
 
-  // Generic "Book a session" (agenda button): default to today if it's in the shown
-  // week, else the week's first day; the dialog's pickers let them change it.
-  const openCreateDefault = () => {
+  // "Book" (header button): default to the day currently in focus — the day-view's
+  // selected day, else today, else the week's start (effectiveDayKey resolves that).
+  const openBook = () => {
     const { key, hour } = keyOfNow();
-    const inWeek = days.some((d) => d.dateKey === key);
-    openCreate(inWeek ? key : days[0]!.dateKey, inWeek ? Math.min(23, hour + 1) : 9);
+    openCreate(effectiveDayKey, effectiveDayKey === key ? Math.min(23, hour + 1) : 12);
+  };
+
+  // Month jump, so a booking weeks/months out is reachable without paging by week.
+  const monthValue = (() => { const p = studioParts(anchor); return `${p.year}-${pad(p.month)}`; })();
+  const jumpToMonth = (v: string) => {
+    const m = /^(\d{4})-(\d{2})$/.exec(v);
+    if (m) setAnchor(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1, 12, 0, 0)));
   };
 
   const submitCreate = async (values: BookingForm) => {
@@ -182,14 +189,22 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
           <h1 className="text-[length:var(--text-h2)] font-light leading-tight tracking-tighter">Studio booking</h1>
           <p className="mt-1 text-sm text-muted-foreground">Click any free slot to book. All times UK (Europe/London).</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="month"
+            value={monthValue}
+            onChange={(e) => jumpToMonth(e.target.value)}
+            aria-label="Jump to month"
+            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white [color-scheme:dark]"
+          />
           <button type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week" className={navBtn}><ChevronLeft className="h-4 w-4" /></button>
-          <span className="flex min-w-[172px] items-center justify-center gap-2 text-sm font-medium tabular-nums">
+          <span className="flex min-w-[150px] items-center justify-center gap-2 text-sm font-medium tabular-nums">
             {formatStudioDate(from)} – {formatStudioDate(days[6]!.startUtc)}
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Updating" /> : null}
           </span>
           <button type="button" onClick={() => shiftWeek(1)} aria-label="Next week" className={navBtn}><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={goToday} className="ml-1 rounded-lg border border-white/10 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">Today</button>
+          <button type="button" onClick={goToday} className="rounded-lg border border-white/10 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">Today</button>
+          <Button type="button" size="sm" onClick={openBook}><Plus className="h-4 w-4" aria-hidden /> Book</Button>
         </div>
       </header>
 
@@ -214,7 +229,7 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
         </div>
         <div className="min-h-0 flex-1">
           {mobileView === "agenda" ? (
-            <AgendaView days={days} bookings={bookings} canEdit={canEdit} onSelectBooking={selectBooking} onBook={openCreateDefault} />
+            <AgendaView days={days} bookings={bookings} canEdit={canEdit} onSelectBooking={selectBooking} />
           ) : (
             <DayView days={days} selectedKey={effectiveDayKey} onSelectDay={setSelectedDayKey} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
           )}

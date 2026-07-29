@@ -1,8 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import type { Booking } from "@/app/studio/StudioBookingClient";
-import { Button } from "@/components/ui/button";
 import { type DayColumn, segmentForDay, addDaysKey } from "@/lib/studio-view";
 import { studioDayStartUtc, formatStudioDate, formatStudioTime } from "@/lib/studio-schedule";
 
@@ -11,20 +9,15 @@ import { studioDayStartUtc, formatStudioDate, formatStudioTime } from "@/lib/stu
 // it intersects it — the same rule the grid uses — so an overnight session shows
 // on both days.
 export default function AgendaView({
-  days, bookings, canEdit, onSelectBooking, onBook,
+  days, bookings, canEdit, onSelectBooking,
 }: {
   days: DayColumn[];
   bookings: Booking[];
   canEdit: (b: Booking) => boolean;
   onSelectBooking: (b: Booking) => void;
-  onBook: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Button type="button" onClick={onBook} className="mb-3 w-full shrink-0">
-        <Plus className="h-4 w-4" aria-hidden /> Book a session
-      </Button>
-
       <ul className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {days.map((day) => {
           const nextStart = studioDayStartUtc(addDaysKey(day.dateKey, 1));
