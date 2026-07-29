@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import WeekGrid from "@/components/studio/WeekGrid";
 import DayView from "@/components/studio/DayView";
 import AgendaView from "@/components/studio/AgendaView";
+import MonthPicker from "@/components/studio/MonthPicker";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
 import { formatStudioDate, studioDayStartUtc, studioParts } from "@/lib/studio-schedule";
@@ -190,13 +191,7 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
           <p className="mt-1 text-sm text-muted-foreground">Click any free slot to book. All times UK (Europe/London).</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="month"
-            value={monthValue}
-            onChange={(e) => jumpToMonth(e.target.value)}
-            aria-label="Jump to month"
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white [color-scheme:dark]"
-          />
+          <MonthPicker value={monthValue} onChange={jumpToMonth} />
           <button type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week" className={navBtn}><ChevronLeft className="h-4 w-4" /></button>
           <span className="flex min-w-[150px] items-center justify-center gap-2 text-sm font-medium tabular-nums">
             {formatStudioDate(from)} – {formatStudioDate(days[6]!.startUtc)}
