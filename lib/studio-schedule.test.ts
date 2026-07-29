@@ -86,12 +86,20 @@ describe("validateBookingInput", () => {
     const r = validateBookingInput({ ...base, endTime: "14:15" }, now);
     expect(r.ok).toBe(false);
   });
-  it("rejects a booking in the past", () => {
+  it("rejects a booking more than a day in the past", () => {
     const r = validateBookingInput(
-      { startDate: "2026-07-14", startTime: "14:00", endDate: "2026-07-14", endTime: "16:00" },
+      { startDate: "2026-07-13", startTime: "14:00", endDate: "2026-07-13", endTime: "16:00" },
       now
     );
     expect(r.ok).toBe(false);
+  });
+  it("allows a start earlier the same day (within the 24h back-fill grace)", () => {
+    // now is 10:00 BST on 2026-07-15; the all-day block starts at local 00:00.
+    const r = validateBookingInput(
+      { startDate: "2026-07-15", startTime: "00:00", endDate: "2026-07-16", endTime: "00:00" },
+      now
+    );
+    expect(r.ok).toBe(true);
   });
   it("rejects a booking beyond the horizon", () => {
     const r = validateBookingInput(

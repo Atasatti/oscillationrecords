@@ -6,6 +6,9 @@ export const STUDIO_TZ = "Europe/London";
 export const MIN_MINUTES = 30;
 export const MAX_MINUTES = 25 * 60; // one full day — 25h covers the DST fall-back day's all-day booking
 export const HORIZON_DAYS = 180;
+// A booking may START up to this long ago: booking the current day "all day"
+// begins at 00:00, and a forgotten same-day session can be back-filled.
+export const PAST_GRACE_MINUTES = 24 * 60;
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{2}):(\d{2})$/;
@@ -104,9 +107,11 @@ export function validateBookingInput(input: BookingTimeInput, now: Date = new Da
   if (durMin <= 0) return { ok: false, error: "End time must be after the start time." };
   if (durMin < MIN_MINUTES) return { ok: false, error: `Minimum booking is ${MIN_MINUTES} minutes.` };
   if (durMin > MAX_MINUTES) return { ok: false, error: "A booking can't be longer than a full day." };
-  // 5-minute slack so a booking made for "now" isn't rejected by clock skew.
-  if (start.getTime() < now.getTime() - 5 * 60000) {
-    return { ok: false, error: "You can't book a time in the past." };
+  // Allow a start up to PAST_GRACE_MINUTES ago (so "all day" on the current day,
+  // which begins at 00:00, works and same-day back-fills are possible); older
+  // than that is rejected.
+  if (start.getTime() < now.getTime() - PAST_GRACE_MINUTES * 60000) {
+    return { ok: false, error: "You can't book more than a day in the past." };
   }
   const horizon = now.getTime() + HORIZON_DAYS * 24 * 60 * 60 * 1000;
   if (start.getTime() > horizon) {
