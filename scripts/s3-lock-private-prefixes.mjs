@@ -35,6 +35,11 @@ import {
 const APPLY = process.argv.includes("--apply");
 const REVERT = process.argv.includes("--revert");
 const SID = "DenyAnonymousReadPrivatePrefixes";
+// Temporary per-key statement from the 2026-07-24 unreleased-masters incident
+// (12 exposed objects denied by exact key while production still rendered raw
+// bucket URLs). The tracks/audio/ prefix below covers all of them, so this
+// script retires the stopgap whenever it writes the policy.
+const TEMP_INCIDENT_SID = "DenyAnonymousReadUnreleasedAudio";
 
 // Must stay in sync with PRIVATE_KEY_PREFIXES in lib/s3-url.ts.
 const PRIVATE_PREFIXES = [
@@ -45,6 +50,12 @@ const PRIVATE_PREFIXES = [
   "quarantine/",
   "releases/agreements/",
   "task-attachments/",
+  // 2026-07-24 incident: unreleased masters were anonymously readable here.
+  // ONLY flip this on in the bucket once the app code that serves playback via
+  // /api/tracks/[trackId]/audio is DEPLOYED TO PRODUCTION — applying it against
+  // the older deployment (raw bucket URLs in players) silences all public
+  // playback. See DEPLOY.md.
+  "tracks/audio/",
   "tracks/stems/",
 ];
 
@@ -87,11 +98,12 @@ async function main() {
   console.log(current ? JSON.stringify(current, null, 2) : "(none)");
 
   const statements = current?.Statement ?? [];
+  // Both modes drop the incident stopgap: on apply the tracks/audio/* prefix
+  // deny supersedes it; on revert the point is restoring the pre-lockdown state.
+  const kept = statements.filter((s) => s.Sid !== SID && s.Sid !== TEMP_INCIDENT_SID);
   const next = {
     Version: "2012-10-17",
-    Statement: REVERT
-      ? statements.filter((s) => s.Sid !== SID)
-      : [...statements.filter((s) => s.Sid !== SID), denyStatement()],
+    Statement: REVERT ? kept : [...kept, denyStatement()],
   };
 
   if (!REVERT && !next.Statement.some((s) => s.Effect === "Allow")) {

@@ -12,6 +12,8 @@ import {
   serializeTrackForPublic,
 } from "@/lib/release-format";
 import { computeReleaseSeo, type ReleaseSeoGrade } from "@/lib/seo-score";
+import { hasPlayableTrack } from "@/lib/release-tracks";
+import { trackAudioHref } from "@/lib/s3-url";
 import { compareComingSoon } from "@/lib/coming-soon-order";
 import { slugify, OBJECT_ID_RE } from "@/lib/slug";
 
@@ -85,13 +87,25 @@ const RELEASE_LINK_KEYS = [
 // SCHEDULED release auto-goes-public once its releaseDate passes.
 // ---------------------------------------------------------------------------
 
-/** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived. */
+/** Track-level readiness: a non-empty audio file. A release is shown publicly
+ *  only when at least one of its tracks matches this (see {@link publicReleaseWhere}).
+ *  `not: ""` is AND-ed with `not: null` because the editor can store an empty
+ *  string, and `$ne: ""` alone would still match null. */
+export const PLAYABLE_TRACK_WHERE: Prisma.TrackWhereInput = {
+  AND: [{ audioFile: { not: null } }, { audioFile: { not: "" } }],
+};
+
+/** Releases the public may see: RELEASED, or SCHEDULED whose date has arrived —
+ *  AND that are actually READY (at least one playable track). Passing the
+ *  scheduled date only makes a release ELIGIBLE; without a playable track it
+ *  stays hidden (there is no publish job, so this query-time readiness gate IS
+ *  the final check before it ever reaches the public — atomic and re-evaluated
+ *  on every read, so nothing can go public in a window between check and
+ *  publish). A release created directly as RELEASED but not yet given audio is
+ *  hidden the same way, until its audio exists. */
 export function publicReleaseWhere(): Prisma.ReleaseWhereInput {
   return {
-    // A live release is only public once it has at least one track. A trackless
-    // RELEASED release is still being set up (created directly as Released, with
-    // the tracklist added next), so it stays hidden like a draft until then.
-    tracks: { some: {} },
+    tracks: { some: PLAYABLE_TRACK_WHERE },
     OR: [
       { status: "RELEASED" },
       { status: "SCHEDULED", releaseDate: { lte: new Date() } },
@@ -127,7 +141,7 @@ export const releaseCardListArgs = {
     tracks: {
       orderBy: { sortOrder: "asc" as const },
       take: 1,
-      select: { audioFile: true },
+      select: { id: true, audioFile: true },
     },
     _count: { select: { tracks: true } },
   },
@@ -177,7 +191,10 @@ export async function mapReleasesToCards(
     );
     const primaryName = primaryNamesFromIds(primaryIds, artistMap);
     const rd = getOptionalDate(r.releaseDate);
-    const firstAudio = r.tracks[0]?.audioFile ?? null;
+    // Gated playback href, not the raw bucket URL — tracks/audio/ is a private
+    // prefix since the 2026-07-24 lockdown, so the raw URL 403s for visitors.
+    const firstTrack = r.tracks[0];
+    const firstAudio = firstTrack?.audioFile ? trackAudioHref(firstTrack.id) : null;
 
     // SEO score is an admin-only metric; skip the work for public callers.
     const seo = isAdmin
@@ -603,7 +620,7 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
         youtubeLink: true,
         soundcloudLink: true,
         tracks: {
-          select: { name: true, duration: true, isrcCode: true, iswc: true, lyrics: true },
+          select: { name: true, duration: true, isrcCode: true, iswc: true, lyrics: true, audioFile: true },
           orderBy: { sortOrder: "asc" },
         },
       },
@@ -612,9 +629,11 @@ export const getReleaseMeta = cache(async (id: string): Promise<ReleaseMetaDTO |
 
     const isPublic = isReleasePublic({ status: r.status, releaseDate: r.releaseDate });
 
-    // A trackless live release (created directly as Released, tracks added next)
-    // 404s on its detail page — don't emit metadata for it either.
-    if (isPublic && r.tracks.length === 0) {
+    // A live release that isn't READY (no playable track — e.g. a SCHEDULED
+    // release whose date passed before its audio was uploaded, or one created
+    // directly as Released with the tracklist still to come) 404s on its detail
+    // page, so don't emit metadata for it either.
+    if (isPublic && !hasPlayableTrack(r.tracks)) {
       return null;
     }
 
@@ -733,10 +752,12 @@ export const getReleaseDetail = cache(
       if (!release || release.status === "DRAFT") return null;
 
       // A live release (RELEASED, or a SCHEDULED whose date has arrived) is only
-      // public once it has at least one track — a trackless live release is still
-      // being set up (created directly as Released, tracks added next), so hide it
-      // like a draft. Future-dated SCHEDULED (Coming Soon) may still be trackless.
-      if (isReleasePublic(release) && release.tracks.length === 0) return null;
+      // public once it is READY — at least one track with audio. A trackless
+      // release (still being set up), or a scheduled release whose date passed
+      // before its audio was uploaded, is hidden like a draft until it has a
+      // playable track. Future-dated SCHEDULED (Coming Soon) is exempt: it is not
+      // yet in its public window (isReleasePublic false), so it may be trackless.
+      if (isReleasePublic(release) && !hasPlayableTrack(release.tracks)) return null;
 
       // Future-dated SCHEDULED: public metadata, but tracks (audio) stay hidden
       // until the date arrives. The page shows "Tracklist to be revealed".

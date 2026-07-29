@@ -52,6 +52,39 @@ export function resultingTracklist(
   });
 }
 
+/**
+ * The tracklist a STANDALONE single-track delete (DELETE /api/tracks/[id]) would
+ * leave behind: the stored list minus the one track. Feeds the same
+ * {@link validateResultingTracklist} the editor's PATCH uses, so the legacy
+ * detail page's delete and the main workflow enforce identical invariants —
+ * neither can pull the last track out from under a live release.
+ */
+export function tracklistAfterDelete(
+  stored: readonly StoredTrack[],
+  deletedTrackId: string
+): ResultingTrack[] {
+  return stored
+    .filter((t) => String(t.id) !== String(deletedTrackId))
+    .map((t) => ({ id: t.id, audioFile: t.audioFile, isNew: false }));
+}
+
+/**
+ * Readiness gate for PUBLIC visibility: at least one track that can actually
+ * play (a non-empty audio file). A SCHEDULED release becomes public purely
+ * because its date passed (there is no publish job — visibility is computed at
+ * query time), so this is the "final readiness check immediately before
+ * publication": a scheduled release whose audio never arrived stays hidden once
+ * its date passes instead of appearing with nothing to play. Deliberately
+ * requires only ONE playable track (the report's stated minimum, and what the
+ * home carousel already filters on); the stricter "every track has audio" rule
+ * is enforced at RELEASED-publish time by {@link validateResultingTracklist}.
+ */
+export function hasPlayableTrack(
+  tracks: readonly { audioFile: string | null }[]
+): boolean {
+  return tracks.some((t) => typeof t.audioFile === "string" && t.audioFile.trim() !== "");
+}
+
 export type TracklistCheck = {
   stored: readonly StoredTrack[];
   resulting: readonly ResultingTrack[];

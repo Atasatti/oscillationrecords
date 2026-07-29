@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasPlayableTrack,
   resultingTracklist,
+  tracklistAfterDelete,
   validateResultingTracklist,
   type StoredTrack,
   type SubmittedTrack,
@@ -138,5 +140,88 @@ describe("validateResultingTracklist", () => {
 
   it("rejects replacing a live tracklist with audio-less new tracks", () => {
     expect(check(stored(["a", "a.mp3"]), [{ audioFile: null }], LIVE)).toMatch(/needs audio/i);
+  });
+});
+
+// The standalone DELETE /api/tracks/[id] (the legacy release detail page's
+// per-track delete) reuses these same rules via tracklistAfterDelete +
+// validateResultingTracklist, so a single delete can no longer empty a live
+// release the way the tracklist editor already can't.
+// The readiness gate that keeps a scheduled release from going public without
+// audio when its date passes: a release is publicly visible only if it has at
+// least one playable track. (No publish job exists — visibility is computed at
+// query time — so this IS the final pre-publication readiness check.)
+describe("hasPlayableTrack", () => {
+  it("is true when at least one track has a non-empty audio file", () => {
+    expect(hasPlayableTrack([{ audioFile: null }, { audioFile: "a.mp3" }])).toBe(true);
+  });
+
+  it("is false for a trackless release", () => {
+    expect(hasPlayableTrack([])).toBe(false);
+  });
+
+  it("is false when every track lacks audio (scheduled date passed, no upload)", () => {
+    expect(hasPlayableTrack([{ audioFile: null }, { audioFile: null }])).toBe(false);
+  });
+
+  it("treats an empty / whitespace audio string as not playable", () => {
+    // The editor can persist "" — a failed/cleared upload must not read as ready.
+    expect(hasPlayableTrack([{ audioFile: "" }, { audioFile: "   " }])).toBe(false);
+  });
+});
+
+describe("tracklistAfterDelete", () => {
+  it("returns the stored list minus the deleted track (as kept, non-new rows)", () => {
+    const s = stored(["a", "a.mp3"], ["b", "b.mp3"]);
+    expect(tracklistAfterDelete(s, "a")).toEqual([{ id: "b", audioFile: "b.mp3", isNew: false }]);
+  });
+
+  it("is a no-op for an id that isn't in the list", () => {
+    const s = stored(["a", "a.mp3"]);
+    expect(tracklistAfterDelete(s, "zzz").map((t) => t.id)).toEqual(["a"]);
+  });
+
+  it("empties a single-track list", () => {
+    expect(tracklistAfterDelete(stored(["a", "a.mp3"]), "a")).toEqual([]);
+  });
+});
+
+describe("standalone single-track delete (via tracklistAfterDelete)", () => {
+  const deleteCheck = (
+    s: StoredTrack[],
+    id: string,
+    ctx: { nextStatus: "DRAFT" | "SCHEDULED" | "RELEASED"; nextIsLive: boolean }
+  ) =>
+    validateResultingTracklist({ stored: s, resulting: tracklistAfterDelete(s, id), ...ctx });
+
+  it("BLOCKS deleting the last track of a RELEASED release", () => {
+    expect(deleteCheck(stored(["a", "a.mp3"]), "a", LIVE)).toMatch(/live release/i);
+  });
+
+  it("BLOCKS deleting the last track of a live (past-dated) Coming-Soon release", () => {
+    expect(deleteCheck(stored(["a", "a.mp3"]), "a", SCHEDULED_LIVE)).toMatch(/live release/i);
+  });
+
+  it("ALLOWS deleting one track from a multi-track live release", () => {
+    expect(deleteCheck(stored(["a", "a.mp3"], ["b", "b.mp3"]), "a", LIVE)).toBeNull();
+  });
+
+  it("ALLOWS deleting the last track of a DRAFT release", () => {
+    expect(deleteCheck(stored(["a", "a.mp3"]), "a", DRAFT)).toBeNull();
+  });
+
+  it("ALLOWS deleting the last track of a future-dated Coming-Soon release", () => {
+    expect(deleteCheck(stored(["a", null]), "a", COMING_SOON)).toBeNull();
+  });
+
+  it("models the concurrent last-two-delete race: each delete leaves one track, so the SECOND (re-read) is blocked", () => {
+    // Two tracks on a live release; two concurrent deletes. Whichever commits
+    // first leaves [other]; the loser retries and re-reads a one-track list, so
+    // deleting its target now empties the release and is rejected — the DB-level
+    // guarantee the route gets from re-checking inside the transaction.
+    const twoTracks = stored(["a", "a.mp3"], ["b", "b.mp3"]);
+    expect(deleteCheck(twoTracks, "a", LIVE)).toBeNull(); // first delete: ok
+    const afterFirst = stored(["b", "b.mp3"]); // list the retried tx re-reads
+    expect(deleteCheck(afterFirst, "b", LIVE)).toMatch(/live release/i); // second: blocked
   });
 });

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "overrides": {
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "postcss": "^8.5.18"
   },
   "scripts": {
     "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev --turbopack",
@@ -15,12 +16,12 @@
     "db:deploy": "node scripts/deploy-db.mjs",
     "db:check-indexes": "node --env-file=.env --use-system-ca scripts/check-index-drift.mjs",
     "db:dedupe-errors": "node --env-file=.env --use-system-ca scripts/dedupe-error-log.mjs",
+    "check:s3-exposure": "node --env-file=.env --use-system-ca scripts/check-s3-exposure.mjs",
     "indexnow": "node scripts/indexnow-submit.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.10.0",
     "@aws-sdk/client-s3": "^3.917.0",
     "@aws-sdk/s3-request-presigner": "^3.917.0",
     "@dnd-kit/core": "^6.3.1",
@@ -37,7 +38,7 @@
     "lucide-react": "^0.525.0",
     "motion": "^12.23.0",
     "next": "^15.5.9",
-    "next-auth": "^4.24.14",
+    "next-auth": "^4.24.15",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",

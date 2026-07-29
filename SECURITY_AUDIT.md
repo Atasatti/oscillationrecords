@@ -1,5 +1,60 @@
 # Security Audit — Oscillation Records
 
+> **Review 2026-07-24 — NextAuth v4 OAuth advisories (assessed + patched; v5 migration NOT warranted).**
+> `npm audit` flagged `next-auth@4.24.14` **critical** for three Auth.js advisories, plus the v5
+> core `@auth/core` (same three titles), `uuid`, and `postcss`. Applicability was assessed per
+> advisory against the ACTUAL config (`lib/auth.ts`), not the aggregate rating:
+> - **OAuth state/nonce/PKCE cookies not bound to the issuing provider** — a cross-provider
+>   confusion attack that requires MULTIPLE OAuth providers. This app configures exactly ONE
+>   (Google) — verified live via `/api/auth/providers` → `["google"]`. **Not exploitable here.**
+> - **Email normalizer homoglyph `@` bypass** — affects the Email (magic-link) provider, which
+>   this app does not use. **Not in the code path.**
+> - **`getToken()` uncaught throw on a malformed `Authorization: Bearer` header** — the one that
+>   touched our code (`lib/auth-guard.ts` calls `getToken` on every guarded route). A DoS/500
+>   vector, not an auth bypass. **Applicable.**
+>
+> **The report's premise was factually wrong** on two points: (1) a patched v4 release DOES exist —
+> `next-auth@4.24.15` is published as `latest`, and the audit's vulnerable range is `<=4.24.14`;
+> (2) migrating to v5 would not help — v5 is still `5.0.0-beta.32` (a beta), and its `@auth/core`
+> carried the identical three advisory titles until `0.41.3`. A v4→v5 migration on a live,
+> single-admin auth system is a large, breaking change with no security upside here, so it was
+> **deliberately not done** (documented, not suppressed).
+>
+> **Remediation applied:** bumped `next-auth` → **4.24.15** (clears all three next-auth advisories;
+> also raises its bundled `uuid ^8.3.2 → ^11.1.1`, clearing the uuid advisory); **removed the unused
+> `@auth/prisma-adapter`** dependency (the PrismaAdapter was commented out in `lib/auth.ts` — JWT
+> strategy — and it was the sole reason the v5 `@auth/core` critical advisories were in the tree at
+> all); **hardened `resolveToken()`** to catch any `getToken` throw and fail CLOSED (401/403, never
+> 500 or an authenticated path) as defence-in-depth beyond the patch; **added a `postcss ^8.5.18`
+> override** (the flagged `<=8.5.17` paths — Next/Tailwind/Vite — are build-time CSS processing of
+> our OWN source, no runtime exposure to attacker CSS, but bumped anyway). **Verified:** `npm audit`
+> → 0 critical / 0 moderate (was 2 critical); live sign-in machinery intact (CSRF token issues,
+> valid admin session → 200); anonymous → 403; **malformed Bearer → 403, not 500**; tsc + lint +
+> 191 tests green. **Residual (out of the reported scope, not suppressed):** `next` itself is
+> flagged HIGH (runtime framework — a separate upgrade decision needing its own test pass);
+> `brace-expansion` + `js-yaml` are HIGH but **dev-only** (ESLint/build tooling, absent from the
+> production runtime).
+
+> **Incident 2026-07-24 — unreleased masters anonymously downloadable (HIGH, resolved).**
+> The bucket policy's blanket `Allow s3:GetObject` on `osrecord/*` was carved down by a
+> Deny list of private prefixes (audit #1), but `tracks/audio/` was classified as public
+> ("released audio") — so the 12 existing masters of unreleased releases (10 Benert
+> Remixes masters + 2 test files) were downloadable, range requests included, by anyone
+> with the URL. **Containment (same day):** a temporary per-key Deny
+> (`DenyAnonymousReadUnreleasedAudio`, anonymous-only condition) — all 12 verified 403
+> anonymously, released playback unaffected. **Durable fix:** `tracks/audio/` added to
+> `PRIVATE_KEY_PREFIXES`; ALL playback (public + admin) now goes through
+> `GET /api/tracks/[trackId]/audio`, which authorizes by the owning release's public
+> visibility (`isReleasePublic`) or an admin session and 302s to a 5-minute presigned
+> GET; bucket-wide prefix deny ships via `scripts/s3-lock-private-prefixes.mjs` at the
+> next prod deploy (DEPLOY.md §4b — order matters). **Regression guard:**
+> `npm run check:s3-exposure` (scripts/check-s3-exposure.mjs) fails if any private-prefix
+> object or any unreleased-release audio object answers an anonymous GET.
+> **Forensics:** S3 server access logging and CloudTrail data events were never enabled,
+> so whether the files were downloaded by third parties is **indeterminate**; treat the
+> masters as potentially accessed. No CDN sits in front of the bucket (nothing to
+> invalidate); object ownership is already BucketOwnerEnforced (ACLs disabled).
+
 **Latest audit:** 2026-06-18 (branch `admin-redesign`)
 **Method:** Static review of the full Next.js 15 App Router app — all ~50 API route handlers, NextAuth config, middleware, Prisma schema, shared `lib/*` helpers, `next.config.ts`, dependencies (`npm audit`), and the server/client boundary. Framework anchored on the OWASP Top 10 (2021) + OWASP API Security Top 10, plus Next.js-specific risks (route-handler authz, server/client leakage, image-optimizer SSRF, CVE-2025-29927 middleware bypass). No dynamic/penetration testing (app not running); findings are code-verified with file:line.
 

@@ -30,7 +30,7 @@ export type AuditAction =
 export const AUDIT_RESOURCES = [
   "artist", "asset", "automation", "campaign", "contact", "content_post",
   "demo", "digest", "error", "message", "pitch", "placement", "press",
-  "release", "settings", "subscriber", "task", "template", "track", "user",
+  "release", "settings", "studio_booker", "studio_booking", "subscriber", "task", "template", "track", "user",
 ] as const;
 
 export interface AuditInput {

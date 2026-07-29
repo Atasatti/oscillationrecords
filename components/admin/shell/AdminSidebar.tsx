@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Disc3, Settings, Activity, MessageSquare, TriangleAlert, LayoutTemplate, Newspaper, Target, ListChecks, FolderArchive, ScrollText, CalendarDays, Wallet, Send, Mailbox, ChevronsLeft, ChevronsRight, CalendarClock, type LucideIcon } from "lucide-react";
 import { useUnsavedChangesContext } from "@/hooks/unsaved-changes-context";
 import { roleCan, type Permission } from "@/lib/permissions";
 
@@ -81,6 +81,7 @@ export const adminGroups: readonly AdminGroup[] = [
   {
     header: "System",
     links: [
+      { href: "/admin/studio", label: "Studio", icon: CalendarClock, perm: "owner" },
       { href: "/admin/audit", label: "Audit log", icon: ScrollText, perm: "owner" },
       { href: "/admin/settings", label: "Settings", icon: Settings, perm: "owner" },
     ],

@@ -1,4 +1,5 @@
 import type { Artist, Release, Track } from "@prisma/client";
+import { trackAudioHref } from "@/lib/s3-url";
 
 export type ApiReleaseKind = "single" | "ep" | "album";
 
@@ -171,6 +172,12 @@ export function serializeTrack(t: Track) {
  * display yet); none must ship to anonymous clients. Plain `lyrics` ARE shipped:
  * owned, indexable content (the release page + JSON-LD surface them). The admin
  * session still uses the full {@link serializeTrack}.
+ *
+ * `audioFile` is rewritten to the gated playback route: raw tracks/audio/ bucket
+ * URLs stopped being anonymously readable in the 2026-07-24 lockdown, so a
+ * public payload carrying one would hand players a dead (403) link. The admin
+ * serializer keeps the raw URL — the release editor round-trips `audioFile`
+ * verbatim on autosave, so the DB value must stay canonical.
  */
 export function serializeTrackForPublic(
   t: Track
@@ -191,5 +198,6 @@ export function serializeTrackForPublic(
   void _stems;
   void _splits;
   void _synced;
-  return rest; // `rest` includes plain `lyrics` (public); syncedLyrics stays internal.
+  // `rest` includes plain `lyrics` (public); syncedLyrics stays internal.
+  return { ...rest, audioFile: t.audioFile ? trackAudioHref(t.id) : t.audioFile };
 }

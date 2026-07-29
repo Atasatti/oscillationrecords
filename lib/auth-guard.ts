@@ -34,7 +34,19 @@ async function resolveToken(
   if (!secret) {
     return { response: NextResponse.json({ error: "Server configuration error" }, { status: 500 }) };
   }
-  return { token: await getToken({ req, secret }) };
+  // Fail CLOSED if decoding throws. next-auth's getToken inspects the request's
+  // Authorization header, and a malformed `Bearer` value made it throw an
+  // uncaught exception (GHSA advisory, patched in next-auth 4.24.15). A throw
+  // here must never surface as a 500 that leaks a stack or, worse, be mistaken
+  // for an authenticated path — treat any decode failure as "no token", which
+  // the callers below turn into a 401/403. Kept as defence-in-depth beyond the
+  // dependency patch: no attacker-supplied header can crash a guarded route.
+  try {
+    return { token: await getToken({ req, secret }) };
+  } catch (e) {
+    console.error("resolveToken: getToken threw; treating as unauthenticated", e);
+    return { token: null };
+  }
 }
 
 async function readToken(req: NextRequest): Promise<JWT | null> {
@@ -213,6 +225,30 @@ export async function requireUser(req: NextRequest): Promise<UserGuard> {
     };
   }
   return { ok: true, token, userId: user.id };
+}
+
+/**
+ * Authoritative STUDIO-BOOKING access check. Owners (bootstrap email or DB role
+ * "admin") always pass. Everyone else must have their email on the StudioBooker
+ * allowlist — read fresh from the DB on every call, so adding/removing a booker
+ * takes effect on their next request. Fails closed if the DB can't be read.
+ */
+export async function requireStudioAccess(req: NextRequest): Promise<Guard> {
+  const resolved = await resolveToken(req);
+  if ("response" in resolved) return { ok: false, response: resolved.response };
+  const token = resolved.token;
+  if (!token?.email) return forbidden();
+  if (await tokenIsOwner(token)) return { ok: true, token };
+  try {
+    const booker = await prisma.studioBooker.findUnique({
+      where: { email: (token.email as string).toLowerCase() },
+      select: { id: true },
+    });
+    if (booker) return { ok: true, token };
+  } catch (e) {
+    console.error("requireStudioAccess: allowlist lookup failed", e);
+  }
+  return forbidden();
 }
 
 /**
