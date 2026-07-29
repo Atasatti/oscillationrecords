@@ -14,6 +14,7 @@ import { normalizeCredits } from "@/lib/credits";
 import { normalizeSplits, splitsProblem } from "@/lib/release-splits";
 import { revalidateAdminCatalog } from "@/lib/admin-cache-tags";
 import {
+  hasPlayableTrack,
   resultingTracklist,
   TracklistError,
   validateResultingTracklist,
@@ -55,6 +56,14 @@ export async function GET(
     const isAdmin = await isAdminRequest(request);
     // DRAFT releases are admin-only; SCHEDULED is public (Coming-Soon page).
     if (!isAdmin && release.status === "DRAFT") {
+      return NextResponse.json({ error: "Release not found" }, { status: 404 });
+    }
+    // A release in its public window (RELEASED, or a SCHEDULED whose date has
+    // passed) is shown to the public only when READY — at least one playable
+    // track. Passing the scheduled date makes it eligible, not published: if its
+    // audio never arrived it stays hidden (404) rather than exposing an empty /
+    // unplayable release, matching getReleaseDetail. Admins always see it.
+    if (!isAdmin && isReleasePublic(release) && !hasPlayableTrack(release.tracks)) {
       return NextResponse.json({ error: "Release not found" }, { status: 404 });
     }
     // A future-dated SCHEDULED (Coming-Soon) release is public for its metadata

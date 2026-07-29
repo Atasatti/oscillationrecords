@@ -36,6 +36,7 @@ import {
   CalendarClock,
   EyeOff,
   ImageOff,
+  AlertTriangle,
 } from "lucide-react";
 import { isUsableFileUrl } from "@/lib/asset";
 import { Badge } from "@/components/ui/badge";
@@ -514,6 +515,19 @@ export default function AdminReleaseDetail() {
   };
   const showStream = hasStreamingLinks(streamProps);
 
+  // "In its public window but not actually public." A release goes public purely
+  // because its date passed (there's no publish job — visibility is computed at
+  // query time), but the public gate now also requires a playable track. So a
+  // scheduled release whose date arrived before any audio was uploaded — or a
+  // released one with no audio — is silently held back. Surface that here so the
+  // admin doesn't assume it's live; the red dot on the editor's Tracks step says
+  // the same, but this names the specific "past due, still hidden" state.
+  const releaseDatePassed =
+    !!release.releaseDate && new Date(release.releaseDate).getTime() <= Date.now();
+  const inPublicWindow = release.status === "RELEASED" || (release.status === "SCHEDULED" && releaseDatePassed);
+  const hasPlayable = release.tracks.some((t) => t.audioFile && t.audioFile.trim() !== "");
+  const heldBackForReadiness = inPublicWindow && !hasPlayable;
+
   return (
     <div className="text-white">
       <div>
@@ -545,6 +559,23 @@ export default function AdminReleaseDetail() {
             </div>
 
             <div className="flex-1 min-w-0 w-full space-y-6">
+              {heldBackForReadiness ? (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
+                  <div className="min-w-0">
+                    <p className="font-medium text-amber-100">Not public yet — action required</p>
+                    <p className="mt-0.5 text-amber-200/90">
+                      {release.status === "SCHEDULED"
+                        ? "This release's scheduled date has passed, but it stays hidden from the public because it has no playable track. Passing the date only makes it eligible — it goes live once a track has audio."
+                        : "This release is marked Live but has no playable track, so the public can't see it yet."}{" "}
+                      <Link href={`/admin/releases/${releaseId}/edit?step=tracks`} className="font-medium text-amber-100 underline hover:text-white">
+                        Add audio in the editor
+                      </Link>{" "}
+                      to publish it.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex items-start justify-between gap-4">
                 <header className="space-y-3 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">

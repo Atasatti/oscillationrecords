@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasPlayableTrack,
   resultingTracklist,
   tracklistAfterDelete,
   validateResultingTracklist,
@@ -146,6 +147,29 @@ describe("validateResultingTracklist", () => {
 // per-track delete) reuses these same rules via tracklistAfterDelete +
 // validateResultingTracklist, so a single delete can no longer empty a live
 // release the way the tracklist editor already can't.
+// The readiness gate that keeps a scheduled release from going public without
+// audio when its date passes: a release is publicly visible only if it has at
+// least one playable track. (No publish job exists — visibility is computed at
+// query time — so this IS the final pre-publication readiness check.)
+describe("hasPlayableTrack", () => {
+  it("is true when at least one track has a non-empty audio file", () => {
+    expect(hasPlayableTrack([{ audioFile: null }, { audioFile: "a.mp3" }])).toBe(true);
+  });
+
+  it("is false for a trackless release", () => {
+    expect(hasPlayableTrack([])).toBe(false);
+  });
+
+  it("is false when every track lacks audio (scheduled date passed, no upload)", () => {
+    expect(hasPlayableTrack([{ audioFile: null }, { audioFile: null }])).toBe(false);
+  });
+
+  it("treats an empty / whitespace audio string as not playable", () => {
+    // The editor can persist "" — a failed/cleared upload must not read as ready.
+    expect(hasPlayableTrack([{ audioFile: "" }, { audioFile: "   " }])).toBe(false);
+  });
+});
+
 describe("tracklistAfterDelete", () => {
   it("returns the stored list minus the deleted track (as kept, non-new rows)", () => {
     const s = stored(["a", "a.mp3"], ["b", "b.mp3"]);
