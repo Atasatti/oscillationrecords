@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "@/components/local-ui/Toast";
 import WeekGrid from "@/components/studio/WeekGrid";
+import DayView from "@/components/studio/DayView";
+import AgendaView from "@/components/studio/AgendaView";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
 import MyBookings from "@/components/studio/MyBookings";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
@@ -14,7 +16,13 @@ export type Booking = {
   title: string | null; bookerName: string | null; mine: boolean; notes: string | null;
 };
 
-export default function StudioBookingClient({ viewerName }: { viewerName: string | null }) {
+const pad = (n: number) => String(n).padStart(2, "0");
+const keyOfNow = () => {
+  const p = studioParts(new Date());
+  return { key: `${p.year}-${pad(p.month)}-${pad(p.day)}`, hour: p.hour };
+};
+
+export default function StudioBookingClient({ viewerName, isOwner }: { viewerName: string | null; isOwner: boolean }) {
   // Reserved for later (greeting / prefilled booker). Kept on the signature.
   void viewerName;
 
@@ -26,14 +34,20 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const [submitting, setSubmitting] = useState(false);
   const [draft, setDraft] = useState<BookingForm | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"agenda" | "day">("agenda");
+  const [selectedDayKey, setSelectedDayKey] = useState<string>("");
 
   const days = useMemo(() => weekDays(anchor), [anchor]);
   // weekDays() always returns exactly 7 entries (Monday..Sunday).
   const from = days[0]!.startUtc;
   // DST-correct week end: the UTC instant of the day AFTER Sunday's local midnight
-  // (a fixed +24h would drift an hour on the two changeover Sundays, and could drop
-  // a booking in the final local hour of the week from the fetch window).
+  // (a fixed +24h would drift an hour on the two changeover Sundays).
   const to = useMemo(() => studioDayStartUtc(addDaysKey(days[6]!.dateKey, 1)), [days]);
+
+  // After mount, default the mobile day view to today (avoids using `now` during
+  // SSR, which would risk a hydration mismatch on the active day chip).
+  useEffect(() => { setSelectedDayKey(keyOfNow().key); }, []);
+  const effectiveDayKey = days.some((d) => d.dateKey === selectedDayKey) ? selectedDayKey : days[0]!.dateKey;
 
   // Monotonic request id: only the most recent fetch may write state, so quickly
   // paging weeks can't let a slow earlier response clobber the current one.
@@ -60,12 +74,20 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
 
   const openCreate = (dateKey: string, hour: number) => {
     setEditId(null);
-    const startTime = `${String(hour).padStart(2, "0")}:00`;
+    const startTime = `${pad(hour)}:00`;
     const endHour = (hour + 1) % 24;
     const endDate = endHour === 0 ? addDaysKey(dateKey, 1) : dateKey;
-    const endTime = `${String(endHour).padStart(2, "0")}:00`;
+    const endTime = `${pad(endHour)}:00`;
     setDraft({ startDate: dateKey, startTime, endDate, endTime, title: "", notes: "" });
     setDialogOpen(true);
+  };
+
+  // Generic "Book a session" (agenda button): default to today if it's in the shown
+  // week, else the week's first day; the dialog's pickers let them change it.
+  const openCreateDefault = () => {
+    const { key, hour } = keyOfNow();
+    const inWeek = days.some((d) => d.dateKey === key);
+    openCreate(inWeek ? key : days[0]!.dateKey, inWeek ? Math.min(23, hour + 1) : 9);
   };
 
   const submitCreate = async (values: BookingForm) => {
@@ -91,7 +113,6 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
   const openEdit = (b: Booking) => {
     const s = studioParts(new Date(b.start));
     const e = studioParts(new Date(b.end));
-    const pad = (n: number) => String(n).padStart(2, "0");
     setEditId(b.id);
     setDraft({
       startDate: `${s.year}-${pad(s.month)}-${pad(s.day)}`,
@@ -138,6 +159,10 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
     }
   };
 
+  // Owner may open ANY booking to reschedule; a booker only their own.
+  const canEdit = useCallback((b: Booking) => b.mine || isOwner, [isOwner]);
+  const selectBooking = (b: Booking) => { if (canEdit(b)) openEdit(b); };
+
   // A day is "free" (all-day-bookable) when no confirmed booking in view touches
   // it. Best-effort from the loaded week; the server re-checks overlap on submit.
   const dayIsFree = useCallback((dateKey: string) => {
@@ -146,8 +171,7 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
     return !bookings.some((b) => new Date(b.end).getTime() > dayStart && new Date(b.start).getTime() < dayEnd);
   }, [bookings]);
 
-  const navBtn =
-    "rounded-lg border border-white/10 p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
+  const navBtn = "rounded-lg border border-white/10 p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
 
   return (
     <div>
@@ -168,15 +192,34 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
       </header>
 
       {!loading && bookings.length === 0 ? (
-        <p className="mb-3 text-sm text-muted-foreground">Nothing booked this week yet — click any time on the grid to make the first one.</p>
+        <p className="mb-3 hidden text-sm text-muted-foreground lg:block">Nothing booked this week yet — click any time on the grid to make the first one.</p>
       ) : null}
 
-      <WeekGrid
-        days={days}
-        bookings={bookings}
-        onSelectSlot={openCreate}
-        onSelectBooking={(b) => { if (b.mine) openEdit(b); }}
-      />
+      {/* Desktop: full week grid */}
+      <div className="hidden lg:block">
+        <WeekGrid days={days} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
+      </div>
+
+      {/* Mobile: agenda (default) with a switchable day calendar */}
+      <div className="lg:hidden">
+        <div className="mb-3 inline-flex rounded-lg border border-white/10 p-0.5 text-sm">
+          {(["agenda", "day"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setMobileView(v)}
+              className={`rounded-md px-3 py-1.5 transition-colors ${mobileView === v ? "bg-white/10 text-white" : "text-muted-foreground"}`}
+            >
+              {v === "agenda" ? "Agenda" : "Calendar"}
+            </button>
+          ))}
+        </div>
+        {mobileView === "agenda" ? (
+          <AgendaView days={days} bookings={bookings} canEdit={canEdit} onSelectBooking={selectBooking} onBook={openCreateDefault} />
+        ) : (
+          <DayView days={days} selectedKey={effectiveDayKey} onSelectDay={setSelectedDayKey} bookings={bookings} canEditAny={isOwner} onSelectSlot={openCreate} onSelectBooking={selectBooking} />
+        )}
+      </div>
 
       <MyBookings bookings={bookings} onEdit={openEdit} onCancel={cancelBooking} />
 

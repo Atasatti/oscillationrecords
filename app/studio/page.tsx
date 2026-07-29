@@ -21,5 +21,10 @@ export default async function StudioPage() {
     );
   }
 
-  return <StudioBookingClient viewerName={session?.user?.name ?? null} />;
+  return (
+    <StudioBookingClient
+      viewerName={session?.user?.name ?? null}
+      isOwner={!!session?.user?.isAdmin}
+    />
+  );
 }
