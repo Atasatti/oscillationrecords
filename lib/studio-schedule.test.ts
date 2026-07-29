@@ -104,4 +104,26 @@ describe("validateBookingInput", () => {
     const r = validateBookingInput({ startDate: "nope", startTime: "14:00", endDate: "2026-07-16", endTime: "16:00" }, now);
     expect(r.ok).toBe(false);
   });
+  it("accepts a 24-hour all-day booking (00:00 to next-day 00:00)", () => {
+    const r = validateBookingInput(
+      { startDate: "2026-07-16", startTime: "00:00", endDate: "2026-07-17", endTime: "00:00" },
+      now
+    );
+    expect(r.ok).toBe(true);
+  });
+  it("accepts the 25-hour all-day booking on the autumn DST fall-back day", () => {
+    // London clocks go back on 2026-10-25, making that local day 25 hours long.
+    const r = validateBookingInput(
+      { startDate: "2026-10-25", startTime: "00:00", endDate: "2026-10-26", endTime: "00:00" },
+      new Date("2026-10-01T09:00:00.000Z")
+    );
+    expect(r.ok).toBe(true);
+  });
+  it("rejects a booking longer than a full day", () => {
+    const r = validateBookingInput(
+      { startDate: "2026-07-16", startTime: "00:00", endDate: "2026-07-18", endTime: "02:00" },
+      now
+    );
+    expect(r.ok).toBe(false);
+  });
 });

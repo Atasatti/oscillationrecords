@@ -138,6 +138,14 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
     }
   };
 
+  // A day is "free" (all-day-bookable) when no confirmed booking in view touches
+  // it. Best-effort from the loaded week; the server re-checks overlap on submit.
+  const dayIsFree = useCallback((dateKey: string) => {
+    const dayStart = studioDayStartUtc(dateKey).getTime();
+    const dayEnd = studioDayStartUtc(addDaysKey(dateKey, 1)).getTime();
+    return !bookings.some((b) => new Date(b.end).getTime() > dayStart && new Date(b.start).getTime() < dayEnd);
+  }, [bookings]);
+
   const navBtn =
     "rounded-lg border border-white/10 p-2 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground";
 
@@ -179,6 +187,7 @@ export default function StudioBookingClient({ viewerName }: { viewerName: string
           mode={editId ? "edit" : "create"}
           initial={draft}
           submitting={submitting}
+          dayIsFree={dayIsFree}
           onSubmit={editId ? submitEdit : submitCreate}
         />
       ) : null}

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { addDaysKey } from "@/lib/studio-view";
 
 export type BookingForm = {
   startDate: string; startTime: string; endDate: string; endTime: string;
@@ -35,13 +36,15 @@ function describeDuration(form: BookingForm): { ok: boolean; text: string } | nu
 }
 
 export default function BookingDialog({
-  open, onOpenChange, mode, initial, submitting, onSubmit,
+  open, onOpenChange, mode, initial, submitting, dayIsFree, onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   mode: "create" | "edit";
   initial: BookingForm;
   submitting: boolean;
+  /** Whether a day (YYYY-MM-DD) has no bookings — gates the "all day" shortcut. */
+  dayIsFree?: (dateKey: string) => boolean;
   onSubmit: (values: BookingForm) => void;
 }) {
   const [form, setForm] = useState<BookingForm>(initial);
@@ -49,6 +52,10 @@ export default function BookingDialog({
 
   const set = (k: keyof BookingForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Fill the whole start day: 00:00 to the next day's 00:00 (a 24h block).
+  const setAllDay = () =>
+    setForm((f) => ({ ...f, startTime: "00:00", endDate: addDaysKey(f.startDate, 1), endTime: "00:00" }));
 
   const duration = useMemo(() => describeDuration(form), [form]);
   const label = "block text-xs font-medium text-muted-foreground";
@@ -83,11 +90,27 @@ export default function BookingDialog({
             </label>
           </fieldset>
 
-          {duration ? (
-            <p className={`text-xs ${duration.ok ? "text-emerald-400/90" : "text-rose-400"}`}>
-              {duration.ok ? `Duration: ${duration.text}` : duration.text}
-            </p>
-          ) : null}
+          <div className="flex min-h-[1.5rem] items-center justify-between gap-3">
+            {duration ? (
+              <p className={`text-xs ${duration.ok ? "text-emerald-400/90" : "text-rose-400"}`}>
+                {duration.ok ? `Duration: ${duration.text}` : duration.text}
+              </p>
+            ) : <span />}
+            {mode === "create" ? (() => {
+              const free = dayIsFree ? dayIsFree(form.startDate) : true;
+              return (
+                <button
+                  type="button"
+                  onClick={setAllDay}
+                  disabled={!free}
+                  title={free ? "Book the whole day (00:00–24:00)" : "That day already has a booking"}
+                  className="shrink-0 rounded-md border border-white/10 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                >
+                  Book all day
+                </button>
+              );
+            })() : null}
+          </div>
 
           <label className={label}>Session title <span className="text-white/30">(optional)</span>
             <input type="text" value={form.title} onChange={set("title")} placeholder="e.g. Vocal tracking" className={field} maxLength={200} />

@@ -86,7 +86,10 @@ export default function WeekGrid({
                 if (!seg) return null;
                 const top = (seg.topMin / 60) * HOUR_PX;
                 const height = Math.max(((seg.bottomMin - seg.topMin) / 60) * HOUR_PX - 2, 22);
-                const range = `${formatStudioTime(new Date(b.start))}–${formatStudioTime(new Date(b.end))}`;
+                // A segment filling the whole day column reads better as "All day"
+                // than a literal "00:00–00:00".
+                const full = seg.topMin === 0 && seg.bottomMin === 1440;
+                const range = full ? "All day" : `${formatStudioTime(new Date(b.start))}–${formatStudioTime(new Date(b.end))}`;
                 return (
                   <button
                     key={b.id}
