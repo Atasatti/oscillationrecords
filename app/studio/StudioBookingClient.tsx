@@ -10,7 +10,7 @@ import AgendaView from "@/components/studio/AgendaView";
 import MonthPicker from "@/components/studio/MonthPicker";
 import BookingDialog, { type BookingForm } from "@/components/studio/BookingDialog";
 import { weekDays, addDaysKey } from "@/lib/studio-view";
-import { formatStudioDate, studioDayStartUtc, studioParts } from "@/lib/studio-schedule";
+import { STUDIO_TZ, studioDayStartUtc, studioParts } from "@/lib/studio-schedule";
 
 export type Booking = {
   id: string; start: string; end: string;
@@ -22,6 +22,8 @@ const keyOfNow = () => {
   const p = studioParts(new Date());
   return { key: `${p.year}-${pad(p.month)}-${pad(p.day)}`, hour: p.hour };
 };
+// Compact "27 Jul" (no weekday — the day chips already carry it) for the range.
+const shortDay = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: STUDIO_TZ, day: "numeric", month: "short" }).format(d);
 
 export default function StudioBookingClient({ viewerName, isOwner }: { viewerName: string | null; isOwner: boolean }) {
   // Reserved for later (greeting / prefilled booker). Kept on the signature.
@@ -185,21 +187,25 @@ export default function StudioBookingClient({ viewerName, isOwner }: { viewerNam
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="mb-3 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-[length:var(--text-h2)] font-light leading-tight tracking-tighter">Studio booking</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Click any free slot to book. All times UK (Europe/London).</p>
+      <header className="mb-3 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl font-light leading-tight tracking-tight sm:text-[length:var(--text-h2)] sm:tracking-tighter">Studio booking</h1>
+          <Button type="button" size="sm" onClick={openBook} className="shrink-0"><Plus className="h-4 w-4" aria-hidden /> Book</Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <p className="mt-1 hidden text-sm text-muted-foreground sm:block">Click any free slot to book. All times UK (Europe/London).</p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
           <MonthPicker value={monthValue} onChange={jumpToMonth} />
-          <button type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week" className={navBtn}><ChevronLeft className="h-4 w-4" /></button>
-          <span className="flex min-w-[150px] items-center justify-center gap-2 text-sm font-medium tabular-nums">
-            {formatStudioDate(from)} – {formatStudioDate(days[6]!.startUtc)}
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Updating" /> : null}
-          </span>
-          <button type="button" onClick={() => shiftWeek(1)} aria-label="Next week" className={navBtn}><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={goToday} className="rounded-lg border border-white/10 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">Today</button>
-          <Button type="button" size="sm" onClick={openBook}><Plus className="h-4 w-4" aria-hidden /> Book</Button>
+          {/* Prev/next flank the range as one unit so they never wrap apart. */}
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => shiftWeek(-1)} aria-label="Previous week" className={navBtn}><ChevronLeft className="h-4 w-4" /></button>
+            <span className="flex min-w-[112px] items-center justify-center gap-1.5 text-sm font-medium tabular-nums">
+              {shortDay(from)} – {shortDay(days[6]!.startUtc)}
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Updating" /> : null}
+            </span>
+            <button type="button" onClick={() => shiftWeek(1)} aria-label="Next week" className={navBtn}><ChevronRight className="h-4 w-4" /></button>
+          </div>
+          <button type="button" onClick={goToday} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">Today</button>
         </div>
       </header>
 
